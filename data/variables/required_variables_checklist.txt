@@ -1,0 +1,308 @@
+FEWS CONFIG GENERATION — REQUIRED VARIABLES CHECKLIST
+=======================================================
+Derived from: data/file_to_variables.json (only entries with required: true)
+Source survey: examples/config-tutorial/
+Notation:
+  [ ] = variable
+  [] after a name = repeating (at least one required)
+  A|B = supply exactly one of A or B
+  {static} = template-constant (pinned schema version; not elicited, but template must emit)
+  {ref: X} = cross-file reference to X; X must be declared elsewhere
+  {decl: X} = declares ID X for other files to reference
+  {file-id} = declared by filename convention
+
+
+-------------------------------------------------------
+CROSS-FILE SHARED IDS (collect once, reuse everywhere)
+-------------------------------------------------------
+These IDs are declared in one file and referenced across many. Elicit once
+per distinct entity; reuse the value wherever the variable appears.
+
+  [ ] locationId[]           {decl in Locations.location.id}
+  [ ] locationSetId[]        {decl in LocationSets.locationSet.id — not in tutorial}
+  [ ] parameterId[]          {decl in Parameters.parameterGroup.parameter.id}
+  [ ] qualifierId[]          {decl in Qualifiers.qualifier.id}
+  [ ] moduleInstanceId[]     {file-id; one per ModuleConfigFile}
+  [ ] workflowId[]           {file-id; one per WorkflowFile}
+  [ ] idMapId[]              {file-id; one per IdMapFile}
+  [ ] unitConversionsId[]    {file-id; one per UnitConversionsFile}
+  [ ] warningLevelId[]       {decl in ThresholdWarningLevels.thresholdWarningLevel.id}
+  [ ] levelThresholdId[]     {decl in Thresholds.thresholdGroup.levelThreshold.id}
+  [ ] modifierId[]            {decl in ModifierTypes.timeSeriesModifier.id}
+  [ ] userGroupId[]          {decl in UserGroups}
+
+
+=======================================================
+REGION / REGISTRY FILES
+=======================================================
+
+--- Locations.xml -------------------------------------
+  [ ] version                  {static}
+  [ ] geoDatum                 (e.g. "WGS 1984")
+  For each location[]:
+    [ ] location.id            {decl: locationId}
+    [ ] location.name
+    [ ] location.x             (longitude or projected x)
+    [ ] location.y
+
+--- Parameters.xml ------------------------------------
+  [ ] version                  {static}
+  For each parameterGroup[]:
+    [ ] parameterGroup.id      {decl: parameterGroupId}
+    [ ] parameterGroup.parameterType   (enum: instantaneous | accumulative | mean)
+    [ ] parameterGroup.unit
+    For each parameter[] inside the group:
+      [ ] parameter.id         {decl: parameterId}
+
+--- Qualifiers.xml ------------------------------------
+  For each qualifier[]:
+    [ ] qualifier.id           {decl: qualifierId}
+
+--- Topology.xml --------------------------------------
+  For each node[] (recursive):
+    [ ] node.id                {decl: topologyNodeId}
+    [ ] node.name
+
+--- Thresholds.xml ------------------------------------
+  For each thresholdGroup[]:
+    [ ] thresholdGroup.id      {decl: thresholdGroupId}
+    For each levelThreshold[] inside the group:
+      [ ] levelThreshold.id    {decl: levelThresholdId}
+      [ ] levelThreshold.upWarningLevelId   {ref: warningLevelId}
+
+--- ThresholdValueSets.xml ----------------------------
+  For each thresholdValueSet[]:
+    [ ] thresholdValueSet.id   {decl: thresholdValueSetId}
+    For each levelThresholdValue[]:
+      [ ] levelThresholdValue.levelThresholdId   {ref: levelThresholdId}
+      [ ] levelThresholdValue.valueFunction      (numeric or @Placeholder@)
+
+--- ThresholdWarningLevels.xml ------------------------
+  For each thresholdWarningLevel[]:
+    [ ] thresholdWarningLevel.id       {decl: warningLevelId; numeric severity}
+    [ ] thresholdWarningLevel.color    (hex RRGGBB or named)
+
+--- ValidationRuleSets.xml ----------------------------
+  For each validationRuleSet[]:
+    [ ] validationRuleSet.validationRuleSetId   {decl: validationRuleSetId}
+    [ ] validationRuleSet.timeSeriesSet[]       (compound; see TIMESERIESSET block)
+
+--- ModifierTypes.xml ---------------------------------
+  For each timeSeriesModifier[]:
+    [ ] timeSeriesModifier.id                {decl: modifierId}
+    [ ] timeSeriesModifier.timeSeries.moduleInstanceId   {ref: moduleInstanceId}
+    [ ] timeSeriesModifier.timeSeries.parameterId        {ref: parameterId}
+    [ ] timeSeriesModifier.timeSeries.locationId|locationSetId   {ref}
+
+--- ModuleInstanceSets.xml ----------------------------
+  For each moduleInstanceSet[]:
+    [ ] moduleInstanceSet.id                 {decl: moduleInstanceSetId}
+    [ ] moduleInstanceSet.moduleInstanceId[] {ref: moduleInstanceId, one or more}
+
+
+=======================================================
+SYSTEM / DISPLAY FILES
+=======================================================
+
+--- Permissions.xml -----------------------------------
+  For each permission[]:
+    [ ] permission.id                {decl: permissionId}
+    [ ] permission.userGroup[]       {ref: userGroupId, one or more}
+
+--- TimeSeriesDisplayConfig.xml -----------------------
+  [ ] version                        {static}
+  For each classBreaks[]:
+    [ ] classBreaks.id               {decl: classBreaksId}
+    For each color[] inside classBreaks:
+      [ ] color.color                (RRGGBB)
+      [ ] color.lowerValue
+
+(ManualForecastDisplay, ModifiersDisplay: all fields optional — no required vars)
+(ForecasterNotesDisplay, UserGroups: not sampled in tutorial)
+
+
+=======================================================
+UNIT CONVERSIONS
+=======================================================
+
+--- UnitConversions (Import/Export/ExportRaven).xml ---
+  For each unitConversion[]:
+    [ ] unitConversion.inputUnitType
+    [ ] unitConversion.outputUnitType
+
+
+=======================================================
+ID MAP FILES (one of the four mapping shapes per file)
+=======================================================
+
+--- IdMapFile.xml -------------------------------------
+  [ ] version                        {static}
+
+  Pick mapping shape(s) based on source type:
+
+  Shape A — scalar parameter mapping (most imports):
+    For each parameter[]:
+      [ ] parameter.internal         {ref: parameterId}
+      [ ] parameter.external         (source system parameter name)
+
+  Shape B — location mapping (station ids):
+    For each location[]:
+      [ ] location.internal          {ref: locationId}
+      [ ] location.external          (source system station id)
+
+  Shape C — function mapping (model outputs, @pattern@):
+    For each function[]:
+      [ ] function.internalLocationSet       {ref: locationSetId}
+      [ ] function.externalLocationFunction  (pattern, e.g. "@SubBasin@")
+      [ ] function.externalParameterFunction
+      [ ] function.internalParameter         {ref: parameterId}
+
+  Shape D — grid-to-grid map (SNODAS, E2O):
+    For each map[]:
+      [ ] map.internalParameter      {ref: parameterId}
+      [ ] map.internalLocation       {ref: locationId}
+      [ ] map.externalParameter
+      [ ] map.externalLocation
+
+
+=======================================================
+MODULE CONFIG FILES
+=======================================================
+
+--- ImportModule (Import/**/*.xml) --------------------
+  For each import[] block:
+    [ ] general.importType           (enum: NETCDF-CF_GRID | grib2 | CanadaMeteo | CanadaMeteoWCS | ...)
+    [ ] general.serverUrl|folder     (URL or local folder; %TIME_ZERO(...)% tokens allowed)
+    [ ] general.idMapId              {ref: idMapId}
+    For each timeSeriesSet[]:
+      [ ] timeSeriesSet.moduleInstanceId   {ref: moduleInstanceId; matches this file's id}
+      [ ] timeSeriesSet.valueType          (enum: grid | scalar)
+      [ ] timeSeriesSet.parameterId        {ref: parameterId}
+      [ ] timeSeriesSet.locationId|locationSetId   {ref}
+      [ ] timeSeriesSet.timeSeriesType     (enum: external historical | external forecasting | ...)
+      [ ] timeSeriesSet.timeStep           (compound: unit + multiplier, or id)
+      [ ] timeSeriesSet.readWriteMode      (enum: add originals | overwrite existing values | read only)
+    For each externUnit[]:
+      [ ] externUnit.parameterId     {ref: parameterId}
+      [ ] externUnit.unit            (source unit string)
+
+--- PreprocessModule (Preprocess/**/*.xml) ------------
+  For each variable[]:
+    [ ] variable.variableId          {decl: variableId, module-local scope}
+    [ ] variable.timeSeriesSet.moduleInstanceId          {ref}
+    [ ] variable.timeSeriesSet.valueType                 (enum: grid | scalar)
+    [ ] variable.timeSeriesSet.parameterId               {ref}
+    [ ] variable.timeSeriesSet.locationId|locationSetId  {ref}
+    [ ] variable.timeSeriesSet.timeSeriesType            (enum)
+    [ ] variable.timeSeriesSet.timeStep                  (compound)
+    [ ] variable.timeSeriesSet.readWriteMode             (enum)
+  For each transformation[]:
+    [ ] transformation.id
+    [ ] transformation.kind          (enum: interpolationSpatial | aggregationTemporal | ... )
+    [ ] transformation.inputVariableId[]     {ref: variableId}
+    [ ] transformation.outputVariableId      {ref: variableId}
+
+--- DataProcessingModule (DataProcessing/**/*.xml) ----
+  (Same shape as PreprocessModule; typical kind = ensembleStatisticsCalculator)
+  For each variable[]:
+    [ ] variable.variableId          {decl: variableId}
+    [ ] variable.timeSeriesSet       (compound; see TIMESERIESSET block)
+  For each transformation[]:
+    [ ] transformation.id
+    [ ] transformation.kind
+    [ ] transformation.qualifierId[] {ref: qualifierId — mean/min/max/percentile}
+
+--- ModelRunModule (ModelRun/**/*.xml) ----------------
+  [ ] general.rootDir
+  [ ] general.workDir
+  [ ] general.exportDir
+  [ ] general.exportIdMap          {ref: idMapId}
+  [ ] general.importDir
+  [ ] general.importIdMap          {ref: idMapId}
+  [ ] general.timeZone.timeZoneName  (enum: GMT | UTC | PST | ...)
+  For each exportActivities[]:
+    [ ] exportActivities.type      (enum: exportStateActivity | exportDataSetActivity | exportParameterActivity | exportTimeSeriesActivity)
+  For each executeActivities[]:
+    [ ] executeActivities.command  (model binary path)
+  For each importActivities[]:
+    [ ] importActivities.importFile
+
+--- MaintenanceModule (Maintenance/**/*.xml) ----------
+  [ ] general.workDir
+  [ ] general.importDir
+  [ ] general.timeZone.timeZoneName
+  For each exportActivities[]:
+    [ ] exportActivities.type                (enum: exportDataSetActivity)
+    [ ] exportActivities.moduleInstanceId    {ref: moduleInstanceId}
+
+
+=======================================================
+MODULE PARAMETER FILES
+=======================================================
+
+--- ModuleParameters (ModuleParFiles/*.xml) -----------
+  [ ] modifierType                   (e.g. "weightingFactors")
+  For each group[]:
+    [ ] group.id                     {decl: moduleParameterGroupId}
+    For each parameter[] in the group:
+      [ ] parameter.id               {decl: moduleParameterId}
+      [ ] parameter.valueType        (enum: boolValue | stringValue | doubleValue | intValue)
+      [ ] parameter.value
+
+
+=======================================================
+WORKFLOW FILES
+=======================================================
+
+--- Workflow (WorkflowFiles/**/*.xml) -----------------
+  [ ] version                        {static}
+  For each activity[]:
+    [ ] activity.runIndependent      (flag)
+    [ ] activity.moduleInstanceId|workflowId    {ref — supply exactly one}
+
+
+=======================================================
+SHARED SUBSTRUCTURE — TIMESERIESSET
+=======================================================
+Appears inside ImportModule, PreprocessModule, DataProcessingModule,
+ModelRunModule (importActivities), ValidationRuleSets, ThresholdValueSets,
+ModifierTypes. Elicit as a unit.
+
+  [ ] moduleInstanceId        {ref}
+  [ ] valueType               (enum: grid | scalar)
+  [ ] parameterId             {ref}
+  [ ] locationId|locationSetId  {ref}
+  [ ] timeSeriesType          (enum)
+  [ ] timeStep                (compound: unit + multiplier, or id)
+  [ ] readWriteMode           (enum)
+
+
+=======================================================
+TYPES NOT YET SURVEYED
+=======================================================
+No required-variable list available for these until a real example is
+inspected — they are referenced by other configs but absent from the
+tutorial:
+
+  - LocationSets
+  - Grids
+  - Filters
+  - ModuleInstanceDescriptors
+  - WorkflowDescriptors
+  - ScheduledTasks / RollingBarrel / SystemMonitor
+  - MapLayers (tutorial contained only ArcGIS sidecars, not FEWS layers)
+  - ForecasterNotesDisplay (singleton, not sampled)
+  - UserGroups (singleton, not sampled)
+
+
+=======================================================
+NOTES
+=======================================================
+- Items marked {static} (version) are set by the template, not the user.
+- FEWS runtime substitutions (%TIME_ZERO(fmt)%, $VAR$, @pattern@) are passed
+  through verbatim. They are NOT variables the LLM resolves — the user
+  supplies them as literal strings, or they come from workflow properties
+  at FEWS runtime.
+- "Required" here means required by the input_parameters.json survey. The
+  authoritative source is the FEWS XSD. When this list and the XSD
+  disagree, trust the XSD.

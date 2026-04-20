@@ -212,6 +212,7 @@ __marimo__/
 *.xsd
 *.pdf
 *.md
+*.txt
 *.iml
 .idea
 
@@ -223,6 +224,8 @@ secrets/*
 
 data/*
 !data/.gitkeep
+!data/variables
+!data/variables/*
 
 examples/*
 !examples/.gitkeep

@@ -1,0 +1,333 @@
+{
+  "_meta": {
+    "description": "Reverse index: given a variable (or shared ID/substructure), which FEWS file types use it, and where. Derived from data/input_parameters.json and data/file_to_variables.json.",
+    "purpose": "For the LLM: when a user supplies a value, know every downstream file it affects. Useful for cross-file consistency and for eliciting shared IDs once.",
+    "naming_convention": {
+      "foo.id": "id declaration in file 'foo' (e.g. 'location.id' is declared in Locations)",
+      "fooId": "cross-file reference to a declared id (e.g. 'locationId' references location.id)",
+      "dotted_paths": "property path inside a file, e.g. 'import[].general.idMapId'"
+    },
+    "entry_shape": {
+      "kind": "variable kind (see file_to_variables.json)",
+      "declared_in": "file type where this id is declared (only for references)",
+      "appears_in": "list of {file_type, paths[]} — every place the variable is used"
+    }
+  },
+
+  "shared_cross_file_references": {
+
+    "parameterId": {
+      "kind": "reference",
+      "declared_in": {"file_type": "Parameters", "path": "parameterGroup[].parameter[].id"},
+      "appears_in": [
+        {"file_type": "IdMapFile", "paths": ["parameter[].internal", "function[].internalParameter", "map[].internalParameter"]},
+        {"file_type": "ImportModule", "paths": ["import[].timeSeriesSet[].parameterId", "import[].startTimeShift.parameterId", "import[].externUnit[].parameterId"]},
+        {"file_type": "PreprocessModule", "paths": ["variable[].timeSeriesSet.parameterId"]},
+        {"file_type": "DataProcessingModule", "paths": ["variable[].timeSeriesSet.parameterId"]},
+        {"file_type": "ModelRunModule", "paths": ["importActivities[].timeSeriesSet[].parameterId"]},
+        {"file_type": "ModifierTypes", "paths": ["timeSeriesModifier[].timeSeries.parameterId"]},
+        {"file_type": "ThresholdValueSets", "paths": ["thresholdValueSet[].timeSeriesSet[].parameterId"]},
+        {"file_type": "ValidationRuleSets", "paths": ["validationRuleSet[].timeSeriesSet[].parameterId"]}
+      ]
+    },
+
+    "locationId": {
+      "kind": "reference",
+      "declared_in": {"file_type": "Locations", "path": "location[].id"},
+      "appears_in": [
+        {"file_type": "IdMapFile", "paths": ["location[].internal", "map[].internalLocation"]},
+        {"file_type": "Locations", "paths": ["location[].parentLocationId"]},
+        {"file_type": "ImportModule", "paths": ["import[].timeSeriesSet[].locationId"]},
+        {"file_type": "PreprocessModule", "paths": ["variable[].timeSeriesSet.locationId"]},
+        {"file_type": "DataProcessingModule", "paths": ["variable[].timeSeriesSet.locationId"]},
+        {"file_type": "ModelRunModule", "paths": ["importActivities[].timeSeriesSet[].locationId"]},
+        {"file_type": "ModifierTypes", "paths": ["timeSeriesModifier[].timeSeries.locationId"]},
+        {"file_type": "ThresholdValueSets", "paths": ["thresholdValueSet[].timeSeriesSet[].locationId"]},
+        {"file_type": "ValidationRuleSets", "paths": ["validationRuleSet[].timeSeriesSet[].locationId"]}
+      ]
+    },
+
+    "locationSetId": {
+      "kind": "reference",
+      "declared_in": {"file_type": "LocationSets (not in tutorial)", "path": "locationSet[].id"},
+      "appears_in": [
+        {"file_type": "IdMapFile", "paths": ["function[].internalLocationSet"]},
+        {"file_type": "ImportModule", "paths": ["import[].timeSeriesSet[].locationSetId"]},
+        {"file_type": "PreprocessModule", "paths": ["variable[].timeSeriesSet.locationSetId"]},
+        {"file_type": "DataProcessingModule", "paths": ["variable[].timeSeriesSet.locationSetId"]},
+        {"file_type": "ModifierTypes", "paths": ["timeSeriesModifier[].timeSeries.locationSetId"]},
+        {"file_type": "ThresholdValueSets", "paths": ["thresholdValueSet[].timeSeriesSet[].locationSetId"]},
+        {"file_type": "ValidationRuleSets", "paths": ["validationRuleSet[].timeSeriesSet[].locationSetId"]}
+      ]
+    },
+
+    "qualifierId": {
+      "kind": "reference",
+      "declared_in": {"file_type": "Qualifiers", "path": "qualifier[].id"},
+      "appears_in": [
+        {"file_type": "IdMapFile", "paths": ["parameter[].internalQualifier"]},
+        {"file_type": "DataProcessingModule", "paths": ["transformation[].qualifierId[]"]}
+      ]
+    },
+
+    "moduleInstanceId": {
+      "kind": "reference",
+      "declared_in": {"file_type": "ModuleConfigFile", "path": "filename (by convention)", "note": "also declared in ModuleInstanceDescriptors in full configs"},
+      "appears_in": [
+        {"file_type": "ImportModule", "paths": ["import[].timeSeriesSet[].moduleInstanceId"]},
+        {"file_type": "PreprocessModule", "paths": ["variable[].timeSeriesSet.moduleInstanceId"]},
+        {"file_type": "DataProcessingModule", "paths": ["variable[].timeSeriesSet.moduleInstanceId"]},
+        {"file_type": "ModelRunModule", "paths": ["exportActivities[].moduleInstanceId", "importActivities[].timeSeriesSet[].moduleInstanceId"]},
+        {"file_type": "MaintenanceModule", "paths": ["exportActivities[].moduleInstanceId"]},
+        {"file_type": "ModifierTypes", "paths": ["timeSeriesModifier[].timeSeries.moduleInstanceId"]},
+        {"file_type": "ThresholdValueSets", "paths": ["thresholdValueSet[].timeSeriesSet[].moduleInstanceId"]},
+        {"file_type": "ValidationRuleSets", "paths": ["validationRuleSet[].timeSeriesSet[].moduleInstanceId"]},
+        {"file_type": "ModuleInstanceSets", "paths": ["moduleInstanceSet[].moduleInstanceId[]"]},
+        {"file_type": "Workflow", "paths": ["activity[].moduleInstanceId"]}
+      ]
+    },
+
+    "workflowId": {
+      "kind": "reference",
+      "declared_in": {"file_type": "Workflow", "path": "filename (by convention)"},
+      "appears_in": [
+        {"file_type": "Topology", "paths": ["node[].workflowId"]},
+        {"file_type": "Workflow", "paths": ["activity[].workflowId"]}
+      ]
+    },
+
+    "idMapId": {
+      "kind": "reference",
+      "declared_in": {"file_type": "IdMapFile", "path": "filename (by convention)"},
+      "appears_in": [
+        {"file_type": "ImportModule", "paths": ["import[].general.idMapId"]},
+        {"file_type": "ModelRunModule", "paths": ["general.exportIdMap", "general.importIdMap"]}
+      ]
+    },
+
+    "unitConversionsId": {
+      "kind": "reference",
+      "declared_in": {"file_type": "UnitConversions", "path": "filename (by convention)"},
+      "appears_in": [
+        {"file_type": "ImportModule", "paths": ["import[].general.unitConversionsId"]},
+        {"file_type": "ModelRunModule", "paths": ["general.unitConversionsId"]}
+      ]
+    },
+
+    "warningLevelId": {
+      "kind": "reference",
+      "declared_in": {"file_type": "ThresholdWarningLevels", "path": "thresholdWarningLevel[].id"},
+      "appears_in": [
+        {"file_type": "Thresholds", "paths": ["thresholdGroup[].levelThreshold[].upWarningLevelId"]}
+      ]
+    },
+
+    "levelThresholdId": {
+      "kind": "reference",
+      "declared_in": {"file_type": "Thresholds", "path": "thresholdGroup[].levelThreshold[].id"},
+      "appears_in": [
+        {"file_type": "ThresholdValueSets", "paths": ["thresholdValueSet[].levelThresholdValue[].levelThresholdId"]}
+      ]
+    },
+
+    "modifierId": {
+      "kind": "reference",
+      "declared_in": {"file_type": "ModifierTypes", "path": "timeSeriesModifier[].id"},
+      "appears_in": [
+        {"file_type": "ModifiersDisplay", "paths": ["createModifierButtons[]"]}
+      ]
+    },
+
+    "userGroupId": {
+      "kind": "reference",
+      "declared_in": {"file_type": "UserGroups", "path": "userGroup[].id (assumed; not sampled)"},
+      "appears_in": [
+        {"file_type": "Permissions", "paths": ["permission[].userGroup[]"]}
+      ]
+    },
+
+    "variableId": {
+      "kind": "reference",
+      "scope": "module-local (not cross-file)",
+      "declared_in": {"file_type": "PreprocessModule | DataProcessingModule", "path": "variable[].variableId"},
+      "appears_in": [
+        {"file_type": "PreprocessModule", "paths": ["transformation[].inputVariableId[]", "transformation[].outputVariableId"]},
+        {"file_type": "DataProcessingModule", "paths": ["transformation[].inputVariableId[]", "transformation[].outputVariableId"]}
+      ]
+    }
+
+  },
+
+  "shared_substructures": {
+
+    "timeSeriesSet": {
+      "kind": "compound",
+      "fields": ["moduleInstanceId", "valueType", "parameterId", "locationId|locationSetId", "timeSeriesType", "timeStep", "readWriteMode", "synchLevel?", "expiryTime?", "ensembleId?", "relativeViewPeriod?"],
+      "appears_in": [
+        {"file_type": "ImportModule", "paths": ["import[].timeSeriesSet[]"]},
+        {"file_type": "PreprocessModule", "paths": ["variable[].timeSeriesSet"]},
+        {"file_type": "DataProcessingModule", "paths": ["variable[].timeSeriesSet"]},
+        {"file_type": "ModelRunModule", "paths": ["importActivities[].timeSeriesSet[]"]},
+        {"file_type": "ThresholdValueSets", "paths": ["thresholdValueSet[].timeSeriesSet[]"]},
+        {"file_type": "ValidationRuleSets", "paths": ["validationRuleSet[].timeSeriesSet[]"]},
+        {"file_type": "ModifierTypes", "paths": ["timeSeriesModifier[].timeSeries"]}
+      ],
+      "note": "Build as a single Jinja partial (per CLAUDE.md 'composable partials')."
+    },
+
+    "timeStep": {
+      "kind": "compound",
+      "fields": ["unit (enum: second|minute|hour|day|week|month|year|nonequidistant)", "multiplier (int)", "or id (reference to named timeStep)"],
+      "appears_in": [
+        {"file_type": "*", "paths": ["wherever timeSeriesSet is used"]}
+      ]
+    },
+
+    "relativeViewPeriod": {
+      "kind": "compound",
+      "fields": ["unit", "start (int, often negative)", "end (int)"],
+      "appears_in": [
+        {"file_type": "ImportModule", "paths": ["import[].general.relativeViewPeriod", "import[].startTimeShift.relativePeriod"]},
+        {"file_type": "PreprocessModule", "paths": ["variable[].timeSeriesSet.relativeViewPeriod"]},
+        {"file_type": "TimeSeriesDisplayConfig", "paths": ["defaultViewPeriod"]}
+      ]
+    },
+
+    "externUnit": {
+      "kind": "compound",
+      "fields": ["parameterId (ref)", "unit (string)", "cumulativeSum (flag)"],
+      "appears_in": [{"file_type": "ImportModule", "paths": ["import[].externUnit[]"]}]
+    },
+
+    "extremeValues": {
+      "kind": "compound",
+      "fields": ["hardMax", "hardMin", "softMax?", "softMin?"],
+      "appears_in": [{"file_type": "ValidationRuleSets", "paths": ["validationRuleSet[].extremeValues"]}]
+    },
+
+    "timeZone": {
+      "kind": "compound",
+      "fields": ["timeZoneName (enum: GMT|UTC|PST|...)"],
+      "appears_in": [
+        {"file_type": "ImportModule", "paths": ["import[].general.importTimeZone"]},
+        {"file_type": "ModelRunModule", "paths": ["general.timeZone"]},
+        {"file_type": "MaintenanceModule", "paths": ["general.timeZone"]}
+      ]
+    }
+
+  },
+
+  "shared_enums": {
+
+    "valueType": {
+      "kind": "enum",
+      "allowed_values": ["grid", "scalar"],
+      "appears_in": [
+        {"file_type": "ImportModule", "paths": ["import[].timeSeriesSet[].valueType"]},
+        {"file_type": "PreprocessModule", "paths": ["variable[].timeSeriesSet.valueType"]},
+        {"file_type": "DataProcessingModule", "paths": ["variable[].timeSeriesSet.valueType"]}
+      ]
+    },
+
+    "timeSeriesType": {
+      "kind": "enum",
+      "allowed_values": ["external historical", "external forecasting", "simulated historical", "simulated forecasting"],
+      "appears_in": [
+        {"file_type": "ImportModule", "paths": ["import[].timeSeriesSet[].timeSeriesType"]},
+        {"file_type": "PreprocessModule", "paths": ["variable[].timeSeriesSet.timeSeriesType"]},
+        {"file_type": "DataProcessingModule", "paths": ["variable[].timeSeriesSet.timeSeriesType"]}
+      ]
+    },
+
+    "readWriteMode": {
+      "kind": "enum",
+      "allowed_values": ["add originals", "overwrite existing values", "read only"],
+      "appears_in": [
+        {"file_type": "ImportModule", "paths": ["import[].timeSeriesSet[].readWriteMode"]},
+        {"file_type": "PreprocessModule", "paths": ["variable[].timeSeriesSet.readWriteMode"]},
+        {"file_type": "DataProcessingModule", "paths": ["variable[].timeSeriesSet.readWriteMode"]}
+      ]
+    },
+
+    "version": {
+      "kind": "static",
+      "note": "Schema version attribute; template-constant, not elicited. Values differ per file type and must match the pinned FEWS schema.",
+      "appears_in": [
+        {"file_type": "IdMapFile", "paths": ["version"]},
+        {"file_type": "Locations", "paths": ["version"]},
+        {"file_type": "Parameters", "paths": ["version"]},
+        {"file_type": "TimeSeriesDisplayConfig", "paths": ["version"]},
+        {"file_type": "Workflow", "paths": ["version"]}
+      ]
+    }
+
+  },
+
+  "file_local_variables": {
+    "note": "Variables that appear in only one file type. Pivot to file_to_variables.json for the full per-file checklist; this section is a summary.",
+
+    "Locations": ["geoDatum", "location[].id", "location[].name", "location[].x", "location[].y", "location[].shortName", "location[].description", "location[].z", "location[].relation", "location[].attribute[]"],
+
+    "Parameters": ["parameterGroup[].id", "parameterGroup[].parameterType", "parameterGroup[].unit", "parameterGroup[].valueResolution", "parameterGroup[].usesDatum", "parameterGroup[].parameter[].id", "parameterGroup[].parameter[].name", "parameterGroup[].parameter[].shortName", "parameterGroup[].parameter[].description", "parameterGroup[].parameter[].standardUnit"],
+
+    "Qualifiers": ["allowReferencingUndefinedQualifiers", "qualifier[].id", "qualifier[].name", "qualifier[].group", "qualifier[].shortName"],
+
+    "Topology": ["enableAutoRun", "enableAutoSelectParameters", "enableSelectNodesFromMap", "node[].id", "node[].name", "node[].url", "node[].localRun", "node[].showRunApprovedForecastButton", "node[].children"],
+
+    "Thresholds": ["eventExpiryTime", "maxActionEventDuration", "thresholdGroup[].id", "thresholdGroup[].name", "thresholdGroup[].defaultThreshold", "thresholdGroup[].levelThreshold[].id", "thresholdGroup[].levelThreshold[].name", "thresholdGroup[].levelThreshold[].shortName"],
+
+    "ThresholdValueSets": ["thresholdValueSet[].id", "thresholdValueSet[].name", "thresholdValueSet[].levelThresholdValue[].valueFunction", "thresholdValueSet[].stageDischargeConversion"],
+
+    "ThresholdWarningLevels": ["thresholdWarningLevel[].id", "thresholdWarningLevel[].name", "thresholdWarningLevel[].color", "thresholdWarningLevel[].iconName", "thresholdWarningLevel[].historicOverlayIconName", "thresholdWarningLevel[].forecastOverlayIconName"],
+
+    "ValidationRuleSets": ["validationRuleSet[].validationRuleSetId", "validationRuleSet[].timeZone", "validationRuleSet[].extremeValues.hardMax", "validationRuleSet[].extremeValues.hardMin", "validationRuleSet[].extremeValues.softMax", "validationRuleSet[].extremeValues.softMin"],
+
+    "ModifierTypes": ["rollbackOverlappingModifiers", "timeSeriesModifier[].id", "timeSeriesModifier[].name", "timeSeriesModifier[].defaultStartTime", "timeSeriesModifier[].defaultEndTime", "timeSeriesModifier[].defaultValidTime", "timeSeriesModifier[].resolveInWorkflow", "timeSeriesModifier[].resolveInPlots", "timeSeriesModifier[].editInPlots"],
+
+    "ModuleInstanceSets": ["moduleInstanceSet[].id", "moduleInstanceSet[].name"],
+
+    "ManualForecastDisplay": ["runningPredefined.directory", "runningPredefined.buttonVisible"],
+
+    "ModifiersDisplay": ["showImportButton", "showExportButton", "showCreateModifierButton", "showApplyToButton", "timeSeriesModifiersDisplayConfig.showTimeShiftModifierButtons", "timeSeriesModifiersDisplayConfig.showTablePanel", "timeSeriesModifiersDisplayConfig.showChartPanel", "timeSeriesModifiersDisplayConfig.defaultOperationType"],
+
+    "Permissions": ["permission[].id"],
+
+    "TimeSeriesDisplayConfig": ["generalDisplayConfig.legendTextFunction", "defaultViewPeriod.unit", "defaultViewPeriod.start", "defaultViewPeriod.end", "classBreaks[].id", "classBreaks[].color[].color", "classBreaks[].color[].lowerValue", "classBreaks[].color[].opaquenessPercentage"],
+
+    "UnitConversions": ["unitConversion[].inputUnitType", "unitConversion[].outputUnitType", "unitConversion[].multiplier", "unitConversion[].incrementer"],
+
+    "IdMapFile": ["parameter[].external", "parameter[].externalQualifier", "location[].external", "function[].externalLocationFunction", "function[].externalParameterFunction", "map[].externalParameter", "map[].externalLocation", "enableOneToOneMapping"],
+
+    "ImportModule": ["import[].general.importType", "import[].general.serverUrl|folder", "import[].general.missingValue", "import[].general.dataFeedId", "import[].properties[].key", "import[].properties[].value", "import[].timeSeriesSet[].synchLevel", "import[].timeSeriesSet[].expiryTime", "import[].timeSeriesSet[].ensembleId", "import[].externUnit[].unit", "import[].externUnit[].cumulativeSum", "import[].fileNamePatternFilter"],
+
+    "PreprocessModule": ["variable[].variableId", "variable[].timeSeriesSet.ensembleId", "transformation[].id", "transformation[].kind", "transformation[].kind_specific_fields"],
+
+    "DataProcessingModule": ["transformation[].id", "transformation[].kind"],
+
+    "ModelRunModule": ["general.rootDir", "general.workDir", "general.exportDir", "general.importDir", "startUpActivities[]", "exportActivities[].type", "exportActivities[].stateExportDir", "exportActivities[].stateConfigFile", "exportActivities[].stateLocations[].readLocation", "exportActivities[].stateLocations[].writeLocation", "exportActivities[].stateSelection", "exportActivities[].parameterFile", "executeActivities[].command", "executeActivities[].arguments[]", "executeActivities[].timeOut", "importActivities[].importFile"],
+
+    "MaintenanceModule": ["general.workDir", "general.importDir", "exportActivities[].type"],
+
+    "ModuleParameters": ["modifierType", "group[].id", "group[].name", "group[].model", "group[].parameter[].id", "group[].parameter[].valueType", "group[].parameter[].value"],
+
+    "Workflow": ["properties.string[].key", "properties.string[].value", "activity[].runIndependent", "activity[].moduleConfigFileName", "activity[].properties.string[].key", "activity[].properties.string[].value"]
+  },
+
+  "elicitation_strategy_hints": {
+    "collect_once_reuse_many": [
+      "Ask for locationId once when a location is introduced; reuse across every timeSeriesSet, threshold, modifier, validation rule that targets it.",
+      "Same for parameterId, moduleInstanceId, workflowId, idMapId, unitConversionsId.",
+      "The shared_substructures (timeSeriesSet, timeStep, relativeViewPeriod) should be elicited as a unit, not field-by-field."
+    ],
+    "declaration_order": [
+      "1. Declare enums/registries first: Parameters, Qualifiers, ThresholdWarningLevels, Locations, LocationSets.",
+      "2. Then UnitConversions and IdMapFiles (they reference the above).",
+      "3. Then ModuleConfigFiles (Import -> Preprocess -> Model -> DataProcessing).",
+      "4. Then Workflows (reference module instances).",
+      "5. Then Thresholds, ThresholdValueSets, ValidationRuleSets, ModifierTypes (all reference modules + parameters + locations).",
+      "6. Finally UI/glue: Topology, Displays, Permissions.",
+      "Following this order means every reference resolves by the time it's emitted."
+    ],
+    "fews_templates_are_not_user_input": "Any value containing %...%, $VAR$, or @pattern@ is resolved by FEWS at runtime. The LLM should treat these as opaque strings supplied by the user (or from a workflow properties catalog), not expand them."
+  }
+}
