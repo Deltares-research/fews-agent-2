@@ -209,11 +209,14 @@ __marimo__/
 *.json
 *.jsonl
 *.xml
+*.xsd
 *.pdf
 *.md
 *.iml
+.idea
 
 !CLAUDE.MD
+!README.md
 
 secrets/*
 !secrets/.env.example
