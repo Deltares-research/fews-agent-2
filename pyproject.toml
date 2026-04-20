@@ -1,0 +1,38 @@
+[project]
+name = "fews-agent"
+version = "0.1.0"
+description = ""
+authors = [
+    {name = "mavritsa",email = "amavrits@gmail.com"}
+]
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    # LLM provider SDKs
+    "anthropic>=0.40.0",
+    "openai>=1.54.0",
+    "ollama>=0.4.0",
+    "google-genai>=0.3.0",
+
+    # XML generation + validation (per CLAUDE.md)
+    "jinja2>=3.1.0",
+    "lxml>=5.3.0",
+
+    # Typed parameter contracts for generators
+    "pydantic>=2.9.0",
+
+    # Env/secret loading for provider API keys
+    "python-dotenv>=1.0.0",
+
+    # UI
+    "streamlit>=1.40.0",
+]
+
+[tool.poetry.group.dev.dependencies]
+pytest = ">=8.3.0"
+pytest-asyncio = ">=0.24.0"
+
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
