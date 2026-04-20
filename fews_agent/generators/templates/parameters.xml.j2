@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<parameterGroups version="{{ version }}" xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/parameters.xsd">
+{% for g in parameterGroup %}
+  <parameterGroup id="{{ g.id }}"{% if g.name is not none %} name="{{ g.name }}"{% endif %}>
+    <parameterType>{{ g.parameterType }}</parameterType>
+    <unit>{{ g.unit }}</unit>
+    {% if g.valueResolution is not none %}<valueResolution>{{ g.valueResolution | xmlstr }}</valueResolution>{% endif %}
+    {% if g.usesDatum %}<usesDatum>true</usesDatum>{% endif %}
+    {% for p in g.parameter %}
+    <parameter id="{{ p.id }}"{% if p.name is not none %} name="{{ p.name }}"{% endif %}>
+      {% if p.shortName is not none %}<shortName>{{ p.shortName }}</shortName>{% endif %}
+      {% if p.description is not none %}<description>{{ p.description }}</description>{% endif %}
+      {% if p.standardUnit is not none %}<standardUnit>{{ p.standardUnit }}</standardUnit>{% endif %}
+    </parameter>
+    {% endfor %}
+  </parameterGroup>
+{% endfor %}
+</parameterGroups>

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<locations version="{{ version }}" xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/locations.xsd">
+  <geoDatum>{{ geoDatum }}</geoDatum>
+{% for loc in location %}
+  <location id="{{ loc.id }}" name="{{ loc.name }}">
+    {% if loc.description is not none %}<description>{{ loc.description }}</description>{% endif %}
+    {% if loc.shortName is not none %}<shortName>{{ loc.shortName }}</shortName>{% endif %}
+    {% if loc.parentLocationId is not none %}<parentLocationId>{{ loc.parentLocationId }}</parentLocationId>{% endif %}
+    <x>{{ loc.x | xmlstr }}</x>
+    <y>{{ loc.y | xmlstr }}</y>
+    {% if loc.z is not none %}<z>{{ loc.z | xmlstr }}</z>{% endif %}
+  </location>
+{% endfor %}
+</locations>

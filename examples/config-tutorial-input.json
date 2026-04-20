@@ -305,7 +305,7 @@
         "id": "Specific humidity",
         "parameterType": "instantaneous",
         "unit": "kg/kg",
-        "valueResolution": 1e-20,
+        "valueResolution": 0.00000000000000000001,
         "parameter": [
           {"id": "XS", "name": "Specific humidity", "shortName": "XS"},
           {"id": "XS.nwp", "name": "Specific humidity (NWP", "shortName": "XS.nwp"}
@@ -315,7 +315,7 @@
         "id": "Relative humidity",
         "parameterType": "instantaneous",
         "unit": "kg/kg",
-        "valueResolution": 1e-20,
+        "valueResolution": 0.00000000000000000001,
         "parameter": [
           {"id": "XR", "name": "Relative humidity", "shortName": "XR"}
         ]

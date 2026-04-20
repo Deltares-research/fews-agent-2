@@ -15,11 +15,17 @@ from .ids import LocationId, LocationSetId, ModuleInstanceId, ParameterId
 
 
 class FewsModel(BaseModel):
-    """Strict base. Rejects unknown fields to catch typos early."""
+    """Strict base. Rejects unknown fields to catch typos early.
+
+    Note: str_strip_whitespace is intentionally NOT set. Hand-authored FEWS
+    XML can legitimately contain trailing whitespace inside text elements
+    (e.g. tutorial has `<shortName>QR.sim </shortName>`). Stripping at the
+    schema level would make our XML round-trip fail C14N comparison against
+    the original. ID types still strip via their own StringConstraints.
+    """
 
     model_config = ConfigDict(
         extra="forbid",
-        str_strip_whitespace=True,
         frozen=False,
     )
 
