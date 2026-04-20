@@ -229,6 +229,7 @@ data/*
 
 examples/*
 !examples/.gitkeep
+!examples/config-tutorial-input.json
 
 validation/*
 !validation/.gitkeep
