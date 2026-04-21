@@ -6,22 +6,30 @@ typed Pydantic model as its input contract. Shared substructures
 and composed into the per-file-type models.
 
 Current coverage:
-  - Foundation: ids, enums, common compounds
+  - Foundation: ids, enums, common compounds (TimeStep, TimeSeriesSet, ...)
   - Registry files: Locations, Parameters, Qualifiers
+  - Mapping + glue: IdMap, UnitConversions, ModuleInstanceSets
+  - System: Permissions, UserGroups, ThresholdWarningLevels
+  - Thresholds registry: ThresholdGroups
+  - Model parameters: ModuleParameters (PI namespace)
+  - Display configs: TimeSeriesDisplay, ManualForecastDisplay,
+    ModifierDisplay, ForecasterNotesDisplay
+  - Topology
 
-Not yet covered (anchor to XSD when adding): IdMapFile, UnitConversions,
-Thresholds*, ValidationRuleSets, ModifierTypes, Workflow, ImportModule,
-PreprocessModule, ModelRunModule, Topology, LocationSets, and others in
-data/input_parameters.json.
+Not yet covered (anchor to XSD when adding): LocationSets, Grids,
+Filters, ModuleInstanceDescriptors, WorkflowDescriptors, and others
+in data/input_parameters.json.
 """
 from .common import (
     ExternUnit,
+    ExtremeValueLimit,
     ExtremeValues,
     FewsModel,
     RelativeViewPeriod,
     TimeSeriesSet,
     TimeStep,
     TimeZone,
+    UnitMultiplier,
 )
 from .enums import (
     DefaultTimeAnchor,
@@ -60,9 +68,99 @@ from .ids import (
     WarningLevelId,
     WorkflowId,
 )
+from .id_map import (
+    FunctionMapping,
+    IdMap,
+    LocationMapping,
+    MapMapping,
+    ParameterMapping,
+)
 from .locations import Location, LocationAttribute, Locations
+from .module_instance_sets import ModuleInstanceSet, ModuleInstanceSets
 from .parameters import Parameter, ParameterGroup, Parameters
+from .permissions import Permission, Permissions, UserGroupRef
 from .qualifiers import Qualifier, Qualifiers
+from .threshold_warning_levels import ThresholdWarningLevel, ThresholdWarningLevels
+from .thresholds import (
+    DefaultThreshold,
+    LevelThreshold,
+    ThresholdGroup,
+    ThresholdGroups,
+)
+from .module_parameters import (
+    ModuleParameter,
+    ModuleParameterGroup,
+    ModuleParameters,
+)
+from .time_series_display_config import (
+    ClassBreaks,
+    ClassBreaksEntry,
+    DefaultViewPeriod,
+    DiscreteColor,
+    GeneralDisplayConfig,
+    TimeSeriesDisplay,
+)
+from .manual_forecast_display import ManualForecastDisplay, RunningPredefined
+from .modifiers_display import (
+    CreateModifierButtons,
+    ModifierDisplay,
+    TimeSeriesModifiersDisplayConfig,
+)
+from .forecaster_notes_display import EventCode, ForecasterNotesDisplay, MsgTemplate
+from .user_groups import UserGroup, UserGroups, UserRef
+from .topology import Topology, TopologyNodeGroup, TopologyNodeLeaf
+from .threshold_value_sets import (
+    LevelThresholdValue,
+    StageDischargeConversion,
+    ThresholdValueSet,
+    ThresholdValueSets,
+)
+from .validation_rule_sets import ValidationRuleSet, ValidationRuleSets
+from .modifier_types import ModifierTimeSeries, ModifierTypes, TimeSeriesModifier
+from .workflow import (
+    Workflow,
+    WorkflowActivity,
+    WorkflowProperties,
+    WorkflowProperty,
+)
+from .import_module import (
+    BoolProperty,
+    ImportBlock,
+    ImportGeneral,
+    ImportProperties,
+    StartTimeShift,
+    StringProperty,
+    TimeSeriesImportRun,
+)
+from .transformation_module import Transformation, TransformationModule, Variable
+from .general_adapter_run import (
+    Activities,
+    ColdStateSelection,
+    ExecutableArguments,
+    ExecutableCommand,
+    ExecuteActivities,
+    ExecuteActivity,
+    ExportActivities,
+    ExportDataSetActivity,
+    ExportNetcdfActivity,
+    ExportRunFileActivity,
+    ExportStateActivity,
+    FromTimeSeriesSelection,
+    GeneralAdapterGeneral,
+    GeneralAdapterRun,
+    ImportActivities,
+    ImportNetcdfActivity,
+    ImportStateActivity,
+    PurgeActivity,
+    StartUpActivities,
+    StateLocation,
+    StateLocations,
+    StateSearchPeriod,
+    StateSelection,
+    TimeSeriesSetList,
+    WarmStateSelection,
+)
+from .unit_conversions import UnitConversion, UnitConversions
 
 __all__ = [
     # base + common
@@ -71,8 +169,10 @@ __all__ = [
     "TimeSeriesSet",
     "RelativeViewPeriod",
     "TimeZone",
+    "UnitMultiplier",
     "ExternUnit",
     "ExtremeValues",
+    "ExtremeValueLimit",
     # enums
     "ValueType",
     "TimeSeriesType",
@@ -119,4 +219,113 @@ __all__ = [
     # Qualifiers
     "Qualifiers",
     "Qualifier",
+    # IdMap
+    "IdMap",
+    "ParameterMapping",
+    "LocationMapping",
+    "FunctionMapping",
+    "MapMapping",
+    # UnitConversions
+    "UnitConversions",
+    "UnitConversion",
+    # ModuleInstanceSets
+    "ModuleInstanceSets",
+    "ModuleInstanceSet",
+    # ThresholdWarningLevels
+    "ThresholdWarningLevels",
+    "ThresholdWarningLevel",
+    # Permissions
+    "Permissions",
+    "Permission",
+    "UserGroupRef",
+    # Thresholds
+    "ThresholdGroups",
+    "ThresholdGroup",
+    "LevelThreshold",
+    "DefaultThreshold",
+    # ModuleParameters
+    "ModuleParameters",
+    "ModuleParameterGroup",
+    "ModuleParameter",
+    # TimeSeriesDisplayConfig
+    "TimeSeriesDisplay",
+    "GeneralDisplayConfig",
+    "DefaultViewPeriod",
+    "ClassBreaks",
+    "ClassBreaksEntry",
+    "DiscreteColor",
+    # ManualForecastDisplay
+    "ManualForecastDisplay",
+    "RunningPredefined",
+    # ModifiersDisplay
+    "ModifierDisplay",
+    "CreateModifierButtons",
+    "TimeSeriesModifiersDisplayConfig",
+    # ForecasterNotesDisplay
+    "ForecasterNotesDisplay",
+    "MsgTemplate",
+    "EventCode",
+    # UserGroups
+    "UserGroups",
+    "UserGroup",
+    "UserRef",
+    # Topology
+    "Topology",
+    "TopologyNodeGroup",
+    "TopologyNodeLeaf",
+    # ThresholdValueSets
+    "ThresholdValueSets",
+    "ThresholdValueSet",
+    "LevelThresholdValue",
+    "StageDischargeConversion",
+    # ValidationRuleSets
+    "ValidationRuleSets",
+    "ValidationRuleSet",
+    # ModifierTypes
+    "ModifierTypes",
+    "TimeSeriesModifier",
+    "ModifierTimeSeries",
+    # Workflow
+    "Workflow",
+    "WorkflowActivity",
+    "WorkflowProperties",
+    "WorkflowProperty",
+    # ImportModule
+    "TimeSeriesImportRun",
+    "ImportBlock",
+    "ImportGeneral",
+    "StartTimeShift",
+    "ImportProperties",
+    "StringProperty",
+    "BoolProperty",
+    # TransformationModule (Preprocess + DataProcessing)
+    "TransformationModule",
+    "Variable",
+    "Transformation",
+    # GeneralAdapterRun (ModelRun + Maintenance)
+    "GeneralAdapterRun",
+    "GeneralAdapterGeneral",
+    "Activities",
+    "StartUpActivities",
+    "PurgeActivity",
+    "ExportActivities",
+    "ExportStateActivity",
+    "ExportDataSetActivity",
+    "ExportNetcdfActivity",
+    "ExportRunFileActivity",
+    "StateLocations",
+    "StateLocation",
+    "StateSelection",
+    "WarmStateSelection",
+    "ColdStateSelection",
+    "FromTimeSeriesSelection",
+    "StateSearchPeriod",
+    "TimeSeriesSetList",
+    "ExecuteActivities",
+    "ExecuteActivity",
+    "ExecutableCommand",
+    "ExecutableArguments",
+    "ImportActivities",
+    "ImportStateActivity",
+    "ImportNetcdfActivity",
 ]
