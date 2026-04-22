@@ -15,11 +15,14 @@ from fews_agent.schema import (
     ForecastLengthEstimator,
     ForecasterNotesDisplay,
     GeneralAdapterRun,
+    GenericXmlFile,
     IdMap,
+    LocationIcons,
     Locations,
     ManualForecastDisplay,
     ModifierDisplay,
     ModifierTypes,
+    ModuleInstanceDescriptors,
     ModuleInstanceSets,
     ModuleParameters,
     Parameters,
@@ -30,19 +33,26 @@ from fews_agent.schema import (
     ThresholdWarningLevels,
     TimeSeriesDisplay,
     TimeSeriesImportRun,
+    TimeSteps,
     Topology,
     TransformationModule,
     UnitConversions,
     UserGroups,
     ValidationRuleSets,
     Workflow,
+    WorkflowDescriptors,
 )
 
 from . import (
     forecast_length_estimator,
     forecaster_notes_display,
     general_adapter_run,
+    generic_xml_file,
+    location_icons,
+    module_instance_descriptors,
     time_series_display_config,
+    time_steps,
+    workflow_descriptors,
     id_map,
     import_module,
     locations,
@@ -408,6 +418,69 @@ SPECS: list[GeneratorSpec] = [
         generate=time_series_display_config.generate,
         output_relpath=Path("SystemConfigFiles/TimeSeriesDisplayConfig.xml"),
     ),
+    GeneratorSpec(
+        name="timeSteps",
+        input_key="timeSteps",
+        model_class=TimeSteps,
+        template_name="time_steps.xml.j2",
+        generate=time_steps.generate,
+        output_relpath=Path("RegionConfigFiles/TimeSteps.xml"),
+    ),
+    GeneratorSpec(
+        name="locationIcons",
+        input_key="locationIcons",
+        model_class=LocationIcons,
+        template_name="location_icons.xml.j2",
+        generate=location_icons.generate,
+        output_relpath=Path("SystemConfigFiles/LocationIcons.xml"),
+    ),
+    GeneratorSpec(
+        name="moduleInstanceDescriptors",
+        input_key="moduleInstanceDescriptors",
+        model_class=ModuleInstanceDescriptors,
+        template_name="module_instance_descriptors.xml.j2",
+        generate=module_instance_descriptors.generate,
+        output_relpath=Path("RegionConfigFiles/ModuleInstanceDescriptors.xml"),
+    ),
+    GeneratorSpec(
+        name="workflowDescriptors",
+        input_key="workflowDescriptors",
+        model_class=WorkflowDescriptors,
+        template_name="workflow_descriptors.xml.j2",
+        generate=workflow_descriptors.generate,
+        output_relpath=Path("RegionConfigFiles/WorkflowDescriptors.xml"),
+    ),
+    GeneratorSpec(
+        name="postprocessModelOutputToStationTemplate",
+        input_key="postprocessModelOutputToStationTemplate",
+        model_class=TransformationModule,
+        template_name="transformation_module.xml.j2",
+        generate=transformation_module.generate,
+        output_relpath=Path("ModuleConfigFiles/Postprocess/Model/PostprocessModelOutputToStationTemplate.xml"),
+    ),
+    # Generic-body file types — 7 registry/UI configs whose structure is
+    # too broad for field-by-field modelling. Each uses GenericXmlFile
+    # (just a `body` dict) with a tiny per-type template that wraps the
+    # FEWS root tag around the dict_to_xml output.
+    *[
+        GeneratorSpec(
+            name=key,
+            input_key=key,
+            model_class=GenericXmlFile,
+            template_name=template,
+            generate=(lambda t: lambda m: generic_xml_file.generate(m, t))(template),
+            output_relpath=Path(path),
+        )
+        for key, template, path in [
+            ("productsFile",       "products.xml.j2",        "RegionConfigFiles/Products.xml"),
+            ("gridsFile",          "grids.xml.j2",           "RegionConfigFiles/Grids.xml"),
+            ("locationSetsFile",   "location_sets.xml.j2",   "RegionConfigFiles/LocationSets.xml"),
+            ("filtersFile",        "filters.xml.j2",         "RegionConfigFiles/Filters.xml"),
+            ("displayGroupsFile",  "display_groups.xml.j2",  "SystemConfigFiles/DisplayGroups.xml"),
+            ("explorerFile",       "explorer.xml.j2",        "SystemConfigFiles/Explorer.xml"),
+            ("spatialDisplayFile", "spatial_display.xml.j2", "DisplayConfigFiles/SpatialDisplay.xml"),
+        ]
+    ],
 ]
 
 __all__ = ["SPECS", "GeneratorSpec"]

@@ -118,6 +118,20 @@ from .modifiers_display import (
     TimeSeriesModifiersDisplayConfig,
 )
 from .forecast_length_estimator import ForecastLengthEstimator
+from .generic_xml_file import GenericXmlFile
+from .location_icons import LocationIcon, LocationIcons
+from .module_instance_descriptors import (
+    ModuleInstanceDescriptor,
+    ModuleInstanceDescriptors,
+)
+from .time_steps import NamedTimeStep, TimeSteps
+from .workflow_descriptors import (
+    CardinalTimeStepRef,
+    WorkflowDescriptor,
+    WorkflowDescriptorNode,
+    WorkflowDescriptorRootNode,
+    WorkflowDescriptors,
+)
 from .forecaster_notes_display import EventCode, ForecasterNotesDisplay, MsgTemplate
 from .user_groups import UserGroup, UserGroups, UserRef
 from .topology import Topology, TopologyNodeGroup, TopologyNodeLeaf
@@ -315,6 +329,24 @@ __all__ = [
     "TimeSeriesModifiersDisplayConfig",
     # ForecastLengthEstimator
     "ForecastLengthEstimator",
+    # Generic (Products, Grids, LocationSets, Filters, DisplayGroups,
+    # Explorer, SpatialDisplay — structure too broad for field-by-field)
+    "GenericXmlFile",
+    # TimeSteps
+    "TimeSteps",
+    "NamedTimeStep",
+    # LocationIcons
+    "LocationIcons",
+    "LocationIcon",
+    # ModuleInstanceDescriptors
+    "ModuleInstanceDescriptors",
+    "ModuleInstanceDescriptor",
+    # WorkflowDescriptors
+    "WorkflowDescriptors",
+    "WorkflowDescriptor",
+    "WorkflowDescriptorNode",
+    "WorkflowDescriptorRootNode",
+    "CardinalTimeStepRef",
     # ForecasterNotesDisplay
     "ForecasterNotesDisplay",
     "MsgTemplate",

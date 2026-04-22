@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<locationIcons xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/locationIcons.xsd">
+  {% if rootDir is not none %}<rootDir>{{ rootDir }}</rootDir>{% endif %}
+{% for li in locationIcon %}
+  <locationIcon>
+    {% if li.description is not none %}<description>{{ li.description }}</description>{% endif %}
+    <iconId>{{ li.iconId }}</iconId>
+    <locationSetId>{{ li.locationSetId }}</locationSetId>
+  </locationIcon>
+{% endfor %}
+</locationIcons>

@@ -30,22 +30,34 @@ def _xmlstr(value: Any) -> str:
 def _dict_to_xml(data: Any) -> str:
     """Render a nested dict/list/scalar as an XML fragment.
 
-    Convention used by Transformation bodies (and anywhere we need to
-    emit open-shape XML from a dict):
+    Convention used by Transformation bodies and generic-body files:
       - `"@key": "v"` becomes an XML attribute on the enclosing element
       - other keys become child elements
-      - list values repeat the parent tag (each item becomes an element)
+      - a dict *value* whose list repeats the parent tag
+      - a list *at the position a dict would go* is a sequence of
+        single-key dicts, emitted in order — use this when sibling
+        element ordering matters (e.g. Grids.xml's interleaved
+        `<regular>` / `<irregular>`).
       - bool scalars emit as lowercase 'true' / 'false'
       - None values are skipped
       - dict with only @attrs and no other keys self-closes
     """
+    if isinstance(data, list):
+        # Ordered sequence of elements — each list item is a single-key
+        # dict {"tagName": <content>} or a scalar (rare).
+        return "".join(_dict_to_xml(item) for item in data if item is not None)
     if not isinstance(data, dict):
         return _xmlstr(data) if data is not None else ""
     parts: list[str] = []
     for key, value in data.items():
         if key.startswith("@") or value is None:
             continue
-        if isinstance(value, list):
+        if isinstance(value, list) and value and not isinstance(value[0], dict):
+            # list of scalars → repeated elements with scalar content
+            for item in value:
+                parts.append(_render_element(key, item))
+        elif isinstance(value, list):
+            # list of dicts → repeated elements with dict bodies
             for item in value:
                 parts.append(_render_element(key, item))
         else:

@@ -1,0 +1,7 @@
+{# Helper macro: wrap a dict body in a FEWS root element. #}
+{% macro render(root_tag, xsd_basename, body, version=none, extra_attrs="") -%}
+<?xml version="1.0" encoding="UTF-8"?>
+<{{ root_tag }}{{ extra_attrs }} xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/{{ xsd_basename }}"{% if version is not none %} version="{{ version }}"{% endif %}>
+{{ body | dict_to_xml | safe }}
+</{{ root_tag }}>
+{%- endmacro %}
