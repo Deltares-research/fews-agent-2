@@ -12,18 +12,26 @@ from __future__ import annotations
 
 from pydantic import Field
 
+from pydantic import Field
+
 from .common import FewsModel, UnitMultiplier
-from .ids import TopologyNodeId, WorkflowId
+from .ids import ModifierId, TopologyNodeId, WorkflowId
 
 
 class TopologyNodeLeaf(FewsModel):
-    """`<node>` — terminal entry that runs or links to a workflow."""
+    """`<node>` — terminal entry that runs or links to a workflow.
+
+    `visibleModifierGroup` lists modifiersGroup ids (see ModifierTypes)
+    that the UI should surface when this node is active — tutorial uses
+    this on forecast-run nodes to reveal NWP-specific modifiers.
+    """
 
     id: TopologyNodeId
     name: str | None = None
     workflowId: WorkflowId | None = None
     url: str | None = None
     graceTime: UnitMultiplier | None = None
+    visibleModifierGroup: list[ModifierId] = Field(default_factory=list)
     localRun: bool | None = None
     showRunApprovedForecastButton: bool | None = None
 

@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<workflow xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/workflow.xsd" version="{{ version }}">
+  {% if properties is not none %}
+  <properties>
+    {% for p in properties.string %}<string key="{{ p.key }}" value="{{ p.value }}"/>{% endfor %}
+  </properties>
+  {% endif %}
+{% for a in activity %}
+  <activity>
+    {% if a.properties is not none %}
+    <properties>
+      {% for p in a.properties.string %}<string key="{{ p.key }}" value="{{ p.value }}"/>{% endfor %}
+    </properties>
+    {% endif %}
+    {% if a.runIndependent is not none %}<runIndependent>{{ 'true' if a.runIndependent else 'false' }}</runIndependent>{% endif %}
+    {% if a.moduleInstanceId is not none %}<moduleInstanceId>{{ a.moduleInstanceId }}</moduleInstanceId>{% endif %}
+    {% if a.workflowId is not none %}<workflowId>{{ a.workflowId }}</workflowId>{% endif %}
+    {% if a.moduleConfigFileName is not none %}<moduleConfigFileName>{{ a.moduleConfigFileName }}</moduleConfigFileName>{% endif %}
+    {% if a.loopLocationSetId is not none %}<loopLocationSetId>{{ a.loopLocationSetId }}</loopLocationSetId>{% endif %}
+    {% if a.ensemble is not none %}
+    <ensemble>
+      <ensembleId>{{ a.ensemble.ensembleId }}</ensembleId>
+      {% if a.ensemble.ensembleMemberIndexRange is not none %}<ensembleMemberIndexRange start="{{ a.ensemble.ensembleMemberIndexRange.start }}" end="{{ a.ensemble.ensembleMemberIndexRange.end }}"/>{% endif %}
+      {% if a.ensemble.runInLoop is not none %}<runInLoop>{{ 'true' if a.ensemble.runInLoop else 'false' }}</runInLoop>{% endif %}
+    </ensemble>
+    {% endif %}
+  </activity>
+{% endfor %}
+</workflow>

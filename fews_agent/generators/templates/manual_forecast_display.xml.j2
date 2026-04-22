@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<manualForecastDisplay xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/manualForecastDisplay.xsd">
+  {% if runningPredefined is not none %}
+  <runningPredefined>
+    {% if runningPredefined.description is not none %}<description>{{ runningPredefined.description }}</description>{% endif %}
+    {% if runningPredefined.directory is not none %}<directory>{{ runningPredefined.directory }}</directory>{% endif %}
+    {% if runningPredefined.buttonVisible is not none %}<buttonVisible>{{ 'true' if runningPredefined.buttonVisible else 'false' }}</buttonVisible>{% endif %}
+  </runningPredefined>
+  {% endif %}
+</manualForecastDisplay>

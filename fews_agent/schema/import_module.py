@@ -20,7 +20,16 @@ from __future__ import annotations
 
 from pydantic import Field, model_validator
 
-from .common import ExternUnit, FewsModel, RelativeViewPeriod, TimeSeriesSet, TimeZone
+from pydantic import Field
+
+from .common import (
+    ExternUnit,
+    FewsModel,
+    RelativeViewPeriod,
+    TimeSeriesSet,
+    TimeStep,
+    TimeZone,
+)
 from .ids import IdMapId, ParameterId, UnitConversionsId
 
 
@@ -60,6 +69,58 @@ class ImportProperties(FewsModel):
     bool: list[BoolProperty] = Field(default_factory=list)
 
 
+class FileNameDateTimeFilter(FewsModel):
+    """Parses a date/time out of a filename segment at the given subfolder
+    level. Used by EarthObservation and Snow imports to align filenames
+    with FEWS timestamps during auto-ingest.
+    """
+
+    subFolderLevel: int  # XML attribute
+    timeStep: TimeStep
+    dateTimePattern: str
+    preFixLength: int
+    postFixLength: int
+
+
+class LocationColumn(FewsModel):
+    """CSV `<locationColumn name="..."/>` — names the column carrying station ids."""
+
+    name: str
+
+
+class DateTimeColumn(FewsModel):
+    """CSV `<dateTimeColumn name="..." pattern="..."/>`."""
+
+    name: str
+    pattern: str
+
+
+class ValueColumn(FewsModel):
+    """CSV `<valueColumn name="..." unit="..." parameterId="..."/>`."""
+
+    name: str
+    unit: str
+    parameterId: ParameterId
+
+
+class CsvTable(FewsModel):
+    """`<table>` block for generalCSV imports."""
+
+    locationColumn: LocationColumn
+    dateTimeColumn: DateTimeColumn
+    valueColumn: list[ValueColumn] = Field(min_length=1)
+
+
+class Tolerance(FewsModel):
+    """Import-level tolerance: maximum deviation between expected sample
+    time and the value actually observed. XML: `<tolerance timeUnit="..."
+    unitCount="..." parameterId="..."/>` (all attributes)."""
+
+    timeUnit: str
+    unitCount: int
+    parameterId: ParameterId
+
+
 class ImportGeneral(FewsModel):
     """The `<general>` block inside an `<import>`.
 
@@ -70,14 +131,23 @@ class ImportGeneral(FewsModel):
     idMapId: IdMapId
     serverUrl: str | None = None
     folder: str | None = None
+    user: str | None = None
+    password: str | None = None
+    table: CsvTable | None = None
+    fileNameDateTimeFilter: list[FileNameDateTimeFilter] = Field(default_factory=list)
     fileNamePatternFilter: str | None = None
+    fileNameObservationDateTimePattern: str | None = None
     failedFolder: str | None = None
     backupFolder: str | None = None
     relativeViewPeriod: RelativeViewPeriod | None = None
     unitConversionsId: UnitConversionsId | None = None
-    missingValue: float | None = None
+    # str (not float) preserves scientific literals like "-3.402823E38"
+    # which Python floats emit as "-3.402823e+38" and break C14N match.
+    missingValue: str | None = None
     importTimeZone: TimeZone | None = None
     dataFeedId: str | None = None
+    expiryTime: TimeStep | None = None
+    skipFirstLinesCount: int | None = None
 
     @model_validator(mode="after")
     def _has_source(self) -> ImportGeneral:
@@ -95,6 +165,7 @@ class ImportBlock(FewsModel):
     timeSeriesSet: list[TimeSeriesSet] = Field(min_length=1)
     startTimeShift: StartTimeShift | None = None
     properties: ImportProperties | None = None
+    tolerance: list[Tolerance] = Field(default_factory=list)
     externUnit: list[ExternUnit] = Field(default_factory=list)
 
 

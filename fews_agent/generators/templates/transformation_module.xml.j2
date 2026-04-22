@@ -1,0 +1,15 @@
+{%- import "_partials/timeseries_set.xml.j2" as tss -%}
+<?xml version="1.0" encoding="UTF-8"?>
+<transformationModule xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/transformationModule.xsd" version="{{ version }}">
+{% for v in variable %}
+  <variable>
+    <variableId>{{ v.variableId }}</variableId>
+    {{ tss.render(v.timeSeriesSet) }}
+  </variable>
+{% endfor %}
+{% for t in transformation %}
+  <transformation id="{{ t.id }}">
+    {{ t.body | dict_to_xml | safe }}
+  </transformation>
+{% endfor %}
+</transformationModule>

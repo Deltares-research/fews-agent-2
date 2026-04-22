@@ -1,0 +1,160 @@
+{%- import "_partials/timeseries_set.xml.j2" as tss -%}
+<?xml version="1.0" encoding="UTF-8"?>
+<generalAdapterRun xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/generalAdapterRun.xsd">
+  <general>
+    {% if general.description is not none %}<description>{{ general.description }}</description>{% endif %}
+    {% if general.piVersion is not none %}<piVersion>{{ general.piVersion }}</piVersion>{% endif %}
+    <rootDir>{{ general.rootDir }}</rootDir>
+    <workDir>{{ general.workDir }}</workDir>
+    <exportDir>{{ general.exportDir }}</exportDir>
+    {% if general.exportDataSetDir is not none %}<exportDataSetDir>{{ general.exportDataSetDir }}</exportDataSetDir>{% endif %}
+    {% if general.exportIdMap is not none %}<exportIdMap>{{ general.exportIdMap }}</exportIdMap>{% endif %}
+    {% if general.exportUnitConversionsId is not none %}<exportUnitConversionsId>{{ general.exportUnitConversionsId }}</exportUnitConversionsId>{% endif %}
+    <importDir>{{ general.importDir }}</importDir>
+    {% if general.importIdMap is not none %}<importIdMap>{{ general.importIdMap }}</importIdMap>{% endif %}
+    {% if general.dumpFileDir is not none %}<dumpFileDir>{{ general.dumpFileDir }}</dumpFileDir>{% endif %}
+    {% if general.dumpDir is not none %}<dumpDir>{{ general.dumpDir }}</dumpDir>{% endif %}
+    {% if general.diagnosticFile is not none %}<diagnosticFile>{{ general.diagnosticFile }}</diagnosticFile>{% endif %}
+    {% if general.time0Format is not none %}<time0Format>{{ general.time0Format }}</time0Format>{% endif %}
+    {% if general.missVal is not none %}<missVal>{{ general.missVal }}</missVal>{% endif %}
+    {% if general.convertDatum is not none %}<convertDatum>{{ 'true' if general.convertDatum else 'false' }}</convertDatum>{% endif %}
+    {% if general.timeZone is not none %}
+    <timeZone>
+      {% if general.timeZone.timeZoneName is not none %}<timeZoneName>{{ general.timeZone.timeZoneName }}</timeZoneName>{% endif %}
+      {% if general.timeZone.timeZoneOffset is not none %}<timeZoneOffset>{{ general.timeZone.timeZoneOffset }}</timeZoneOffset>{% endif %}
+    </timeZone>
+    {% endif %}
+    {% if general.startDateTimeFormat is not none %}<startDateTimeFormat>{{ general.startDateTimeFormat }}</startDateTimeFormat>{% endif %}
+    {% if general.modelTimeStep is not none %}{% if general.modelTimeStep.id is not none %}<modelTimeStep id="{{ general.modelTimeStep.id }}"/>{% else %}<modelTimeStep unit="{{ general.modelTimeStep.unit }}"{% if general.modelTimeStep.multiplier is not none %} multiplier="{{ general.modelTimeStep.multiplier }}"{% endif %}/>{% endif %}{% endif %}
+  </general>
+  <activities>
+    {% if activities.startUpActivities is not none %}
+    <startUpActivities>
+      {% for pa in activities.startUpActivities.purgeActivity %}
+      <purgeActivity>
+        <filter>{{ pa.filter }}</filter>
+      </purgeActivity>
+      {% endfor %}
+    </startUpActivities>
+    {% endif %}
+    {% if activities.exportActivities is not none %}
+    <exportActivities>
+      {% for esa in activities.exportActivities.exportStateActivity %}
+      <exportStateActivity>
+        <moduleInstanceId>{{ esa.moduleInstanceId }}</moduleInstanceId>
+        {% if esa.stateExportDir is not none %}<stateExportDir>{{ esa.stateExportDir }}</stateExportDir>{% endif %}
+        {% if esa.stateConfigFile is not none %}<stateConfigFile>{{ esa.stateConfigFile }}</stateConfigFile>{% endif %}
+        {% if esa.stateLocations is not none %}
+        <stateLocations{% if esa.stateLocations.type is not none %} type="{{ esa.stateLocations.type }}"{% endif %}>
+          {% for sl in esa.stateLocations.stateLocation %}
+          <stateLocation>
+            <readLocation>{{ sl.readLocation }}</readLocation>
+            <writeLocation>{{ sl.writeLocation }}</writeLocation>
+          </stateLocation>
+          {% endfor %}
+        </stateLocations>
+        {% endif %}
+        {% if esa.stateSelection is not none %}
+        <stateSelection>
+          {% if esa.stateSelection.warmState is not none %}
+          <warmState>
+            <stateSearchPeriod unit="{{ esa.stateSelection.warmState.stateSearchPeriod.unit }}" start="{{ esa.stateSelection.warmState.stateSearchPeriod.start }}" end="{{ esa.stateSelection.warmState.stateSearchPeriod.end }}"/>
+          </warmState>
+          {% endif %}
+          {% if esa.stateSelection.coldState is not none %}
+          <coldState>
+            {% if esa.stateSelection.coldState.startDate is not none %}<startDate unit="{{ esa.stateSelection.coldState.startDate.unit }}" multiplier="{{ esa.stateSelection.coldState.startDate.multiplier }}"/>{% endif %}
+          </coldState>
+          {% endif %}
+        </stateSelection>
+        {% endif %}
+      </exportStateActivity>
+      {% endfor %}
+      {% for eda in activities.exportActivities.exportDataSetActivity %}
+      <exportDataSetActivity>
+        {% if eda.description is not none %}<description>{{ eda.description }}</description>{% endif %}
+        <moduleInstanceId>{{ eda.moduleInstanceId }}</moduleInstanceId>
+      </exportDataSetActivity>
+      {% endfor %}
+      {% for epa in activities.exportActivities.exportParameterActivity %}
+      <exportParameterActivity>
+        <fileName>{{ epa.fileName }}</fileName>
+        <templateLocationLooping>
+          <locationModelLoop>
+            <locationSetId>{{ epa.templateLocationLooping.locationModelLoop.locationSetId }}</locationSetId>
+            <model>{{ epa.templateLocationLooping.locationModelLoop.model }}</model>
+          </locationModelLoop>
+        </templateLocationLooping>
+        <moduleInstanceId>{{ epa.moduleInstanceId }}</moduleInstanceId>
+      </exportParameterActivity>
+      {% endfor %}
+      {% for ena in activities.exportActivities.exportNetcdfActivity %}
+      <exportNetcdfActivity>
+        <exportFile>{{ ena.exportFile }}</exportFile>
+        <timeSeriesSets>
+          {% for ts in ena.timeSeriesSets.timeSeriesSet %}{{ tss.render(ts) }}{% endfor %}
+        </timeSeriesSets>
+        {% if ena.omitMissingValues is not none %}<omitMissingValues>{{ 'true' if ena.omitMissingValues else 'false' }}</omitMissingValues>{% endif %}
+      </exportNetcdfActivity>
+      {% endfor %}
+      {% for erfa in activities.exportActivities.exportRunFileActivity %}
+      <exportRunFileActivity>
+        <exportFile>{{ erfa.exportFile }}</exportFile>
+        {% if erfa.properties is not none %}
+        <properties>
+          {% for p in erfa.properties.string %}<string key="{{ p.key }}" value="{{ p.value }}"/>{% endfor %}
+          {% for p in erfa.properties.int %}<int key="{{ p.key }}" value="{{ p.value }}"/>{% endfor %}
+        </properties>
+        {% endif %}
+      </exportRunFileActivity>
+      {% endfor %}
+    </exportActivities>
+    {% endif %}
+    {% if activities.executeActivities is not none %}
+    <executeActivities>
+      {% for exa in activities.executeActivities.executeActivity %}
+      <executeActivity>
+        {% if exa.description is not none %}<description>{{ exa.description }}</description>{% endif %}
+        <command>
+          <executable>{{ exa.command.executable }}</executable>
+        </command>
+        {% if exa.arguments is not none %}
+        <arguments>
+          {% for a in exa.arguments.argument %}<argument>{{ a }}</argument>{% endfor %}
+        </arguments>
+        {% endif %}
+        {% if exa.timeOut is not none %}<timeOut>{{ exa.timeOut }}</timeOut>{% endif %}
+        {% if exa.ignoreDiagnostics is not none %}<ignoreDiagnostics>{{ 'true' if exa.ignoreDiagnostics else 'false' }}</ignoreDiagnostics>{% endif %}
+        {% if exa.overrulingDiagnosticFile is not none %}<overrulingDiagnosticFile>{{ exa.overrulingDiagnosticFile }}</overrulingDiagnosticFile>{% endif %}
+      </executeActivity>
+      {% endfor %}
+    </executeActivities>
+    {% endif %}
+    {% if activities.importActivities is not none %}
+    <importActivities>
+      {% for isa in activities.importActivities.importStateActivity %}
+      <importStateActivity>
+        {% if isa.stateConfigFile is not none %}<stateConfigFile>{{ isa.stateConfigFile }}</stateConfigFile>{% endif %}
+        {% if isa.stateFile is not none %}
+        <stateFile>
+          <importFile>{{ isa.stateFile.importFile }}</importFile>
+          {% if isa.stateFile.relativeExportFile is not none %}<relativeExportFile>{{ isa.stateFile.relativeExportFile }}</relativeExportFile>{% endif %}
+        </stateFile>
+        {% endif %}
+        {% if isa.synchLevel is not none %}<synchLevel>{{ isa.synchLevel }}</synchLevel>{% endif %}
+      </importStateActivity>
+      {% endfor %}
+      {% for ina in activities.importActivities.importNetcdfActivity %}
+      <importNetcdfActivity>
+        <importFile>{{ ina.importFile }}</importFile>
+        {% if ina.timeSeriesSets is not none %}
+        <timeSeriesSets>
+          {% for ts in ina.timeSeriesSets.timeSeriesSet %}{{ tss.render(ts) }}{% endfor %}
+        </timeSeriesSets>
+        {% endif %}
+      </importNetcdfActivity>
+      {% endfor %}
+    </importActivities>
+    {% endif %}
+  </activities>
+</generalAdapterRun>

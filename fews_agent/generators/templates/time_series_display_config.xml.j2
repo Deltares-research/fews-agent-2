@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<timeSeriesDisplay xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/timeSeriesDisplay.xsd" version="{{ version }}">
+  {% if generalDisplayConfig is not none %}
+  <generalDisplayConfig>
+    {% if generalDisplayConfig.legendTextFunction is not none %}<legendTextFunction>{{ generalDisplayConfig.legendTextFunction }}</legendTextFunction>{% endif %}
+  </generalDisplayConfig>
+  {% endif %}
+  {% if defaultViewPeriod is not none %}<defaultViewPeriod unit="{{ defaultViewPeriod.unit }}" start="{{ defaultViewPeriod.start }}" end="{{ defaultViewPeriod.end }}"/>{% endif %}
+  {% if classBreaks is not none %}
+  <classBreaks>
+    {% for cb in classBreaks.classBreaks %}
+    <classBreaks id="{{ cb.id }}">
+      {% for c in cb.color %}<color color="{{ c.color }}"{% if c.opaquenessPercentage is not none %} opaquenessPercentage="{{ c.opaquenessPercentage }}"{% endif %} lowerValue="{{ c.lowerValue }}"{% if c.label is not none %} label="{{ c.label }}"{% endif %}/>{% endfor %}
+      {% for seg in cb.segment %}
+        <lowerColor>{{ seg.lowerColor }}</lowerColor>
+        <upperColor>{{ seg.upperColor }}</upperColor>
+        {% if seg.lowerOpaquenessPercentage is not none %}<lowerOpaquenessPercentage>{{ seg.lowerOpaquenessPercentage }}</lowerOpaquenessPercentage>{% endif %}
+        {% if seg.upperOpaquenessPercentage is not none %}<upperOpaquenessPercentage>{{ seg.upperOpaquenessPercentage }}</upperOpaquenessPercentage>{% endif %}
+        {% if seg.lowerSymbolSize is not none %}<lowerSymbolSize>{{ seg.lowerSymbolSize }}</lowerSymbolSize>{% endif %}
+        {% if seg.upperSymbolSize is not none %}<upperSymbolSize>{{ seg.upperSymbolSize }}</upperSymbolSize>{% endif %}
+        {% for lv in seg.lowerValue %}<lowerValue>{{ lv }}</lowerValue>{% endfor %}
+      {% endfor %}
+    </classBreaks>
+    {% endfor %}
+  </classBreaks>
+  {% endif %}
+  {% if timeMarkersDisplayConfig is not none %}
+  <timeMarkersDisplayConfig>
+    {% for tm in timeMarkersDisplayConfig.timeMarkerDisplayOptions %}
+    <timeMarkerDisplayOptions marker="{{ tm.marker }}">
+      <color>{{ tm.color }}</color>
+      <lineStyle>{{ tm.lineStyle }}</lineStyle>
+    </timeMarkerDisplayOptions>
+    {% endfor %}
+  </timeMarkersDisplayConfig>
+  {% endif %}
+  {% if parametersDisplayConfig is not none %}
+  <parametersDisplayConfig>
+    {% for p in parametersDisplayConfig.parameterDisplayOptions %}
+    <parameterDisplayOptions id="{{ p.id }}">
+      {% if p.preferredColor is not none %}<preferredColor>{{ p.preferredColor }}</preferredColor>{% endif %}
+      {% if p.lineStyle is not none %}<lineStyle>{{ p.lineStyle }}</lineStyle>{% endif %}
+      {% if p.markerStyle is not none %}<markerStyle>{{ p.markerStyle }}</markerStyle>{% endif %}
+      {% if p.markerSize is not none %}<markerSize>{{ p.markerSize }}</markerSize>{% endif %}
+      {% if p.min is not none %}<min>{{ p.min }}</min>{% endif %}
+      {% if p.max is not none %}<max>{{ p.max }}</max>{% endif %}
+      {% if p.inverted is not none %}<inverted>{{ 'true' if p.inverted else 'false' }}</inverted>{% endif %}
+    </parameterDisplayOptions>
+    {% endfor %}
+  </parametersDisplayConfig>
+  {% endif %}
+  {% if statisticalFunctions is not none %}
+  <statisticalFunctions>
+    {% for sf in statisticalFunctions.statisticalFunction -%}
+    {%- set has_body = sf.lineStyle is not none or sf.timeStep or sf.movingAccumulationTimeSpan -%}
+    {%- if has_body -%}
+    <statisticalFunction function="{{ sf.function }}"{% if sf.ignoreMissings is not none %} ignoreMissings="{{ 'true' if sf.ignoreMissings else 'false' }}"{% endif %}>
+      {% if sf.lineStyle is not none %}<lineStyle>{{ sf.lineStyle }}</lineStyle>{% endif %}
+      {% for ts in sf.timeStep %}<timeStep id="{{ ts.id }}"/>{% endfor %}
+      {% for span in sf.movingAccumulationTimeSpan %}<movingAccumulationTimeSpan unit="{{ span.unit }}" multiplier="{{ span.multiplier }}"/>{% endfor %}
+    </statisticalFunction>
+    {%- else -%}
+    <statisticalFunction function="{{ sf.function }}"{% if sf.ignoreMissings is not none %} ignoreMissings="{{ 'true' if sf.ignoreMissings else 'false' }}"{% endif %}/>
+    {%- endif %}
+    {% endfor %}
+  </statisticalFunctions>
+  {% endif %}
+  {% if descriptiveFunctionGroups is not none %}
+  <descriptiveFunctionGroups>
+    {% for g in descriptiveFunctionGroups.descriptiveFunctionGroup %}
+    <descriptiveFunctionGroup name="{{ g.name }}">
+      {% for df in g.descriptiveFunction %}
+      {% if df.timeSpan %}<descriptiveFunction function="{{ df.function }}"{% if df.ignoreMissings is not none %} ignoreMissings="{{ 'true' if df.ignoreMissings else 'false' }}"{% endif %}>
+        {% for sp in df.timeSpan %}<timeSpan unit="{{ sp.unit }}" multiplier="{{ sp.multiplier }}"/>{% endfor %}
+      </descriptiveFunction>
+      {% else %}<descriptiveFunction function="{{ df.function }}"{% if df.ignoreMissings is not none %} ignoreMissings="{{ 'true' if df.ignoreMissings else 'false' }}"{% endif %}/>{% endif %}
+      {% endfor %}
+    </descriptiveFunctionGroup>
+    {% endfor %}
+  </descriptiveFunctionGroups>
+  {% endif %}
+  {% if defaultGraphicalEditMode is not none %}<defaultGraphicalEditMode>{{ defaultGraphicalEditMode }}</defaultGraphicalEditMode>{% endif %}
+  {% if buttonSettings is not none %}
+  <buttonSettings>
+    {% for fname, flag in buttonSettings.items() %}{% if flag is not none %}<{{ fname }}{% if flag.visible is not none %} visible="{{ 'true' if flag.visible else 'false' }}"{% endif %}/>{% endif %}
+    {% endfor %}
+  </buttonSettings>
+  {% endif %}
+</timeSeriesDisplay>

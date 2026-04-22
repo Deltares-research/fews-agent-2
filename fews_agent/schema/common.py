@@ -20,11 +20,16 @@ class FewsModel(BaseModel):
     `populate_by_name=True` lets us declare fields like `import_` with
     `alias="import"` to work around Python keywords in XML element names.
     Input accepts either the alias or the field name.
+
+    str_strip_whitespace is deliberately NOT set: hand-authored FEWS XML
+    can contain trailing whitespace inside text elements (the tutorial
+    has `<shortName>QR.sim </shortName>`). Stripping at the schema layer
+    would break C14N round-trip against the tutorial. ID types still
+    strip via their own StringConstraints in ids.py.
     """
 
     model_config = ConfigDict(
         extra="forbid",
-        str_strip_whitespace=True,
         frozen=False,
         populate_by_name=True,
     )
@@ -36,10 +41,14 @@ class TimeStep(FewsModel):
     FEWS XSD allows both forms; exactly one must be set. The multiplier is
     optional in the unit form (FEWS defaults to 1 when omitted, matching
     tutorial usage like `<timeStep unit="day"/>`).
+
+    `multiplier` accepts `int | str`: int for concrete values, str for
+    FEWS runtime placeholders like `$TIMESTEP$` that the tutorial uses in
+    Preprocess/DataProcessing module templates.
     """
 
     unit: TimeUnit | None = None
-    multiplier: Annotated[int, Field(ge=1)] | None = None
+    multiplier: int | str | None = None
     id: str | None = None
 
     @model_validator(mode="after")
@@ -52,6 +61,8 @@ class TimeStep(FewsModel):
             raise ValueError("timeStep: set unit (+ optional multiplier) or id")
         if has_id and self.multiplier is not None:
             raise ValueError("timeStep: multiplier only valid with the unit form")
+        if isinstance(self.multiplier, int) and self.multiplier < 1:
+            raise ValueError("timeStep: multiplier must be >= 1 when given as int")
         return self
 
 
@@ -63,6 +74,11 @@ class RelativeViewPeriod(FewsModel):
     the tutorial uses heavily in import + preprocess configs. Pydantic
     coerces numeric strings ("-10") to int; non-numeric stays str.
 
+    start/end are both optional at the schema level — tutorial has
+    `<relativeViewPeriod unit="hour" end="0" startOverrulable="true"/>`
+    in at least one place, with no `start`. FEWS presumably treats
+    missing bounds as unbounded or runtime-supplied.
+
     `startOverrulable` / `endOverrulable` attributes appear on import and
     preprocess `relativeViewPeriod` elements — optional.
 
@@ -71,14 +87,14 @@ class RelativeViewPeriod(FewsModel):
     """
 
     unit: TimeUnit
-    start: int | str
-    end: int | str
+    start: int | str | None = None
+    end: int | str | None = None
     startOverrulable: bool | None = None
     endOverrulable: bool | None = None
 
     @model_validator(mode="after")
     def _start_le_end(self) -> RelativeViewPeriod:
-        # Only check when both are concrete ints — placeholders skip the check.
+        # Only check when both are concrete ints — placeholders/None skip.
         if isinstance(self.start, int) and isinstance(self.end, int):
             if self.start > self.end:
                 raise ValueError(
@@ -88,9 +104,15 @@ class RelativeViewPeriod(FewsModel):
 
 
 class TimeZone(FewsModel):
-    """FEWS wraps the zone name in a timeZone element."""
+    """FEWS wraps a zone declaration in a timeZone element.
 
-    timeZoneName: str
+    Accepts either a named zone (`<timeZoneName>GMT</timeZoneName>`) or
+    an explicit offset (`<timeZoneOffset>+00:00</timeZoneOffset>`); both
+    forms appear across tutorial imports.
+    """
+
+    timeZoneName: str | None = None
+    timeZoneOffset: str | None = None
 
 
 class UnitMultiplier(FewsModel):
@@ -99,10 +121,13 @@ class UnitMultiplier(FewsModel):
     Used for graceTime, eventExpiryTime, maxActionEventDuration, and
     similar period-like attributes. TimeStep is the superset (adds the
     named-id form) and is used where XSD allows both forms.
+
+    multiplier allows zero (coldState <startDate multiplier="0"/> means
+    "start immediately at forecast time").
     """
 
     unit: TimeUnit
-    multiplier: Annotated[int, Field(ge=1)]
+    multiplier: Annotated[int, Field(ge=0)]
 
 
 class ExternUnit(FewsModel):
@@ -119,9 +144,13 @@ class ExtremeValueLimit(FewsModel):
     In XML each bound is an element with a `constantLimit` attribute:
     `<hardMax constantLimit="500"/>`. The XSD also supports other forms
     (referencing another series) which we can add as they appear.
+
+    `constantLimit` is stored as str to preserve the exact source text:
+    tutorial values are integer-like ("500", "0"), which a Python float
+    would emit as "500.0" / "0.0" and break C14N equality.
     """
 
-    constantLimit: float
+    constantLimit: str
 
 
 class ExtremeValues(FewsModel):
@@ -141,23 +170,28 @@ class TimeSeriesSet(FewsModel):
     Invariant: exactly one of locationId / locationSetId is supplied.
     """
 
+    # timeSeriesType/valueType/readWriteMode are logically enums, but
+    # TransformationModule templates use placeholder tokens like
+    # `$TIMESERIESTYPE$` in these fields. Typing as plain str keeps FEWS
+    # runtime substitution intact; enum validity is checked by the XSD /
+    # FEWS itself at runtime.
     moduleInstanceId: ModuleInstanceId
-    valueType: ValueType
+    valueType: str
     parameterId: ParameterId
     locationId: LocationId | None = None
     locationSetId: LocationSetId | None = None
-    timeSeriesType: TimeSeriesType
+    timeSeriesType: str
     timeStep: TimeStep
-    readWriteMode: ReadWriteMode
+    readWriteMode: str
     qualifierId: QualifierId | None = None
     synchLevel: int | None = None
     expiryTime: TimeStep | None = None
     ensembleId: str | None = None
     relativeViewPeriod: RelativeViewPeriod | None = None
-    # Optional scaling factor. Seen in generalAdapterRun exportNetcdfActivity
-    # timeSeriesSets to rescale a parameter on export; accepted by the XSD
-    # elsewhere too. Numeric.
-    multiplier: float | None = None
+    # Optional scaling factor; str to preserve source text ("1" must not
+    # become "1.0"). Same precision-preservation strategy as missingValue
+    # and ExtremeValueLimit.constantLimit.
+    multiplier: str | None = None
 
     @model_validator(mode="after")
     def _location_xor_set(self) -> TimeSeriesSet:

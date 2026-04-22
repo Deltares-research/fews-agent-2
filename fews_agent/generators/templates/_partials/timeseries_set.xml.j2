@@ -1,0 +1,23 @@
+{# Shared TimeSeriesSet emission. Child order follows FEWS XSD sequence.
+   `tag` lets the caller override the wrapper element name (default
+   `timeSeriesSet`; SetForecastLength uses `externalForecastTimeSeries`). #}
+{% macro render(ts, tag="timeSeriesSet") -%}
+<{{ tag }}>
+  <moduleInstanceId>{{ ts.moduleInstanceId }}</moduleInstanceId>
+  <valueType>{{ ts.valueType }}</valueType>
+  <parameterId>{{ ts.parameterId }}</parameterId>
+  {% if ts.qualifierId is not none %}<qualifierId>{{ ts.qualifierId }}</qualifierId>{% endif %}
+  {% if ts.locationId is not none %}<locationId>{{ ts.locationId }}</locationId>{% endif %}
+  {% if ts.locationSetId is not none %}<locationSetId>{{ ts.locationSetId }}</locationSetId>{% endif %}
+  <timeSeriesType>{{ ts.timeSeriesType }}</timeSeriesType>
+  {% if ts.timeStep.id is not none %}<timeStep id="{{ ts.timeStep.id }}"/>
+  {% else %}<timeStep unit="{{ ts.timeStep.unit }}"{% if ts.timeStep.multiplier is not none %} multiplier="{{ ts.timeStep.multiplier }}"{% endif %}/>{% endif %}
+  {% if ts.relativeViewPeriod is not none %}<relativeViewPeriod unit="{{ ts.relativeViewPeriod.unit }}"{% if ts.relativeViewPeriod.start is not none %} start="{{ ts.relativeViewPeriod.start }}"{% endif %}{% if ts.relativeViewPeriod.end is not none %} end="{{ ts.relativeViewPeriod.end }}"{% endif %}{% if ts.relativeViewPeriod.startOverrulable is not none %} startOverrulable="{{ 'true' if ts.relativeViewPeriod.startOverrulable else 'false' }}"{% endif %}{% if ts.relativeViewPeriod.endOverrulable is not none %} endOverrulable="{{ 'true' if ts.relativeViewPeriod.endOverrulable else 'false' }}"{% endif %}/>{% endif %}
+  <readWriteMode>{{ ts.readWriteMode }}</readWriteMode>
+  {% if ts.synchLevel is not none %}<synchLevel>{{ ts.synchLevel }}</synchLevel>{% endif %}
+  {% if ts.expiryTime is not none %}{% if ts.expiryTime.id is not none %}<expiryTime id="{{ ts.expiryTime.id }}"/>
+  {% else %}<expiryTime unit="{{ ts.expiryTime.unit }}"{% if ts.expiryTime.multiplier is not none %} multiplier="{{ ts.expiryTime.multiplier }}"{% endif %}/>{% endif %}{% endif %}
+  {% if ts.ensembleId is not none %}<ensembleId>{{ ts.ensembleId }}</ensembleId>{% endif %}
+  {% if ts.multiplier is not none %}<multiplier>{{ ts.multiplier | xmlstr }}</multiplier>{% endif %}
+</{{ tag }}>
+{%- endmacro %}

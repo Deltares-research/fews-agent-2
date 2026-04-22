@@ -1,0 +1,22 @@
+{%- import "_partials/timeseries_set.xml.j2" as tss -%}
+<?xml version="1.0" encoding="UTF-8"?>
+<thresholdValueSets xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/thresholdValueSets.xsd">
+{% for tvs in thresholdValueSet %}
+  <thresholdValueSet id="{{ tvs.id }}"{% if tvs.name is not none %} name="{{ tvs.name }}"{% endif %}>
+    {% for ltv in tvs.levelThresholdValue %}
+    <levelThresholdValue>
+      <levelThresholdId>{{ ltv.levelThresholdId }}</levelThresholdId>
+      <valueFunction>{{ ltv.valueFunction }}</valueFunction>
+    </levelThresholdValue>
+    {% endfor %}
+    {% for ts in tvs.timeSeriesSet %}
+    {{ tss.render(ts) }}
+    {% endfor %}
+    {% if tvs.stageDischargeConversion is not none %}
+    <stageDischargeConversion>
+      <dischargeParameterId>{{ tvs.stageDischargeConversion.dischargeParameterId }}</dischargeParameterId>
+    </stageDischargeConversion>
+    {% endif %}
+  </thresholdValueSet>
+{% endfor %}
+</thresholdValueSets>

@@ -14,6 +14,7 @@ from __future__ import annotations
 import argparse
 import difflib
 import json
+import os
 import sys
 from decimal import Decimal
 from pathlib import Path
@@ -21,10 +22,64 @@ from pathlib import Path
 from fews_agent.generators import SPECS, GeneratorSpec
 from fews_agent.generators.base import canonicalize
 
+# Green check / red X with ANSI color in interactive terminals; plain tags
+# when piped/redirected/CI. Windows 10+ terminals honor ANSI by default.
+#
+# Detection: stdout.isatty() is the standard check, but PyCharm's pydev
+# console reports False for isatty() while still rendering ANSI (pycharm
+# wraps stdout). We also trust PYCHARM_HOSTED=1 (set by any PyCharm-hosted
+# Python run). NO_COLOR=1 forces plain output per the informal convention.
+_COLOR = (
+    os.environ.get("NO_COLOR") is None
+    and (sys.stdout.isatty() or os.environ.get("PYCHARM_HOSTED") == "1")
+)
+_OK = "\033[32m✔\033[0m" if _COLOR else "[OK]  "
+_FAIL = "\033[31m✘\033[0m" if _COLOR else "[FAIL]"
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 INPUT_JSON = REPO_ROOT / "examples" / "config-tutorial-input.json"
 TUTORIAL_DIR = REPO_ROOT / "examples" / "config-tutorial"
 OUT_DIR = REPO_ROOT / "examples" / "generated-config-tutorial"
+
+
+_FEWS_NS = "http://www.wldelft.nl/fews"
+
+
+def _is_fews_xml(path: Path) -> bool:
+    """True if `path` is a tutorial XML the generator is expected to emit.
+
+    Excludes ArcGIS/GDAL shapefile sidecars, wflow/GDAL internal config
+    XMLs under ModuleDataSetFiles, and ArcGIS `<metadata>` sidecars
+    (detected by root namespace, not path — some sit under MapLayerFiles
+    without the .shp.xml suffix).
+    """
+    name = path.name
+    if name.endswith(".shp.xml") or name.endswith(".map.aux.xml"):
+        return False
+    parts = path.relative_to(TUTORIAL_DIR).parts
+    if "wflowBinaries" in parts:
+        return False
+    if "gdal-data" in parts:
+        return False
+    # Root-element sniff: FEWS configs live in the FEWS namespace (or its
+    # PI sibling); ArcGIS/GDAL sidecars don't.
+    try:
+        head = path.read_bytes()[:4096]
+        # Find the root open-tag; check for xmlns="...fews..." or fews/PI.
+        if b"http://www.wldelft.nl/fews" in head:
+            return True
+    except OSError:
+        return False
+    return False
+
+
+def _tutorial_fews_files() -> set[Path]:
+    """All FEWS-eligible tutorial XML files, as paths relative to TUTORIAL_DIR."""
+    return {
+        p.relative_to(TUTORIAL_DIR)
+        for p in TUTORIAL_DIR.rglob("*.xml")
+        if _is_fews_xml(p)
+    }
 
 
 def _canonical_diff(generated: bytes, reference: bytes, name: str) -> list[str]:
@@ -98,16 +153,37 @@ def main(argv: list[str] | None = None) -> int:
         except Exception as exc:
             ok, msg = False, f"error: {type(exc).__name__}: {exc}"
         results.append((spec, ok, msg))
-        tag = "[OK]  " if ok else "[FAIL]"
+        tag = _OK if ok else _FAIL
         print(f"{tag} {spec.output_relpath}    ({msg})")
+
+    # Coverage = passing specs out of all FEWS tutorial XML files.
+    # Independent of --only: an unrun spec doesn't help coverage.
+    tutorial_files = _tutorial_fews_files()
+    registered = {s.output_relpath for s in SPECS}
+    passing = {s.output_relpath for s, ok, _ in results if ok}
+    passing_count = len(passing & tutorial_files)
+    total_tutorial = len(tutorial_files)
+    pct = (passing_count / total_tutorial * 100) if total_tutorial else 0.0
+    not_registered = tutorial_files - registered
 
     all_ok = all(ok for _, ok, _ in results)
     if all_ok:
         print(f"\nAll {len(results)} files generated and verified against tutorial.")
-        return 0
     fails = [s.name for s, ok, _ in results if not ok]
-    print(f"\n{len(fails)} failure(s): {', '.join(fails)}", file=sys.stderr)
-    return 1
+
+    print(
+        f"Coverage: {passing_count} of {total_tutorial} tutorial FEWS XML "
+        f"files ({pct:.1f}%)"
+    )
+    if not_registered:
+        print(f"  {len(not_registered)} not registered: "
+              f"{', '.join(sorted(str(p) for p in list(not_registered)[:5]))}"
+              f"{' ...' if len(not_registered) > 5 else ''}")
+
+    if not all_ok:
+        print(f"\n{len(fails)} failure(s): {', '.join(fails)}", file=sys.stderr)
+        return 1
+    return 0
 
 
 if __name__ == "__main__":

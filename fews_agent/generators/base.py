@@ -27,6 +27,47 @@ def _xmlstr(value: Any) -> str:
     return str(value)
 
 
+def _dict_to_xml(data: Any) -> str:
+    """Render a nested dict/list/scalar as an XML fragment.
+
+    Convention used by Transformation bodies (and anywhere we need to
+    emit open-shape XML from a dict):
+      - `"@key": "v"` becomes an XML attribute on the enclosing element
+      - other keys become child elements
+      - list values repeat the parent tag (each item becomes an element)
+      - bool scalars emit as lowercase 'true' / 'false'
+      - None values are skipped
+      - dict with only @attrs and no other keys self-closes
+    """
+    if not isinstance(data, dict):
+        return _xmlstr(data) if data is not None else ""
+    parts: list[str] = []
+    for key, value in data.items():
+        if key.startswith("@") or value is None:
+            continue
+        if isinstance(value, list):
+            for item in value:
+                parts.append(_render_element(key, item))
+        else:
+            parts.append(_render_element(key, value))
+    return "".join(parts)
+
+
+def _render_element(tag: str, value: Any) -> str:
+    """Emit `<tag attrs>inner</tag>` — or self-closing when inner is empty."""
+    if isinstance(value, dict):
+        attrs = "".join(
+            f' {k[1:]}="{v}"' for k, v in value.items() if k.startswith("@")
+        )
+        inner = _dict_to_xml(value)
+        if inner == "":
+            return f"<{tag}{attrs}/>"
+        return f"<{tag}{attrs}>{inner}</{tag}>"
+    if isinstance(value, bool):
+        return f"<{tag}>{'true' if value else 'false'}</{tag}>"
+    return f"<{tag}>{_xmlstr(value)}</{tag}>"
+
+
 _env = Environment(
     loader=FileSystemLoader(str(_TEMPLATES_DIR)),
     autoescape=select_autoescape(enabled_extensions=("xml", "j2")),
@@ -36,6 +77,7 @@ _env = Environment(
     undefined=StrictUndefined,
 )
 _env.filters["xmlstr"] = _xmlstr
+_env.filters["dict_to_xml"] = _dict_to_xml
 
 
 def render(template_name: str, model: FewsModel) -> str:

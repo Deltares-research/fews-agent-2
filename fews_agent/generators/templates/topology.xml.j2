@@ -1,0 +1,10 @@
+{%- import "_partials/topology_nodes.xml.j2" as topo -%}
+<?xml version="1.0" encoding="UTF-8"?>
+<topology xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/topology.xsd">
+  {% if enableAutoRun is not none %}<enableAutoRun>{{ 'true' if enableAutoRun else 'false' }}</enableAutoRun>{% endif %}
+  {% if enableAutoSelectParameters is not none %}<enableAutoSelectParameters>{{ 'true' if enableAutoSelectParameters else 'false' }}</enableAutoSelectParameters>{% endif %}
+  {% if enableSelectNodesFromMap is not none %}<enableSelectNodesFromMap>{{ 'true' if enableSelectNodesFromMap else 'false' }}</enableSelectNodesFromMap>{% endif %}
+{% for group in nodes %}
+  {{ topo.render_group(group) }}
+{% endfor %}
+</topology>

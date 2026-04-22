@@ -15,7 +15,7 @@ from __future__ import annotations
 from pydantic import Field, model_validator
 
 from .common import FewsModel
-from .ids import ModuleInstanceId, WorkflowId
+from .ids import LocationSetId, ModuleInstanceId, WorkflowId
 
 
 class WorkflowProperty(FewsModel):
@@ -35,16 +35,42 @@ class WorkflowProperties(FewsModel):
     string: list[WorkflowProperty] = Field(default_factory=list)
 
 
+class EnsembleMemberIndexRange(FewsModel):
+    """Sub-range of ensemble members the activity applies to."""
+
+    start: int
+    end: int
+
+
+class ActivityEnsemble(FewsModel):
+    """`<ensemble>` block inside an activity.
+
+    Two forms observed in the tutorial:
+      - bounded: `<ensembleMemberIndexRange start end/>` — for REPS imports
+      - looping: `<runInLoop>true</runInLoop>` — for REPS model runs
+    """
+
+    ensembleId: str
+    ensembleMemberIndexRange: EnsembleMemberIndexRange | None = None
+    runInLoop: bool | None = None
+
+
 class WorkflowActivity(FewsModel):
     """One `<activity>` block.
 
     Invariant: exactly one of `moduleInstanceId` or `workflowId` is set.
+    `runIndependent` is optional — some tutorial activities omit it
+    (FEWS applies its own default).
+    `loopLocationSetId` and `ensemble` are optional add-ons that drive
+    per-location or per-ensemble-member looping of the activity.
     """
 
-    runIndependent: bool
+    runIndependent: bool | None = None
     moduleInstanceId: ModuleInstanceId | None = None
     workflowId: WorkflowId | None = None
     moduleConfigFileName: str | None = None
+    loopLocationSetId: LocationSetId | None = None
+    ensemble: ActivityEnsemble | None = None
     properties: WorkflowProperties | None = None
 
     @model_validator(mode="after")

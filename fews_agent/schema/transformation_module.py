@@ -22,7 +22,9 @@ once we know which kinds matter most.
 """
 from __future__ import annotations
 
-from pydantic import ConfigDict, Field
+from typing import Any
+
+from pydantic import Field
 
 from .common import FewsModel, TimeSeriesSet
 from .ids import VariableId
@@ -38,19 +40,20 @@ class Variable(FewsModel):
 class Transformation(FewsModel):
     """Transformation wrapper.
 
-    Accepts arbitrary additional fields so callers can supply any
-    transformation-kind-specific body (accumulation, user/simple,
-    interpolationSerialToBlock, ...) until we tighten this to a tagged
-    union.
+    `body` is a free-form nested dict representing the transformation-
+    kind-specific content (accumulation, user/simple, interpolationSpatial,
+    merge, statisticsEnsemble, sample/nonEquidistant, ...). The generator
+    renders it to XML via the `dict_to_xml` Jinja filter using the
+    convention: keys with leading `@` become attributes; other keys become
+    child elements; lists repeat the element; scalars become text.
+
+    Example:
+        {"id": "t1", "body": {"user": {"simple": {"expression": "A+B",
+         "outputVariable": {"variableId": "C"}}}}}
     """
 
     id: str
-
-    model_config = ConfigDict(
-        extra="allow",
-        str_strip_whitespace=True,
-        populate_by_name=True,
-    )
+    body: dict[str, Any] = Field(default_factory=dict)
 
 
 class TransformationModule(FewsModel):

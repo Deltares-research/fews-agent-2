@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<idMap version="{{ version }}" xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/idMap.xsd">
+{% for p in parameter %}
+  <parameter internal="{{ p.internal }}"{% if p.internalQualifier is not none %} internalQualifier="{{ p.internalQualifier }}"{% endif %} external="{{ p.external }}"{% if p.externalQualifier is not none %} externalQualifier="{{ p.externalQualifier }}"{% endif %}/>
+{% endfor %}
+{% for l in location %}
+  <location internal="{{ l.internal }}" external="{{ l.external }}"/>
+{% endfor %}
+{% for f in function %}
+  <function internalLocationSet="{{ f.internalLocationSet }}" externalLocationFunction="{{ f.externalLocationFunction }}" externalParameterFunction="{{ f.externalParameterFunction }}" internalParameter="{{ f.internalParameter }}"{% if f.internalQualifier is not none %} internalQualifier="{{ f.internalQualifier }}"{% endif %}/>
+{% endfor %}
+{% for m in map %}
+  <map internalParameter="{{ m.internalParameter }}" internalLocation="{{ m.internalLocation }}"{% if m.internalEnsemble is not none %} internalEnsemble="{{ m.internalEnsemble }}"{% endif %}{% if m.internalEnsembleMemberId is not none %} internalEnsembleMemberId="{{ m.internalEnsembleMemberId }}"{% endif %} externalParameter="{{ m.externalParameter }}" externalLocation="{{ m.externalLocation }}"/>
+{% endfor %}
+  {% if enableOneToOneMapping %}<enableOneToOneMapping/>{% endif %}
+</idMap>

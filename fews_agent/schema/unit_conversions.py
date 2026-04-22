@@ -11,10 +11,14 @@ from .common import FewsModel
 
 
 class UnitConversion(FewsModel):
+    # multiplier/incrementer are str (not float or Decimal) to preserve the
+    # exact source representation. Tutorial values include integers (86400),
+    # short decimals (0.5556), and scientific notation (2.77777E-4) — none
+    # of which survive float or Decimal round-trip under :f formatting.
     inputUnitType: str
     outputUnitType: str
-    multiplier: float | None = None
-    incrementer: float | None = None
+    multiplier: str | None = None
+    incrementer: str | None = None
 
 
 class UnitConversions(FewsModel):

@@ -1,0 +1,23 @@
+{# Recursive renderer for Topology <nodes> groups and <node> leaves. #}
+
+{% macro render_node(leaf) -%}
+<node id="{{ leaf.id }}"{% if leaf.name is not none %} name="{{ leaf.name }}"{% endif %}>
+  {% if leaf.url is not none %}<url>{{ leaf.url }}</url>{% endif %}
+  {% if leaf.workflowId is not none %}<workflowId>{{ leaf.workflowId }}</workflowId>{% endif %}
+  {% if leaf.graceTime is not none %}<graceTime unit="{{ leaf.graceTime.unit }}" multiplier="{{ leaf.graceTime.multiplier }}"/>{% endif %}
+  {% for vmg in leaf.visibleModifierGroup %}<visibleModifierGroup>{{ vmg }}</visibleModifierGroup>{% endfor %}
+  {% if leaf.localRun is not none %}<localRun>{{ 'true' if leaf.localRun else 'false' }}</localRun>{% endif %}
+  {% if leaf.showRunApprovedForecastButton is not none %}<showRunApprovedForecastButton>{{ 'true' if leaf.showRunApprovedForecastButton else 'false' }}</showRunApprovedForecastButton>{% endif %}
+</node>
+{%- endmacro %}
+
+{% macro render_group(group) -%}
+<nodes id="{{ group.id }}"{% if group.name is not none %} name="{{ group.name }}"{% endif %}>
+  {% for child in group.nodes %}
+  {{ render_group(child) }}
+  {% endfor %}
+  {% for leaf in group.node %}
+  {{ render_node(leaf) }}
+  {% endfor %}
+</nodes>
+{%- endmacro %}

@@ -53,15 +53,22 @@ class FunctionMapping(FewsModel):
     externalLocationFunction: str
     externalParameterFunction: str
     internalParameter: ParameterId
+    internalQualifier: QualifierId | None = None
 
 
 class MapMapping(FewsModel):
-    """Grid-to-grid mapping (SNODAS, E2O, GPM, GSMAP)."""
+    """Grid-to-grid mapping (SNODAS, E2O, GPM, GSMAP).
+
+    CanadaWCS uses internalEnsemble/internalEnsembleMemberId on REPS
+    members to demux ensemble streams to distinct member indices.
+    """
 
     internalParameter: ParameterId
     internalLocation: LocationId
     externalParameter: str
     externalLocation: str
+    internalEnsemble: str | None = None
+    internalEnsembleMemberId: str | None = None
 
 
 class IdMap(FewsModel):

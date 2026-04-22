@@ -29,8 +29,15 @@ from __future__ import annotations
 
 from pydantic import ConfigDict, Field, model_validator
 
-from .common import FewsModel, RelativeViewPeriod, TimeSeriesSet, TimeZone
-from .ids import IdMapId, ModuleInstanceId
+from .common import (
+    FewsModel,
+    RelativeViewPeriod,
+    TimeSeriesSet,
+    TimeStep,
+    TimeZone,
+    UnitMultiplier,
+)
+from .ids import IdMapId, LocationSetId, ModuleInstanceId, UnitConversionsId
 
 
 # ---------------------------------------------------------------------------
@@ -43,23 +50,31 @@ class GeneralAdapterGeneral(FewsModel):
     All dirs are strings because FEWS heavily uses %PLACEHOLDER% and
     $VAR$ substitution here. piVersion is optional — only some module
     families pin it.
+
+    `missVal` is str (not float): tutorial uses "NaN" (uppercase) which
+    float() accepts but str() re-emits lowercase "nan" — same precision-
+    preservation trick as the other str-typed numeric fields.
     """
 
     rootDir: str
     workDir: str
     exportDir: str
     importDir: str
+    description: str | None = None
     piVersion: str | None = None
     exportDataSetDir: str | None = None
     exportIdMap: IdMapId | None = None
+    exportUnitConversionsId: UnitConversionsId | None = None
     importIdMap: IdMapId | None = None
     dumpFileDir: str | None = None
     dumpDir: str | None = None
     diagnosticFile: str | None = None
     time0Format: str | None = None
-    missVal: float | None = None
+    missVal: str | None = None
     convertDatum: bool | None = None
     timeZone: TimeZone | None = None
+    startDateTimeFormat: str | None = None
+    modelTimeStep: TimeStep | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -79,9 +94,14 @@ class WarmStateSelection(FewsModel):
 
 
 class ColdStateSelection(FewsModel):
-    """Cold state reference. Typically a path; other fields may appear."""
+    """Cold state reference — starts the model from a zero/reset state.
 
-    model_config = ConfigDict(extra="allow", populate_by_name=True)
+    Tutorial uses `<startDate unit="day" multiplier="0"/>` for an
+    immediate-at-forecast-time cold start; other variants may carry a
+    static path. Further fields can be added as encountered.
+    """
+
+    startDate: UnitMultiplier | None = None
 
 
 class FromTimeSeriesSelection(FewsModel):
@@ -152,6 +172,27 @@ class ExportDataSetActivity(FewsModel):
     description: str | None = None
 
 
+class LocationModelLoop(FewsModel):
+    """Inside `<templateLocationLooping>` — iterates a parameter file over
+    every location in a locationSet for a given model."""
+
+    locationSetId: LocationSetId
+    model: str
+
+
+class TemplateLocationLooping(FewsModel):
+    locationModelLoop: LocationModelLoop
+
+
+class ExportParameterActivity(FewsModel):
+    """Renders a parameter file (e.g. `params_ubc.xml`) from a
+    ModuleParameters instance, looping over locations."""
+
+    fileName: str
+    templateLocationLooping: TemplateLocationLooping
+    moduleInstanceId: ModuleInstanceId
+
+
 class TimeSeriesSetList(FewsModel):
     """`<timeSeriesSets>` wrapper; mirrors the XML container element."""
 
@@ -161,15 +202,36 @@ class TimeSeriesSetList(FewsModel):
 class ExportNetcdfActivity(FewsModel):
     exportFile: str
     timeSeriesSets: TimeSeriesSetList
+    omitMissingValues: bool | None = None
+
+
+class RunFileStringProperty(FewsModel):
+    key: str
+    value: str
+
+
+class RunFileIntProperty(FewsModel):
+    key: str
+    value: int
+
+
+class RunFileProperties(FewsModel):
+    """`<properties>` inside exportRunFileActivity — polymorphic key/value
+    pairs (string + int typically; extend as needed)."""
+
+    string: list[RunFileStringProperty] = Field(default_factory=list)
+    int: list[RunFileIntProperty] = Field(default_factory=list)
 
 
 class ExportRunFileActivity(FewsModel):
     exportFile: str
+    properties: RunFileProperties | None = None
 
 
 class ExportActivities(FewsModel):
     exportStateActivity: list[ExportStateActivity] = Field(default_factory=list)
     exportDataSetActivity: list[ExportDataSetActivity] = Field(default_factory=list)
+    exportParameterActivity: list[ExportParameterActivity] = Field(default_factory=list)
     exportNetcdfActivity: list[ExportNetcdfActivity] = Field(default_factory=list)
     exportRunFileActivity: list[ExportRunFileActivity] = Field(default_factory=list)
 
@@ -207,8 +269,18 @@ class ExecuteActivities(FewsModel):
 # importActivities
 # ---------------------------------------------------------------------------
 
+class StateFileRef(FewsModel):
+    """`<stateFile>` wrapper inside importStateActivity — tells FEWS where
+    to copy the post-run state file to for warm-start reuse."""
+
+    importFile: str
+    relativeExportFile: str | None = None
+
+
 class ImportStateActivity(FewsModel):
-    stateConfigFile: str
+    stateConfigFile: str | None = None
+    stateFile: StateFileRef | None = None
+    synchLevel: int | None = None
 
 
 class ImportNetcdfActivity(FewsModel):
@@ -252,8 +324,14 @@ __all__ = [
     "ExportActivities",
     "ExportStateActivity",
     "ExportDataSetActivity",
+    "ExportParameterActivity",
+    "TemplateLocationLooping",
+    "LocationModelLoop",
     "ExportNetcdfActivity",
     "ExportRunFileActivity",
+    "RunFileProperties",
+    "RunFileStringProperty",
+    "RunFileIntProperty",
     "StateLocations",
     "StateLocation",
     "StateSelection",
@@ -268,5 +346,6 @@ __all__ = [
     "ExecutableArguments",
     "ImportActivities",
     "ImportStateActivity",
+    "StateFileRef",
     "ImportNetcdfActivity",
 ]

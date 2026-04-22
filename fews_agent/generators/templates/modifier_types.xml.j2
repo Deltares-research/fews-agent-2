@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?>
+<modifierTypes xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/modifierTypes.xsd">
+  {% if rollbackOverlappingModifiers is not none %}<rollbackOverlappingModifiers>{{ 'true' if rollbackOverlappingModifiers else 'false' }}</rollbackOverlappingModifiers>{% endif %}
+{% for m in timeSeriesModifier %}
+  <timeSeriesModifier id="{{ m.id }}"{% if m.name is not none %} name="{{ m.name }}"{% endif %}>
+    {% if m.applyToEnsemble is not none %}<applyToEnsemble>{{ m.applyToEnsemble }}</applyToEnsemble>{% endif %}
+    <timeSeries>
+      <moduleInstanceId>{{ m.timeSeries.moduleInstanceId }}</moduleInstanceId>
+      <valueType>{{ m.timeSeries.valueType }}</valueType>
+      <parameterId>{{ m.timeSeries.parameterId }}</parameterId>
+      {% if m.timeSeries.locationId is not none %}<locationId>{{ m.timeSeries.locationId }}</locationId>{% endif %}
+      {% if m.timeSeries.locationSetId is not none %}<locationSetId>{{ m.timeSeries.locationSetId }}</locationSetId>{% endif %}
+    </timeSeries>
+    {% if m.defaultStartTime is not none %}<defaultStartTime>{{ m.defaultStartTime }}</defaultStartTime>{% endif %}
+    {% if m.defaultEndTime is not none %}<defaultEndTime>{{ m.defaultEndTime }}</defaultEndTime>{% endif %}
+    {% if m.defaultValidTime %}<defaultValidTime/>{% endif %}
+    {% if m.resolveInWorkflow is not none %}<resolveInWorkflow>{{ 'true' if m.resolveInWorkflow else 'false' }}</resolveInWorkflow>{% endif %}
+    {% if m.resolveInPlots is not none %}<resolveInPlots>{{ 'true' if m.resolveInPlots else 'false' }}</resolveInPlots>{% endif %}
+    {% if m.editInPlots is not none %}<editInPlots>{{ 'true' if m.editInPlots else 'false' }}</editInPlots>{% endif %}
+  </timeSeriesModifier>
+{% endfor %}
+{% for m in spatialCopyModifier %}
+  <spatialCopyModifier id="{{ m.id }}"{% if m.name is not none %} name="{{ m.name }}"{% endif %}>
+    {% if m.expiryTime is not none %}<expiryTime unit="{{ m.expiryTime.unit }}" multiplier="{{ m.expiryTime.multiplier }}"/>{% endif %}
+    {% for ts in m.timeSeries %}
+    <timeSeries>
+      <moduleInstanceId>{{ ts.moduleInstanceId }}</moduleInstanceId>
+      <parameterId>{{ ts.parameterId }}</parameterId>
+      <locationId>{{ ts.locationId }}</locationId>
+    </timeSeries>
+    {% endfor %}
+  </spatialCopyModifier>
+{% endfor %}
+{% for m in spatialProfileModifier %}
+  <spatialProfileModifier id="{{ m.id }}"{% if m.name is not none %} name="{{ m.name }}"{% endif %}>
+    {% if m.expiryTime is not none %}<expiryTime unit="{{ m.expiryTime.unit }}" multiplier="{{ m.expiryTime.multiplier }}"/>{% endif %}
+    {% if m.userDefinedDescriptionField is not none %}<userDefinedDescriptionField id="{{ m.userDefinedDescriptionField.id }}" descriptionField="{{ m.userDefinedDescriptionField.descriptionField }}"/>{% endif %}
+    {% for ts in m.timeSeries %}
+    <timeSeries>
+      <moduleInstanceId>{{ ts.moduleInstanceId }}</moduleInstanceId>
+      <parameterId>{{ ts.parameterId }}</parameterId>
+    </timeSeries>
+    {% endfor %}
+    {% if m.descriptiveFunctionGroups is not none %}
+    <descriptiveFunctionGroups>
+      {% for g in m.descriptiveFunctionGroups.descriptiveFunctionGroup %}
+      <descriptiveFunctionGroup name="{{ g.name }}">
+        {% for df in g.descriptiveFunction %}
+        {% if df.timeSpan %}<descriptiveFunction function="{{ df.function }}"{% if df.ignoreMissings is not none %} ignoreMissings="{{ 'true' if df.ignoreMissings else 'false' }}"{% endif %}>
+          {% for sp in df.timeSpan %}<timeSpan unit="{{ sp.unit }}" multiplier="{{ sp.multiplier }}"/>{% endfor %}
+        </descriptiveFunction>
+        {% else %}<descriptiveFunction function="{{ df.function }}"{% if df.ignoreMissings is not none %} ignoreMissings="{{ 'true' if df.ignoreMissings else 'false' }}"{% endif %}/>{% endif %}
+        {% endfor %}
+      </descriptiveFunctionGroup>
+      {% endfor %}
+    </descriptiveFunctionGroups>
+    {% endif %}
+  </spatialProfileModifier>
+{% endfor %}
+{% for g in modifiersGroup %}
+  <modifiersGroup id="{{ g.id }}">
+    {% for mid in g.modifierId %}<modifierId>{{ mid }}</modifierId>{% endfor %}
+  </modifiersGroup>
+{% endfor %}
+</modifierTypes>
