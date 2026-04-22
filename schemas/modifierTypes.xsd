@@ -1,0 +1,1435 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- edited with XMLSpy v2009 sp1 (http://www.altova.com) by ICT (Stichting Deltares) -->
+<!--Delft FEWS (Copyright 2003 WL | Delft Hydraulics) -->
+<schema xmlns:fews="http://www.wldelft.nl/fews" xmlns="http://www.w3.org/2001/XMLSchema" targetNamespace="http://www.wldelft.nl/fews" elementFormDefault="qualified" attributeFormDefault="unqualified" version="1.0">
+	<include schemaLocation="sharedTypes.xsd"/>
+	<element name="modifierTypes" type="fews:ModifierTypesComplexType"/>
+	<complexType name="ModifierTypesComplexType">
+		<sequence>
+			<element name="restoreModifiersWhenApprovingForecastRun" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>when this option is enabled, all modifiers which were used in this run will be restored. Modifiers which were created after this run will be deleted</documentation>
+				</annotation>
+			</element>
+			<element name="rollbackOverlappingModifiers" type="boolean" default="true" minOccurs="0">
+				<annotation>
+					<documentation>If user A creates and commits an modifier which overlaps with a new modifiers from user B than the changes from user B will be rolled back</documentation>
+				</annotation>
+			</element>
+			<element name="autoCommit" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>when this option is enabled. Modifiers are committed after creation or an update and are uploaded directly to the live system
+					</documentation>
+				</annotation>
+			</element>
+			<element name="autoExtendExpiryTime" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>Since 2023.02 The expiry time of the modifier is based on the latest time of the modifier plus the configured (or default) expiry time for the modifier type</documentation>
+				</annotation>
+			</element>
+			<element name="missingValueModifier" type="fews:MissingValueModifierComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>This modifier can be used set all the values of a time series to missing for a certain period</documentation>
+				</annotation>
+			</element>
+			<element name="typicalProfileModifier" type="fews:TypicalProfileModifierComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>This modifier allows specification of a typicalProfile which is defined at a certain date time frame, while being applied at systemTime.
+						Use the originalSystemTime setting in the GUI to manage the relative start time shift of the modifier values to systemTime.
+						Note: this modifier is also offered to the user as one of the options when configuring a the timeseriesModifier</documentation>
+				</annotation>
+			</element>
+			<element name="timeSeriesModifier" type="fews:TimeSeriesModifierComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>This modifier can be used to modify the values of a time series by defining new time value pairs. It is also possible to define an operation like add 2 or divided by
+						3 for a certain period. It is also possible to set all the values to missing for a certain period (comparable to the missing value modifier)
+					</documentation>
+				</annotation>
+			</element>
+			<element name="constantValueModifier" type="fews:ConstantValueModifierComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>this modifier can be used to set the value of a time series to a constant value for a certain period of time</documentation>
+				</annotation>
+			</element>
+			<element name="singleValueModifier" type="fews:SingleValueModifierTypeComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>this modifier can be used to set a single value of a time series to a different value</documentation>
+				</annotation>
+			</element>
+			<element name="enumerationModifier" type="fews:EnumerationModifierComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>this modifier can be used to set a single value in a time series. The user can choose from a pre-configured set choices (dropdownbox). Each choice is linked to a
+						unique value. This value will be stored at the chosen date/time in the time series
+					</documentation>
+				</annotation>
+			</element>
+			<element name="markUnreliableModifier" type="fews:MarkUnreliableModifierComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>The modifier can be used to set the values of a time series to unreliable for a certain period of time</documentation>
+				</annotation>
+			</element>
+			<element name="adjustQModifiers" type="fews:AdjustQModifiersComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Group of modifiers which can be applied on the adjustQ transformations</documentation>
+				</annotation>
+			</element>
+			<element name="timeShiftConstantModifiers" type="fews:TimeShiftConstantModifiersComplexType" minOccurs="0"/>
+			<element name="sampleHistoricalModifiers" type="fews:SampleHistoricalModifiersComplexType" minOccurs="0"/>
+			<element name="mergeSimpleModifiers" type="fews:MergeSimpleModifiersComplexType" minOccurs="0"/>
+			<element name="compoundModifier" type="fews:CompoundModifierComplexType" minOccurs="0" maxOccurs="unbounded"/>
+			<element name="highLowSurgeSelectionModifier" type="fews:HighLowSurgeSelectionModifierComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>highLowSurgeSelectionModifier shows the final surge (Stau) forecasts in a tabular overview (Stautabellen)  and allows selecting and editing  of the high/low surge.</documentation>
+				</annotation>
+			</element>
+			<element name="switchOptionModifier" type="fews:SwitchOptionModifierComplexType" minOccurs="0" maxOccurs="unbounded"/>
+			<element name="optionModifier" type="fews:OptionModifierComplexType" minOccurs="0" maxOccurs="unbounded"/>
+			<element name="moduleParameterModifier" type="fews:ModuleParameterModifierComplexType" minOccurs="0" maxOccurs="unbounded"/>
+			<element name="priorityModifier" type="fews:PriorityModifierComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Since 2014.02. Modifier by which module parameter type 'table' can be modified. This modifier presently supports reordening of the table rows.</documentation>
+				</annotation>
+			</element>
+			<element name="multipleModuleParameterModifier" type="fews:MultipleModuleModifierComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Modifier by which multiple module parameter files can be modified in one display. It is possible define rules and constraints for the modifier</documentation>
+				</annotation>
+			</element>
+			<element name="spatialCopyModifier" type="fews:SpatialModifierComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Since 2019.02 The user can copy parts of another grid time series using the modifier mode in the grid display.</documentation>
+				</annotation>
+			</element>
+			<element name="spatialProfileModifier" type="fews:SpatialProfileModifierComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Since 2019.02 The user can select an area in a grid and define a scalar time series to set a constant value for all the grid cells in the selected area for each time step. This is done using the modifier mode in the grid display.</documentation>
+				</annotation>
+			</element>
+			<element name="unitHydrographModifiers" type="fews:UnitHydrographModifiersComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Group of modifiers for the unit hydrograph model (currently only of modifier is available)</documentation>
+				</annotation>
+			</element>
+			<element name="mergeWeightedModifiers" type="fews:MergeWeightedModifiersComplexType" minOccurs="0"/>
+			<element name="ratingCurveModifiers" type="fews:RatingCurveModifiersComplexType" minOccurs="0"/>
+			<element name="attributeModifiers" type="fews:AttributeModifiersComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Group of modifiers which can be used to modify attributes</documentation>
+				</annotation>
+			</element>
+			<element name="modifiersGroup" type="fews:ModifiersGroupComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>In this elements groups of modifiers can be defined. In de workflowdescriptors can be defined which modifiers should be included in run. If no groups are defined all modifiers are included. Also in the topology modifier groups can be used. For example to define which mods can be viewed or modded at a certain node.</documentation>
+				</annotation>
+			</element>
+			<element name="copyModifiers" type="fews:CopyModifierComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2018.02 The user can copy modifiers by using the "option</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<group name="OneDateModifierDatesGroup">
+		<sequence>
+			<element name="defaultTime" type="fews:DefaultStartTimeEnumStringType">
+				<annotation>
+					<documentation>Start of time period to which modifier is applied. When omitted this value will default to the Year 1000 and will be disabled.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="offsetDefaultTime" type="fews:TimeShiftComplexType" minOccurs="0"/>
+		</sequence>
+	</group>
+	<group name="PeriodModifierDatesGroup">
+		<sequence>
+			<element name="defaultStartTime" type="fews:DefaultStartTimeEnumStringType">
+				<annotation>
+					<documentation>Start of time of the period to which modifier is applied. When omitted this value will default to the Year 1000 and will be disabled.</documentation>
+				</annotation>
+			</element>
+			<element name="offsetDefaultStartTime" type="fews:TimeShiftComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Define an offset to the default start time.</documentation>
+				</annotation>
+			</element>
+			<element name="defaultEndTime" type="fews:DefaultEndTimeEnumStringType">
+				<annotation>
+					<documentation>End of time period to which modifier is applied. When omitted this value will default to the Year 3000 and will be disabled.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="offsetDefaultEndTime" type="fews:TimeShiftComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Define an offset to the default end time.</documentation>
+				</annotation>
+			</element>
+			<element name="defaultValidTime" type="fews:emptyElement" minOccurs="0">
+				<annotation>
+					<documentation>Forecast time after which the modifier is no longer valid. When omitted this value will default to the Year 3000 and will be disabled.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="offsetValidTime" type="fews:TimeShiftComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Define an offset to the default valid time.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</group>
+	<complexType name="MissingValueModifierComplexType">
+		<complexContent>
+			<extension base="fews:TimeSeriesModifierBaseComplexType">
+				<sequence>
+					<element name="timeSeries" type="fews:TimeSeriesFilterComplexType" minOccurs="0" maxOccurs="unbounded">
+						<annotation>
+							<documentation>Filter which defines which time series can be modified with this modifier</documentation>
+						</annotation>
+					</element>
+					<group ref="fews:PeriodModifierDatesGroup" minOccurs="0"/>
+					<element name="resolveInWorkflow" type="boolean"/>
+					<element name="resolveInPlots" type="boolean"/>
+				</sequence>
+			</extension>
+		</complexContent>
+	</complexType>
+	<complexType name="TypicalProfileModifierComplexType">
+		<complexContent>
+			<extension base="fews:TimeSeriesModifierBaseComplexType">
+				<sequence>
+					<element name="timeSeries" type="fews:TimeSeriesFilterComplexType" minOccurs="0" maxOccurs="unbounded">
+						<annotation>
+							<documentation>Filter which defines which time series can be modified with this modifier</documentation>
+						</annotation>
+					</element>
+					<group ref="fews:PeriodModifierDatesGroup" minOccurs="0"/>
+					<element name="resolveInWorkflow" type="boolean"/>
+					<element name="resolveInPlots" type="boolean"/>
+				</sequence>
+			</extension>
+		</complexContent>
+	</complexType>
+	<complexType name="UnitHydrographModifiersComplexType">
+		<sequence>
+			<element name="changeOrdinatesModifier" type="fews:ChangeOrdinatesModifierComplexType">
+				<annotation>
+					<documentation>Modifier which allows the modification of the hydrograph of NWS UNITHG model</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="SharedLocationAttributeModifiersComplexType">
+		<sequence>
+			<choice>
+				<element name="locationId" type="fews:idStringType" maxOccurs="unbounded">
+					<annotation>
+						<documentation>Set of locations which can be modified by all location attribute modifiers</documentation>
+					</annotation>
+				</element>
+				<element name="locationSetId" type="fews:idStringType">
+					<annotation>
+						<documentation>The location set which can be modified by all location attribute modifiers</documentation>
+					</annotation>
+				</element>
+			</choice>
+			<element name="attribute" type="fews:idStringType" maxOccurs="unbounded">
+				<annotation>
+					<documentation>The location attributes which can be modified by all location attribute modifiers</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="AttributeModifiersComplexType">
+		<sequence>
+			<element name="sharedLocationAttributeModifiers" type="fews:SharedLocationAttributeModifiersComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>A set of attributes and locations which can be modified by all location attribute modifiers</documentation>
+				</annotation>
+			</element>
+			<element name="locationAttributeModifier" type="fews:LocationAttributeModifierComplexType" minOccurs="0" maxOccurs="unbounded">
+			<annotation>
+					<documentation>This modifier can be used to modify location attributes</documentation>
+				</annotation>
+			</element>
+			<element name="shiftDateTimeModifier" type="fews:ShiftDateTimeLocationAttributeModifierComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>This modifier can be used to define a single location attribute date modifier. The defined modifier will have a valid time. If the time zero of a task run is after the defined valid time then the modifier won't be applied. This modifier can be used in combination with the forecast length estimator to shift the time zero of a run.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="ShiftDateTimeLocationAttributeModifierComplexType">
+		<complexContent>
+			<extension base="fews:ModifierBaseComplexType">
+				<sequence>
+					<element name="attributeId" type="fews:idStringType"/>
+					<choice>
+						<element name="locationId" type="fews:idStringType" maxOccurs="unbounded"/>
+						<element name="locationSetId" type="fews:idStringType"/>
+					</choice>
+					<element name="defaultModifierTime" type="fews:DefaultModifierTimeComplexType"/>
+					<element name="customLabel" type="fews:nameStringType">
+						<annotation>
+							<documentation>The text of the label which will appear in front of the date/time picker in the modifier panel</documentation>
+						</annotation>
+					</element>
+					<element name="editablePeriodTimeSeries" type="fews:TimeSeriesSetComplexType">
+						<annotation>
+							<documentation>The time which the users selects in the modifier should be in the period for which the defined time series have reliable data.</documentation>
+						</annotation>
+					</element>
+					<element name="offsetValidTime" type="fews:TimeShiftComplexType" minOccurs="0">
+						<annotation>
+							<documentation>Define an offset to the default valid time.</documentation>
+						</annotation>
+					</element>
+				</sequence>
+			</extension>
+		</complexContent>
+	</complexType>
+	<complexType name="DefaultModifierTimeComplexType">
+		<sequence>
+			<element name="offset" type="fews:TimeShiftComplexType"/>
+			<element name="timeStep" type="fews:TimeStepComplexType"/>
+		</sequence>
+	</complexType>
+	<complexType name="LocationAttributeModifierComplexType">
+		<complexContent>
+			<extension base="fews:ModifierBaseComplexType">
+				<sequence>
+					<element name="exportFile" type="fews:LocationAttributeModifierExportFileComplexType" minOccurs="0">
+						<annotation>
+							<documentation>If an export file is configured it will be possible to export the content of a location attribute modifier to a file from the modifier panel</documentation>
+						</annotation>
+					</element>
+					<element name="ignoreNonExistingAttributes" type="boolean" default="false" minOccurs="0">
+						<annotation>
+							<documentation>Since 2020.02 If the configured attributes are not found, they will be ignored. In addition FEWS will not an error message!</documentation>
+						</annotation>
+					</element>
+					<element name="modifiableGroup" type="fews:ModifiableGroupComplexType" minOccurs="0" maxOccurs="unbounded">
+						<annotation>
+							<documentation>Define a group a locations from which a certain subset of attributes can be modified.</documentation>
+						</annotation>
+					</element>
+					<element name="template" type="fews:TemplateListItemComplexType" minOccurs="0"/>
+					<element name="storeAllAttributesValues" type="boolean" default="false" minOccurs="0">
+						<annotation>
+							<documentation>Since 2025.01 If this option is enabled all the current values of attributes will be stored in the modifier. This option is only available for the location
+								attribute modifier.
+							</documentation>
+						</annotation>
+					</element>
+				</sequence>
+			</extension>
+		</complexContent>
+	</complexType>
+	<complexType name="ModifiersGroupComplexType">
+		<sequence>
+			<element name="modifierId" type="fews:idStringType" maxOccurs="unbounded"/>
+		</sequence>
+		<attribute name="id" type="fews:idStringType" use="required"/>
+	</complexType>
+	<complexType name="TemplateListItemComplexType">
+		<sequence>
+			<choice maxOccurs="unbounded">
+				<element name="panel" type="fews:PanelComplexType"/>
+			</choice>
+		</sequence>
+		<attribute name="id" type="fews:idStringType" use="required"/>
+		<attribute name="name" type="fews:nameStringType"/>
+	</complexType>
+	<complexType name="PanelComplexType">
+		<sequence>
+			<element name="panelId" type="string"/>
+			<group ref="fews:PanelLayoutGroupComplexType" minOccurs="0"/>
+		</sequence>
+	</complexType>
+	<group name="PanelLayoutGroupComplexType">
+		<sequence>
+			<element name="position" type="fews:PositionComplexType"/>
+		</sequence>
+	</group>
+	<complexType name="PositionComplexType">
+		<attribute name="column" type="integer"/>
+		<attribute name="row" type="integer"/>
+	</complexType>
+	<complexType name="TabLayoutComplexType">
+		<sequence>
+			<element name="showOriginalValues" type="boolean" default="true" minOccurs="0">
+				<annotation>
+					<documentation>When this option is enabled the table will show the original (unmodified) values for the attributes</documentation>
+				</annotation>
+			</element>
+			<element name="locationOrientation" type="fews:LocationOrientationSimpleType" default="column" minOccurs="0"/>
+		</sequence>
+	</complexType>
+	<complexType name="PanelLayoutComplexType">
+		<sequence>
+			<choice maxOccurs="unbounded">
+				<element name="locationListLayout" type="fews:LocationListLayoutComplexType"/>
+				<element name="tableLayout" type="fews:TableLayoutComplexType"/>
+			</choice>
+		</sequence>
+	</complexType>
+	<simpleType name="LocationOrientationSimpleType">
+		<restriction base="string">
+			<enumeration value="row"/>
+			<enumeration value="column"/>
+		</restriction>
+	</simpleType>
+	<complexType name="TableLayoutComplexType">
+		<sequence>
+			<element name="title" type="string"/>
+			<element name="defaultColumnWidth" type="fews:positiveInteger" minOccurs="0">
+				<annotation>
+					<documentation>Since 2017.02 This option can be used to define the default column width of a column. This default is used when there is no width defined for an attribute
+					</documentation>
+				</annotation>
+			</element>
+			<element name="attributeId" type="fews:AttributeIdComplexType" maxOccurs="unbounded"/>
+			<element name="locationOrientation" type="fews:LocationOrientationSimpleType" default="column" minOccurs="0"/>
+		</sequence>
+		<attribute name="id" type="fews:idStringType" use="required"/>
+		<attribute name="width" type="fews:positiveInteger">
+			<annotation>
+				<documentation>Since 2017.02 This option can be used to define the width of the panel</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="height" type="fews:positiveInteger">
+			<annotation>
+				<documentation>Since 2017.02 This option can be used to define the height of the panel</documentation>
+			</annotation>
+		</attribute>
+	</complexType>
+	<complexType name="LocationListLayoutComplexType">
+		<sequence>
+			<element name="title" type="string"/>
+			<element name="attributeId" type="fews:AttributeIdComplexType" maxOccurs="unbounded"/>
+		</sequence>
+		<attribute name="id" type="fews:idStringType" use="required"/>
+		<attribute name="width" type="fews:positiveInteger">
+			<annotation>
+				<documentation>Since 2017.02 This option can be used to define the width of the panel</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="height" type="fews:positiveInteger">
+			<annotation>
+				<documentation>Since 2017.02 This option can be used to define the height of the panel</documentation>
+			</annotation>
+		</attribute>
+	</complexType>
+	<complexType name="AttributeIdComplexType">
+		<simpleContent>
+			<extension base="fews:idStringType">
+				<attribute name="width" type="fews:positiveInteger">
+					<annotation>
+						<documentation>Since 2017.02 This option can be used to define the width of the column of this attribute</documentation>
+					</annotation>
+				</attribute>
+			</extension>
+		</simpleContent>
+	</complexType>
+	<complexType name="LocationAttributeComplexType">
+		<sequence>
+			<choice>
+				<element name="readOnly" type="boolean" default="false" minOccurs="0"/>
+				<element name="visible" type="boolean" default="true" minOccurs="0"/>
+			</choice>
+			<choice minOccurs="0">
+				<element name="timeSeriesValueClosestToStateSelectionStartTime" type="fews:TimeSeriesValueClosestToStateSelectionStartTimeComplexType"/>
+				<element name="useSystemTimeAsDefaultValue" type="boolean">
+					<annotation>
+						<documentation>Since 2020.01. This option is available for date/time attributes. The default value of the attribute will be set to the system time.</documentation>
+					</annotation>
+				</element>
+				<element name="useTimeOfFirstReliableValueInTimeSeries" type="fews:TimeSeriesUseDateOfFirstReliableValueInTimeSeriesComplexType">
+					<annotation>
+						<documentation>Since 2020.01. This option is available for date/time attributes. The default value of the attribute will be set to the date/time of the first reliable value of
+							the configured time series
+						</documentation>
+					</annotation>
+				</element>
+				<element name="selection" type="fews:LocationAttributeSelectionComplexType"/>
+			</choice>
+			<element name="conditionalSelection" type="fews:ConditionalPredefinedLocationAttributeOptionsComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Define a list of pre-defined options by which a certain location attribute can be modified</documentation>
+				</annotation>
+			</element>
+			<element name="comment" type="string" minOccurs="0">
+				<annotation>
+					<documentation>Define an comment for this attribute. This comment will appear in the lower panel of the modifier panel when this attribute is selected.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+		<attribute name="id" type="fews:idStringType" use="required"/>
+	</complexType>
+	<complexType name="LocationAttributeTableComplexType">
+		<sequence>
+			<element name="attributeId" type="fews:TableAttributeIdComplexType" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Location attributei id  .   The attribute may have multiple values</documentation>
+				</annotation>
+			</element>
+		</sequence>
+		<attribute name="id" type="fews:idStringType" use="required"/>
+		<attribute name="name" type="fews:nameStringType" use="optional"/>
+	</complexType>
+	<complexType name="TableAttributeIdComplexType">
+		<simpleContent>
+			<extension base="fews:idStringType">
+				<attribute name="readOnly" type="boolean" default="false"/>
+			</extension>
+		</simpleContent>
+	</complexType>
+	<complexType name="TimeSeriesUseDateOfFirstReliableValueInTimeSeriesComplexType">
+		<sequence>
+			<element name="timeSeriesSet" type="fews:TimeSeriesSetComplexType">
+				<annotation>
+					<documentation>Since 2017.02 The value of the attribute modifier will be derived from the value which this time series has at the beginning of the state selection</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="TimeSeriesValueClosestToStateSelectionStartTimeComplexType">
+		<sequence>
+			<element name="timeSeriesSet" type="fews:TimeSeriesSetComplexType">
+				<annotation>
+					<documentation>Since 2017.02 The value of the attribute modifier will be derived from the value which this time series has at the beginning of the state selection</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="LocationAttributeConditionalSelectionComplexType">
+		<sequence>
+			<element name="conditionalPredefined" type="fews:ConditionalPredefinedLocationAttributeOptionsComplexType">
+				<annotation>
+					<documentation>Since 2014.02. FEWS-11307. With this option it is possible to disable one or more other attributes depending on which option is selected.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="LocationAttributeSelectionComplexType">
+		<sequence>
+			<choice minOccurs="0">
+				<element name="locationId" type="fews:idStringType" maxOccurs="unbounded"/>
+				<element name="locationSetId" type="fews:idStringType"/>
+				<element name="predefined" type="fews:PredefinedLocationAttributeOptionsComplexType"/>
+				<element name="predefinedInteger" type="fews:PredefinedIntegerLocationAttributeOptionsComplexType"/>
+				<element name="optionsControllingLocationAttributeId" type="fews:OptionsControllingLocationAttributeIdComplexType"/>
+			</choice>
+			<element name="dependentLocationAttributeId" type="fews:OptionsControllingLocationAttributeIdComplexType" minOccurs="0"/>
+		</sequence>
+	</complexType>
+	<complexType name="ConditionalPredefinedLocationAttributeOptionsComplexType">
+		<sequence>
+			<element name="option" type="fews:OptionComplexType" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Since 2014.02. FEWS-11307. This element can be used to define for a single option which other attributes should be disabled in the gui after selectoin
+					</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="OptionComplexType">
+		<sequence>
+			<element name="disabledAttributeId" type="fews:idStringType" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Since 2014.02. FEWS-11307. List of attributes which should be disabled after selection of this option</documentation>
+				</annotation>
+			</element>
+		</sequence>
+		<attribute name="value" type="fews:nameStringType">
+			<annotation>
+				<documentation>Since 2014.02. FEWS-1109. The value of the option</documentation>
+			</annotation>
+		</attribute>
+	</complexType>
+	<complexType name="PredefinedLocationAttributeOptionsComplexType">
+		<sequence>
+			<element name="option" type="string" maxOccurs="unbounded"/>
+		</sequence>
+	</complexType>
+	<complexType name="PredefinedIntegerLocationAttributeOptionsComplexType">
+		<sequence>
+			<element name="option" type="integer" maxOccurs="unbounded"/>
+		</sequence>
+	</complexType>
+	<complexType name="OptionsControllingLocationAttributeIdComplexType">
+		<simpleContent>
+			<extension base="fews:idStringType">
+				<attribute name="type" type="fews:OptionsControllingLocationAttributeType" use="optional">
+					<annotation>
+						<documentation>Since 20243.01. value type of the options</documentation>
+					</annotation>
+				</attribute>
+				<attribute name="visible" type="fews:booleanStringType" use="optional">
+					<annotation>
+						<documentation>Since 2024.02. options always visible (true), options only visible if more than one (false)</documentation>
+					</annotation>
+				</attribute>
+				<attribute name="fixed" type="fews:doubleStringOrPropertyType" use="optional">
+					<annotation>
+						<documentation>Since 2024.02. fixed option value from property</documentation>
+					</annotation>
+				</attribute>
+			</extension>
+		</simpleContent>
+	</complexType>
+	<simpleType name="OptionsControllingLocationAttributeType">
+		<restriction base="string">
+			<enumeration value="string"/>
+			<enumeration value="integer"/>
+			<enumeration value="float"/>
+		</restriction>
+	</simpleType>
+	<complexType name="LocationSpecificAttributeOptionsComplexType">
+		<sequence>
+			<element name="option" type="string"/>
+			<element name="visibilityControllingAttribute" type="fews:idStringType"/>
+		</sequence>
+	</complexType>
+	<complexType name="ModifiableGroupComplexType">
+		<sequence>
+			<element name="exportFileName" type="string" minOccurs="0"/>
+			<choice>
+				<choice>
+					<element name="locationId" type="fews:idStringType" maxOccurs="unbounded">
+						<annotation>
+							<documentation>Set of locations to which this modifier can be applied</documentation>
+						</annotation>
+					</element>
+					<element name="locationSetId" type="fews:idStringType">
+						<annotation>
+							<documentation>The location set which defines which locations can be modified by this modifier</documentation>
+						</annotation>
+					</element>
+				</choice>
+				<element name="timeSeries" type="fews:TimeSeriesFilterComplexType" maxOccurs="unbounded">
+					<annotation>
+						<documentation>Since 2014.02. FEWS-10724 . Define a filter to define which locations can be modified. The time series in the workflow connected to the topology node will
+							filtered by the defined filter. The locations of the filtered time series will be the locations which can be modified
+						</documentation>
+					</annotation>
+				</element>
+			</choice>
+			<group ref="fews:LocationAttributesChoice" maxOccurs="unbounded"/>
+			<choice>
+				<element name="panelLayout" type="fews:PanelLayoutComplexType" minOccurs="0"/>
+				<element name="tabularLayout" type="fews:TabLayoutComplexType" minOccurs="0">
+					<annotation>
+						<documentation>The modifiable groups will be shown in a tabbed pane. For each modifiable group a tab will be shown. Each tab will contain a table which shows the locations and
+							attributes which can be modified
+						</documentation>
+					</annotation>
+				</element>
+			</choice>
+			<element name="summaryFunction" type="string" minOccurs="0">
+				<annotation>
+					<documentation>Used to generate the modifier summary for the modifier panel and run info panel. @ tags can be used to include the (modified) attribute values. Modified values will
+						be colored blue. Modified attributes not used in the summaryFunction are automatically appended to the end of the summary. When templates are used specify the summary at the
+						template level
+					</documentation>
+				</annotation>
+			</element>
+		</sequence>
+		<attribute name="name" type="fews:nameStringType" use="required"/>
+	</complexType>
+	<group name="LocationAttributesChoice">
+		<choice>
+			<element name="attribute" type="fews:LocationAttributeComplexType">
+				<annotation>
+					<documentation>The location attributes which can be modified by this modifier</documentation>
+				</annotation>
+			</element>
+			<element name="attributesTable" type="fews:LocationAttributeTableComplexType">
+				<annotation>
+					<documentation>attributesTabel is a list of multuple location attributes  that are presented as a table in the ModifiersDisplay.  Every single attribute can have multiple values. The number of values must be the same for all attributes.  The attributes are  shown in the table columns. The values of every single attributes are shown in the table rows. </documentation>
+				</annotation>
+			</element>
+		</choice>
+	</group>
+	<complexType name="LocationAttributeModifierExportFileComplexType">
+		<sequence>
+			<element name="fileName" type="string"/>
+			<element name="postFixTimeFormatString" type="string" minOccurs="0"/>
+			<element name="exportAllAttributes" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>if this option is set to true all attributes of a location will be exported, instead of the visible attributes</documentation>
+				</annotation>
+			</element>
+			<element name="dataFormat" type="fews:exportFormats" minOccurs="0">
+				<annotation>
+					<documentation>By default the data will be exported to dbf, this option can be used to define the export format (at this moment csv and dbf ares supported)</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<simpleType name="exportFormats">
+		<restriction base="string">
+			<enumeration value="dbf"/>
+			<enumeration value="csv"/>
+		</restriction>
+	</simpleType>
+	<complexType name="RatingCurveModifiersComplexType">
+		<sequence>
+			<element name="tableRatingCurveModifier" type="fews:RatingCurveModifierComplexType" minOccurs="0">
+				<annotation>
+					<documentation>The modifier can be used to change rating curve table</documentation>
+				</annotation>
+			</element>
+			<element name="shiftMultiplyRatingCurveModifier" type="fews:RatingCurveModifierComplexType" minOccurs="0">
+				<annotation>
+					<documentation>The modifier can be used to shift the discharge values of the rating curve with a constant value or change the discharge values with a percentage.
+					</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="RatingCurveModifierComplexType">
+		<complexContent>
+			<extension base="fews:TimeSeriesModifierBaseComplexType">
+				<sequence>
+					<group ref="fews:PeriodModifierDatesGroup" minOccurs="0"/>
+				</sequence>
+			</extension>
+		</complexContent>
+	</complexType>
+	<complexType name="MergeWeightedModifiersComplexType">
+		<sequence>
+			<element name="changeWeightTimesModifier" type="fews:ChangeWeightTimesModifierComplexType" maxOccurs="unbounded"/>
+		</sequence>
+	</complexType>
+	<complexType name="ChangeWeightTimesModifierComplexType">
+		<complexContent>
+			<extension base="fews:ModifierBaseComplexType"/>
+		</complexContent>
+	</complexType>
+	<complexType name="ChangeOrdinatesModifierComplexType">
+		<complexContent>
+			<extension base="fews:ModifierBaseComplexType">
+				<sequence>
+					<group ref="fews:PeriodModifierDatesGroup" minOccurs="0"/>
+					<element name="overwriteParameterValues" type="boolean" default="false" minOccurs="0">
+						<annotation>
+							<documentation>Since 2017.02. If this option is enabled the parameter value will be overwritten by the modified values. If the option is disabled the modified values will be added to the
+								file in a separate group.
+							</documentation>
+						</annotation>
+					</element>
+					<element name="useAttributeModifiers" type="boolean" default="false" minOccurs="0">
+						<annotation>
+							<documentation>Since 2017.02. If this option is set to true, the changes will be stored as attribute modifiers</documentation>
+						</annotation>
+					</element>
+				</sequence>
+			</extension>
+		</complexContent>
+	</complexType>
+	<complexType name="ParameterFilterComplexType">
+		<choice>
+			<element name="moduleParameterId" type="string" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Refers to parameter defined in pi_modelparameters.xml. When a new parameter modifier is created, the values from modelparameters.xml are filled in by default
+					</documentation>
+				</annotation>
+			</element>
+			<group ref="fews:PredefinedModuleParameterGroup"/>
+		</choice>
+	</complexType>
+	<complexType name="ModuleParameterModifierComplexType">
+		<complexContent>
+			<extension base="fews:ModifierBaseComplexType">
+				<sequence>
+					<element name="filter" minOccurs="0">
+						<complexType>
+							<complexContent>
+								<extension base="fews:ParameterFilterComplexType"/>
+							</complexContent>
+						</complexType>
+					</element>
+					<element name="defaultValidTime" type="fews:emptyElement" minOccurs="0">
+						<annotation>
+							<documentation>Forecast time after which the modifier is no longer valid. When omitted this value will default to the Year 3000 and will be disabled.
+							</documentation>
+						</annotation>
+					</element>
+					<element name="overwriteParameterValues" type="boolean" default="false" minOccurs="0">
+						<annotation>
+							<documentation>If this option is enabled the parameter value will be overwritten by the modified values. If the option is disabled the modified values will be added to the
+								file in a separate group.
+							</documentation>
+						</annotation>
+					</element>
+				</sequence>
+			</extension>
+		</complexContent>
+	</complexType>
+	<complexType name="PriorityModifierComplexType">
+		<complexContent>
+			<extension base="fews:ModifierBaseComplexType">
+				<sequence>
+					<element name="moduleParameterId" type="fews:idStringType">
+						<annotation>
+							<documentation>Since 2015.01. Refers to 'table' parameter defined in pi_modelparameters.xml. When a modifier is created, the original table values are filled in by
+								default
+							</documentation>
+						</annotation>
+					</element>
+					<element name="defaultValidTime" type="fews:emptyElement" minOccurs="0">
+						<annotation>
+							<documentation>Since 2015.01. Forecast time after which the modifier is no longer valid. When omitted this value will default to the Year 3000 and will be disabled.
+							</documentation>
+						</annotation>
+					</element>
+					<element name="overwriteParameterValues" type="boolean" default="false" minOccurs="0">
+						<annotation>
+							<documentation>Since 2015.01. If this option is enabled the parameter value will be overwritten by the modified values. If the option is disabled the modified values will
+								be added to the file in a separate group.
+							</documentation>
+						</annotation>
+					</element>
+				</sequence>
+			</extension>
+		</complexContent>
+	</complexType>
+	<simpleType name="ModuleParameterRelationEnumStringType">
+		<restriction base="string">
+			<enumeration value="preserve ratio"/>
+			<enumeration value="preserve difference"/>
+		</restriction>
+	</simpleType>
+	<complexType name="ModuleParameterIntraModelRelationComplexType">
+		<sequence>
+			<element name="relatedModuleParameterId" type="string"/>
+			<element name="relation" type="fews:ModuleParameterRelationEnumStringType"/>
+		</sequence>
+	</complexType>
+	<complexType name="UserDefinedXYEditorComplexType">
+		<sequence>
+			<element name="xAxisParameterId" type="string"/>
+			<element name="xAxisTitle" type="string"/>
+			<element name="invertXAxis" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>Since 2013.01. FEWS-7744</documentation>
+				</annotation>
+			</element>
+			<element name="yAxisTitle" type="string"/>
+			<element name="xAxisStart" type="double"/>
+			<element name="xAxisEnd" type="double"/>
+			<element name="xAxisScaleUnit" type="double"/>
+			<element name="expression" type="string"/>
+			<element name="showVerticalLine" type="fews:ShowVerticalLineComplexType" minOccurs="0"/>
+		</sequence>
+	</complexType>
+	<complexType name="ShowVerticalLineComplexType">
+		<sequence>
+			<element name="parameterId" type="fews:idStringType"/>
+		</sequence>
+	</complexType>
+	<complexType name="MultipleModuleSingleTableRowParameterComplexType">
+		<sequence>
+			<element name="xAxisTitle" type="string"/>
+			<element name="yAxisTitle" type="string"/>
+			<element name="switchAxis" type="boolean" minOccurs="0"/>
+			<element name="columnName" type="string" maxOccurs="unbounded"/>
+		</sequence>
+		<attribute name="id" type="string" use="required"/>
+	</complexType>
+	<complexType name="MultipleModuleNumberParameterComplexType">
+		<sequence>
+			<element name="minimumValue" type="float" minOccurs="0"/>
+			<element name="maximumValue" type="float" minOccurs="0"/>
+			<choice>
+				<element name="interModelRelation" type="fews:ModuleParameterRelationEnumStringType" minOccurs="0"/>
+				<element name="intraModelRelation" type="fews:ModuleParameterIntraModelRelationComplexType" minOccurs="0"/>
+			</choice>
+		</sequence>
+		<attribute name="id" type="string" use="required"/>
+	</complexType>
+	<complexType name="MultipleModuleModifierComplexType">
+		<complexContent>
+			<extension base="fews:ModifierBaseComplexType">
+				<sequence>
+					<choice maxOccurs="unbounded">
+						<element name="numberParameter" type="fews:MultipleModuleNumberParameterComplexType"/>
+						<element name="singleTableRowParameter" type="fews:MultipleModuleSingleTableRowParameterComplexType"/>
+					</choice>
+					<element name="userDefinedXYEditor" type="fews:UserDefinedXYEditorComplexType" minOccurs="0" maxOccurs="unbounded"/>
+					<element name="defaultValidTime" type="fews:emptyElement" minOccurs="0">
+						<annotation>
+							<documentation>Forecast time after which the modifier is no longer valid. When omitted this value will default to the Year 3000 and will be disabled.
+							</documentation>
+						</annotation>
+					</element>
+					<element name="hideParameters" type="fews:HideParameterComplexType" minOccurs="0"/>
+					<element name="useAttributeModifiers" type="boolean" minOccurs="0">
+						<annotation>
+							<documentation>Since 2017.02. If this option is set to true, the changes will be stored as attribute modifiers</documentation>
+						</annotation>
+					</element>
+					<sequence minOccurs="0">
+						<element name="calibrationObservationTimeSeries" type="fews:TimeSeriesFilterComplexType"/>
+						<element name="calibrationSimulationTimeSeries" type="fews:TimeSeriesFilterComplexType"/>
+					</sequence>
+				</sequence>
+			</extension>
+		</complexContent>
+	</complexType>
+	<complexType name="HideParameterComplexType">
+		<sequence>
+			<element name="parameterId" type="string" maxOccurs="unbounded"/>
+		</sequence>
+	</complexType>
+	<complexType name="SwitchOptionModifierComplexType">
+		<complexContent>
+			<extension base="fews:TimeSeriesModifierBaseComplexType">
+				<sequence>
+					<choice maxOccurs="unbounded">
+						<element name="timeValueTimeSeries" type="fews:TimeSeriesFilterComplexType" minOccurs="0"/>
+						<element name="booleanTimeSeries" type="fews:TimeSeriesFilterComplexType" minOccurs="0"/>
+					</choice>
+					<element name="startTime" type="fews:DefaultStartTimeEnumStringType">
+						<annotation>
+							<documentation>Start of time period to which modifier is applied. When omitted this value will default to the Year 1000 and will be disabled.
+							</documentation>
+						</annotation>
+					</element>
+					<element name="effectiveDate" type="fews:emptyElement" minOccurs="0"/>
+				</sequence>
+			</extension>
+		</complexContent>
+	</complexType>
+	<complexType name="OptionModifierComplexType">
+		<complexContent>
+			<extension base="fews:TimeSeriesModifierBaseComplexType">
+				<sequence>
+					<choice maxOccurs="unbounded">
+						<element name="timeValueTimeSeries" type="fews:TimeSeriesFilterComplexType" minOccurs="0"/>
+						<element name="booleanTimeSeries" type="fews:TimeSeriesFilterComplexType" minOccurs="0"/>
+					</choice>
+				</sequence>
+			</extension>
+		</complexContent>
+	</complexType>
+	<complexType name="SliderComplexType">
+		<sequence>
+			<element name="currentTimeSeries" type="fews:TimeSeriesFilterComplexType"/>
+			<element name="modifiedTimeSeries" type="fews:TimeSeriesFilterComplexType"/>
+			<group ref="fews:ClimatologyTimeSeriesSets" minOccurs="0"/>
+			<choice>
+				<sequence>
+					<element name="maximumAllowedValueParameterId" type="fews:idStringType"/>
+					<element name="maximumAllowedValueParameterUnit" type="fews:unitConversionStringType" minOccurs="0">
+						<annotation>
+							<documentation>The maximum allowed value for the slider is read from a module parameter file. The units of the parameter can be defined with this tag.
+							</documentation>
+						</annotation>
+					</element>
+				</sequence>
+				<element name="hardLimits" type="fews:HardLimitsComplexType"/>
+			</choice>
+		</sequence>
+	</complexType>
+	<group name="ClimatologyTimeSeriesSets">
+		<sequence>
+			<element name="maximumClimatologyValueTimeSeries" type="fews:TimeSeriesSetComplexType">
+				<annotation>
+					<documentation>Since 2018.02 This element can be used to configure a set of (cyclic) time series from which the maximum climatology value will be derived. This value will be
+						displayed as a tick mark in the modifier.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="minimumClimatologyValueTimeSeries" type="fews:TimeSeriesSetComplexType">
+				<annotation>
+					<documentation>Since 2018.02 This element can be used to configure a set of (cyclic) time series from which the minimum climatology value will be derived. This value will be
+						displayed as a tick mark in the modifier.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="averageClimatologyValueTimeSeries" type="fews:TimeSeriesSetComplexType">
+				<annotation>
+					<documentation>Since 2018.02 This element can be used to configure a set of (cyclic) time series from which the average climatology value will be derived. This value will be
+						displayed as a tick mark in the modifier.
+					</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</group>
+	<complexType name="CompoundModifierComplexType">
+		<complexContent>
+			<extension base="fews:TimeSeriesModifierBaseComplexType">
+				<sequence>
+					<element name="slider" type="fews:SliderComplexType" maxOccurs="unbounded"/>
+					<group ref="fews:OneDateModifierDatesGroup" minOccurs="0"/>
+				</sequence>
+			</extension>
+		</complexContent>
+	</complexType>
+	<complexType name="HighLowSurgeSelectionModifierComplexType">
+		<complexContent>
+			<extension base="fews:TimeSeriesModifierBaseComplexType">
+				<sequence>
+					<element name="modifierColumn" type="fews:HighLowSurgeSelectionTableColumnComplexType">
+						<annotation>
+							<documentation>time series configured in this column  can be modified with this modifier</documentation>
+						</annotation>
+					</element>
+					<element name="referenceColumn" type="fews:HighLowSurgeSelectionTableColumnComplexType" maxOccurs="unbounded">
+						<annotation>
+							<documentation>time series configured in this column are used as reference to modify the time series which are specified in modifierColumn.  These time series are shown in the editor but cannot be modified.		</documentation>
+						</annotation>
+					</element>
+					<element name="astronomicalNumberSelection" type="fews:AstronomicalNumberSelectionComplexType"/>
+					<element name="correctionTimeLocationAttributeId" type="fews:idStringType" minOccurs="0">
+						<annotation>
+							<documentation>Id of location attribute that speciifies time correction for computing of  astronomical number</documentation>
+						</annotation>
+					</element>
+					<group ref="fews:PeriodModifierDatesGroup" minOccurs="0"/>
+					<element name="onlyApplyLastModifier" type="boolean" default="false" minOccurs="0">
+						<annotation>
+							<documentation>If this option is enabled only the last modifier of this type will be applied to a certain time series</documentation>
+						</annotation>
+					</element>
+					<element name="resolveInWorkflow" type="boolean"/>
+					<element name="resolveInPlots" type="boolean"/>
+				</sequence>
+			</extension>
+		</complexContent>
+	</complexType>
+	<complexType name="HighLowSurgeSelectionTableColumnComplexType">
+		<sequence>
+			<element name="timeSeries" type="fews:TimeSeriesFilterComplexType"/>
+		</sequence>
+		<attribute name="name" type="fews:nonEmptyStringType" use="required"/>
+	</complexType>
+	<complexType name="AstronomicalNumberSelectionComplexType">
+		<sequence>
+			<element name="timeSeriesFilter" type="fews:TimeSeriesFilterComplexType">
+				<annotation>
+					<documentation>Time series that is used to determine astronomical numbers shown in the display of this modifier type. Only single series should be configured. This time series should be one of the configured 'referenceTimeSeries'
+							</documentation>
+				</annotation>
+			</element>
+			<element name="relativePeriod" type="fews:RelativePeriodComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Relative period of the timeSeriesFilter</documentation>
+				</annotation>
+			</element>
+			<element name="maximumNumberOfEvents" type="positiveInteger" minOccurs="0">
+				<annotation>
+					<documentation>Restricts amount of astronomical numbers that is automatically selected (in the configured relativePeriod)   . If more than 'maximumNumberOfEvents'  is selected, then only first 'maximumNumberOfEvents'  is used </documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="MergeSimpleReverseOrderDataHierarchyModifierComplexType">
+		<complexContent>
+			<extension base="fews:ModifierBaseComplexType">
+				<sequence>
+					<group ref="fews:PeriodModifierDatesGroup" minOccurs="0"/>
+				</sequence>
+			</extension>
+		</complexContent>
+	</complexType>
+	<complexType name="MarkUnreliableModifierComplexType">
+		<complexContent>
+			<extension base="fews:TimeSeriesModifierBaseComplexType">
+				<sequence>
+					<element name="timeSeries" type="fews:TimeSeriesFilterComplexType" maxOccurs="unbounded"/>
+					<group ref="fews:PeriodModifierDatesGroup" minOccurs="0"/>
+				</sequence>
+			</extension>
+		</complexContent>
+	</complexType>
+	<complexType name="EnumerationComplexType">
+		<sequence>
+			<element name="item" type="fews:EnumerationItemComplexType" minOccurs="2" maxOccurs="unbounded"/>
+		</sequence>
+	</complexType>
+	<complexType name="EnumerationItemComplexType">
+		<attribute name="text" type="string" use="required">
+			<annotation>
+				<documentation>string which will be shown in the drop-down-box</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="value" type="float" use="required">
+			<annotation>
+				<documentation>Value which will be passed to the model if this options is selected</documentation>
+			</annotation>
+		</attribute>
+	</complexType>
+	<complexType name="EnumerationModifierComplexType">
+		<complexContent>
+			<extension base="fews:TimeSeriesModifierBaseComplexType">
+				<sequence>
+					<element name="timeSeries" type="fews:TimeSeriesFilterComplexType" maxOccurs="unbounded"/>
+					<element name="descriptionEnumeration" type="string"/>
+					<element name="enumeration" type="fews:EnumerationComplexType"/>
+					<group ref="fews:PeriodModifierDatesGroup" minOccurs="0"/>
+				</sequence>
+			</extension>
+		</complexContent>
+	</complexType>
+	<complexType name="SingleValueModifierTypeComplexType">
+		<complexContent>
+			<extension base="fews:TimeSeriesModifierBaseComplexType">
+				<sequence>
+					<element name="timeSeries" type="fews:TimeSeriesFilterComplexType" maxOccurs="unbounded"/>
+					<element name="softLimits" type="fews:SoftLimitsComplexType"/>
+					<element name="hardLimits" type="fews:HardLimitsComplexType" minOccurs="0"/>
+					<group ref="fews:OneDateModifierDatesGroup" minOccurs="0"/>
+					<choice>
+						<element name="defaultValue" type="float" minOccurs="0"/>
+						<element name="defaultValueTimeSeries" type="fews:TimeSeriesFilterComplexType" minOccurs="0"/>
+						<element name="statisticalFunctionDefaultValue" type="fews:statisticalFunctionEnumType" minOccurs="0" maxOccurs="unbounded"/>
+					</choice>
+				</sequence>
+			</extension>
+		</complexContent>
+	</complexType>
+	<simpleType name="statisticalFunctionEnumType">
+		<restriction base="string">
+			<enumeration value="principalcomponentanalysis"/>
+			<enumeration value="principalcomponentanalysisjackknife"/>
+		</restriction>
+	</simpleType>
+	<complexType name="ConstantValueModifierComplexType">
+		<complexContent>
+			<extension base="fews:TimeSeriesModifierBaseComplexType">
+				<sequence>
+					<element name="timeSeries" type="fews:TimeSeriesFilterComplexType" maxOccurs="unbounded"/>
+					<element name="softLimits" type="fews:SoftLimitsComplexType"/>
+					<element name="hardLimits" type="fews:HardLimitsComplexType" minOccurs="0"/>
+					<element name="sliderTicksStepSize" type="fews:positiveInteger" minOccurs="0"/>
+					<element name="spinnerStepSize" type="fews:positiveDouble" minOccurs="0"/>
+					<group ref="fews:PeriodModifierDatesGroup" minOccurs="0"/>
+					<element name="defaultValue" type="float"/>
+				</sequence>
+			</extension>
+		</complexContent>
+	</complexType>
+	<complexType name="TimeSeriesModifierComplexType">
+		<complexContent>
+			<extension base="fews:TimeSeriesModifierBaseComplexType">
+				<sequence>
+					<element name="timeSeries" type="fews:TimeSeriesFilterComplexType" minOccurs="0" maxOccurs="unbounded">
+						<annotation>
+							<documentation>Filter which defines which time series can be modified with this modifier. It is not possible to create a modifier for a time series with a moduleinstance set defined for which there is no data yet in the datastore.</documentation>
+						</annotation>
+					</element>
+					<element name="onlyApplyLastModifier" type="boolean" default="false" minOccurs="0">
+						<annotation>
+							<documentation>If this option is enabled only the last modifier of this type will be applied to a certain time series</documentation>
+						</annotation>
+					</element>
+					<element name="mergeUnCommittedModifiers" type="boolean" default="false" minOccurs="0">
+						<annotation>
+							<documentation>Since 2017.02. If this option is enabled uncommitted modifiers will be merged into one modifier. This option is limited to modifiers which modify single time series</documentation>
+						</annotation>
+					</element>
+					<element name="referenceTimeSeries" type="fews:TimeSeriesFilterComplexType" minOccurs="0" maxOccurs="unbounded">
+						<annotation>
+							<documentation>Filter to define reference time series. These time series are shown in the modifier panel but can not be modified and are only shown for reference purposes. Only reference time series which belong to the same parameter group and have the same locatoin(s) as the time series which are being modified will be shown in the display.
+							</documentation>
+						</annotation>
+					</element>
+					<element name="softLimits" type="fews:SoftLimitsComplexType" minOccurs="0"/>
+					<element name="hardLimits" type="fews:HardLimitsComplexType" minOccurs="0"/>
+					<group ref="fews:PeriodModifierDatesGroup" minOccurs="0"/>
+					<element name="resolveInWorkflow" type="boolean">
+						<annotation>
+							<documentation>search for timeseries in the currently selected workflow. In a IFD environment the selected topology node will provide the selected workflow
+							</documentation>
+						</annotation>
+					</element>
+					<element name="resolveInPlots" type="boolean">
+						<annotation>
+							<documentation>search for time series in the plots of the currently selected topology node
+							</documentation>
+						</annotation>
+					</element>
+					<choice>
+						<element name="editInPlots" type="boolean" default="true" minOccurs="0">
+							<annotation>
+								<documentation>Allow to graphically create time series modifiers in the plot display or by changes values in the table. If this option is disabled, it is only allowed
+									to create this modifier in the modifier display
+								</documentation>
+							</annotation>
+						</element>
+						<element name="graphicalEditing" type="boolean" default="true" minOccurs="0">
+							<annotation>
+								<documentation>Allow to create times series modifiers by graphical editing. If this option is disabled it is only possible to create mods in modifier display and by
+									editing in the table of the plots
+								</documentation>
+							</annotation>
+						</element>
+					</choice>
+					<element name="perEnsembleMember" type="boolean" default="false" minOccurs="0">
+						<annotation>
+							<documentation>Since 2014.02 FEWS-11272. if this option is enabled (default is disabled) the modifiers will be created for a single ensemble member</documentation>
+						</annotation>
+					</element>
+					<element name="createContinuousModifiers" type="boolean" default="true" minOccurs="0">
+						<annotation>
+							<documentation>if this option is disabled and a modifier is graphically created in the plot display, for each continuous period of changes a modifier is created. By default
+								for each editting sequence a modifier will be created.
+							</documentation>
+						</annotation>
+					</element>
+				</sequence>
+			</extension>
+		</complexContent>
+	</complexType>
+	<complexType name="SpatialModifierComplexType">
+		<complexContent>
+			<extension base="fews:ModifierBaseComplexType">
+				<sequence>
+					<element name="timeSeries" type="fews:TimeSeriesFilterComplexType" maxOccurs="unbounded">
+						<annotation>
+							<documentation>Filter which defines which time series can be modified with this modifier.</documentation>
+						</annotation>
+					</element>
+				</sequence>
+			</extension>
+		</complexContent>
+	</complexType>
+	<complexType name="SpatialProfileModifierComplexType">
+		<complexContent>
+			<extension base="fews:SpatialModifierComplexType">
+				<sequence>
+					<element name="descriptiveFunctionGroups" type="fews:SpatialProfileDescriptiveStatisticalFunctionGroupsComplexType" minOccurs="0">
+						<annotation>
+							<documentation>Descriptive statistical functions</documentation>
+						</annotation>
+					</element>
+				</sequence>
+			</extension>
+		</complexContent>
+	</complexType>
+	<complexType name="SpatialProfileDescriptiveStatisticalFunctionGroupsComplexType">
+		<annotation>
+			<documentation>Groups of Descriptive Statistics Functions: has at least one Descriptive Statistics Functions group. A separate statistics table will be created for each group.</documentation>
+		</annotation>
+		<sequence>
+			<group ref="fews:DescriptiveStatisticalFunctionGroupsGroup"/>
+		</sequence>
+	</complexType>
+	<complexType name="CopyModifierComplexType">
+		<sequence>
+			<element name="timeSeriesModifiersPattern" type="fews:CopyModifiersPatternComplexType" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Since 2018.02 define a pattern which will be used to copy modifiers.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="CopyModifiersPatternComplexType">
+		<sequence>
+			<element name="pattern" type="string">
+				<annotation>
+					<documentation>Since 2018.02 Definition of the pattern which should be replaced when the modifier is copied to another modifier.</documentation>
+				</annotation>
+			</element>
+			<element name="patternDescription" type="string">
+				<annotation>
+					<documentation>Since 2018.02 Description of the pattern which will be used in the display.</documentation>
+				</annotation>
+			</element>
+			<element name="topologyNodeId" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2025.01 Id of the topology node which will be used to copy the modifiers.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<simpleType name="DefaultStartTimeEnumStringType">
+		<restriction base="string">
+			<enumeration value="start run"/>
+			<enumeration value="time zero"/>
+		</restriction>
+	</simpleType>
+	<simpleType name="DefaultEndTimeEnumStringType">
+		<restriction base="string">
+			<enumeration value="start run"/>
+			<enumeration value="time zero"/>
+			<enumeration value="end run"/>
+		</restriction>
+	</simpleType>
+	<complexType name="SampleHistoricalModifiersComplexType">
+		<sequence>
+			<element name="sampleYearsModifier" type="fews:SampleYearsModifierComplexType"/>
+		</sequence>
+	</complexType>
+	<complexType name="SampleYearsModifierComplexType">
+		<complexContent>
+			<extension base="fews:ModifierBaseComplexType"/>
+		</complexContent>
+	</complexType>
+	<complexType name="AdjustQModifiersComplexType">
+		<sequence>
+			<element name="blendingStepsModifier" type="fews:BlendingStepsModifierComplexType" minOccurs="0">
+				<annotation>
+					<documentation>With this modifier the amount of blending steps used in the adjustQ transformation can be modified. The blending steps define in how many steps the observed
+						discharged values will "blend" to the simulated discharge values
+					</documentation>
+				</annotation>
+			</element>
+			<element name="disableAdjustmentModifier" type="fews:DisableAdjustmentModifierComplexType" minOccurs="0">
+				<annotation>
+					<documentation>With this modifier it is possible to disable the adjustQ transformation</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="DisableAdjustmentModifierComplexType">
+		<complexContent>
+			<extension base="fews:ModifierBaseComplexType"/>
+		</complexContent>
+	</complexType>
+	<complexType name="BlendingStepsModifierComplexType">
+		<complexContent>
+			<extension base="fews:ModifierBaseComplexType"/>
+		</complexContent>
+	</complexType>
+	<complexType name="TimeShiftConstantModifiersComplexType">
+		<sequence>
+			<element name="timeShiftModifier" type="fews:TimeShiftConstantModifierComplexType"/>
+		</sequence>
+	</complexType>
+	<complexType name="TimeShiftConstantModifierComplexType">
+		<complexContent>
+			<extension base="fews:ModifierBaseComplexType"/>
+		</complexContent>
+	</complexType>
+	<complexType name="MergeSimpleModifiersComplexType">
+		<sequence>
+			<element name="reverseOrderModifiers" type="fews:ReverseOrderModifiersComplexType" maxOccurs="unbounded"/>
+		</sequence>
+	</complexType>
+	<complexType name="ReverseOrderModifiersComplexType">
+		<complexContent>
+			<extension base="fews:ModifierBaseComplexType">
+				<sequence>
+					<group ref="fews:PeriodModifierDatesGroup" minOccurs="0"/>
+				</sequence>
+			</extension>
+		</complexContent>
+	</complexType>
+	<complexType name="TimeSeriesModifierBaseComplexType">
+		<complexContent>
+			<extension base="fews:ModifierBaseComplexType">
+				<sequence>
+					<element name="useLocationLongName" type="boolean" default="false" minOccurs="0">
+						<annotation>
+							<documentation>Since 2014.02. FEWS-11310. If this option is set to true than the location selection panel shows the long name, the default is true</documentation>
+						</annotation>
+					</element>
+					<element name="applyToDeterministicRun" type="boolean" minOccurs="0">
+						<annotation>
+							<documentation>If this option is set to true then the modifier will only apply to deterministic runs.</documentation>
+						</annotation>
+					</element>
+					<element name="applyToEnsemble" type="fews:idStringType" minOccurs="0" maxOccurs="unbounded">
+						<annotation>
+							<documentation>If you have configured ensemble ids in this section, the modifier will only apply to the configured ensemble ids.</documentation>
+						</annotation>
+					</element>
+				</sequence>
+			</extension>
+		</complexContent>
+	</complexType>
+	<complexType name="ModifierBaseComplexType">
+		<sequence>
+			<element name="modifierTypeDescription" type="string" minOccurs="0"/>
+			<element name="expiryTime" type="fews:TimeSpanComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Define a custom expiry time for the modifier to overrule the default (30 days)</documentation>
+				</annotation>
+			</element>
+			<element name="expiryTimeDeletedModifiers" type="fews:TimeSpanComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2013.01. FEWS-7744 After the deletion of a modifier the modifier will be set to invisible but the modifier will not be deleted so that it can be restored until
+						it reaches the expiry time defined in this element
+					</documentation>
+				</annotation>
+			</element>
+			<element name="modifierCardinalTimeStep"  type="fews:TimeStepComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Define a custom cardinal time step for the modifier type. Available since 2014.02.</documentation>
+				</annotation>
+			</element>
+			<element name="userDefinedDescriptionField" type="fews:ModifierUserDefinedDescriptionFieldComplexType" minOccurs="0" maxOccurs="5">
+				<annotation>
+					<documentation>Since 2015.01. FEWS-12001 Each added field will show up in the modifier properties panel. The "descriptionField" attribute is the text used for the GUI and the "id"
+						attribute for the database. Because of limited space, the "id" attribute should be as short as possible.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="whatIfModifierType" type="fews:WhatIfModifierType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2021.01 Define how this modifier type should behave in workflows with a what-if applied</documentation>
+				</annotation>
+			</element>
+			<element name="createPermission" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2024.02. Add permissions to create, update or delete a modifier of this type.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+		<attribute name="id" type="fews:idStringType" use="required"/>
+		<attribute name="name" type="fews:idStringType" use="required"/>
+	</complexType>
+	<simpleType name="WhatIfModifierType">
+		<restriction base="string">
+			<enumeration value="always apply in workflow"/>
+			<enumeration value="never apply in what-if workflows"/>
+			<enumeration value="apply if referenced in what-if workflow"/>
+			<enumeration value="apply according to creation method"/>
+		</restriction>
+	</simpleType>
+	<complexType name="ModifierUserDefinedDescriptionFieldComplexType">
+		<attribute name="id" type="fews:idStringType" use="required"/>
+		<attribute name="descriptionField" type="string" use="required"/>
+	</complexType>
+	<complexType name="HardLimitsComplexType">
+		<sequence>
+			<element name="maximumValue" type="fews:floatStringAttributeAndPropertyType" minOccurs="0"/>
+			<element name="minimumValue" type="fews:floatStringAttributeAndPropertyType" minOccurs="0"/>
+		</sequence>
+	</complexType>
+	<complexType name="SoftLimitsComplexType">
+		<sequence>
+			<element name="maximumValue" type="fews:floatStringType"/>
+			<element name="minimumValue" type="fews:floatStringType"/>
+		</sequence>
+	</complexType>
+	<complexType name="PredefinedModuleParameterComplexType">
+		<choice>
+			<annotation>
+				<documentation>Predefined parameter value that is filled in when a new parameter modifier is created</documentation>
+			</annotation>
+			<element name="dblValue" type="double"/>
+			<element name="intValue" type="integer"/>
+			<element name="boolValue" type="boolean"/>
+			<element name="stringValue" type="string"/>
+		</choice>
+		<attribute name="id" type="fews:idStringType" use="required">
+			<annotation>
+				<documentation>module parameter id</documentation>
+			</annotation>
+		</attribute>
+	</complexType>
+	<group name="PredefinedModuleParameterGroup">
+		<sequence>
+			<element name="moduleParameter" type="fews:PredefinedModuleParameterComplexType" maxOccurs="unbounded">
+				<annotation>
+					<documentation>ID of this moduleParameter refers to parameter defined in pi_modelparameters.xml. Use this element to specify the predefined parameter value that is different from
+						the value configured in pi_modelparameters.xml.
+					</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</group>
+</schema>

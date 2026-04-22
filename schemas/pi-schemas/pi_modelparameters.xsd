@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- edited with XMLSpy v2007 sp2 (http://www.altova.com) by WL | Delft Hydraulics (WL | Delft Hydraulics) -->
+<!--  Delft FEWS Published Interface (Copyright 2003 WL | Delft Hydraulics) -->
+<schema xmlns:fews="http://www.wldelft.nl/fews/PI" xmlns="http://www.w3.org/2001/XMLSchema" targetNamespace="http://www.wldelft.nl/fews/PI" elementFormDefault="qualified" attributeFormDefault="unqualified" version="1.0">
+	<include schemaLocation="pi_sharedtypes.xsd"/>
+	<element name="parameters" type="fews:ModelParametersComplexType">
+		<!--<unique name="UniqueGroupId">-->
+			<!--<selector xpath="fews:group"/>-->
+			<!--<field xpath="@id"/>-->
+		<!--</unique>-->
+		<unique name="UniqueParamId">
+			<selector xpath="fews:group/parameter"/>
+			<field xpath="@id"/>
+		</unique>
+		<unique name="UniqueEnsembleParamId">
+			<selector xpath="fews:group/ensemble/ensembleMember/parameter"/>
+			<field xpath="@id"/>
+		</unique>
+	</element>
+</schema>

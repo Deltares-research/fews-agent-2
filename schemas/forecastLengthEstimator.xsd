@@ -1,0 +1,269 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- edited with XMLSpy v2009 sp1 (http://www.altova.com) by ICT (Stichting Deltares) -->
+<!-- edited with XMLSPY v2004 rel. 3 U (http://www.xmlspy.com) by rooij_e (WL | Delft Hydraulics) -->
+<!--Delft FEWS (Copyright 2003 WL | Delft Hydraulics) -->
+<schema xmlns="http://www.w3.org/2001/XMLSchema" xmlns:fews="http://www.wldelft.nl/fews" targetNamespace="http://www.wldelft.nl/fews" elementFormDefault="qualified" attributeFormDefault="unqualified" version="1.0">
+	<include schemaLocation="sharedTypes.xsd"/>
+	<!-- moduleRun -->
+	<element name="forecastLengthEstimator" type="fews:ForecastLengthEstimatorComplexType">
+		<annotation>
+			<documentation>
+                This module is used to calculate the forecast length
+                When a forecast length is specified in the task properties this forecast length will overrule
+                The calculated forecast length will be used for the remaining part of the workflow
+            </documentation>
+		</annotation>
+	</element>
+	<complexType name="ForecastLengthEstimatorComplexType">
+		<sequence>
+			<element name="timeZone" type="fews:timeZoneStringType" minOccurs="0">
+				<annotation>
+					<documentation>Optional time zone for dates and times defined in this configuration file. If no time
+						zone is
+						defined, then dates and times are in GMT.
+					</documentation>
+				</annotation>
+			</element>
+			<choice>
+				<element name="setColdStateTimeToEarliestNonMissing" type="fews:ColdStateTimeComplexType" minOccurs="0">
+					<annotation>
+						<documentation>Since 2018.01. Sets the default/overruling start time in a time series set when you are not in a general adapter run. Ignored when a cold state is selected in the taskProperties / manual forecast dialog</documentation>
+					</annotation>
+				</element>
+				<sequence minOccurs="0">
+					<element name="stateModuleInstanceId" type="fews:idStringType">
+						<annotation>
+							<documentation>State to determine the default/overruling start time in a time series set when you are not in a general adapter run.
+							</documentation>
+						</annotation>
+					</element>
+					<element name="stateSelection" type="fews:WarmStateComplexType" minOccurs="0">
+						<annotation>
+							<documentation>State selection to determine the default/overruling start time in a time series set when you are not in a general adapter run. This state selection is
+								ignored when the state selection is configured in the workflow descriptor.
+							</documentation>
+						</annotation>
+					</element>
+					<element name="onlyIntermediateStates" type="boolean" minOccurs="0">
+						<annotation>
+							<documentation>Set to true when you use intermediate states or state loop in you general adapter export state activity.
+							</documentation>
+						</annotation>
+					</element>
+				</sequence>
+			</choice>
+			<element name="externalHistoricalTimeSeries" type="fews:TimeSeriesSetComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Time series sets used to find the last time stamp where measurements are available. This last observation time can be exported to a pi run file in the export file activity from the general adapter.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="externalForecastTimeSeries" type="fews:TimeSeriesSetComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>The time of the last non missing value for all the specified time series is used to calculate the forecast length</documentation>
+				</annotation>
+			</element>
+			<element name="simulatedForecastTimeSeries" type="fews:TimeSeriesSetComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>The time of the last non missing value for all the specified time series is used to calculate the forecast length</documentation>
+				</annotation>
+			</element>
+			<element name="requiredExternalForecastTimeSeries" type="fews:TimeSeriesSetComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Since 2023.01. External forecast time series set that must be available in order to run. When not available the run will be skipped. These forecast time series do not affect the T0 of the run.</documentation>
+				</annotation>
+			</element>
+			<element name="copyTimeSeriesPropertyToExternalForecastTime" type="fews:CopyTimeSeriesPropertyToExternalForecastTimeComplexType" minOccurs="0" maxOccurs="unbounded"/>
+			<choice minOccurs="0">
+				<element name="setTime0ToEarliestExternalForecastTime" type="boolean">
+					<annotation>
+						<documentation>Sets the time0 of the running forecast to the earliest external forecast</documentation>
+					</annotation>
+				</element>
+				<element name="setTime0ToLatestExternalForecastTime" type="boolean">
+					<annotation>
+						<documentation>Sets the time0 of the running forecast to the latest external forecast</documentation>
+					</annotation>
+				</element>
+				<element name="setTime0ToEarliestCurrentForecast" type="boolean">
+					<annotation>
+						<documentation>Sets the time0 of the running forecast to current forecast with the earliest time
+							0 used by the configured simulated forecast time series
+						</documentation>
+					</annotation>
+				</element>
+				<element name="setToModifiedDateTimeAttributeValueComplexType" type="fews:SetToModifiedDateTimeAttributeValueComplexType">
+					<annotation>
+						<documentation>Since 2018.02. Set the time0 of the running forecast to the value of the modified value a date/time attribute. If the value is not modified a fallback value will
+							be used.
+						</documentation>
+					</annotation>
+				</element>
+				<element name="setTime0ToCurrentTime" type="boolean">
+					<annotation>
+						<documentation>Since 2014.02. FEWS-10514. Sets the time0 of the running forecast to the current time.</documentation>
+					</annotation>
+				</element>
+				<element name="setTime0ToLatestNonMissing" type="boolean">
+					<annotation>
+						<documentation>Since 2014.02. Time of latest non missing value in the configured timeSeries is used to set the time0 of the running forecast</documentation>
+					</annotation>
+				</element>
+			</choice>
+			<element name="shiftEndTimeAfterTime0Shift" type="boolean" default="true" minOccurs="0">
+				<annotation>
+					<documentation>When this option is enabled (default) the end time of the run will also shift to assure that the forecast length stays the same.</documentation>
+				</annotation>
+			</element>
+			<element name="time0CardinalTimeStep" type="fews:TimeStepComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2023.01. Time step to which the time 0 must match. If the time 0 does not match the time step the run will be skipped with status set to redundant.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="skipRunWhenTime0EqualToLastRun" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>Since 2023.01. When this option is true, after the T0 is determined, it is compared to the T0 of the previous run and if it is equal the run is skipped with status
+						set to redundant
+					</documentation>
+				</annotation>
+			</element>
+			<element name="skipRunWhenTimeSeriesMissing" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>Since 2024.01. When this option is set to true, the run will be skipped when all input time series are completely missing. Status of the run is set to redundant
+					</documentation>
+				</annotation>
+			</element>
+			<element name="ignoreCompletelyMissingTimeSeries" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>Skip time series without values when estimating the forecast length or time 0
+					</documentation>
+				</annotation>
+			</element>
+			<element name="minForecastLength" type="fews:TimeSpanComplexType" minOccurs="0">
+				<annotation>
+					<documentation>The minimum length of a forecast</documentation>
+				</annotation>
+			</element>
+			<element name="maxForecastLength" type="fews:TimeSpanComplexType" minOccurs="0">
+				<annotation>
+					<documentation>The maximum length of a forecast</documentation>
+				</annotation>
+			</element>
+			<element name="minForecastEndDay" type="fews:monthDayType" minOccurs="0">
+				<annotation>
+					<documentation>Extends the forecast length to the first specified calendar day after time0
+					</documentation>
+				</annotation>
+			</element>
+			<element name="useLongestTimeSeries" type="boolean" minOccurs="0" default="false">
+				<annotation>
+					<documentation>Since 2014.02 FEWS-11771 Set forecast length according to longest time series instead of shortest</documentation>
+				</annotation>
+			</element>
+			<element name="findLatestCommonExternalForecastTime" type="fews:CreateExternalForecastTimeComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Since 2018.01 FEWS-18258. Search for latest external forecast time in the specified time series. The result is stored in the specified forecast reference id. This forecast reference can be used in the time series sets in the rest of the workflow</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="SetToModifiedDateTimeAttributeValueComplexType">
+		<sequence>
+			<element name="attributeId" type="fews:idStringType"/>
+			<element name="locationId" type="fews:idStringType"/>
+			<element name="offset" type="fews:TimeSpanComplexType">
+				<annotation>
+					<documentation>if there is no modifier for the defined attribute then the time zero of the run will be set to the time zero of the run plus the defined offset. The calculated time zero will set to the next valid time of the define time step.</documentation>
+				</annotation>
+			</element>
+			<element name="timeStep" type="fews:TimeStepComplexType">
+				<annotation>
+					<documentation>if there is no modifier for the defined attribute then the time zero of the run will be set to the time zero of the run plus the defined offset. The calculated time zero will set to the next valid time of the define time step.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="ColdStateTimeComplexType">
+		<sequence>
+			<element name="timeSeriesSet" type="fews:TimeSeriesSetComplexType" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Time series sets used to define this reference time</documentation>
+				</annotation>
+			</element>
+			<element name="minColdStateRelativeTime" type="fews:RelativeTimeComplexType">
+				<annotation>
+					<documentation>Earliest relative time to T0 (negative)</documentation>
+				</annotation>
+			</element>
+			<element name="maxColdStateRelativeTime" type="fews:RelativeTimeComplexType">
+				<annotation>
+					<documentation>Latest relative time to T0 (negative)</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="CopyTimeSeriesPropertyToExternalForecastTimeComplexType">
+		<sequence>
+			<element name="dateTimeFormat" type="fews:dateTimeFormatType" minOccurs="0">
+				<annotation>
+					<documentation>If the time series properties used for external forecast time is a string (instead of a dateTime) it will be parsed using this dateTimeFormat. (Please note that all time series properties imported from netcdf files are string properties.)</documentation>
+				</annotation>
+			</element>
+			<element name="timeSeriesSet" type="fews:TimeSeriesSetComplexType" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Time series sets used to define this reference time</documentation>
+				</annotation>
+			</element>
+		</sequence>
+		<attribute name="externalForecastTimeId" type="fews:idStringType" use="required">
+			<annotation>
+				<documentation>Id of the external forecast time to store the forecast time copied from the timeSeriesProperty</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="timeSeriesPropertyKey" type="fews:idStringType" use="required">
+			<annotation>
+				<documentation>The name of the time series property that contains the external forecast time. All time series sets with the same property must have the same value that will be used as an external forecast time.
+				</documentation>
+			</annotation>
+		</attribute>
+	</complexType>
+	<complexType name="CreateExternalForecastTimeComplexType">
+		<sequence>
+			<element name="eventCodeOnChange" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>When a different forecast time is found then the last time this workflow was executed log a message with this event code</documentation>
+				</annotation>
+			</element>
+			<element name="eventCodeOnNoChange" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>When a forecast time is unchanged since the last time this workflow was executed log a message with this event code</documentation>
+				</annotation>
+			</element>
+			<element name="dataFeed" type="fews:DataFeedComplexType" maxOccurs="unbounded">
+				<annotation>
+					<documentation>The latest common external forecast time is logged per data feed</documentation>
+				</annotation>
+			</element>
+		</sequence>
+		<attribute name="externalForecastTimeId" type="fews:idStringType" use="required">
+			<annotation>
+				<documentation>Id of the external forecast time to store the calculated forecast time</documentation>
+			</annotation>
+		</attribute>
+	</complexType>
+	<complexType name="DataFeedComplexType">
+		<sequence>
+			<element name="timeSeriesSet" type="fews:TimeSeriesSetComplexType" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Time series sets used to define this reference time</documentation>
+				</annotation>
+			</element>
+		</sequence>
+		<attribute name="id" type="fews:idStringType" use="required">
+			<annotation>
+				<documentation>The latest common external forecast time is logger per data feed</documentation>
+			</annotation>
+		</attribute>
+	</complexType>
+</schema>

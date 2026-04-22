@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- edited with XMLSpy v2009 sp1 (http://www.altova.com) by ICT (Stichting Deltares) -->
+<!--Delft FEWS (Copyright 2003 WL | Delft Hydraulics) -->
+<schema xmlns="http://www.w3.org/2001/XMLSchema" xmlns:fews="http://www.wldelft.nl/fews" targetNamespace="http://www.wldelft.nl/fews" elementFormDefault="qualified" attributeFormDefault="unqualified" version="1.0">
+	<include schemaLocation="sharedTypes.xsd"/>
+	<element name="gridDisplay" type="fews:GridDisplayComplexType"/>
+	<complexType name="GridDisplayComplexType">
+		<sequence>
+			<element name="title" type="string"/>
+			<element name="showPlotTreeHideAllToolWindows" type="boolean" minOccurs="0">
+				<annotation>
+					<documentation>Since 2021.02, all open tool windows like the log panel, data viewer etc. will be hidden. When disabled again, the previously hidden tool windows will be shown again.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="exportShapeIdFunction" type="fews:nonEmptyStringType" minOccurs="0">
+				<annotation>
+					<documentation>When exporting a shape file this is the shape id exported to the dbf. E.g. @ID@</documentation>
+				</annotation>
+			</element>
+			<element name="defaults" type="fews:GridDisplayDefaultsComplexType" minOccurs="0" maxOccurs="unbounded"/>
+			<choice maxOccurs="unbounded">
+				<element name="gridPlotGroup" type="fews:GridPlotGroupComplexType"/>
+				<element name="gridPlotGroupId" type="fews:idStringType">
+				<annotation>
+					<documentation>Reference a gridPlotGroup that is defined in this config file or in the one display configfiles that use the schema gridDisplayPlotGroups.xsd</documentation>
+				</annotation>
+				</element>
+			</choice>
+		</sequence>
+	</complexType>
+	<complexType name="GridDisplayDefaultsComplexType">
+		<annotation>
+			<documentation>When the geo map or class breaks is not specified in a plot the defaults are used.
+                The first defaults that has the default setting and is applicable for the current plot group and parameter group is used.
+                When no parameterGroupId, no plotGroupId and no plotId is specified,
+                the defaults are considered to apply to all plot and parameter groups.</documentation>
+		</annotation>
+		<sequence>
+			<element name="parameterGroupId" type="fews:idStringType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>When no parameter groups are specified this defaults applies to all
+                        parameters</documentation>
+				</annotation>
+			</element>
+			<element name="plotGroupId" type="fews:idStringType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>When no plot groups are specified this defaults applies to all plot
+                        groups</documentation>
+				</annotation>
+			</element>
+			<element name="plotId" type="fews:idStringType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>since 2016.02. Useful when multiple plot groups share the same plot id</documentation>
+				</annotation>
+			</element>
+			<group ref="fews:GridPlotLegendChoice" minOccurs="0">
+				<annotation>
+					<documentation>Legend style</documentation>
+				</annotation>
+			</group>
+			<element name="mapExtentId" type="string" minOccurs="0">
+				<annotation>
+					<documentation>Since 2017.02. FEWS-17986. When a gridPlot for which this default applies is selected, the zoom extent will be changed to the given map extent. Can also be specified within a gridPlot element which will overrule the default setting.</documentation>
+				</annotation>
+			</element>
+			<element name="modifiedColor" type="fews:colorStringType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2019.02. Color used to mark time periods where a spatial modifier is applied.</documentation>
+				</annotation>
+			</element>
+			<group ref="fews:ClassBreaksChoice" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Class breaks to color the grid cells / polygons and scale the wind/flow arrows. Since 2017.01 it is possible to configure multiple class breaks. When multiple class breaks are configured the user can switch between different class breaks. This first one is the default. The configured class break description is listed in a drop down box above the class breaks</documentation>
+				</annotation>
+			</group>
+			<group ref="fews:ArrowClassBreaksChoice" minOccurs="0">
+				<annotation>
+					<documentation>Since 2013.01. FEWS-8862. Specific class breaks to size wind/flow arrows. eg when there is a level and velocity layer in a single plot</documentation>
+				</annotation>
+			</group>
+			<element name="absoluteDifferenceClassBreaksId" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2020.02. Class breaks that ares used to show the difference between two grids</documentation>
+				</annotation>
+			</element>
+			<element name="relativeDifferenceClassBreaksId" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2020.02. Class breaks that ares used to show the relative difference between two grids</documentation>
+				</annotation>
+			</element>
+			<element name="contourValues" type="fews:ContourValuesComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>By default the class break values are used to draw the contour lines. When multiple contourValues series are configured the best that fits the value range for the view period is selected</documentation>
+				</annotation>
+			</element>
+			<element name="geoMap" type="fews:GeoMapComplexType" minOccurs="0"/>
+			<element name="timeDisplayLabels" type="fews:PositioningEnumStringType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2014.02. FEWS-11293. When the timeDisplayLabels are not specified no time labels are displayed on the map. If the timeDisplayLabels have been specified, the external forecast time and current time are plotted on the specified position in the map. In case of multiple forecasts, only the latest forecast time is displayed.</documentation>
+				</annotation>
+			</element>
+			<element name="commentPositioning" type="fews:PositioningEnumStringType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2017.01. FEWS-16466. Displays the first available comment for the displayed time step on the specified location</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+</schema>

@@ -118,6 +118,48 @@ that set should fail fast.
 - Regression fixtures live in `tests/fixtures/` and are real configs known
   to work in FEWS. Changes to templates or prompts must not break them.
 
+## Known findings in `examples/config-tutorial/`
+
+The semantic validator (`fews_agent/validation/semantic.py`) walks the
+loaded Pydantic models after rendering and reports unresolved cross-file
+ID references. Running it over all 119 tutorial files surfaces three
+known issues — they exist in the hand-authored tutorial, not in our
+generators, and they are expected to appear in the run summary:
+
+- **`IdImportGlobSnow` casing mismatch.**
+  `ModuleConfigFiles/Import/Snow/ImportGLOBSNOW.xml` references
+  `<idMapId>IdImportGlobSnow</idMapId>`, but the declaring file is
+  `IdMapFiles/SpecialImport/IdImportGLOBSNOW.xml` (all caps). Works on
+  Windows (case-insensitive FS), breaks on Linux FEWS.
+
+- **Grid names used as `locationId` (`HRDPS`, `HRDPA`).**
+  `ImportHRDPS.xml` and `ImportHRDPA.xml` put `<locationId>HRDPS</locationId>`
+  / `HRDPA` in their timeSeriesSets. These aren't locations in
+  `Locations.xml`; they're declared in `LocationSets.xml` (generic-body
+  file). The typed reflection walker can't see declarations inside
+  `GenericXmlFile.body` dicts — they register as unresolved until the
+  validator is extended to scan generic bodies.
+
+- **`PreprocessHRDPS` / `PreprocessHRDPA` never declared.**
+  Workflows `ImportHRDPSGrids.xml` and `ImportHRDPAGrids.xml` invoke
+  these module instance ids (23 refs combined), but neither
+  `ModuleInstanceDescriptors.xml` nor any module-config filename
+  declares them. Likely a genuine tutorial bug or an implicit FEWS
+  convention we haven't captured.
+
+When adding a new generator or editing templates, these three clusters
+should stay at the expected counts. A change in any other unresolved
+reference indicates a new content regression worth investigating.
+
+**Why we don't fix them.** Fixing any of the three would require editing
+the input JSON (changing `IdImportGlobSnow` → `IdImportGLOBSNOW`, adding
+HRDPS/HRDPA locations, adding PreprocessHRDPS/HRDPA module instance
+descriptors). That would break C14N equivalence against the tutorial
+XML, which is the stronger regression oracle. The tutorial is the
+fixture; its bugs are part of the fixture. When we generate a
+non-tutorial config, these bugs disappear because the new input won't
+carry them — and the semantic report is how we'll confirm that.
+
 ## Notes for Claude Code specifically
 
 - When asked to add a generator, read the XSD first, then one or two

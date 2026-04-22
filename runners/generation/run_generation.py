@@ -19,8 +19,11 @@ import sys
 from decimal import Decimal
 from pathlib import Path
 
+from pydantic import BaseModel
+
 from fews_agent.generators import SPECS, GeneratorSpec
 from fews_agent.generators.base import canonicalize
+from fews_agent.validation import validate_semantic, validate_xsd
 
 # Green check / red X with ANSI color in interactive terminals; plain tags
 # when piped/redirected/CI. Windows 10+ terminals honor ANSI by default.
@@ -96,10 +99,17 @@ def _canonical_diff(generated: bytes, reference: bytes, name: str) -> list[str]:
     return diff[:40]
 
 
-def _run_spec(spec: GeneratorSpec, input_data: dict) -> tuple[bool, str]:
-    """Returns (ok, message). Writes the XML file as a side effect."""
+def _run_spec(
+    spec: GeneratorSpec, input_data: dict
+) -> tuple[bool, str, BaseModel | None]:
+    """Returns (ok, message, model). Writes the XML file as a side effect.
+
+    The model is returned (even on C14N mismatch) so the caller can feed
+    it into the semantic validator — an id reference being malformed is
+    worth surfacing even when the rendered XML also drifted.
+    """
     if spec.input_key not in input_data:
-        return False, f"input JSON has no key '{spec.input_key}'"
+        return False, f"input JSON has no key '{spec.input_key}'", None
 
     model = spec.model_class.model_validate(input_data[spec.input_key])
     xml_str = spec.generate(model)
@@ -110,19 +120,24 @@ def _run_spec(spec: GeneratorSpec, input_data: dict) -> tuple[bool, str]:
 
     tutorial_path = TUTORIAL_DIR / spec.output_relpath
     if not tutorial_path.exists():
-        return False, f"tutorial file missing: {tutorial_path}"
+        return False, f"tutorial file missing: {tutorial_path}", model
 
-    generated_canon = canonicalize(out_path.read_bytes())
+    generated_bytes = out_path.read_bytes()
+    generated_canon = canonicalize(generated_bytes)
     reference_canon = canonicalize(tutorial_path.read_bytes())
 
+    # XSD runs regardless of C14N outcome so a drifted file still gets
+    # its shape checked — two independent oracles in one pass.
+    xsd_ok, xsd_msg = validate_xsd(generated_bytes)
+
     if generated_canon == reference_canon:
-        return True, "C14N match"
+        return xsd_ok, f"C14N match | {xsd_msg}", model
 
     diff = _canonical_diff(generated_canon, reference_canon, str(spec.output_relpath))
     sys.stderr.write(f"\n--- DIFF for {spec.output_relpath} ---\n")
     sys.stderr.writelines(diff)
     sys.stderr.write("--- end diff ---\n")
-    return False, "C14N mismatch"
+    return False, f"C14N mismatch | {xsd_msg}", model
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -147,12 +162,16 @@ def main(argv: list[str] | None = None) -> int:
         input_data = json.load(f, parse_float=Decimal)
 
     results: list[tuple[GeneratorSpec, bool, str]] = []
+    loaded: list[tuple[str, BaseModel, Path]] = []
     for spec in specs:
+        model: BaseModel | None = None
         try:
-            ok, msg = _run_spec(spec, input_data)
+            ok, msg, model = _run_spec(spec, input_data)
         except Exception as exc:
             ok, msg = False, f"error: {type(exc).__name__}: {exc}"
         results.append((spec, ok, msg))
+        if model is not None:
+            loaded.append((spec.name, model, spec.output_relpath))
         tag = _OK if ok else _FAIL
         print(f"{tag} {spec.output_relpath}    ({msg})")
 
@@ -180,9 +199,45 @@ def main(argv: list[str] | None = None) -> int:
               f"{', '.join(sorted(str(p) for p in list(not_registered)[:5]))}"
               f"{' ...' if len(not_registered) > 5 else ''}")
 
+    # Semantic pass — do the cross-file IDs in the loaded models resolve
+    # to declarations somewhere in the config set? This catches content
+    # errors the XSD can't (a typo'd parameterId still looks like a string).
+    sem = validate_semantic(loaded)
+    print(
+        f"\nSemantic: {len(sem.refs)} id refs across {len(loaded)} files "
+        f"({sem.total_declared()} declared, "
+        f"{len(sem.placeholders)} placeholders skipped, "
+        f"{len(sem.ignored_module_local)} module-local skipped, "
+        f"{len(sem.unresolved)} unresolved)"
+    )
+    if sem.unresolved:
+        # Keep the report noise bounded — show first 20, group by type
+        # so a shared missing id doesn't dominate the output.
+        shown = 0
+        by_type: dict[str, list] = {}
+        for ref in sem.unresolved:
+            by_type.setdefault(ref.id_type_name, []).append(ref)
+        for id_type, refs in sorted(by_type.items()):
+            print(f"  {id_type}: {len(refs)} unresolved", file=sys.stderr)
+            for ref in refs[:3]:
+                print(f"    {ref.value!r} @ {ref.source}", file=sys.stderr)
+                shown += 1
+                if shown >= 20:
+                    break
+            if len(refs) > 3:
+                print(f"    ... and {len(refs) - 3} more", file=sys.stderr)
+            if shown >= 20:
+                break
+
     if not all_ok:
         print(f"\n{len(fails)} failure(s): {', '.join(fails)}", file=sys.stderr)
         return 1
+    # Semantic misses are surfaced but don't fail the run: (a) some IDs
+    # live in generic-body files (LocationSets, Filters) that the typed
+    # walker can't see yet, and (b) the tutorial itself contains a known
+    # broken ref (PreprocessHRDPS, PreprocessHRDPA — referenced by the
+    # HRDPS/HRDPA import workflows but missing from ModuleInstance-
+    # Descriptors). Don't regress the C14N win on that.
     return 0
 
 

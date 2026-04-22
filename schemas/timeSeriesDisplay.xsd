@@ -1,0 +1,1725 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- edited with XMLSpy v2009 sp1 (http://www.altova.com) by ICT (Stichting Deltares) -->
+<!--Delft FEWS (Copyright 2003 WL | Delft Hydraulics) -->
+<schema xmlns="http://www.w3.org/2001/XMLSchema" xmlns:fews="http://www.wldelft.nl/fews" targetNamespace="http://www.wldelft.nl/fews" elementFormDefault="qualified" attributeFormDefault="unqualified"
+		version="1.0">
+	<include schemaLocation="sharedTypes.xsd"/>
+	<element name="timeSeriesDisplay" type="fews:TimeSeriesDisplayConfigComplexType"/>
+	<!--The root element-->
+	<complexType name="TimeSeriesDisplayConfigComplexType">
+		<sequence>
+			<element name="description" type="string" minOccurs="0"/>
+			<element name="generalDisplayConfig" type="fews:GeneralDisplayOptionComplexType" minOccurs="0"/>
+			<element name="defaultViewPeriod" type="fews:RelativePeriodComplexType"/>
+			<element name="globalDatumLocationSetId" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>When the datum is automatically selected use the global datum instead of the local datum for this locations</documentation>
+				</annotation>
+			</element>
+			<choice minOccurs="0">
+				<element name="scrollerDefaultViewPeriod" type="fews:RelativePeriodComplexType"/>
+				<element name="showAllScrollerData" type="boolean" default="false">
+					<annotation>
+						<documentation>When true the long term scroller always show the full period where the time series in the scroller have data and cannot be overruled by the user</documentation>
+					</annotation>
+				</element>
+			</choice>
+			<element name="showAllSubPlotInScroller" type="boolean" minOccurs="0">
+				<annotation>
+					<documentation>When true the long term scroller always shows all time series like in the main Time Series Dialog. This is the default for time series selected from the filters. This will be new behaviour for DisplayGroups. When false, it will be new behaviour for filters and default behaviour for DisplayGroups. When not configured, this option is considered false for display groups but true for filters.</documentation>
+				</annotation>
+			</element>
+			<element name="readOnlyPeriod" type="fews:ReadOnlyPeriodComplexType" minOccurs="0" maxOccurs="unbounded"/>
+			<element name="timeOfValidityDefaultViewPeriod" type="fews:RelativePeriodComplexType" minOccurs="0">
+				<annotation>
+					<documentation>When the Tv button is selected this view period is enforced every time the user switches to another display node</documentation>
+				</annotation>
+			</element>
+			<element name="timeOfValiditySearchPeriod" type="fews:RelativePeriodComplexType" minOccurs="0">
+				<annotation>
+					<documentation>The period evaluated for time of validation. All the time series for this period are complete read from the database. Make this period as short as workable. This
+						element is required when you have configured a time of validity column in the flagSourceColumns.xml
+					</documentation>
+				</annotation>
+			</element>
+			<element name="thresholdDisplayConfig" type="fews:ThresholdDisplayConfigComplexType" minOccurs="0"/>
+			<element name="toolTipsConfig" type="fews:ToolTipsConfigComplexType" minOccurs="0"/>
+			<element name="legend" type="fews:LegendDisplayOptionsComplexType" minOccurs="0"/>
+			<element name="showValueInLegend" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>Since 2016.01 Option to show value of time series in legend at selected time step</documentation>
+				</annotation>
+			</element>
+			<element name="showTimeStepInLegend" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>Since 2025.02 Option to show timestep of time series in legend</documentation>
+				</annotation>
+			</element>
+			<element name="hideFooter" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>Since 2016.01 Option to hide footer in time series display</documentation>
+				</annotation>
+			</element>
+			<element name="classBreaks" type="fews:ClassBreaksConfigComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Class breaks uses by spatial plots and vertical profiles. Can be referenced from the spatial display and the display groups</documentation>
+				</annotation>
+			</element>
+			<element name="timeMarkersDisplayConfig" type="fews:TimeMarkersDisplayConfigComplexType" minOccurs="0"/>
+			<element name="defaultColorList" type="fews:ColorsConfigComplexType" minOccurs="0">
+				<annotation>
+					<documentation>A default color is used when no color is configured for a a series or to prevent duplicate colors for non predefined plots. The colors are used in the order as configured</documentation>
+				</annotation>
+			</element>
+			<element name="tableBackgroundColors" type="fews:TableBackgroundColorsComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2014.01. Override background colors for certain hours in the week</documentation>
+				</annotation>
+			</element>
+			<element name="highlightedDateTickColor" type="fews:colorStringType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2022.02 Color to be used for the highlighted date tick that shows the date on the selected time step, default is blue.</documentation>
+				</annotation>
+			</element>
+			<element name="ratingCurveDisplayConfig" type="fews:RatingCurveDisplayConfigComplexType" minOccurs="0"/>
+			<element name="parametersDisplayConfig" type="fews:ParametersDisplayConfigComplexType"/>
+			<element name="moduleInstanceIdMappings" type="fews:ModuleInstanceIdMappingsComplexType" minOccurs="0"/>
+			<element name="sampleFunctions" type="fews:SampleFunctionsComplexType" minOccurs="0"/>
+			<element name="statisticalFunctions" type="fews:TimeSeriesStatisticalFunctionsComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Statistical functions one can choose from in the dropdown list on the tool bar</documentation>
+				</annotation>
+			</element>
+			<element name="quickViewStatisticalFunction" type="fews:QuickViewTimeSeriesStatisticalFunctionComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Since 2014.01 Statistical functions accessed from the buttons on the toolbar. Configure one or more quickView functions to switch quickly between the functions and
+						between the statistical and not statistical series.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="combinedTimeSeriesStatisticalFunctions" type="fews:CombinedTimeSeriesStatisticalFunctions" minOccurs="0">
+				<annotation>
+					<documentation>Choosable functions for adding new time series based on all time series with the same parameter and time step</documentation>
+				</annotation>
+			</element>
+			<element name="descriptiveFunctionGroups" type="fews:DescriptiveStatisticalFunctionGroupsComplexType" minOccurs="0"/>
+			<element name="tickUnitsConfig" type="fews:TickUnitsConfigComplexType" minOccurs="0"/>
+			<element name="defaultGraphicalEditMode" type="fews:graphicalEditEnumStringType" minOccurs="0">
+				<annotation>
+					<documentation>In editmode and in modify mode the timeseries can be adjusted by graphically editing the timeseries. In the toolbar several graphical editing modes can be selected.
+						The default type (no edit allowed is one of them!) can be configured with this element.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="graphicalEditingConfig" type="fews:GraphicalEditingConfigComplexType" minOccurs="0">
+				<annotation>
+					<documentation>This section contains the configuration options for the graphical editing.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="thresholdGroupSelectionButton" type="fews:ThresholdGroupSelectionButtonComplexType" minOccurs="0">
+				<annotation>
+					<documentation>
+						Since 2020.02 the use of this element outside of the buttonSettings element is deprecated.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="buttonSettings" type="fews:ButtonSettingsComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2014.01. This element will hide a button in the TimeSeriesDisplay if either the visibility is set to false or if the permissionId was not allocated to the
+						current user. If this section is not defined, all buttons are shown. Also, if an individual button, it's visibility attribute or it's permissionId attribute is not defined,
+						that button will be shown.
+						Other settings might also influence the visibility of TSD buttons. These buttonsSettings can hide buttons that are normally shown, but cannot show buttons that are normally
+						hidden.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="predefinedViewPeriods" type="fews:PredefinedViewPeriodsComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Available since 2025.02. If configured, a button will be added to the dropdown menu of the time series dialog display time button. When clicked, it will set de start
+						time, current time and end time of the time series display to the pre-configured values.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="invertTableOrder" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>Since 2014.02. FEWS-9562: . todo Marijn add doc</documentation>
+				</annotation>
+			</element>
+			<element name="showDisplayGroupsHideAllToolWindows" type="fews:ShowDisplayGroupsHideAllToolWindowsComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2016.01. When the showDisplayGroups button is enabled (also known as favourites or shortcuts button), all open tool windows like the log panel, data viewer
+						etc. will be hidden. When disabled again, the previously hidden tool windows will be shown again.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="resampling" type="fews:ResamplingComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2018.01. Contains elements for the customization of the time series resampling dialog.</documentation>
+				</annotation>
+			</element>
+			<element name="infoAttribute" type="fews:InfoAttributeComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Since 2019.02. Specifies which attributes should be displayed in time series information panel</documentation>
+				</annotation>
+			</element>
+			<element name="documentViewer" type="fews:TimeSeriesDisplayDocumentViewerComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2020.01 The document viewer can show an external image based on the defined time series filter and host credentials.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+		<attribute name="version" type="fews:versionStringType" use="required" fixed="1.0"/>
+	</complexType>
+	<complexType name="PredefinedViewPeriodsComplexType">
+		<sequence>
+			<element name="predefinedViewPeriod" type="fews:PredefinedViewPeriodComplexType" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Available since 2025.02. A list of pre-configured time periods that can be selected in the time series display dialog.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="PredefinedViewPeriodComplexType">
+		<sequence>
+			<element name="startTime" type="fews:RelativeTimeComplexType"/>
+			<element name="cardinalStartTimeTimeStep" type="fews:TimeStepComplexType" minOccurs="0">
+				<annotation>
+					<documentation>
+						Optional field, the id of a valid time step. The start time of the display time period can be flexibly extended to an earlier time. The new, flexible start time will be the first valid time of this time step that happens before the configured minimum endTime. (For example, the next Monday or the start of the day). If there is no time step configured to extend the start time, the startTime configured will be the definitive start time, calculated from the current system time, with the exact precision of the cardinal time step. 
+					</documentation>
+				</annotation>
+			</element>
+			<element name="displayTime" type="fews:RelativeTimeComplexType"/>
+			<element name="cardinalDisplayTimeTimeStep" type="fews:TimeStepComplexType" minOccurs="0">
+				<annotation>
+					<documentation>
+						Optional field, the id of a valid time step. The display time of the display time period can be flexibly extended to a later time. The new, flexible display time will be the first valid time of this time step that happens after the configured relative display time. (For example, the next Monday or the start of the day). If there is no time step configured to extend the start time, the display time configured will be the definitive start time, calculated from the current system time, with the exact precision of the cardinal time step.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="endTime" type="fews:RelativeTimeComplexType">
+				<annotation>
+					<documentation>
+						The minimum amount of time before the end time.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="cardinalEndTimeTimeStep" type="fews:TimeStepComplexType" minOccurs="0">
+				<annotation>
+					<documentation>
+						Optional field, the id of a valid time step. The end time of the display time period can be flexibly extended to a later time. The new, flexible end time will be the first valid time of this time step that happens after the configured minimum endTime. (For example, the next Monday or the first day of the next month, but at least 4 days). If there is no time step configured to extend the end time, the endTime configured will be de definitive end time, calculated from the current system time, with the exact precision of the cardinal time step.
+					</documentation>
+				</annotation>
+			</element>
+		</sequence>
+		<attribute name="name" type="string" use="required">
+			<annotation>
+				<documentation>The name of the period that will be displayed on the dropdown menu of the Time Series Dialog button.</documentation>
+			</annotation>
+		</attribute>
+	</complexType>
+	<complexType name="TimeSeriesDisplayDocumentViewerComplexType">
+		<sequence>
+			<element name="externalImagesSource" type="fews:ExternalImagesSourceComplexType" maxOccurs="unbounded"/>
+		</sequence>
+	</complexType>
+	<complexType name="ExternalImagesSourceComplexType">
+		<sequence>
+			<sequence>
+				<group ref="fews:UserAndPassword" minOccurs="0">
+					<annotation>
+						<documentation>Since 2020.01 Define the user and password</documentation>
+					</annotation>
+				</group>
+				<element name="externalImages" type="fews:ExternalImagesComplexType">
+					<annotation>
+						<documentation>Since 2020.01 Defines for which time series an external image is available. The url is resolved based on a url template.</documentation>
+					</annotation>
+				</element>
+			</sequence>
+		</sequence>
+	</complexType>
+	<complexType name="ExternalImagesComplexType">
+		<sequence>
+			<element name="timeSeriesFilter" type="fews:TimeSeriesFilterComplexType" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Since 2020.01 Define for which time series the url template should be applied. You can define this by defining a time series filter.</documentation>
+				</annotation>
+			</element>
+			<element name="urlTemplate" type="fews:UrlTemplateComplexType">
+				<annotation>
+					<documentation>Since 2020.01 Define the url template based on which for each time step an url will be resolved. The url will determined by combining an base url and an file url
+					</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="UrlTemplateComplexType">
+		<sequence>
+			<element name="baseUrl" type="string">
+				<annotation>
+					<documentation>Since 2020.01 The base url for the external images.</documentation>
+				</annotation>
+			</element>
+			<element name="fileUrl" type="fews:fileStringType">
+				<annotation>
+					<documentation>Since 2020.01 The file url for the external images. The url will be equal to baseURL + fileURL</documentation>
+				</annotation>
+			</element>
+			<element name="timeZone" type="fews:timeZoneStringType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2020.02 build 110490. Time zone to be used to convert the time of the time step to part of the URL, default is GMT</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="ReadOnlyPeriodComplexType">
+		<sequence>
+			<element name="relativeTime" type="fews:RelativeTimeComplexType"/>
+			<element name="timeSeries" type="fews:TimeSeriesFilterComplexType"/>
+		</sequence>
+	</complexType>
+	<complexType name="ResamplingComplexType">
+		<sequence>
+			<element name="timeStep" type="fews:TimeStepComplexType" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Since 2018.01. The specified time steps will appear in the time series resampling dialog in the same order they appear here. If no time step is specified, a default list of time steps is used instead.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="ToolTipsConfigComplexType">
+		<sequence>
+			<element name="legendToolTip" type="fews:LegendToolTipsConfigComplexType" minOccurs="0" maxOccurs="unbounded"/>
+			<element name="toolTipProperties" type="fews:ToolTipPropertiesConfigComplexType" minOccurs="0" maxOccurs="1">
+				<annotation>
+					<documentation>Since 2017.01. To display time series properties in the tooltip, this element has to be added. If configured all properties will be displayed.
+					</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="LegendToolTipsConfigComplexType">
+		<sequence>
+			<element name="timeSeries" type="fews:TimeSeriesFilterComplexType" maxOccurs="unbounded"/>
+			<element name="toolTip" type="string"/>
+		</sequence>
+	</complexType>
+	<complexType name="ToolTipPropertiesConfigComplexType">
+		<sequence>
+			<element name="property" type="string" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Since FEWS 2017.01. If tooltip properties are configured, they will be displayed in the time series tooltip in the configured order.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+
+	<!--Declaration for ThresholdDisplayConfigComplexType-->
+	<complexType name="ThresholdDisplayConfigComplexType">
+		<sequence>
+			<element name="description" type="string" minOccurs="0">
+				<annotation>
+					<documentation>Optional description. This is never used in the code.</documentation>
+				</annotation>
+			</element>
+			<element name="noThresholdDisplayOptions" type="fews:NoThresholdDisplayOptionsComplexType" minOccurs="0"/>
+			<element name="thresholdDisplayOptions" type="fews:ThresholdDisplayOptionsComplexType" maxOccurs="unbounded"/>
+		</sequence>
+	</complexType>
+	<!--Declaration for Time Series Display Config Complex Type-->
+	<complexType name="TimeMarkersDisplayConfigComplexType">
+		<sequence>
+			<element name="description" type="string" minOccurs="0"/>
+			<element name="timeMarkerDisplayOptions" type="fews:TimeMarkerDisplayOptionsComplexType" maxOccurs="unbounded"/>
+		</sequence>
+	</complexType>
+	<complexType name="SampleFunctionsComplexType">
+		<sequence>
+			<element name="dayMonthSampleFunction" type="fews:emptyElement" minOccurs="0"/>
+		</sequence>
+	</complexType>
+	<!--Declaration for Statistical Functions Complex Type-->
+	<complexType name="TimeSeriesStatisticalFunctionsComplexType">
+		<sequence>
+			<element name="statisticalFunction" type="fews:TimeSeriesStatisticalFunctionComplexType" maxOccurs="unbounded"/>
+		</sequence>
+	</complexType>
+	<complexType name="DescriptiveStatisticalFunctionGroupsComplexType">
+		<annotation>
+			<documentation>Groups of Descriptive Statistics Functions: has at least one Descriptive Statistics Functions group. A separate statistics table will be created for each group.
+			</documentation>
+		</annotation>
+		<sequence>
+			<element name="displayedcolumns" type="fews:DescriptiveStatisticalFunctionColumnsEnumStringType" minOccurs="0">
+				<annotation>
+					<documentation>With this option can be selected which columns will be shown in the display</documentation>
+				</annotation>
+			</element>
+			<group ref="fews:DescriptiveStatisticalFunctionGroupsGroup"/>
+		</sequence>
+	</complexType>
+	<simpleType name="DescriptiveStatisticalFunctionColumnsEnumStringType">
+		<annotation>
+			<documentation>Determines which columns will be shown in the statistical panel</documentation>
+		</annotation>
+		<restriction base="string">
+			<enumeration value="statistics entire timeseries">
+				<annotation>
+					<documentation>If this option is selected only one column will be shown with statistics for the
+						entire time series
+					</documentation>
+				</annotation>
+			</enumeration>
+			<enumeration value="statistics entire timeseries, before timezero and after timzero">
+				<annotation>
+					<documentation>If this option is selected, three columns will be shown. One with the statistics for
+						the entire time series and two additional columns with statistics before time zero and after
+						time zero.
+					</documentation>
+				</annotation>
+			</enumeration>
+		</restriction>
+	</simpleType>
+	<complexType name="TimeSeriesStatisticalFunctionComplexType">
+		<annotation>
+			<documentation>Statistical Function Complex Type: has a function name and optional slider definitions (time span, time step or samples) to be selected by using a slider. Note: only one
+				type of slider definition can be used per Statistical Function Complex Type. Go to the Fews documentation (wiki) for more details.
+			</documentation>
+		</annotation>
+		<sequence>
+			<element name="movingAccumulationTimeSpan" type="fews:TimeSpanComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Defines the time spans that the user can select using the slider for this function in the TimeSeriesDisplay. movingAccumulationTimeSpan can only be used for
+						functions of the following type: relativeAggregation, movingAverage, centralMovingAverage, accumulationInterval, accumulationAggregation.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="annotationTimeSpan" type="fews:TimeSpanComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Defines the time spans that the user can select using the slider for this function in the TimeSeriesDisplay. annotationTimeSpan can only be used for
+						functions of the following type: cumulativeRange.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="timeStep" type="fews:TimeStepComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Defines the time steps that the user can select using the slider for this function in the TimeSeriesDisplay. timeStep can only be used for functions of the following
+						type: calendarAggregation, accumulationInterval, accumulationAggregation.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="samples" type="fews:SampleSpanComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Defines the amounts of samples that the user can select using the slider for this function in the TimeSeriesDisplay. samples can only be used for function type
+						frequencyDistribution.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="observedParameterId" type="fews:idStringType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Defines the parameterId of the observed timeseries in the principal component analysis functions</documentation>
+				</annotation>
+			</element>
+			<element name="simulatedParameterId" type="fews:idStringType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Defines the parameterId of the simulated parameters in the principal component analysis functions
+					</documentation>
+				</annotation>
+			</element>
+			<element name="maxEstimatedValue" type="float" minOccurs="0">
+				<annotation>
+					<documentation>maximum value for an estimated value. For example used in the pca function.</documentation>
+				</annotation>
+			</element>
+			<element name="lineStyle" type="fews:chartLineStyleEnumStringType" minOccurs="0">
+				<annotation>
+					<documentation>Defines the lineStyle in the graph. Only supported for the ensembleExceedence plot
+					</documentation>
+				</annotation>
+			</element>
+			<element name="dateFormat" type="string" minOccurs="0">
+				<annotation>
+					<documentation>String containing data format pattern. The pattern must match the 'Date Format Pattern Syntax'
+						defined by java (see https://docs.oracle.com/javase/8/docs/api/java/text/SimpleDateFormat.html)
+						Currently this field is only used by the BoxPlot statistical function.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="historicalPeriods" type="fews:HistoricalPeriodsComplexType" minOccurs="0"/>
+			<element name="season" type="fews:ColoredSeasonComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Since 2015.01 FEWS-11063. Defines the season time spans that will be given a custom color in a plot. Season can only be used for functions of the following type:
+						scatterPlot, showLowsBelow, showPeaksAbove.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="areaFunction" type="string" minOccurs="0">
+				<annotation>
+					<documentation>Since 2015.02 Attribute for defining the area over which to normalize the flow. The values that are to be converted will be divided by the outcome of this function.
+						i.e. If a conversion from m3/s to l/s.ha, this element would contain (without quotes) "@YOUR_AREA_ATTRIBUTE@/1000" Area Function can only be used for the Normalized Flow
+						function.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="parameterId" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2015.02 Used to determine the unit used for the right Y axis. Parameter Id can only be used for the Normalized Flow function.</documentation>
+				</annotation>
+			</element>
+			<element name="allowedInputParameterId" type="fews:idStringType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Since 2015.02 Parameters used to validate the input timeSeries for normalizedFlow function. Statistical function will only be available is the parameter from the
+						timeseries selected corresponds with one of these inputParameters. If no allowedInputParameterId is defined, no restriction will be applied.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="statisticType" type="fews:longTermStatisticFunctionType" minOccurs="0" maxOccurs="unbounded"/>
+</sequence>
+<attribute name="function" type="fews:statisticalFunctionEnumStringType" use="required"/>
+<attribute name="id" type="fews:idStringType">
+	<annotation>
+		<documentation>Since 2021.02  Optional  id  that can be used in other configuration files (eg DisplayGroups) to refer to this function</documentation>
+	</annotation>
+</attribute>
+<attribute name="ignoreMissings" type="boolean" default="false">
+	<annotation>
+		<documentation>The ignoreMissings option can only be used for functions of the following type: calendarAggregation, durationExceedence, durationNonExceedence, centralMovingAverage,
+			movingAverage.
+		</documentation>
+	</annotation>
+</attribute>
+<attribute name="label" type="string" use="optional">
+	<annotation>
+		<documentation>Since 2015.01 FEWS-11063. Optional label that will be displayed in the statistical functions combo box.</documentation>
+	</annotation>
+</attribute>
+<attribute name="aggregateByParameterType" type="boolean" use="optional" default="false">
+	<annotation>
+		<documentation>Since NA2016.02 Only used for function "calendarAggregation"</documentation>
+	</annotation>
+</attribute>
+</complexType>
+<complexType name="QuickViewTimeSeriesStatisticalFunctionComplexType">
+<annotation>
+	<documentation>QuickView statistical function is accessed from the toggle button on the TimeSeriesDisplay toolbar. Button icon, label, shortcut and tooltip can be optionally configured. If
+		neither icon nor label is configured, the button displays function name
+	</documentation>
+</annotation>
+<complexContent>
+	<extension base="fews:TimeSeriesStatisticalFunctionComplexType">
+		<sequence>
+			<element name="iconName" type="fews:nonEmptyStringType" minOccurs="0">
+				<annotation>
+					<documentation>Filename of an image file in the IconFiles config directory (including file extension)</documentation>
+				</annotation>
+			</element>
+			<element name="label" type="fews:nonEmptyStringType" minOccurs="0">
+				<annotation>
+					<documentation>This label is displayed in the function button if no icon is configured, and in the caption of the statistical timeseries . If no label is configured, the
+						caption shows the name of the statistical function.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="toolTip" type="fews:nonEmptyStringType" minOccurs="0">
+				<annotation>
+					<documentation>If no tooltip is configured, the statistical function name is shown</documentation>
+				</annotation>
+			</element>
+			<element name="accelerator" type="fews:nonEmptyStringType" minOccurs="0">
+				<annotation>
+					<documentation>Shortcut key.
+						Specify as follows: modifiers* (typeID | pressedReleasedID).
+						Example modifiers: shift, control, ctrl, alt, meta,....
+						EXAMPLES shortcuts: shift X, alt shift X, alt shift released X, control DELETE, INSERT
+					</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</extension>
+</complexContent>
+</complexType>
+<complexType name="CombinedTimeSeriesStatisticalFunctions">
+<sequence>
+	<element name="combinedTimeSeriesStatisticalFunction" type="fews:CombinedTimeSeriesStatisticalFunctionComplexType" maxOccurs="unbounded">
+		<annotation>
+			<documentation>Choosable functions for adding new time series based on all time series with the same parameter and time step</documentation>
+		</annotation>
+	</element>
+</sequence>
+</complexType>
+<complexType name="CombinedTimeSeriesStatisticalFunctionComplexType">
+<sequence>
+	<element name="statisticType" type="fews:CombinedTimeSeriesStatisticalFunctionEnumStringType">
+		<annotation>
+			<documentation>Choosable statistic type for adding new time series based on all time series with the same parameter and time step</documentation>
+		</annotation>
+	</element>
+	<element name="weightAttributeId" type="fews:nonEmptyStringType" minOccurs="0">
+		<annotation>
+			<documentation>Id of attribute that specifies the weight of each time series for calculating the combined statistical resulting time series</documentation>
+		</annotation>
+	</element>
+</sequence>
+</complexType>
+<simpleType name="CombinedTimeSeriesStatisticalFunctionEnumStringType">
+<annotation>
+	<documentation>Choosable statistic type for adding new time series based on all time series with the same parameter and time step</documentation>
+</annotation>
+<restriction base="string">
+	<enumeration value="SUM">
+		<annotation>
+			<documentation>If this option is chosen a new time series will be shown for the sum of all time series with the same parameter and time step
+			</documentation>
+		</annotation>
+	</enumeration>
+	<enumeration value="WEIGHTED_AVERAGE">
+		<annotation>
+			<documentation>If this option is chosen a new time series will be shown for the mean of all time series with the same parameter and time step
+			</documentation>
+		</annotation>
+	</enumeration>
+	<enumeration value="MAX">
+		<annotation>
+			<documentation>If this option is chosen a new time series will be shown for the maximum of all time series with the same parameter and time step
+			</documentation>
+		</annotation>
+	</enumeration>
+</restriction>
+</simpleType>
+<complexType name="HistoricalPeriodsComplexType">
+<sequence>
+	<element name="historicalPeriod" type="fews:HistoricalPeriodComplexType" minOccurs="0" maxOccurs="unbounded"/>
+</sequence>
+</complexType>
+<complexType name="HistoricalPeriodComplexType">
+<sequence>
+	<sequence>
+		<element name="startForwardLookingPeriod" type="fews:monthDayType">
+			<annotation>
+				<documentation>when the current day month is before the start of the startForwardLookingPeriod
+					in a
+					year
+					than the season of the previous year will be selected, otherwise the season of this year or
+					the
+					next
+					year will be chosen
+				</documentation>
+			</annotation>
+		</element>
+		<element name="season" type="fews:SeasonComplexType"/>
+	</sequence>
+</sequence>
+</complexType>
+<complexType name="ColoredSeasonComplexType">
+<complexContent>
+	<extension base="fews:SeasonComplexType">
+		<attribute name="color" type="fews:colorStringType"/>
+	</extension>
+</complexContent>
+</complexType>
+<simpleType name="statisticalFunctionEnumStringType">
+<annotation>
+	<documentation>Statistical Function Name: has enumerations like Percentiles, MovingAverage</documentation>
+</annotation>
+<restriction base="string">
+	<enumeration value="calendarAggregation"/>
+	<enumeration value="centralMovingAverage"/>
+	<enumeration value="durationExceedence"/>
+	<enumeration value="durationNonExceedence"/>
+	<enumeration value="movingAverage"/>
+	<enumeration value="relativeAggregation"/>
+	<enumeration value="cumulative"/>
+	<enumeration value="cumulativeRange"/>
+	<enumeration value="periodicCumulativeRange"/>
+	<enumeration value="accumulationInterval"/>
+	<enumeration value="accumulationAggregation"/>
+	<enumeration value="frequencyDistribution"/>
+	<enumeration value="gaussianCurve"/>
+	<enumeration value="showPeaksAbove"/>
+	<enumeration value="historicalShowPeaksAbove"/>
+	<enumeration value="showLowsBelow"/>
+	<enumeration value="historicalShowLowsBelow"/>
+	<enumeration value="scatterPlot"/>
+	<enumeration value="historicalScatterPlot"/>
+	<enumeration value="boxPlot"/>
+	<enumeration value="principalcomponentanalysis"/>
+	<enumeration value="principalcomponentanalysisJackKnife"/>
+	<enumeration value="historicalAnalysis"/>
+	<enumeration value="ensemblePercentileExceedence"/>
+	<enumeration value="differences"/>
+	<enumeration value="doubleMassCurve"/>
+	<enumeration value="elevation">
+		<annotation>
+			<documentation>Since 2014.02. Show elevation display which has elevation on the X axis and a parameter on the Y axis. The time can be changed with the time slider in the toolbar. A
+				subplot is created for every parameterGroup and a series in a subplot is created for every unique parameter + qualifierSet combination
+			</documentation>
+		</annotation>
+	</enumeration>
+	<enumeration value="normalizedFlow">
+		<annotation>
+			<documentation>Since 2015.02. Shows extra timeSeries with normalized flow.</documentation>
+		</annotation>
+	</enumeration>
+	<enumeration value="longTermPeriodic">
+		<annotation>
+			<documentation>Since 2020.02. Calculates Yearly Cyclic Statistical time series with time step day based on long term time series (from long term scroller in time series dialog). Possible statistics: min max and percentile.</documentation>
+		</annotation>
+	</enumeration>
+</restriction>
+</simpleType>
+<!--Declaration for Time Markers  Display Config Complex Type-->
+	<complexType name="ParametersDisplayConfigComplexType">
+		<sequence>
+			<element name="description" type="string" minOccurs="0">
+				<annotation>
+					<documentation>Optional description. This is never used in the code.</documentation>
+				</annotation>
+			</element>
+			<element name="defaults" type="fews:DefaultDisplayOptionsComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Default options used when no specific options are configured for parameter</documentation>
+				</annotation>
+			</element>
+			<element name="parameterDisplayOptions" type="fews:ParameterDisplayOptionsComplexType" maxOccurs="unbounded">
+				<annotation>
+					<documentation>One or more items with display options for different parameters.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<!--Declaration for Parameter Display Config Complex Type-->
+	<complexType name="DefaultDisplayOptionsComplexType">
+		<sequence>
+			<group ref="fews:DisplayOptionsSequence"/>
+		</sequence>
+	</complexType>
+	<complexType name="ParameterDisplayOptionsComplexType">
+		<sequence>
+			<element name="qualifierId" type="fews:idStringType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Id that references an qualifier listed in the regionConfigFiles/Qualifiers.xsd</documentation>
+				</annotation>
+			</element>
+			<element name="ensembleId" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>Identifier of the ensemble for which these parameterDisplayOptions are valid.</documentation>
+				</annotation>
+			</element>
+			<element name="ensembleMemberIndex" type="nonNegativeInteger" minOccurs="0">
+				<annotation>
+					<documentation>Index of the ensemble member for which these parameterDisplayOptions are valid.</documentation>
+				</annotation>
+			</element>
+			<group ref="fews:DisplayOptionsSequence"/>
+		</sequence>
+		<attribute name="id" type="fews:idStringType" use="required"/>
+		<attribute name="name" type="fews:nameStringType" use="optional">
+			<annotation>
+				<documentation>Optional name. This is never used in the code.</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="equidistant" type="boolean" use="optional"/>
+	</complexType>
+	<group name="DisplayOptionsSequence">
+		<sequence>
+			<element name="preferredColor" type="fews:colorStringType"/>
+			<element name="lineStyle" type="fews:chartLineStyleEnumStringType"/>
+			<element name="lineWidth" type="fews:nonNegativeDouble" minOccurs="0"/>
+			<choice minOccurs="0">
+				<element name="markerStyle" type="fews:markerStyleEnumStringType"/>
+				<element name="markerText" type="string"/>
+				<sequence>
+					<element name="markerRotationParameterId" type="string">
+						<annotation>
+							<documentation>Since 2017.02. The parameter id of the parameter to be used to determine the marker orientation. The given parameter should be a rotation in degrees (0 -
+								360, clockwise where 0 is north), for example wind direction. The markers drawn on the graph will be arrows (or the configured markerIcon) rotated by the number of
+								degrees given by the marker rotation time series. Note that the time series set with all elements except parameterId (locationId, timeStep etc.) identical to the
+								plotted parameter is used. If no rotation time series can be found, or it contains a missing value for a certain time, no marker is drawn.
+							</documentation>
+						</annotation>
+					</element>
+					<element name="markerIcon" type="string" minOccurs="0">
+						<annotation>
+							<documentation>Since 2017.02. The icon to be used as a marker on the graph, only available for rotated markers (when markerRotationParameterId is configured).
+							</documentation>
+						</annotation>
+					</element>
+					<element name="markerRotationOffset" type="fews:intStringType" minOccurs="0">
+						<annotation>
+							<documentation>Since 2017.02. Default 0. The offset (in degrees) that should be added to the rotation (as given by the markerRotationParameter) for each marker. Note that
+								for the default arrow icon (when no markerIcon is given), a rotation of 0 degrees (and an offset of 0) corresponds to the arrow pointing up.
+							</documentation>
+						</annotation>
+					</element>
+				</sequence>
+			</choice>
+			<element name="markerSize" type="fews:markerSizeIntegerType" minOccurs="0"/>
+			<element name="min" type="double" minOccurs="0"/>
+			<element name="max" type="double" minOccurs="0"/>
+			<element name="precision" type="nonNegativeInteger" default="3" minOccurs="0">
+				<annotation>
+					<documentation>Minimal number of fraction digits that are always shown</documentation>
+				</annotation>
+			</element>
+			<element name="scaleUnit" type="fews:nonNegativeDouble" minOccurs="0">
+				<annotation>
+					<documentation>The purpose of the scaleUnit is to amend the vertical axis range in such a way that the range (the first tick and the last tick) are always whole numbers. For
+						example, the first tick is 0.75 and the last tick is 1.8. When   <scaleUnit>1</scaleUnit> is used, the first tick will be 0 and the last tick will be 2
+					</documentation>
+				</annotation>
+			</element>
+			<element name="inverted" type="boolean" minOccurs="0"/>
+			<element name="logarithmic" type="boolean" minOccurs="0">
+					<annotation>
+						<documentation>Available since 2020.02. This option can be used to make the y axis logarithmic when this parameter is displayed.</documentation>
+					</annotation>
+			</element>
+			<element name="step" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>Makes the TimeSeriesDisplay renderer draw a step line (using only horizontal and vertical lines). Note that markers are not supported for step functions.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="maxTimeSpan" type="fews:TimeSpanComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Makes the TimeSeriesDisplay renderer skip drawing line segments between pairs of adjacent time/value items for which the time difference does exceed the maximum time
+						span. This can for instance be useful for viewing tidal time series without redundant line segments between different tides.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="maxValueDifference" type="float" minOccurs="0">
+				<annotation>
+					<documentation>Makes the TimeSeriesDisplay renderer skip drawing line segments between pairs of adjacent time/value items for which the value difference does exceed the maximum value difference configured .
+						This can for instance be useful for viewing wind direction time series without redundant line segments between 360 and 0 degrees.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="legendItemPerEnsembleMember" type="boolean" minOccurs="0">
+				<annotation>
+					<documentation>By default all time series that belong to the same ensemble are grouped to a single legend item</documentation>
+				</annotation>
+			</element>
+			<element name="tableHeaderBackgroundColor" type="fews:colorStringType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2017.02 Background color of the table header for a specific parameter</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</group>
+	<!--Declaration for Threshold Display Options Config Complex Type-->
+	<complexType name="NoThresholdDisplayOptionsComplexType">
+		<annotation>
+			<documentation>Since 2021.01 The space outside any threshold range can be optionally filled with the given color and opaqueness.</documentation>
+		</annotation>
+		<sequence>
+			<element name="color" type="fews:colorStringType" minOccurs="0"/>
+			<element name="backgroundOpaquenessPercentage" type="fews:percentageType" minOccurs="0"/>
+		</sequence>
+	</complexType>
+	<complexType name="ThresholdDisplayOptionsComplexType">
+		<sequence>
+			<element name="color" type="fews:colorStringType" minOccurs="0"/>
+			<element name="backgroundOpaquenessPercentage" type="fews:percentageType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2016.02 The space betwee thresholds can be optionally filled with the threshold colors For this purpose the opaqueness can be configured</documentation>
+				</annotation>
+			</element>
+			<element name="lineStyle" type="fews:chartLineStyleEnumStringType" minOccurs="0"/>
+			<element name="label" type="string" minOccurs="0"/>
+			<element name="labelIncludesValue" type="boolean" minOccurs="0">
+				<annotation>
+					<documentation>Since 2017.01</documentation>
+				</annotation>
+			</element>
+			<element name="labelAlignment" type="fews:thresholdLabelAlignmentEnumStringType" minOccurs="0"/>
+		</sequence>
+		<attribute name="id" type="fews:idStringType" use="required">
+			<annotation>
+				<documentation>Id of a threshold.</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="visible" type="boolean" default="true">
+			<annotation>
+				<documentation>Since 2014.02 If false this threshold will be invisible in TimeSeriesDisplay charts</documentation>
+			</annotation>
+		</attribute>
+	</complexType>
+	<!--Declaration for Parameter Options Config Complex Type-->
+	<complexType name="TimeMarkerDisplayOptionsComplexType">
+		<sequence>
+			<element name="color" type="fews:colorStringType"/>
+			<element name="lineStyle" type="fews:chartLineStyleEnumStringType"/>
+			<element name="label" type="string" minOccurs="0"/>
+		</sequence>
+		<attribute name="marker" type="fews:domainMarkerEnumStringType" use="required"/>
+	</complexType>
+	<!--Enumeration for equidistant and non-equidistant parameter modifier-->
+	<simpleType name="parameterModifierEnumStringType">
+		<restriction base="string">
+			<enumeration value="equidistant"/>
+			<enumeration value="nonequidistant"/>
+		</restriction>
+	</simpleType>
+	<!--Enumeration for domain marker names-->
+	<simpleType name="domainMarkerEnumStringType">
+		<restriction base="string">
+			<enumeration value="systemTime"/>
+			<enumeration value="timeZero"/>
+			<enumeration value="displayTime"/>
+			<enumeration value="forecastStartTime"/>
+			<enumeration value="startTime"/>
+			<enumeration value="endTime"/>
+			<enumeration value="threshold"/>
+			<enumeration value="forecastConfidence1"/>
+			<enumeration value="forecastConfidence2"/>
+			<enumeration value="forecastConfidence3"/>
+			<enumeration value="longitudinalProfileMinimum"/>
+			<enumeration value="longitudinalProfileMaximum"/>
+			<enumeration value="riverBedLevel"/>
+			<enumeration value="leftMainChannelLevel"/>
+			<enumeration value="rightMainChannelLevel"/>
+			<enumeration value="leftBankLevel"/>
+			<enumeration value="rightBankLevel"/>
+			<enumeration value="leftFloodPlainLevel"/>
+			<enumeration value="rightFloodPlainLevel"/>
+			<enumeration value="bottomLayerLevel"/>
+			<enumeration value="topLayerLevel"/>
+			<enumeration value="zeroBaseline"/>
+			<enumeration value="timeOfValidity"/>
+			<enumeration value="modifierStartTime"/>
+			<enumeration value="modifierEndTime"/>
+			<enumeration value="newModifierStartTime"/>
+			<enumeration value="newModifierEndTime"/>
+			<!-- since 2016.01 -->
+		</restriction>
+	</simpleType>
+	<simpleType name="graphicalEditEnumStringType">
+		<restriction base="string">
+			<enumeration value="noGraphicalEdit"/>
+			<enumeration value="interpolateBetweenSelectedPoints"/>
+			<enumeration value="setToMissingBetweenSelectedPoints"/>
+			<enumeration value="adjustShapeTimeSeriesByDragging"/>
+			<enumeration value="editTimeSeriesByClicking"/>
+			<enumeration value="quadraticInterpolateBetweenSelectedPoints"/>
+		</restriction>
+	</simpleType>
+	<!--Enumeration for chainage units-->
+	<simpleType name="chainageUnitEnumStringType">
+		<restriction base="string">
+			<enumeration value="m"/>
+			<enumeration value="km"/>
+			<enumeration value="foot"/>
+		</restriction>
+	</simpleType>
+	<complexType name="ModuleInstanceIdMappingsComplexType">
+		<sequence>
+			<element name="moduleInstanceIdMapping" type="fews:ModuleInstanceIdMappingComplexType" minOccurs="0" maxOccurs="unbounded"/>
+			<element name="moduleInstanceIdPatternMapping" type="fews:ModuleInstanceIdPatternMappingComplexType" minOccurs="0" maxOccurs="unbounded"/>
+		</sequence>
+	</complexType>
+	<!--Declaration for Module Instance Id Mappings Config Complex Type-->
+	<complexType name="ModuleInstanceIdMappingComplexType">
+		<sequence>
+			<element name="description" type="string"/>
+		</sequence>
+		<attribute name="id" type="fews:idStringType" use="required"/>
+	</complexType>
+	<complexType name="ModuleInstanceIdPatternMappingComplexType">
+		<sequence>
+			<element name="description" type="string"/>
+		</sequence>
+		<attribute name="idPattern" type="fews:nonEmptyStringType" use="required"/>
+	</complexType>
+	<!--Declaration for Module Instance Id Mapping Config Complex Type-->
+	<complexType name="GeneralDisplayOptionComplexType">
+		<sequence>
+			<element name="legendFontSize" type="positiveInteger" default="11" minOccurs="0"/>
+			<element name="legendTextFunction" type="string" minOccurs="0"/>
+			<element name="showLocationInLegendWithSingleLocation" type="boolean" minOccurs="0" default="false">
+				<annotation>
+					<documentation>Available since 2022.02. The TSD displays the name of the location in the legend only if more than one location is selected. If
+						showLocationInLegendWithSingleLocation is set to true, the name will be displayed with a single location selection too.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="axisTitleFontSize" type="positiveInteger" default="10" minOccurs="0"/>
+			<element name="tickLabelFontSize" type="positiveInteger" default="9" minOccurs="0"/>
+			<element name="thresholdLabelFontSize" type="positiveInteger" default="9" minOccurs="0"/>
+			<element name="barMarginPercentage" type="fews:percentageType" default="0" minOccurs="0">
+				<annotation>
+					<documentation>Percentage of the bar width by which the bar width will be reduced, to create space between the bars. Default value is 0. Since 2018.02 the barMarginPercentage can
+						also be set for a specific subplot in the DisplayGroups.xml. These configured values will overrule the general barMarginPercentage for that specific subplot if present.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="toolTipMargin" type="positiveInteger" default="30" minOccurs="0">
+				<annotation>
+					<documentation>Sinds 2017.02 Radius of the circle (in pixels) around the value in the plot the tool tip starts appearing</documentation>
+				</annotation>
+			</element>
+			<element name="valueColumnWidth" type="positiveInteger" default="90" minOccurs="0">
+				<annotation>
+					<documentation>Since 2022.01. Initial width of the value columns. Default width is 90 pixels.</documentation>
+				</annotation>
+			</element>
+			<element name="convertDatum" type="boolean" default="false" minOccurs="0"/>
+			<element name="autoScaleForAllThresholds" type="boolean" default="false" minOccurs="0"/>
+			<element name="onlyShowThresholdsSharedByAllSeries" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>Since 2014.02. By default (when false), thresholds are only shown when all timeSeries in a subplot share the same thresholds (or when hovered over the timeseries
+						with the mouse). When set to true, the thesholds are also shown when 1 or more timeseries have no thresholds. The timeseries with thresholds still need to have the same
+						thresholds in order for them to show.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="unreliablesVisibleInChart" type="boolean" default="true" minOccurs="0">
+				<annotation>
+					<documentation>Since 2013.01. FEWS-8799</documentation>
+				</annotation>
+			</element>
+			<element name="maximumInterpolationGap" type="nonNegativeInteger" default="100" minOccurs="0"/>
+			<element name="valueEditorPermission" type="string" minOccurs="0"/>
+			<element name="labelEditorPermission" type="string" minOccurs="0"/>
+			<element name="commentEditorPermission" type="string" minOccurs="0"/>
+			<element name="chainageUnit" type="fews:chainageUnitEnumStringType" minOccurs="0">
+				<annotation>
+					<documentation>Unit in which the chainage must be displayed in longitudinal profile plots. This option is DEPRECATED (do not use it). Configure chainageParameterId in
+						Parameters.xml instead
+					</documentation>
+				</annotation>
+			</element>
+			<element name="headerLine" type="string" minOccurs="0" maxOccurs="unbounded"/>
+		</sequence>
+	</complexType>
+	<complexType name="TickUnitsConfigComplexType">
+		<sequence>
+			<element name="dateTickMarkPosition" type="fews:DateTickMarkPositionComplexType" maxOccurs="5"/>
+		</sequence>
+	</complexType>
+	<!-- Overruling DateTickMarkPosition to be used in the time series dialog. Defaults to start of time unit -->
+	<complexType name="DateTickMarkPositionComplexType">
+		<sequence>
+			<element name="dateTickUnit" type="fews:calendarTimeUnitEnumStringType">
+				<annotation>
+					<documentation>Tick unit value for which to overrule the TickMark position. Only has effect on
+						the following time units; second, minute, hour, day, month
+					</documentation>
+				</annotation>
+			</element>
+			<element name="tickMarkPosition" type="fews:positiveInteger">
+				<annotation>
+					<documentation>Tick mark position must represent a valid value for the given dateTickUnit
+						(e.g. seconds/minutes 0-59, hour 0-23, days 1-31, month 0-11)
+					</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="GraphicalEditingConfigComplexType">
+		<sequence>
+			<element name="adjustShapeByDragging" type="fews:AdjustShapeByDraggingComplexType" minOccurs="0">
+				<annotation>
+					<documentation>This graphical editing option, allows the forecaster to select points on the graph.
+						By dragging the points to another location the graph can be adjusted.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="verticallyMoveTimeSeries" type="fews:VerticallyMoveTimeSeriesComplexType" minOccurs="0">
+				<annotation>
+					<documentation>This graphical editing option, allows the forecaster to select points on the graph.
+						By dragging the points vertically the time series can be moved up or down
+					</documentation>
+				</annotation>
+			</element>
+			<element name="interpolateBetweenTwoClickedValues" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>Since 2015.02 Applies only to graphical edit mode "editTimeSeriesByClicking". If true , then the values between the last clicked value and the previous clicked value
+						are always interpolated. If false (default), then each click only changes one single value. To force the interpolation anyway, use CTRL+click
+					</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="VerticallyMoveTimeSeriesComplexType">
+		<sequence>
+			<element name="incrementYValue" type="fews:IncrementYValueComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>The increment of the Y-value when a selected time step is moved vertically by using
+						the keyboard
+					</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="AdjustShapeByDraggingComplexType">
+		<sequence>
+			<element name="showAstronomicalNumber" type="boolean" minOccurs="0">
+				<annotation>
+					<documentation>With this option the astronomical number will be shown for each high and low-water. Details about this astronomical number can be found at the wiki</documentation>
+				</annotation>
+			</element>
+			<element name="correctionTimeLocationAttribute" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>The calculated astronomical number can be corrected based on the value of the configured location attribute</documentation>
+				</annotation>
+			</element>
+			<element name="incrementYValue" type="fews:IncrementYValueComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>The increment of the Y-value when a selected time step is moved vertically by using
+						the keyboard
+					</documentation>
+				</annotation>
+			</element>
+			<element name="preSelectedAllTimeSteps" type="fews:PreSelectAllTimeStepsComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>With this option all time steps of a time series will be pre-selected after selection or directly after the time series is displayed in the graph</documentation>
+				</annotation>
+			</element>
+			<element name="preSelectIndependedPeaksAndLows" type="fews:PreSelectIndependedPeaksAndLowsComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>To minimize to amount of clicks for the forecaster the peaks and valleys can be
+						preselected. Only one peak or valley is allowed within a timeSpan.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="preSelectTimeStepsPeriodically" type="fews:PreSelectTimeStepsPeriodicallyComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Since 2013.01. FEWS-8773. To minimize to amount of clicks for the forecaster a time steps can be preselected
+						with a configured interval
+					</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="PreSelectTimeStepsPeriodicallyComplexType">
+		<sequence>
+			<element name="autoSelectTimeSteps" type="boolean" default="true" minOccurs="0"/>
+			<element name="parameterId" type="fews:idStringType"/>
+			<element name="timeSpan" type="fews:TimeSpanComplexType"/>
+		</sequence>
+	</complexType>
+	<complexType name="PreSelectAllTimeStepsComplexType">
+		<sequence>
+			<element name="autoSelectTimeSteps" type="boolean" default="true" minOccurs="0">
+				<annotation>
+					<documentation>Since 2016.01 With this option the all time steps will be pre-selected automaticly</documentation>
+				</annotation>
+			</element>
+			<element name="parameterId" type="fews:idStringType"/>
+		</sequence>
+	</complexType>
+	<complexType name="PreSelectIndependedPeaksAndLowsComplexType">
+		<sequence>
+			<element name="autoSelectTimeSteps" type="boolean" default="true" minOccurs="0">
+				<annotation>
+					<documentation>Since 2013.01. FEWS-8773</documentation>
+				</annotation>
+			</element>
+			<element name="parameterId" type="fews:idStringType"/>
+			<element name="selectionTimeSpan" type="fews:TimeSpanComplexType">
+				<annotation>
+					<documentation>Only one peak or valley will be pre-selected within a selection time window. This
+						option allows to prevent that too many points get preselected when just a after peak (or valley)
+						another (false) peak (or valley) occurs. When more than one peak or valley is found within this
+						window. The highest peak or lowest valley will be preselected.
+					</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="IncrementYValueComplexType">
+		<sequence>
+			<element name="parameterId" type="fews:idStringType"/>
+			<element name="increment" type="float"/>
+		</sequence>
+	</complexType>
+	<complexType name="ClassBreaksConfigComplexType">
+		<sequence>
+			<element name="classBreaks" type="fews:IdentifiableClassBreaksComplexType" maxOccurs="unbounded"/>
+		</sequence>
+	</complexType>
+	<complexType name="ColorsConfigComplexType">
+		<sequence>
+			<element name="color" type="fews:colorStringType" maxOccurs="unbounded"/>
+		</sequence>
+	</complexType>
+	<complexType name="IdentifiableClassBreaksComplexType">
+		<sequence>
+			<group ref="fews:ClassBreaksGroup"/>
+		</sequence>
+		<attribute name="id" type="fews:idStringType" use="required"/>
+	</complexType>
+	<complexType name="RatingCurveDisplayConfigComplexType">
+		<sequence>
+			<element name="stageAxisOrientation" type="fews:AxisOrientationEnumStringType"/>
+			<element name="thresholdType" type="fews:ThresholdTypeEnumStringType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2018.02 If stageThresholds is set, then only stage thresholds are shown, if dischargeThresholds is set, then only discharge thresholds are shown. If this
+						option is omitted both threshold types are shown
+					</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<simpleType name="AxisOrientationEnumStringType">
+		<restriction base="string">
+			<enumeration value="vertical"/>
+			<enumeration value="horizontal"/>
+		</restriction>
+	</simpleType>
+	<simpleType name="ThresholdTypeEnumStringType">
+		<restriction base="string">
+			<enumeration value="stage"/>
+			<enumeration value="discharge"/>
+		</restriction>
+	</simpleType>
+	<complexType name="ButtonSettingsComplexType">
+		<sequence>
+			<element name="showDisplayGroups" type="fews:ButtonSettingComplexType">
+				<annotation>
+					<documentation>Using this button shows the display group panel (aka shortcuts)</documentation>
+				</annotation>
+			</element>
+			<element name="showTable" type="fews:ButtonSettingComplexType">
+				<annotation>
+					<documentation>Using this button shows the table view panel</documentation>
+				</annotation>
+			</element>
+			<element name="showValidationColumn" type="fews:ButtonSettingComplexType" minOccurs="0">
+				<annotation>
+					<documentation>(table dropdown item) Using this button shows the validation column in the time series table</documentation>
+				</annotation>
+			</element>
+			<element name="showValidationStepsColumn" type="fews:ButtonSettingComplexType" minOccurs="0">
+				<annotation>
+					<documentation>(table dropdown item) Using this button shows the validation steps column in the time series table</documentation>
+				</annotation>
+			</element>
+			<element name="showUsersColumn" type="fews:ButtonSettingComplexType" minOccurs="0">
+				<annotation>
+					<documentation>(table dropdown item) Using this button shows the users column in the time series table</documentation>
+				</annotation>
+			</element>
+			<element name="showCommentsColumn" type="fews:ButtonSettingComplexType" minOccurs="0">
+				<annotation>
+					<documentation>(table dropdown item) Using this button shows the comments column in the time series table</documentation>
+				</annotation>
+			</element>
+			<element name="showUnitsColumn" type="fews:ButtonSettingComplexType" minOccurs="0">
+				<annotation>
+					<documentation>(table dropdown item) Using this button shows the units column in the time series table</documentation>
+				</annotation>
+			</element>
+			<element name="showLocationNamesInTableHeader" type="fews:ButtonSettingComplexType" minOccurs="0">
+				<annotation>
+					<documentation>(table dropdown item) Using this button displays the location name(s) of each times series in the column header</documentation>
+				</annotation>
+			</element>
+			<element name="showLocationIdsInTableHeader" type="fews:ButtonSettingComplexType" minOccurs="0">
+				<annotation>
+					<documentation>(table dropdown item) Using this button displays the location id(s) of each times series in the column header</documentation>
+				</annotation>
+			</element>
+			<element name="showModuleInstanceInTableHeader" type="fews:ButtonSettingComplexType" minOccurs="0">
+				<annotation>
+					<documentation>(table dropdown item) Using this button displays the module instance of each times series in the column header</documentation>
+				</annotation>
+			</element>
+			<element name="showForecastTimesInTableHeader" type="fews:ButtonSettingComplexType" minOccurs="0">
+				<annotation>
+					<documentation>(table dropdown item) Using this button displays the forecast time of each times series in the column header</documentation>
+				</annotation>
+			</element>
+			<element name="showColumnStatistics" type="fews:ButtonSettingComplexType" minOccurs="0">
+				<annotation>
+					<documentation>(table dropdown item) Using this button displays statistics, such as average value, in the column header</documentation>
+				</annotation>
+			</element>
+			<element name="showThresholdCrossings" type="fews:ButtonSettingComplexType" minOccurs="0">
+				<annotation>
+					<documentation>(table dropdown item) Using this button show the threshold crossings</documentation>
+				</annotation>
+			</element>
+			<element name="twentyFourHourOptions" type="fews:ButtonSettingComplexType" minOccurs="0">
+				<annotation>
+					<documentation>(table dropdown item) Using these buttons switches between different durations over which the TwentyFourHour display is aggregated</documentation>
+				</annotation>
+			</element>
+			<element name="groupTableByTimeSeries" type="fews:ButtonSettingComplexType" minOccurs="0">
+				<annotation>
+					<documentation>(table dropdown item) Using this button groups table by time series</documentation>
+				</annotation>
+			</element>
+			<element name="reverseTimeSeriesOrder" type="fews:ButtonSettingComplexType" minOccurs="0">
+				<annotation>
+					<documentation>(table dropdown item) Using this button reverses the time order in the columns</documentation>
+				</annotation>
+			</element>
+			<element name="showTwentyFourHour" type="fews:ButtonSettingForcedVisibilityComplexType">
+				<annotation>
+					<documentation>Using this button toggles the layout of the table between the normal view (one column per time series) and the 24N view (per day and per timeseries there is a column
+						with each row being a time in that day).
+					</documentation>
+				</annotation>
+			</element>
+			<element name="showChart" type="fews:ButtonSettingComplexType">
+				<annotation>
+					<documentation>Using this button shows the chart view panel (aka graph view)</documentation>
+				</annotation>
+			</element>
+			<element name="toggleGraphSplitting" type="fews:ButtonSettingComplexType" minOccurs="0">
+				<annotation>
+					<documentation>(chart dropdown item) Using this button toggles between each timeseries having it's own subplot or being grouped by unit</documentation>
+				</annotation>
+			</element>
+			<element name="toggleGraphEqualScale" type="fews:ButtonSettingComplexType" minOccurs="0">
+				<annotation>
+					<documentation>(chart dropdown item) Using this button toggles between each timeseries having it's own subplot or being grouped by unit, subplots of the same unit will be given
+						equal scaling on the y-axis.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="scaleToShowUnreliableData" type="fews:ButtonSettingComplexType" minOccurs="0">
+				<annotation>
+					<documentation>(chart dropdown item) Using this button scales the chart to show unreliable data</documentation>
+				</annotation>
+			</element>
+			<element name="showDataLabels" type="fews:ButtonSettingComplexType" minOccurs="0">
+				<annotation>
+					<documentation>(chart dropdown item) Using this button shows data labels</documentation>
+				</annotation>
+			</element>
+			<element name="switchFilterAndShortcuts" type="fews:ButtonSettingComplexType" minOccurs="0">
+				<annotation>
+					<documentation>(chart dropdown item) Using this button switches between filter/data viewer and display group panel/shortcuts</documentation>
+				</annotation>
+			</element>
+			<element name="hideUnreliableData" type="fews:ButtonSettingComplexType" minOccurs="0">
+				<annotation>
+					<documentation>(chart dropdown item) Using this button hides unreliable data</documentation>
+				</annotation>
+			</element>
+			<element name="stackPlot" type="fews:ButtonSettingComplexType" minOccurs="0">
+				<annotation>
+					<documentation>(chart dropdown item) Using this button toggles the graph between a stack plot and normal plot</documentation>
+				</annotation>
+			</element>
+			<element name="legendDisplayOptions" type="fews:ButtonSettingComplexType" minOccurs="0">
+				<annotation>
+					<documentation>(chart dropdown item) Using these buttons enable toggling between different locations for the legend</documentation>
+				</annotation>
+			</element>
+			<element name="hideFooter" type="fews:ButtonSettingComplexType" minOccurs="0">
+				<annotation>
+					<documentation>(chart dropdown item) Using this button toggles between showing and hiding the footer in the graph</documentation>
+				</annotation>
+			</element>
+			<element name="thresholdDisplayOptions" type="fews:ButtonSettingComplexType" minOccurs="0">
+				<annotation>
+					<documentation>(chart dropdown item) Using these buttons enable toggling between different display options for thresholds</documentation>
+				</annotation>
+			</element>
+			<element name="useColorMap" type="fews:ButtonSettingComplexType" minOccurs="0">
+				<annotation>
+					<documentation>(chart dropdown item) Using this button enables color mapping</documentation>
+				</annotation>
+			</element>
+			<element name="toggleValidationInChart" type="fews:ButtonSettingComplexType" minOccurs="0">
+				<annotation>
+					<documentation>(chart dropdown item) Using this button shows validation data (on a time series) in the graph</documentation>
+				</annotation>
+			</element>
+			<element name="toggleUsersInChart" type="fews:ButtonSettingComplexType" minOccurs="0">
+				<annotation>
+					<documentation>(chart dropdown item) Using this button shows user data (on a time series) in the graph</documentation>
+				</annotation>
+			</element>
+			<element name="toggleCommentsInChart" type="fews:ButtonSettingComplexType" minOccurs="0">
+				<annotation>
+					<documentation>(chart dropdown item) Using this button shows comments (on a time series) in the graph</documentation>
+				</annotation>
+			</element>
+			<element name="toggleProductInfoInChart" type="fews:ButtonSettingComplexType" minOccurs="0">
+				<annotation>
+					<documentation>(chart dropdown item) Using this button shows product info (of the shown time series) in the graph</documentation>
+				</annotation>
+			</element>
+			<element name="toggleLongitudinalProfileMarkers" type="fews:ButtonSettingComplexType" minOccurs="0">
+				<annotation>
+					<documentation>(chart dropdown item) Using this button shows longitudinal profile markers</documentation>
+				</annotation>
+			</element>
+			<element name="showStatistics" type="fews:ButtonSettingComplexType">
+				<annotation>
+					<documentation>Using this button shows the basic statistics panel</documentation>
+				</annotation>
+			</element>
+			<element name="showInteractionScatterPlot" type="fews:ButtonSettingForcedVisibilityComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Available since 2023.02. Using this button can toggle the info plot panel.</documentation>
+				</annotation>
+			</element>
+			<element name="showLookupTable" type="fews:ButtonSettingComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Using this button toggles a panel showing the lookup table / rating curve. This button is automatically made invisible when no lookup table config file is available,
+						nor a rating curve stage / discharche parameter are configured (in Parameters.xml). The button will also automatically be disabled (still visible but not clickable) if the
+						current data selection does not contain a lookup table / rating curve.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="rotateChartAndTable" type="fews:ButtonSettingComplexType">
+				<annotation>
+					<documentation>Using this button toggles splitter (splitting the table and chart panel) orientation between vertical and horizontal</documentation>
+				</annotation>
+			</element>
+			<element name="zoomIn" type="fews:ButtonSettingComplexType">
+				<annotation>
+					<documentation>Using this button zooms in on the timeseries, reducing the view period length</documentation>
+				</annotation>
+			</element>
+			<element name="zoomOut" type="fews:ButtonSettingComplexType">
+				<annotation>
+					<documentation>Using this button zooms out on the timeseries, increasing the view period length</documentation>
+				</annotation>
+			</element>
+			<element name="zoomToDefault" type="fews:ButtonSettingComplexType">
+				<annotation>
+					<documentation>Using this button restores initial zoom (used when opening the TSD)</documentation>
+				</annotation>
+			</element>
+			<element name="selectPreviousZoomLevel" type="fews:ButtonSettingComplexType">
+				<annotation>
+					<documentation>Using this button returns to the previous zoom level</documentation>
+				</annotation>
+			</element>
+			<element name="selectNextZoomLevel" type="fews:ButtonSettingComplexType">
+				<annotation>
+					<documentation>Using this button forwards to the next zoom level</documentation>
+				</annotation>
+			</element>
+			<element name="moveToFirstDataPoint" type="fews:ButtonSettingComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Using this button moves the view period to first available data point. Available since 2021.02. Default is true.</documentation>
+				</annotation>
+			</element>
+			<element name="moveBackOneViewPeriod" type="fews:ButtonSettingComplexType">
+				<annotation>
+					<documentation>Using this button moves the view period backward with the entire length of the current view period</documentation>
+				</annotation>
+			</element>
+			<element name="moveBackHalfViewPeriod" type="fews:ButtonSettingComplexType">
+				<annotation>
+					<documentation>Using this button moves the view period backward with the half of the length of the current view period</documentation>
+				</annotation>
+			</element>
+			<element name="moveForwardHalfViewPeriod" type="fews:ButtonSettingComplexType">
+				<annotation>
+					<documentation>Using this button moves the view period forward with the half of the length of the current view period</documentation>
+				</annotation>
+			</element>
+			<element name="moveForwardOneViewPeriod" type="fews:ButtonSettingComplexType">
+				<annotation>
+					<documentation>Using this button moves the view period forward with the entire length of the current view period</documentation>
+				</annotation>
+			</element>
+			<element name="moveToLastDataPoint" type="fews:ButtonSettingComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Using this button moves the view period to last available data point. Available since 2021.02. Default is true.</documentation>
+				</annotation>
+			</element>
+			<element name="showAllData" type="fews:ButtonSettingComplexType">
+				<annotation>
+					<documentation>Using this button zooms to show entire timeseries</documentation>
+				</annotation>
+			</element>
+			<element name="switchReferenceLevel" type="fews:ButtonSettingComplexType">
+				<annotation>
+					<documentation>Using this button changes the values (i.e. water level) reference level to a global or local level</documentation>
+				</annotation>
+			</element>
+			<element name="setViewPeriod" type="fews:ButtonSettingComplexType">
+				<annotation>
+					<documentation>Using this button sets the view period; the section of a timeseries that is shown in the chart and table panel</documentation>
+				</annotation>
+			</element>
+			<element name="copyTimeSeries" type="fews:ButtonSettingComplexType">
+				<annotation>
+					<documentation>Using this button copies the selected timeseries</documentation>
+				</annotation>
+			</element>
+			<element name="pasteTimeSeries" type="fews:ButtonSettingComplexType">
+				<annotation>
+					<documentation>Using this button pastes the copied timeseries</documentation>
+				</annotation>
+			</element>
+			<element name="lockSelection" type="fews:ButtonSettingComplexType">
+				<annotation>
+					<documentation>Using this button locks the selected timeseries and view period. If unlocked, the timeseries and view period can (context dependent) be changed from outside the
+						TSD
+					</documentation>
+				</annotation>
+			</element>
+			<element name="runWorkflow" type="fews:ButtonSettingComplexType">
+				<annotation>
+					<documentation>Using this button saves changes to the timeseries and runs the workflow</documentation>
+				</annotation>
+			</element>
+			<element name="undoTimeSeriesChanges" type="fews:ButtonSettingComplexType">
+				<annotation>
+					<documentation>Using this button reverses modifications done to the timeseries</documentation>
+				</annotation>
+			</element>
+			<element name="saveTimeSeriesChanges" type="fews:ButtonSettingComplexType">
+				<annotation>
+					<documentation>Using this button saves changes to the timeseries</documentation>
+				</annotation>
+			</element>
+			<element name="setTimeSeriesEditableByClicking" type="fews:ButtonSettingComplexType">
+				<annotation>
+					<documentation>Using this button enables editing timeSeries by clicking on them</documentation>
+				</annotation>
+			</element>
+			<element name="activateModify" type="fews:ButtonSettingComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Using this button enables editing of modifiable timeseries</documentation>
+				</annotation>
+			</element>
+			<element name="useGraphicalEditorMovePointMode" type="fews:ButtonSettingComplexType" minOccurs="0">
+				<annotation>
+					<documentation>(graphical editor dropdown item) Using these buttons switches to the mode where points can be freely moved</documentation>
+				</annotation>
+			</element>
+			<element name="useSetToMissingBetweenSelectedPointsMode" type="fews:ButtonSettingComplexType" minOccurs="0">
+				<annotation>
+					<documentation>(graphical editor dropdown item) Using these buttons switches to the mode where missings are added in between points</documentation>
+				</annotation>
+			</element>
+			<element name="useInterpolateBetweenSelectedPointsMode" type="fews:ButtonSettingComplexType" minOccurs="0">
+				<annotation>
+					<documentation>(graphical editor dropdown item) Using these buttons switches to the mode where points are interpolated between existing points</documentation>
+				</annotation>
+			</element>
+			<element name="useGraphicalEditorQuadraticInterpolationMode" type="fews:ButtonSettingComplexType" minOccurs="0">
+				<annotation>
+					<documentation>(graphical editor dropdown item) Using these buttons switches to the mode where points are interpolated between existing points quadratically</documentation>
+				</annotation>
+			</element>
+			<element name="useGraphicalEditorVerticalMoveMode" type="fews:ButtonSettingComplexType" minOccurs="0">
+				<annotation>
+					<documentation>(graphical editor dropdown item) Using these buttons switches to the mode where points can only be moved vertical (in value)</documentation>
+				</annotation>
+			</element>
+			<element name="useNoGraphicalEditMode" type="fews:ButtonSettingComplexType" minOccurs="0">
+				<annotation>
+					<documentation>(graphical editor dropdown item) Using these buttons disables editing</documentation>
+				</annotation>
+			</element>
+			<element name="selectPoints" type="fews:ButtonSettingComplexType" minOccurs="0">
+				<annotation>
+					<documentation>(graphical editor dropdown item) Using this button selects a predetermained point selection</documentation>
+				</annotation>
+			</element>
+			<element name="deselectPoints" type="fews:ButtonSettingComplexType" minOccurs="0">
+				<annotation>
+					<documentation>(graphical editor dropdown item) Using this button deselects all points</documentation>
+				</annotation>
+			</element>
+			<element name="selectOrDeselectPoint" type="fews:ButtonSettingComplexType" minOccurs="0">
+				<annotation>
+					<documentation>(graphical editor dropdown item) Using this button toggles selection of the point under the cursor</documentation>
+				</annotation>
+			</element>
+			<element name="selectPointsByDrawingRectangle" type="fews:ButtonSettingComplexType" minOccurs="0">
+				<annotation>
+					<documentation>(graphical editor dropdown item) Using this button enables or disables the mode where points can be selected by drawing a rectangle in the graph.</documentation>
+				</annotation>
+			</element>
+			<element name="moveSelectedPointsVerticallyByDragging" type="fews:ButtonSettingComplexType" minOccurs="0">
+				<annotation>
+					<documentation>(graphical editor dropdown item) Using this button enables or disables the mode where selected points can be moved vertically by dragging.</documentation>
+				</annotation>
+			</element>
+			<element name="markPeriod" type="fews:ButtonSettingComplexType" minOccurs="0">
+				<annotation>
+					<documentation>(graphical editor dropdown item) Using this button enables or disables the mode for highlighting a period.</documentation>
+				</annotation>
+			</element>
+			<element name="unmarkPeriod" type="fews:ButtonSettingComplexType" minOccurs="0">
+				<annotation>
+					<documentation>(graphical editor dropdown item) Using this button removes the highlighted period</documentation>
+				</annotation>
+			</element>
+			<element name="openManualEditor" type="fews:ButtonSettingComplexType" minOccurs="0">
+				<annotation>
+					<documentation>(graphical editor dropdown item) Using this button show a pop-up in which numerical adjustments can be made</documentation>
+				</annotation>
+			</element>
+			<element name="moveHighLightedTimeStepToLeft" type="fews:ButtonSettingComplexType" minOccurs="0">
+				<annotation>
+					<documentation>(graphical editor dropdown item) Using this button highlights the first point to the left which is selected</documentation>
+				</annotation>
+			</element>
+			<element name="moveHighLightedTimeStepToRight" type="fews:ButtonSettingComplexType" minOccurs="0">
+				<annotation>
+					<documentation>(graphical editor dropdown item) Using this button highlights the first point to the right which is selected</documentation>
+				</annotation>
+			</element>
+			<element name="moveTimeCursorToLeft" type="fews:ButtonSettingComplexType" minOccurs="0">
+				<annotation>
+					<documentation>(graphical editor dropdown item) Using this button highlights the first point to the left of the current point</documentation>
+				</annotation>
+			</element>
+			<element name="moveTimeCursorToRight" type="fews:ButtonSettingComplexType" minOccurs="0">
+				<annotation>
+					<documentation>(graphical editor dropdown item) Using this button highlights the first point to the right of the current point</documentation>
+				</annotation>
+			</element>
+			<element name="increaseValue" type="fews:ButtonSettingComplexType" minOccurs="0">
+				<annotation>
+					<documentation>(graphical editor dropdown item) Using this button increases the currently selected point</documentation>
+				</annotation>
+			</element>
+			<element name="decreaseValue" type="fews:ButtonSettingComplexType" minOccurs="0">
+				<annotation>
+					<documentation>(graphical editor dropdown item) Using this button decreases the currently selected point</documentation>
+				</annotation>
+			</element>
+			<element name="undoEdit" type="fews:ButtonSettingComplexType" minOccurs="0">
+				<annotation>
+					<documentation>(graphical editor dropdown item) Using this button reverts the last change</documentation>
+				</annotation>
+			</element>
+			<element name="cancelEdit" type="fews:ButtonSettingComplexType" minOccurs="0">
+				<annotation>
+					<documentation>(graphical editor dropdown item) Using this button reverts all changes</documentation>
+				</annotation>
+			</element>
+			<element name="showThresholdWarningLevels" type="fews:ButtonSettingComplexType">
+				<annotation>
+					<documentation>Using this button shows the threshold level icons in the display group (shortcut) panel</documentation>
+				</annotation>
+			</element>
+			<element name="thresholdGroupSelectionButton" type="fews:ThresholdGroupSelectionButtonComplexType" minOccurs="0">
+				<annotation>
+					<documentation>
+						Since 2020.02 this element should only be used within the buttonSettings element.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="printChart" type="fews:ButtonSettingComplexType">
+				<annotation>
+					<documentation>Using this button prints the chart</documentation>
+				</annotation>
+			</element>
+			<element name="saveChartAsPicture" type="fews:ButtonSettingComplexType">
+				<annotation>
+					<documentation>Using this button saves the chart in an image format of the operators choosing</documentation>
+				</annotation>
+			</element>
+			<element name="showLongTermScroller" type="fews:ButtonSettingComplexType">
+				<annotation>
+					<documentation>Using this button shows the long term scroller panel</documentation>
+				</annotation>
+			</element>
+			<element name="searchAndSelectForecasts" type="fews:SearchAndSelectForecastButtonSettingComplexType">
+				<annotation>
+					<documentation>Using this button allows selection of what forecast run(s) should be displayed</documentation>
+				</annotation>
+			</element>
+			<element name="setTimeSeriesVisibility" type="fews:ButtonSettingComplexType">
+				<annotation>
+					<documentation>Use this button to show a panel which allows selection of what timeseries should be displayed</documentation>
+				</annotation>
+			</element>
+			<element name="setTimeSeriesResampling" type="fews:ButtonSettingComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2015.02 Use this button to show a panel which allows selection of what time steps should be used to resample the displayed timeseries</documentation>
+				</annotation>
+			</element>
+			<element name="hideEmptyTimeSeries" type="fews:ButtonSettingComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2015.01 Use this button to hide empty time series from graph and table</documentation>
+				</annotation>
+			</element>
+			<element name="showValidationRules" type="fews:ButtonSettingComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2016.02 Use this button to show a panel that lists the validation rules for the selected time series on the selected time step</documentation>
+				</annotation>
+			</element>
+			<element name="showTimeSeriesLister" type="fews:ButtonSettingComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2016.02 Use this button to show a panel that lists the time series as they are in the database</documentation>
+				</annotation>
+			</element>
+			<element name="showHistoricalAnalysis" type="fews:ButtonSettingComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2018.02 Use this button to show a panel that lists the time series available in the Archive</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="SearchAndSelectForecastButtonSettingComplexType">
+		<complexContent>
+			<extension base="fews:ButtonSettingComplexType">
+				<sequence>
+					<element name="forecastSearchPeriod" type="fews:RelativePeriodComplexType" minOccurs="0">
+						<annotation>
+							<documentation>This relative view period will be the default period in which will be searched for forecasts</documentation>
+						</annotation>
+					</element>
+				</sequence>
+			</extension>
+		</complexContent>
+	</complexType>
+	<complexType name="ButtonSettingComplexType">
+		<attribute name="visible" type="boolean" default="true">
+			<annotation>
+				<documentation>Since 2014.02. if true makes this button visible in the TimeSeriesDisplay toolbar</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="permission" type="string" use="optional" default="">
+			<annotation>
+				<documentation>Since 2014.02. A further restriction on visibility. If used, will only show the button is the current user has permission (is part of the permission string)
+				</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="selected"  type="boolean" use="optional" default="false">
+			<annotation>
+				<documentation>Since 2021.01. Can be used to (de)select the button in the TimeSeriesDisplay toolbar. Default is false. Note that this option applies only to the buttons showThresholdWarningLevels and switchReferenceLevel. It is not implemented for other buttos so far</documentation>
+			</annotation>
+		</attribute>
+	</complexType>
+	<complexType name="ButtonSettingForcedVisibilityComplexType">
+		<complexContent>
+			<extension base="fews:ButtonSettingComplexType"/>
+		</complexContent>
+	</complexType>
+	<complexType name="ThresholdGroupSelectionButtonComplexType">
+		<sequence minOccurs="0">
+			<element name="defaultThresholdGroupId" type="fews:idStringType"/>
+		</sequence>
+		<attribute name="visible" type="boolean" use="required">
+			<annotation>
+				<documentation> This is by default true. If true, a dropdown button appears to the left of the pushbutton 'showThresholdWarningLevel'.
+					Use dropdown button to select thresholdGroup.</documentation>
+			</annotation>
+		</attribute>
+	</complexType>
+	<complexType name="ShowDisplayGroupsHideAllToolWindowsComplexType">
+		<annotation>
+			<documentation>Enable functionality to hide all tool windows.</documentation>
+		</annotation>
+		<attribute name="enabled" type="boolean" default="true"/>
+	</complexType>
+	<complexType name="InfoAttributeComplexType">
+		<attribute name="id" type="fews:idStringType" use="required"/>
+		<attribute name="label" type="fews:nonEmptyStringType"/>
+	</complexType>
+	<complexType name="longTermStatisticFunctionType">
+		<attribute name="label" type="string"/>
+		<attribute name="type" type="fews:longTermStatisticFunctionEnumStringType" use="required"/>
+		<attribute name="value" type="double"/>
+	</complexType>
+</schema>

@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- edited with XMLSPY v2004 rel. 3 U (http://www.xmlspy.com) by tacoma (WL | Delft Hydraulics) -->
+<!--Delft FEWS (Copyright 2003 WL | Delft Hydraulics) -->
+<schema targetNamespace="http://www.wldelft.nl/fews" xmlns:fews="http://www.wldelft.nl/fews" xmlns="http://www.w3.org/2001/XMLSchema" elementFormDefault="qualified" attributeFormDefault="unqualified" version="1.0">
+	<include schemaLocation="sharedTypes.xsd"/>
+	<!---->
+	<element name="locationIcons" type="fews:LocationIconsComplexType"/>
+	<!---->
+	<complexType name="LocationIconsComplexType">
+		<sequence>
+			<element name="rootDir" type="fews:directoryStringType" minOccurs="0">
+                <annotation>
+                    <documentation>OBSOLETE. Remove this element from your xml configuration files and put your icons in the
+                        %REGION_CONFIG%/Config/IconFiles directory
+                    </documentation>
+                </annotation>
+            </element>
+			<element name="locationIcon" type="fews:LocationIconComplexType" maxOccurs="unbounded"/>
+		</sequence>
+	</complexType>
+	<!---->
+	<complexType name="LocationIconComplexType">
+		<sequence>
+			<element name="description" type="string" minOccurs="0"/>
+			<element name="iconId" type="fews:idStringType"/>
+			<choice>
+				<element name="locationId" type="fews:idStringType" maxOccurs="unbounded"/>
+				<element name="locationSetId" type="fews:idStringType"/>
+			</choice>
+		</sequence>
+	</complexType>
+</schema>
