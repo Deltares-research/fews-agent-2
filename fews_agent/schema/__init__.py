@@ -96,7 +96,36 @@ from .correlation_event_sets_descriptors import (
 from .custom_colors import CustomColorKey, CustomColors
 from .general_settings import GeneralSettings, StateSettings
 from .model_run_period import ModelRunPeriod, ModelRunPeriodWindow
+from .sample_display import (
+    ModuleInstancePermission,
+    SampleDisplay,
+    SampleDisplayPermissions,
+    SampleDisplaySeason,
+)
 from .sample_properties import SamplePropertiesBlock, SamplePropertiesFile
+from .security import (
+    Security,
+    SecurityAction,
+    SecurityGrants,
+    SecurityRole,
+)
+from .travel_times import (
+    CorrelationEquations,
+    TravelTime,
+    TravelTimeLocation,
+    TravelTimes,
+)
+from .trend_display import (
+    RelativeTime,
+    TrendDisplay,
+    TrendDisplayGeneral,
+    TrendGroup,
+    TrendGroupChild,
+)
+from .warning_entry_display import (
+    WarningEntryDisplay,
+    WarningEntryValueProperty,
+)
 from .value_attribute_maps import (
     ValueAttributeMap,
     ValueAttributeMaps,
@@ -473,6 +502,30 @@ __all__ = [
     "ValueAttributeMaps",
     "ValueAttributeMap",
     "ValueAttributes",
+    # TravelTimes
+    "TravelTimes",
+    "TravelTime",
+    "TravelTimeLocation",
+    "CorrelationEquations",
+    # Security
+    "Security",
+    "SecurityAction",
+    "SecurityRole",
+    "SecurityGrants",
+    # TrendDisplay
+    "TrendDisplay",
+    "TrendDisplayGeneral",
+    "TrendGroup",
+    "TrendGroupChild",
+    "RelativeTime",
+    # SampleDisplay
+    "SampleDisplay",
+    "SampleDisplayPermissions",
+    "SampleDisplaySeason",
+    "ModuleInstancePermission",
+    # WarningEntryDisplay
+    "WarningEntryDisplay",
+    "WarningEntryValueProperty",
     # SamplePropertiesFile (root of SampleProperties.xml;
     # named *File to avoid collision with SampleMetadataSchema.SampleProperties)
     "SamplePropertiesFile",

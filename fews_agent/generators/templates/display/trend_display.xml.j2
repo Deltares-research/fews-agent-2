@@ -1,0 +1,22 @@
+{%- import "_partials/timeseries_set.xml.j2" as tss -%}
+<?xml version="1.0" encoding="UTF-8"?>
+<trendDisplay xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/trendDisplay.xsd">
+  {% if description is not none %}<description>{{ description }}</description>{% endif %}
+  <general>
+    {% if general.description is not none %}<description>{{ general.description }}</description>{% endif %}
+    <displayName>{{ general.displayName }}</displayName>
+    <agoPeriodLength unit="{{ general.agoPeriodLength.unit }}" value="{{ general.agoPeriodLength.value }}">
+      {% if general.agoPeriodLength.description is not none %}<description>{{ general.agoPeriodLength.description }}</description>{% endif %}
+    </agoPeriodLength>
+    <thresholdId>{{ general.thresholdId }}</thresholdId>
+  </general>
+  {% for g in group %}<group id="{{ g.id }}"{% if g.name is not none %} name="{{ g.name }}"{% endif %}>
+    {% if g.description is not none %}<description>{{ g.description }}</description>{% endif %}
+    {% for ts in g.timeSeriesSet %}{{ tss.render(ts) }}
+    {% endfor %}
+    {% for c in g.child %}<child foreignKey="{{ c.foreignKey }}"/>
+    {% endfor %}
+    {% if g.thresholdId is not none %}<thresholdId>{{ g.thresholdId }}</thresholdId>{% endif %}
+  </group>
+  {% endfor %}
+</trendDisplay>
