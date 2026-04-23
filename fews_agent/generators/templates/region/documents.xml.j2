@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<documents xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/documents.xsd">
+{% for wf in documentWorkflow %}
+  <documentWorkflow id="{{ wf.id }}">
+  {% for s in wf.status %}
+    <status id="{{ s.id }}" name="{{ s.name }}"{% if s.default is not none %} default="{{ 'true' if s.default else 'false' }}"{% endif %}>
+      <attribute key="{{ s.attribute.key }}" value="{{ s.attribute.value }}"/>
+    </status>
+  {% endfor %}
+  {% for t in wf.transition %}
+    <transition>
+      <fromStatus>{{ t.fromStatus }}</fromStatus>
+      <toStatus>{{ t.toStatus }}</toStatus>
+      <editPermission>{{ t.editPermission }}</editPermission>
+    </transition>
+  {% endfor %}
+  </documentWorkflow>
+{% endfor %}
+{% for p in archiveProduct %}
+  <archiveProduct id="{{ p.id }}" name="{{ p.name }}">
+    {% if p.documentWorkflowId is not none %}<documentWorkflowId>{{ p.documentWorkflowId }}</documentWorkflowId>{% endif %}
+    <areaId>{{ p.areaId }}</areaId>
+    <sourceId>{{ p.sourceId }}</sourceId>
+    {% for k in p.versionKey %}<versionKey>{{ k }}</versionKey>
+    {% endfor %}
+    {% for a in p.attribute %}<attribute key="{{ a.key }}" value="{{ a.value }}"/>
+    {% endfor %}
+  </archiveProduct>
+{% endfor %}
+{% for c in composeProduct %}
+  <composeProduct{% if c.id is not none %} id="{{ c.id }}"{% endif %}{% if c.name is not none %} name="{{ c.name }}"{% endif %}>
+    <archiveProductId>{{ c.archiveProductId }}</archiveProductId>
+    <template>
+      <archiveProductId>{{ c.template.archiveProductId }}</archiveProductId>
+    </template>
+  </composeProduct>
+{% endfor %}
+{% for s in archiveProductSet %}
+  <archiveProductSet id="{{ s.id }}">
+    <constraints>
+      <areaId>{{ s.constraints.areaId }}</areaId>
+      {% if s.constraints.sourceId is not none %}<sourceId>{{ s.constraints.sourceId }}</sourceId>{% endif %}
+      {% if s.constraints.allValid is not none %}
+      <allValid>
+        {% for e in s.constraints.allValid.attributeTextEquals %}<attributeTextEquals id="{{ e.id }}" equals="{{ e.equals }}"/>
+        {% endfor %}
+      </allValid>
+      {% endif %}
+      {% if s.constraints.anyValid is not none %}
+      <anyValid>
+        {% for e in s.constraints.anyValid.attributeTextEquals %}<attributeTextEquals id="{{ e.id }}" equals="{{ e.equals }}"/>
+        {% endfor %}
+      </anyValid>
+      {% endif %}
+    </constraints>
+  </archiveProductSet>
+{% endfor %}
+</documents>

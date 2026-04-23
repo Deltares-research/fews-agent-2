@@ -75,6 +75,20 @@ from .id_map import (
     MapMapping,
     ParameterMapping,
 )
+from .documents import (
+    ArchiveProduct,
+    ArchiveProductSet,
+    ArchiveProductSetConstraints,
+    ArchiveProductSetValidation,
+    AttributeTextEquals,
+    ComposeProduct,
+    ComposeProductTemplate,
+    DocumentAttribute,
+    DocumentWorkflow,
+    Documents,
+    Status,
+    Transition,
+)
 from .locations import Location, LocationAttribute, Locations
 from .module_instance_sets import ModuleInstanceSet, ModuleInstanceSets
 from .parameters import Parameter, ParameterGroup, Parameters
@@ -263,6 +277,19 @@ __all__ = [
     "VariableId",
     "ModuleParameterGroupId",
     "ModuleParameterId",
+    # Documents
+    "Documents",
+    "DocumentWorkflow",
+    "Status",
+    "Transition",
+    "DocumentAttribute",
+    "ArchiveProduct",
+    "ComposeProduct",
+    "ComposeProductTemplate",
+    "ArchiveProductSet",
+    "ArchiveProductSetConstraints",
+    "ArchiveProductSetValidation",
+    "AttributeTextEquals",
     # Locations
     "Locations",
     "Location",

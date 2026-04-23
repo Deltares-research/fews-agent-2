@@ -12,6 +12,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from fews_agent.schema import (
+    Documents,
     ForecastLengthEstimator,
     ForecasterNotesDisplay,
     GeneralAdapterRun,
@@ -44,6 +45,7 @@ from fews_agent.schema import (
 )
 
 from . import (
+    documents,
     forecast_length_estimator,
     forecaster_notes_display,
     general_adapter_run,
@@ -84,6 +86,14 @@ SPECS: list[GeneratorSpec] = [
         template_name="region/locations.xml.j2",
         generate=locations.generate,
         output_relpath=Path("RegionConfigFiles/Locations.xml"),
+    ),
+    GeneratorSpec(
+        name="documents",
+        input_key="documents",
+        model_class=Documents,
+        template_name="region/documents.xml.j2",
+        generate=documents.generate,
+        output_relpath=Path("RegionConfigFiles/Documents.xml"),
     ),
     GeneratorSpec(
         name="parameters",
