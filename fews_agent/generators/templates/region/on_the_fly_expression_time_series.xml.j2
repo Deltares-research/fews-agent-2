@@ -1,0 +1,11 @@
+{%- import "_partials/timeseries_set.xml.j2" as tss -%}
+<?xml version="1.0" encoding="UTF-8"?>
+<onTheFlyExpressionTimeSeries xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/onTheFlyExpressionTimeSeries.xsd">
+  <onTheFlyExpressionTimeSeriesDefinition>
+    <name>{{ onTheFlyExpressionTimeSeriesDefinition.name }}</name>
+    <parameterGroupId>{{ onTheFlyExpressionTimeSeriesDefinition.parameterGroupId }}</parameterGroupId>
+    <formula>{{ onTheFlyExpressionTimeSeriesDefinition.formula }}</formula>
+    {% for ts in onTheFlyExpressionTimeSeriesDefinition.timeSeriesSet %}{{ tss.render(ts) }}
+    {% endfor %}
+  </onTheFlyExpressionTimeSeriesDefinition>
+</onTheFlyExpressionTimeSeries>

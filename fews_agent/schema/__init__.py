@@ -93,9 +93,20 @@ from .correlation_event_sets_descriptors import (
     CorrelationEventSetsDescriptor,
     CorrelationEventSetsDescriptors,
 )
+from .clob_historical_event import ClobHistoricalEvent
 from .custom_colors import CustomColorKey, CustomColors
 from .da_filter import DAFilter
 from .data_download_display import DataDownloadDisplay, DataDownloadTemplate
+from .double_mass_display import DoubleMassDisplay
+from .external_tables_mirror_update import ExternalTablesMirrorUpdate
+from .on_the_fly_expression_time_series import (
+    OnTheFlyExpressionTimeSeries,
+    OnTheFlyExpressionTimeSeriesDefinition,
+)
+from .wapda_timeseries_reader import (
+    WapdaColumnDefinition,
+    WapdaTimeSeriesReader,
+)
 from .environment_agency_time_units import (
     EnvironmentAgencyTimeUnit,
     EnvironmentAgencyTimeUnits,
@@ -646,6 +657,18 @@ __all__ = [
     "LauncherWebPage",
     "LauncherJavaApp",
     "LauncherExecutable",
+    # ClobHistoricalEvent (DB-blob variant)
+    "ClobHistoricalEvent",
+    # DoubleMassDisplay
+    "DoubleMassDisplay",
+    # WapdaTimeSeriesReader
+    "WapdaTimeSeriesReader",
+    "WapdaColumnDefinition",
+    # ExternalTablesMirrorUpdate
+    "ExternalTablesMirrorUpdate",
+    # OnTheFlyExpressionTimeSeries
+    "OnTheFlyExpressionTimeSeries",
+    "OnTheFlyExpressionTimeSeriesDefinition",
     # SamplePropertiesFile (root of SampleProperties.xml;
     # named *File to avoid collision with SampleMetadataSchema.SampleProperties)
     "SamplePropertiesFile",
