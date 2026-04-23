@@ -89,6 +89,35 @@ from .annotation_metadata_schema import (
 from .config_update_module import ConfigUpdateImport, ConfigUpdateModule
 from .content_update_checker import ContentUpdateChecker
 from .base_build_file_set import BaseBuildFile, BaseBuildFileSet
+from .correlation_event_sets_descriptors import (
+    CorrelationEventSetsDescriptor,
+    CorrelationEventSetsDescriptors,
+)
+from .custom_colors import CustomColorKey, CustomColors
+from .general_settings import GeneralSettings, StateSettings
+from .model_run_period import ModelRunPeriod, ModelRunPeriodWindow
+from .sample_properties import SamplePropertiesBlock, SamplePropertiesFile
+from .value_attribute_maps import (
+    ValueAttributeMap,
+    ValueAttributeMaps,
+    ValueAttributes,
+)
+from .flag_conversions_descriptors import (
+    FlagConversionsDescriptor,
+    FlagConversionsDescriptors,
+)
+from .travel_times_descriptors import (
+    TravelTimesDescriptor,
+    TravelTimesDescriptors,
+)
+from .unit_conversions_descriptors import (
+    UnitConversionsDescriptor,
+    UnitConversionsDescriptors,
+)
+from .what_if_scenarios_descriptors import (
+    WhatIfScenariosDescriptor,
+    WhatIfScenariosDescriptors,
+)
 from .config_revision_set import (
     ConfigRevisionSet,
     ConfigRevisionSetMetaData,
@@ -431,6 +460,34 @@ __all__ = [
     "PumpState",
     "ConstantDischarge",
     "ElevationStorageTableEntry",
+    # ModelRunPeriod
+    "ModelRunPeriod",
+    "ModelRunPeriodWindow",
+    # CustomColors
+    "CustomColors",
+    "CustomColorKey",
+    # GeneralSettings
+    "GeneralSettings",
+    "StateSettings",
+    # ValueAttributeMaps
+    "ValueAttributeMaps",
+    "ValueAttributeMap",
+    "ValueAttributes",
+    # SamplePropertiesFile (root of SampleProperties.xml;
+    # named *File to avoid collision with SampleMetadataSchema.SampleProperties)
+    "SamplePropertiesFile",
+    "SamplePropertiesBlock",
+    # Descriptors (5 shape-identical registries)
+    "UnitConversionsDescriptors",
+    "UnitConversionsDescriptor",
+    "FlagConversionsDescriptors",
+    "FlagConversionsDescriptor",
+    "WhatIfScenariosDescriptors",
+    "WhatIfScenariosDescriptor",
+    "TravelTimesDescriptors",
+    "TravelTimesDescriptor",
+    "CorrelationEventSetsDescriptors",
+    "CorrelationEventSetsDescriptor",
     # SampleMetadataSchema
     "SampleMetadataSchema",
     "SampleValueTypes",

@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sampleProperties xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/sampleProperties.xsd">
+  {% if timeShiftMillis is not none %}<timeShiftMillis>{{ timeShiftMillis }}</timeShiftMillis>{% endif %}
+  <properties>
+    {% if properties.description is not none %}<description>{{ properties.description }}</description>{% endif %}
+{%- macro emit_desc(p) -%}
+{% if p.description is not none %}<description>{{ p.description }}</description>{% endif %}
+{%- endmacro %}
+    {% for p in properties.string %}<string key="{{ p.key }}" value="{{ p.value }}">{{ emit_desc(p) }}</string>
+    {% endfor %}
+    {% for p in properties.int_ %}<int key="{{ p.key }}" value="{{ p.value }}">{{ emit_desc(p) }}</int>
+    {% endfor %}
+    {% for p in properties.float_ %}<float key="{{ p.key }}" value="{{ p.value | xmlstr }}">{{ emit_desc(p) }}</float>
+    {% endfor %}
+    {% for p in properties.double %}<double key="{{ p.key }}" value="{{ p.value | xmlstr }}">{{ emit_desc(p) }}</double>
+    {% endfor %}
+    {% for p in properties.bool_ %}<bool key="{{ p.key }}" value="{{ 'true' if p.value else 'false' }}">{{ emit_desc(p) }}</bool>
+    {% endfor %}
+    {% for p in properties.dateTime %}<dateTime key="{{ p.key }}" date="{{ p.date }}" time="{{ p.time }}">{{ emit_desc(p) }}</dateTime>
+    {% endfor %}
+  </properties>
+</sampleProperties>

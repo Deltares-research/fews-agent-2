@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<customColors{% if version is not none %} version="{{ version }}"{% endif %} xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/customColors.xsd">
+  <defaultCustomColorKeys>
+    {% for k in defaultCustomColorKeys %}<customColorKey key="{{ k.key }}"{% if k.color is not none %} color="{{ k.color }}"{% endif %}/>
+    {% endfor %}
+  </defaultCustomColorKeys>
+</customColors>

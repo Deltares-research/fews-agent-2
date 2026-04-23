@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<generalSettings xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/generalSettings.xsd">
+  {% if stateSettings is not none %}<stateSettings>
+    {% if stateSettings.defaultWarmStateSearchPeriod is not none %}<defaultWarmStateSearchPeriod unit="{{ stateSettings.defaultWarmStateSearchPeriod.unit }}"{% if stateSettings.defaultWarmStateSearchPeriod.start is not none %} start="{{ stateSettings.defaultWarmStateSearchPeriod.start }}"{% endif %}{% if stateSettings.defaultWarmStateSearchPeriod.end is not none %} end="{{ stateSettings.defaultWarmStateSearchPeriod.end }}"{% endif %}/>{% endif %}
+    {% if stateSettings.defaultForecastLength is not none %}<defaultForecastLength unit="{{ stateSettings.defaultForecastLength.unit }}" multiplier="{{ stateSettings.defaultForecastLength.multiplier }}"/>{% endif %}
+  </stateSettings>{% endif %}
+</generalSettings>
