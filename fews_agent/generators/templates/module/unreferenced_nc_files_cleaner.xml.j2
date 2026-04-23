@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<unreferencedNcFilesCleaner xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/unreferencedNcFilesCleaner.xsd">
+  <minimalAgeNcFile unit="{{ minimalAgeNcFile.unit }}" multiplier="{{ minimalAgeNcFile.multiplier }}"/>
+  {% for r in rootDir %}<rootDir urlPrefix="{{ r.urlPrefix }}" path="{{ r.path }}"/>
+  {% endfor %}
+</unreferencedNcFilesCleaner>

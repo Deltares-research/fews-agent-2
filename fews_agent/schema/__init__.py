@@ -75,6 +75,68 @@ from .id_map import (
     MapMapping,
     ParameterMapping,
 )
+from .annotation_metadata_schema import (
+    AnnotationEnumeration,
+    AnnotationEnumerationValue,
+    AnnotationEnumerationsCsvFile,
+    AnnotationMetadataSchema,
+    AnnotationProperties,
+    AnnotationPropertiesCsvFile,
+    AnnotationProperty,
+    AnnotationStringType,
+    AnnotationValueTypes,
+)
+from .config_update_module import ConfigUpdateImport, ConfigUpdateModule
+from .content_update_checker import ContentUpdateChecker
+from .base_build_file_set import BaseBuildFile, BaseBuildFileSet
+from .config_revision_set import (
+    ConfigRevisionSet,
+    ConfigRevisionSetMetaData,
+    ConfigRevisionSetTableVersion,
+)
+from .display_descriptors import DisplayDescriptor, DisplayDescriptors
+from .display_instance_descriptors import (
+    DisplayInstanceDescriptor,
+    DisplayInstanceDescriptors,
+)
+from .module_descriptors import ModuleDescriptor, ModuleDescriptors
+from .run_info_panel import RunInfoPanel
+from .storage_basin_system import (
+    ConstantDischarge,
+    ElevationStorageTableEntry,
+    PumpState,
+    PumpingStation,
+    StorageBasinSystem,
+    Structure,
+)
+from .import_amalgamate import ImportAmalgamate
+from .module_config_properties import ModuleConfigProperties
+from .module_run_table_display import ModuleRunTableDisplay
+from .support_station_sets import SupportStationSet, SupportStationSets
+from .unreferenced_nc_files_cleaner import (
+    NcRootDir,
+    UnreferencedNcFilesCleaner,
+)
+from .custom_flag_sources import CustomFlagSource, CustomFlagSources
+from .flood_periods_module import (
+    FloodPeriodThresholdCrossings,
+    FloodPeriodsModule,
+    ImportedThresholdCrossings,
+    ThresholdProperty,
+    ThresholdPropertyValueMap,
+    ThresholdValuesSetsCrossings,
+)
+from .sample_metadata_schema import (
+    SampleEnumeration,
+    SampleEnumerationValue,
+    SampleEnumerationsCsvFile,
+    SampleMetadataSchema,
+    SampleProperties,
+    SamplePropertiesCsvFile,
+    SampleProperty,
+    SampleValueType,
+    SampleValueTypes,
+)
 from .documents import (
     ArchiveProduct,
     ArchiveProductSet,
@@ -89,6 +151,19 @@ from .documents import (
     Status,
     Transition,
 )
+from .flag_source_columns import (
+    FlagSourceColumn,
+    FlagSourceColumns,
+    TimeOfValidity,
+)
+from .historical_events import (
+    EventData,
+    EventDataPoint,
+    HistoricalEvent,
+    HistoricalEvents,
+    HistoricalEventSet,
+)
+from .polygons import EsriShape, EsriShapeFile, Polygons
 from .locations import Location, LocationAttribute, Locations
 from .module_instance_sets import ModuleInstanceSet, ModuleInstanceSets
 from .parameters import Parameter, ParameterGroup, Parameters
@@ -290,6 +365,92 @@ __all__ = [
     "ArchiveProductSetConstraints",
     "ArchiveProductSetValidation",
     "AttributeTextEquals",
+    # Polygons
+    "Polygons",
+    "EsriShapeFile",
+    "EsriShape",
+    # HistoricalEvents
+    "HistoricalEvents",
+    "HistoricalEventSet",
+    "HistoricalEvent",
+    "EventData",
+    "EventDataPoint",
+    # CustomFlagSources
+    "CustomFlagSources",
+    "CustomFlagSource",
+    # FlagSourceColumns
+    "FlagSourceColumns",
+    "FlagSourceColumn",
+    "TimeOfValidity",
+    # FloodPeriodsModule
+    "FloodPeriodsModule",
+    "FloodPeriodThresholdCrossings",
+    "ThresholdValuesSetsCrossings",
+    "ImportedThresholdCrossings",
+    "ThresholdProperty",
+    "ThresholdPropertyValueMap",
+    # ContentUpdateChecker
+    "ContentUpdateChecker",
+    # ConfigUpdateModule
+    "ConfigUpdateModule",
+    "ConfigUpdateImport",
+    # ModuleRunTableDisplay
+    "ModuleRunTableDisplay",
+    # UnreferencedNcFilesCleaner
+    "UnreferencedNcFilesCleaner",
+    "NcRootDir",
+    # SupportStationSets
+    "SupportStationSets",
+    "SupportStationSet",
+    # ImportAmalgamate
+    "ImportAmalgamate",
+    # ModuleConfigProperties
+    "ModuleConfigProperties",
+    # BaseBuildFileSet
+    "BaseBuildFileSet",
+    "BaseBuildFile",
+    # ConfigRevisionSet
+    "ConfigRevisionSet",
+    "ConfigRevisionSetMetaData",
+    "ConfigRevisionSetTableVersion",
+    # RunInfoPanel
+    "RunInfoPanel",
+    # DisplayDescriptors
+    "DisplayDescriptors",
+    "DisplayDescriptor",
+    # DisplayInstanceDescriptors
+    "DisplayInstanceDescriptors",
+    "DisplayInstanceDescriptor",
+    # ModuleDescriptors
+    "ModuleDescriptors",
+    "ModuleDescriptor",
+    # StorageBasinSystem
+    "StorageBasinSystem",
+    "Structure",
+    "PumpingStation",
+    "PumpState",
+    "ConstantDischarge",
+    "ElevationStorageTableEntry",
+    # SampleMetadataSchema
+    "SampleMetadataSchema",
+    "SampleValueTypes",
+    "SampleValueType",
+    "SampleEnumeration",
+    "SampleEnumerationValue",
+    "SampleEnumerationsCsvFile",
+    "SampleProperties",
+    "SampleProperty",
+    "SamplePropertiesCsvFile",
+    # AnnotationMetadataSchema
+    "AnnotationMetadataSchema",
+    "AnnotationValueTypes",
+    "AnnotationStringType",
+    "AnnotationEnumeration",
+    "AnnotationEnumerationValue",
+    "AnnotationEnumerationsCsvFile",
+    "AnnotationProperties",
+    "AnnotationProperty",
+    "AnnotationPropertiesCsvFile",
     # Locations
     "Locations",
     "Location",

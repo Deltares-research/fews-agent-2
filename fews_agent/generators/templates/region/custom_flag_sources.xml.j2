@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<customFlagSources xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/customFlagSources.xsd">
+{% for s in customFlagSource %}
+  <customFlagSource id="{{ s.id }}"{% if s.name is not none %} name="{{ s.name }}"{% endif %} flag="{{ s.flag }}">
+    {% if s.description is not none %}<description>{{ s.description }}</description>{% endif %}
+  </customFlagSource>
+{% endfor %}
+</customFlagSources>

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<polygons xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/polygons.xsd">
+{% for f in esriShapeFile %}
+  <esriShapeFile>
+    <file>{{ f.file }}</file>
+    <geoDatum>{{ f.geoDatum }}</geoDatum>
+    <shapeIdAttributeName>{{ f.shapeIdAttributeName }}</shapeIdAttributeName>
+    {% if f.areaAttributeName is not none %}<areaAttributeName>{{ f.areaAttributeName }}</areaAttributeName>{% endif %}
+    {% if f.areaMultiplier is not none %}<areaMultiplier>{{ f.areaMultiplier | xmlstr }}</areaMultiplier>{% endif %}
+    {% for s in f.shape %}<shape{% if s.locationId is not none %} locationId="{{ s.locationId }}"{% endif %}{% if s.shapeId is not none %} shapeId="{{ s.shapeId }}"{% endif %}/>
+    {% endfor %}
+    {% if f.shapeIdFunction is not none %}<shapeIdFunction>{{ f.shapeIdFunction }}</shapeIdFunction>{% endif %}
+  </esriShapeFile>
+{% endfor %}
+</polygons>

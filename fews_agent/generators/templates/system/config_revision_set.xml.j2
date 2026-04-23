@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configRevisionSet xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/configRevisionSets.xsd">
+  <metaData revisionId="{{ metaData.revisionId }}" numberOfChanges="{{ metaData.numberOfChanges }}" creationTime="{{ metaData.creationTime }}" creationUserId="{{ metaData.creationUserId }}"{% if metaData.commentText is not none %} commentText="{{ metaData.commentText }}"{% endif %}/>
+  {% for tv in tableVersion %}<tableVersion table="{{ tv.table }}" version="{{ tv.version }}">
+    {% for e in tv.entry %}<entry>{{ e }}</entry>
+    {% endfor %}
+  </tableVersion>
+  {% endfor %}
+</configRevisionSet>

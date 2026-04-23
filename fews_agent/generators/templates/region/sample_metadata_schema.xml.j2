@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sampleMetadataSchema xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/sampleMetadataSchema.xsd">
+  <valueTypes>
+    {% for s in valueTypes.string %}<string id="{{ s.id }}"/>
+    {% endfor %}
+    {% for d in valueTypes.dateTime %}<dateTime id="{{ d.id }}"/>
+    {% endfor %}
+    {% for d in valueTypes.double %}<double id="{{ d.id }}"/>
+    {% endfor %}
+    {% for e in valueTypes.enumeration %}<enumeration id="{{ e.id }}">
+      {% for v in e.value %}<value code="{{ v.code }}"{% if v.label is not none %} label="{{ v.label }}"{% endif %}>
+        <description>{{ v.description }}</description>
+      </value>
+      {% endfor %}
+    </enumeration>
+    {% endfor %}
+    {% for c in valueTypes.enumerationsCsvFile %}<enumerationsCsvFile>
+      <file>{{ c.file }}</file>
+      {% if c.charset is not none %}<charset>{{ c.charset }}</charset>{% endif %}
+      <id>{{ c.id }}</id>
+      {% if c.code is not none %}<code>{{ c.code }}</code>{% endif %}
+      {% if c.label is not none %}<label>{{ c.label }}</label>{% endif %}
+      {% if c.description is not none %}<description>{{ c.description }}</description>{% endif %}
+    </enumerationsCsvFile>
+    {% endfor %}
+  </valueTypes>
+  <properties>
+    {% for p in properties.property %}<property id="{{ p.id }}"{% if p.name is not none %} name="{{ p.name }}"{% endif %} valueTypeId="{{ p.valueTypeId }}"{% if p.scope is not none %} scope="{{ p.scope }}"{% endif %}>
+      {% if p.description is not none %}<description>{{ p.description }}</description>{% endif %}
+    </property>
+    {% endfor %}
+    {% for c in properties.propertiesCsvFile %}<propertiesCsvFile>
+      <file>{{ c.file }}</file>
+      {% if c.charset is not none %}<charset>{{ c.charset }}</charset>{% endif %}
+      <id>{{ c.id }}</id>
+      {% if c.name is not none %}<name>{{ c.name }}</name>{% endif %}
+      {% if c.description is not none %}<description>{{ c.description }}</description>{% endif %}
+      {% if c.valueTypeId is not none %}<valueTypeId>{{ c.valueTypeId }}</valueTypeId>{% endif %}
+      {% if c.scope is not none %}<scope>{{ c.scope }}</scope>{% endif %}
+    </propertiesCsvFile>
+    {% endfor %}
+  </properties>
+</sampleMetadataSchema>
