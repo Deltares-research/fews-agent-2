@@ -138,6 +138,19 @@ class ExternUnit(FewsModel):
     cumulativeSum: bool = False
 
 
+class SeasonCondition(FewsModel):
+    """`<season>` with `<startMonthDay>` + `<endMonthDay>` children.
+
+    monthDayType is an XSD-restricted gMonthDay with pattern ``--MM-DD``.
+    Stored as raw strings so templates round-trip the source text byte
+    for byte (gMonthDay can't be mapped to a native Python date without
+    losing the literal form).
+    """
+
+    startMonthDay: str
+    endMonthDay: str
+
+
 class ExtremeValueLimit(FewsModel):
     """One extreme-value bound.
 

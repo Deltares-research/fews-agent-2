@@ -28,6 +28,7 @@ from .common import (
     DataVariable,
     HarmonicComponent,
     RelativeViewPeriod,
+    SeasonCondition,
     TimeSeriesDataPoint,
     TimeSeriesSet,
     TimeStep,
@@ -501,6 +502,12 @@ from .modifiers_display import (
 )
 from .forecast_length_estimator import ForecastLengthEstimator
 from .generic_xml_file import GenericXmlFile
+from .id_map_descriptors import IdMapDescriptor, IdMapDescriptors
+from .cold_module_instance_state_groups import (
+    ColdModuleInstanceStateGroup,
+    ColdModuleInstanceStateGroups,
+    SeasonalColdModuleInstanceStateGroup,
+)
 from .location_icons import LocationIcon, LocationIcons
 from .module_instance_descriptors import (
     ModuleInstanceDescriptor,
@@ -612,6 +619,7 @@ __all__ = [
     "ExtremeValueLimit",
     "DataVariable",
     "HarmonicComponent",
+    "SeasonCondition",
     "TimeSeriesDataPoint",
     # enums
     "ValueType",
@@ -1198,4 +1206,11 @@ __all__ = [
     "ImportStateActivity",
     "StateFileRef",
     "ImportNetcdfActivity",
+    # IdMapDescriptors
+    "IdMapDescriptor",
+    "IdMapDescriptors",
+    # ColdModuleInstanceStateGroups
+    "ColdModuleInstanceStateGroup",
+    "ColdModuleInstanceStateGroups",
+    "SeasonalColdModuleInstanceStateGroup",
 ]

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<idMapDescriptors xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/idMapDescriptors.xsd" version="{{ version }}">
+{%- for d in idMapDescriptor %}
+  {%- if d.description is none %}
+  <idMapDescriptor id="{{ d.id }}"{% if d.name is not none %} name="{{ d.name }}"{% endif %}/>
+  {%- else %}
+  <idMapDescriptor id="{{ d.id }}"{% if d.name is not none %} name="{{ d.name }}"{% endif %}>
+    <description>{{ d.description }}</description>
+  </idMapDescriptor>
+  {%- endif %}
+{%- endfor %}
+</idMapDescriptors>
