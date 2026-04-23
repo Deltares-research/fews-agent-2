@@ -1,0 +1,13 @@
+{%- import "_partials/timeseries_set.xml.j2" as tss -%}
+<?xml version="1.0" encoding="UTF-8"?>
+<openDACalibrationDisplay xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/openDACalibrationDisplay.xsd">
+  <fileExchangeDirectory>{{ fileExchangeDirectory }}</fileExchangeDirectory>
+  <modelParametersFileName>{{ modelParametersFileName }}</modelParametersFileName>
+  <modelResultsFileName>{{ modelResultsFileName }}</modelResultsFileName>
+  <workflowId>{{ workflowId }}</workflowId>
+  <openDABinDir>{{ openDABinDir }}</openDABinDir>
+  {% for p in calibrationParameter %}<calibrationParameter label="{{ p.label }}" initialValue="{{ p.initialValue | xmlstr }}" stdDev="{{ p.stdDev | xmlstr }}"{% if p.lowerBound is not none %} lowerBound="{{ p.lowerBound | xmlstr }}"{% endif %}{% if p.upperBound is not none %} upperBound="{{ p.upperBound | xmlstr }}"{% endif %}/>
+  {% endfor %}
+  {{ tss.render(observedTimeSeriesSet, tag="observedTimeSeriesSet") }}
+  {{ tss.render(resultsTimeSeriesSet, tag="resultsTimeSeriesSet") }}
+</openDACalibrationDisplay>

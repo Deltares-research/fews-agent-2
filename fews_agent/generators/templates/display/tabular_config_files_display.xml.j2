@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<tabularConfigFilesDisplay xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/tabularConfigFilesDisplay.xsd">
+  {% if editPermission is not none %}<editPermission>{{ editPermission }}</editPermission>{% endif %}
+  {% for t in taskButton %}<taskButton name="{{ t.name }}">
+    {% if t.description is not none %}<description>{{ t.description }}</description>{% endif %}
+    {% if t.permission is not none %}<permission>{{ t.permission }}</permission>{% endif %}
+    <iconFile>{{ t.iconFile }}</iconFile>
+    <workDir>{{ t.workDir }}</workDir>
+    <executable>{{ t.executable }}</executable>
+    {% if t.arguments %}<arguments>
+      {% for a in t.arguments %}<argument>{{ a }}</argument>
+      {% endfor %}
+    </arguments>{% endif %}
+    {% if t.environmentVariables %}<environmentVariables>
+      {% for e in t.environmentVariables %}<environmentVariable>
+        <name>{{ e.name }}</name>
+        <value>{{ e.value }}</value>
+      </environmentVariable>
+      {% endfor %}
+    </environmentVariables>{% endif %}
+  </taskButton>
+  {% endfor %}
+</tabularConfigFilesDisplay>

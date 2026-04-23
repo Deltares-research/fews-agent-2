@@ -1,0 +1,30 @@
+{%- import "_partials/timeseries_set.xml.j2" as tss -%}
+<?xml version="1.0" encoding="UTF-8"?>
+<timeSeriesTableDisplay xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/timeSeriesTableDisplay.xsd">
+  <general>
+    {% if general.description is not none %}<description>{{ general.description }}</description>{% endif %}
+    <displayName>{{ general.displayName }}</displayName>
+    {% if general.forecastFilter is not none %}<forecastFilter>
+      {% for w in general.forecastFilter.workflowId %}<workflowId>{{ w }}</workflowId>
+      {% endfor %}
+    </forecastFilter>{% endif %}
+    {% for v in general.variable %}<variable>
+      <variableId>{{ v.variableId }}</variableId>
+      {{ tss.render(v.timeSeriesSet) }}
+    </variable>
+    {% endfor %}
+  </general>
+  {% for t in tableTab %}<tableTab>
+    <title>{{ t.title }}</title>
+    {% if t.id is not none %}<id>{{ t.id }}</id>{% endif %}
+    <showValues>{{ 'true' if t.showValues else 'false' }}</showValues>
+    <showThresholdColors>{{ 'true' if t.showThresholdColors else 'false' }}</showThresholdColors>
+    {% if t.locationGroupingAttributeId is not none %}<locationGroupingAttributeId>{{ t.locationGroupingAttributeId }}</locationGroupingAttributeId>{% endif %}
+    {% if t.locationOrderingAttributeId is not none %}<locationOrderingAttributeId>{{ t.locationOrderingAttributeId }}</locationOrderingAttributeId>{% endif %}
+    {% if t.locationLabelAttributeId is not none %}<locationLabelAttributeId>{{ t.locationLabelAttributeId }}</locationLabelAttributeId>{% endif %}
+    {% if t.thresholdGroupIdId is not none %}<thresholdGroupIdId>{{ t.thresholdGroupIdId }}</thresholdGroupIdId>{% endif %}
+    {% for c in t.column %}<column variableId="{{ c.variableId }}"{% if c.name is not none %} name="{{ c.name }}"{% endif %}/>
+    {% endfor %}
+  </tableTab>
+  {% endfor %}
+</timeSeriesTableDisplay>

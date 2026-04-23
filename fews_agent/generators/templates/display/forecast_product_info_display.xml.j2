@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<forecastProductInfoDisplay xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/forecastProductInfoDisplay.xsd">
+{%- macro col(c, tag) %}{% if c is not none %}<{{ tag }}{% if c.visibleByDefault is not none %} visibleByDefault="{{ 'true' if c.visibleByDefault else 'false' }}"{% endif %}/>{% endif %}{%- endmacro %}
+  {% if productSelection is not none %}<productSelection{% if productSelection.enabled is not none %} enabled="{{ 'true' if productSelection.enabled else 'false' }}"{% endif %}/>{% endif %}
+  {% if forecastTime is not none %}<forecastTime{% if forecastTime.enabled is not none %} enabled="{{ 'true' if forecastTime.enabled else 'false' }}"{% endif %}>
+    {% if forecastTime.defaultForecastTimeSelection is not none %}<defaultForecastTimeSelection>{{ forecastTime.defaultForecastTimeSelection }}</defaultForecastTimeSelection>{% endif %}
+    {% if forecastTime.defaultForecastPeriod is not none %}<defaultForecastPeriod unit="{{ forecastTime.defaultForecastPeriod.unit }}" multiplier="{{ forecastTime.defaultForecastPeriod.multiplier }}"/>{% endif %}
+  </forecastTime>{% endif %}
+  {% if confidence is not none %}<confidence{% if confidence.enabled is not none %} enabled="{{ 'true' if confidence.enabled else 'false' }}"{% endif %}>
+    {% if confidence.defaultLevel is not none %}<defaultLevel>{{ confidence.defaultLevel }}</defaultLevel>{% endif %}
+  </confidence>{% endif %}
+  {% if classification is not none %}<classification{% if classification.enabled is not none %} enabled="{{ 'true' if classification.enabled else 'false' }}"{% endif %}/>{% endif %}
+  {% if columns is not none %}<columns>
+    {{ col(columns.name, 'name') }}
+    {{ col(columns.forecastTime, 'forecastTime') }}
+    {{ col(columns.productTime, 'productTime') }}
+    {{ col(columns.user, 'user') }}
+    {{ col(columns.modificationTime, 'modificationTime') }}
+    {{ col(columns.confidence, 'confidence') }}
+    {{ col(columns.comment, 'comment') }}
+    {{ col(columns.classification, 'classification') }}
+    {{ col(columns.disapproved, 'disapproved') }}
+  </columns>{% endif %}
+</forecastProductInfoDisplay>

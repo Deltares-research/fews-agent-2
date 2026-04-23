@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<flagConversions xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/flagConversions.xsd">
+{%- macro emit_int(f, tag) %}<{{ tag }}>
+      {% if f.name is not none %}<name>{{ f.name }}</name>{% endif %}
+      <value>{{ f.value }}</value>
+      {% if f.description is not none %}<description>{{ f.description }}</description>{% endif %}
+    </{{ tag }}>{%- endmacro %}
+{%- macro emit_string(f, tag) %}<{{ tag }}>
+      {% if f.name is not none %}<name>{{ f.name }}</name>{% endif %}
+      <value>{{ f.value }}</value>
+      {% if f.description is not none %}<description>{{ f.description }}</description>{% endif %}
+    </{{ tag }}>{%- endmacro %}
+  {% for c in flagConversion %}<flagConversion>
+    {{ emit_string(c.inputFlag, 'inputFlag') }}
+    {{ emit_int(c.outputFlag, 'outputFlag') }}
+  </flagConversion>
+  {% endfor %}
+  {% if defaultOuputFlag is not none %}{{ emit_int(defaultOuputFlag, 'defaultOuputFlag') }}
+  {% endif %}
+  {{ emit_int(missingValueFlag, 'missingValueFlag') }}
+</flagConversions>
