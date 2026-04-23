@@ -1,0 +1,43 @@
+<schema targetNamespace="http://www.wldelft.nl/fews" xmlns:fews="http://www.wldelft.nl/fews" xmlns="http://www.w3.org/2001/XMLSchema" elementFormDefault="qualified" attributeFormDefault="unqualified" version="1.0">
+	<include schemaLocation="sharedTypes.xsd"/>
+	<element name="productInfo" type="fews:ProductInfoComplexType"/>
+	<complexType name="ProductInfoComplexType">
+		<sequence>
+			<element name="user" type="string">
+				<annotation>
+					<documentation>The user who created this product info.</documentation>
+				</annotation>
+			</element>
+			<element name="confidence" type="fews:confidenceEnumStringType">
+				<annotation>
+					<documentation>Content of the confidence column.</documentation>
+				</annotation>
+			</element>
+			<element name="classification" type="fews:classificationEnumStringType">
+				<annotation>
+					<documentation>Content of the status column.</documentation>
+				</annotation>
+			</element>
+			<element name="commentText" type="string">
+				<annotation>
+					<documentation>The comments entered by the user.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<simpleType name="confidenceEnumStringType">
+		<restriction base="string">
+			<enumeration value="High"/>
+			<enumeration value="Medium"/>
+			<enumeration value="Low"/>
+		</restriction>
+	</simpleType>
+	<simpleType name="classificationEnumStringType">
+		<restriction base="string">
+			<enumeration value="Confidential"/>
+			<enumeration value="Restricted"/>
+			<enumeration value="Internal"/>
+			<enumeration value="Public"/>
+		</restriction>
+	</simpleType>
+</schema>

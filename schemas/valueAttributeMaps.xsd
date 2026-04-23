@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--Delft FEWS (Copyright 2003 WL | Delft Hydraulics) -->
+<schema targetNamespace="http://www.wldelft.nl/fews" xmlns="http://www.w3.org/2001/XMLSchema" xmlns:fews="http://www.wldelft.nl/fews" elementFormDefault="qualified" attributeFormDefault="unqualified" version="1.0">
+	<include schemaLocation="sharedTypes.xsd"/>
+	<element name="valueAttributeMaps" type="fews:ValueAttributeMapsComplexType"/>
+	<complexType name="ValueAttributeMapsComplexType">
+		<sequence>
+			<element name="valueAttributeMap" type="fews:ValueAttributeMapComplexType" maxOccurs="unbounded"/>
+		</sequence>
+		<attribute name="version" type="fews:versionStringType" use="required" fixed="1.0"/>
+	</complexType>
+	<complexType name="ValueAttributeMapComplexType">
+		<sequence>
+			<element name="attributes" type="fews:AttributesComplexType" maxOccurs="unbounded"/>
+		</sequence>
+		<attribute name="id" type="fews:idStringType" use="required"/>
+	</complexType>
+	<complexType name="AttributesComplexType">
+		<sequence>
+			<element name="description" type="string"/>
+			<element name="colour" type="fews:colorStringType" minOccurs="0"/>
+			<element name="image" type="fews:fileStringType" minOccurs="0"/>
+		</sequence>
+		<attribute name="value" type="float" use="required"/>
+	</complexType>
+</schema>

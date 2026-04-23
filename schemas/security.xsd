@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- edited with XMLSpy v2009 sp1 (http://www.altova.com) by ICT (Stichting Deltares) -->
+<!-- edited with XMLSPY v2004 rel. 3 U (http://www.xmlspy.com) by rooij_e (WL | Delft Hydraulics) -->
+<!--Delft FEWS (Copyright 2003 WL | Delft Hydraulics) -->
+<schema xmlns="http://www.w3.org/2001/XMLSchema" xmlns:fews="http://www.wldelft.nl/fews" targetNamespace="http://www.wldelft.nl/fews" elementFormDefault="qualified" attributeFormDefault="unqualified" version="1.0">
+	<!-- Security -->
+	<element name="security" type="fews:SecurityComplexType"/>
+	<!-- SecurityComplexType -->
+	<complexType name="SecurityComplexType">
+		<sequence>
+			<element name="actions" type="fews:ActionsComplexType"/>
+			<element name="roles" type="fews:RolesComplexType"/>
+		</sequence>
+	</complexType>
+	<!-- ActionsComplexType -->
+	<complexType name="ActionsComplexType">
+		<sequence>
+			<element name="action" type="fews:ActionComplexType" maxOccurs="unbounded"/>
+		</sequence>
+	</complexType>
+	<!-- ActionComplexType -->
+	<complexType name="ActionComplexType">
+		<sequence>
+			<element name="description" type="string" minOccurs="0"/>
+		</sequence>
+		<attribute name="id" type="string" use="required"/>
+	</complexType>
+	<!-- RolesComplexType -->
+	<complexType name="RolesComplexType">
+		<sequence>
+			<element name="role" type="fews:RoleComplexType" maxOccurs="unbounded"/>
+		</sequence>
+	</complexType>
+	<!-- RoleComplexType -->
+	<complexType name="RoleComplexType">
+		<sequence>
+			<element name="description" type="string" minOccurs="0"/>
+			<element name="buttonText" type="string" minOccurs="0"/>
+			<element name="userGroups" type="string" minOccurs="0"/>
+			<element name="noPasswordRequired" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>Since 2013.01. FEWS-8106</documentation>
+				</annotation>
+			</element>
+			<element name="password" type="string"/>
+			<element name="grants" type="fews:GrantsComplexType"/>
+		</sequence>
+		<attribute name="id" type="fews:RoleIdStringType" use="required"/>
+	</complexType>
+	<!-- GrantsComplexType -->
+	<complexType name="GrantsComplexType">
+		<sequence>
+			<element name="actionId" type="string" maxOccurs="unbounded"/>
+		</sequence>
+	</complexType>
+	<!-- RoleIdStringType -->
+	<simpleType name="RoleIdStringType">
+		<restriction base="string">
+			<enumeration value="Viewer"/>
+			<enumeration value="Forecaster"/>
+			<enumeration value="ConfigManager"/>
+			<enumeration value="SystemManager"/>
+		</restriction>
+	</simpleType>
+</schema>

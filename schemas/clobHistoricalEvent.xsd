@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schema xmlns="http://www.w3.org/2001/XMLSchema" xmlns:fews="http://www.wldelft.nl/fews" targetNamespace="http://www.wldelft.nl/fews" elementFormDefault="qualified" attributeFormDefault="unqualified" version="1.0">
+	<element name="historicalEvent" type="fews:ClobHistoricalEventComplexType">
+		<annotation>
+			<documentation>Content of the eventXml in the FEWS historicalEvents table, contains the location and parameter ids</documentation>
+		</annotation>
+	</element>
+	<complexType name="ClobHistoricalEventComplexType">
+		<sequence>
+			<element name="parameterId" type="string" maxOccurs="unbounded"/>
+			<element name="locationId" type="string" maxOccurs="unbounded"/>
+		</sequence>
+	</complexType>
+</schema>

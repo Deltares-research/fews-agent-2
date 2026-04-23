@@ -1,0 +1,366 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schema xmlns="http://www.w3.org/2001/XMLSchema" xmlns:fews="http://www.wldelft.nl/fews" targetNamespace="http://www.wldelft.nl/fews" elementFormDefault="qualified" attributeFormDefault="unqualified"
+		version="1.0">
+	<include schemaLocation="sharedTypes.xsd"/>
+	<element name="archives" type="fews:ArchivesComplexType">
+		<annotation>
+			<documentation>The available archives for this fews system</documentation>
+		</annotation>
+	</element>
+	<complexType name="ArchivesComplexType">
+		<sequence>
+			<element name="enabled" type="fews:booleanStringType" minOccurs="0" default="true">
+				<annotation>
+					<documentation>Since 2024.01 You can use this field to disable connections to the archive, preferably using a variable defined as global properties, which can be configured differently for Operating Clients and Forecasting Shells. </documentation>
+				</annotation>
+			</element>
+			<element name="catalogueUrl" type="anyURI">
+				<annotation>
+					<documentation>URL of the (embedded) catalogue</documentation>
+				</annotation>
+			</element>
+			<element name="openDapUrl" type="anyURI" minOccurs="0">
+				<annotation>
+					<documentation>Base URL of the opendap server from which data can be retrieved. If thredds is installed on the same tomcat as the deltares archive server, then the
+						openDapUrl doesn't need to be configured.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="fileServerUrl" type="anyURI" minOccurs="0">
+				<annotation>
+					<documentation>Base URL of the fileServer from which data records can be downloaded. If thredds is installed on the same tomcat as the deltares archive server, then the
+						fileServerUrl doesn't need to be configured.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="elasticSearchUrl" type="anyURI" minOccurs="0">
+				<annotation>
+					<documentation>Since 2019.02. The URL of the elastic search catalogue.</documentation>
+				</annotation>
+			</element>
+			<element name="dataFolder" type="fews:directoryStringType" minOccurs="0">
+				<annotation>
+					<documentation>directory which contains the data. Only used by the FEWS Pi service to read the data from disk instead by using THREDDS, which is a bit faster. If this element is
+						not configured data will be read by using THREDDS
+					</documentation>
+				</annotation>
+			</element>
+			<element name="createFewsConfigFromArchive" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>If this option is enabled the locations,parameters,qualifiers and module instance which exists in the archive
+						but not in FEWS are added. The option is now only in use for the pi-webservice!
+					</documentation>
+				</annotation>
+			</element>
+			<element name="fewsWebServicesAlwaysImportsDataFromExternalDataSource" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>Since 2021.01 If this option is set to true all requests to the pi (rest) webservice and the WMS will also try to search for and import data from all of the external
+						data sources configured in the Archives.xml
+					</documentation>
+				</annotation>
+			</element>
+			<element name="areaLocationAttributeFunction" type="string" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Since 2023.01 The attributeFunction which will provide the area for a location. This is needed for storing data edits in the archive.
+					</documentation>
+				</annotation>
+			</element>
+			<group ref="fews:SeamlessIntegrationTimeSeriesGroup" minOccurs="0"/>
+			<element name="externalCFCompliantNetCdfStorage" type="fews:ExternalCFCompliantNetCDFStorageComplexType" maxOccurs="unbounded" minOccurs="0">
+				<annotation>
+					<documentation>Since 2019.02 A data storage which is a folder with CF compliant Netcdf files</documentation>
+				</annotation>
+			</element>
+			<element name="archiveDatabase" type="fews:ArchiveDatabaseComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2021.01 Define the details of the archive database which is available.</documentation>
+				</annotation>
+			</element>
+			<element name="seamlessWaterML2" type="fews:SeamlessWaterML2ComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Since 2023.02 One or more KiWIS waterml2 kiwis webservice(s) which can be used for seamless integration.</documentation>
+				</annotation>
+			</element>
+			<element name="seamlessFewsWebService" type="fews:FewsSeamlessComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Since 2025.02 The FEWS webservice which can be used for seamless integration.</documentation>
+				</annotation>
+			</element>
+			<element name="maxConnectionRetryCount" type="fews:positiveInteger" minOccurs="0">
+				<annotation>
+					<documentation>If this option is configured the Fews explorer status will not indicate a lost connection immediately but only after the max retry count is exceeded. There is a
+						pause of 10 seconds between each retry
+					</documentation>
+				</annotation>
+			</element>
+			<element name="seamlessIntegrationIsOptional" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>Since 2019.02 If this option is set to true then the seamless integration is considered to be an optional feature.
+						If the archive connection is not available when searching for time series then the system will only log a warning instead of an error. Main reason for this feature is it is
+						not desirable that a broken archive causes a failed archive connection.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="locationGroupAttributeId" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2021.02 The location attribute which identifies the group to which a location belongs.</documentation>
+				</annotation>
+			</element>
+			<element name="uploadEditedDataToOpenArchive" type="boolean" minOccurs="0" default="false">
+				<annotation>
+					<documentation>Since 2022.02 Automatically uploads edited data to the archive.</documentation>
+				</annotation>
+			</element>
+			<element name="customExportFolders" type="fews:CustomExportFoldersComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2023.02 Define a custom export folder for each archive type.</documentation>
+				</annotation>
+			</element>
+			<element name="exportWithoutMetadataFile" type="fews:ExportWithoutMetadaFileComplexType" minOccurs="0"/>
+			<element name="archiveUploadTask" type="fews:ArchiveUploadTask" minOccurs="0">
+				<annotation>
+					<documentation>Since 2024.02 Define a task which ensures that the data is scanned before it enters the archive. For now only AWS S3 is supported.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="StorageComplexType">
+		<sequence>
+			<element name="storage" type="fews:nameStringType" maxOccurs="unbounded">
+				<annotation>
+					<documentation>A single storage of the archive. The storage is subfolder of the main folder which can point, with a link, to another storage. The first configured storage is the most important storage. This folder is expected to receive the new data from the FEWS system.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="ExportWithoutMetadaFileComplexType">
+		<sequence>
+			<element name="externalHistorical" type="boolean" minOccurs="0"/>
+			<element name="externalForecast" type="boolean" minOccurs="0"/>
+			<element name="simulatedForecast" type="boolean" minOccurs="0"/>
+			<element name="simulatedHistorical" type="boolean" minOccurs="0"/>
+		</sequence>
+	</complexType>
+	<complexType name="CustomExportFoldersComplexType">
+		<sequence>
+			<element name="products" type="fews:nonEmptyStringType" minOccurs="0"/>
+			<element name="config" type="fews:nonEmptyStringType" minOccurs="0"/>
+			<element name="forecasterNotes" type="fews:nonEmptyStringType" minOccurs="0"/>
+			<element name="logMessages" type="fews:nonEmptyStringType" minOccurs="0"/>
+			<element name="ratingCurves" type="fews:nonEmptyStringType" minOccurs="0"/>
+			<element name="snapShot" type="fews:nonEmptyStringType" minOccurs="0"/>
+			<element name="externalHistorical" type="fews:nonEmptyStringType" minOccurs="0"/>
+			<element name="externalForecast" type="fews:nonEmptyStringType" minOccurs="0"/>
+			<element name="simulatedForecast" type="fews:nonEmptyStringType" minOccurs="0"/>
+			<element name="simulatedHistorical" type="fews:nonEmptyStringType" minOccurs="0"/>
+		</sequence>
+	</complexType>
+	<complexType name="ArchiveDatabaseComplexType">
+		<sequence>
+			<element name="archiveDatabaseUrl" type="anyURI">
+				<annotation>
+					<documentation>URL of the archive database</documentation>
+				</annotation>
+			</element>
+			<group ref="fews:UserAndPassword" minOccurs="0">
+				<annotation>
+					<documentation>User name and password used for http authentication</documentation>
+				</annotation>
+			</group>
+			<element name="pluginClass" type="string">
+				<annotation>
+					<documentation>The class which implements the OpenDatabase interface</documentation>
+				</annotation>
+			</element>
+			<element name="pluginFactoryMethod" type="string">
+				<annotation>
+					<documentation>The static method which creates an instance of the class which implements the OpenDatabase API</documentation>
+				</annotation>
+			</element>
+			<element name="openDatabasePluginPanelBinDir" type="string" minOccurs="0">
+				<annotation>
+					<documentation>The bin dir which contains the classes for the implementation of the OpenDatabase API</documentation>
+				</annotation>
+			</element>
+			<group ref="fews:SeamlessIntegrationTimeSeriesGroup" minOccurs="0"/>
+		</sequence>
+	</complexType>
+	<complexType name="FewsSeamlessComplexType">
+		<sequence>
+			<element name="idMapId" type="fews:idStringType">
+				<annotation>
+					<documentation>Id of the id map</documentation>
+				</annotation>
+			</element>
+			<element name="filterId" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>If a filter is defined then only time series from this filter will be retrieved.</documentation>
+				</annotation>
+			</element>
+			<element name="serverUrl" type="anyURI">
+				<annotation>
+					<documentation>URL of the FEWS PI Webservice</documentation>
+				</annotation>
+			</element>
+			<element name="seamlessIntegrationTimeSeries" type="fews:TimeSeriesFilterComplexType" maxOccurs="unbounded">
+				<annotation>
+					<documentation>With this option can be configured which time series are available in the FEWS webservice.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="SeamlessWaterML2ComplexType">
+		<sequence>
+			<element name="idMapId" type="fews:idStringType">
+				<annotation>
+					<documentation>Id of the id map</documentation>
+				</annotation>
+			</element>
+			<element name="serverUrl" type="anyURI">
+				<annotation>
+					<documentation>URL to the WaterML2 server</documentation>
+				</annotation>
+			</element>
+			<element name="requestTemplate" type="string">
+				<annotation>
+					<documentation>Request template for the waterml2 service</documentation>
+				</annotation>
+			</element>
+			<element name="requestDateFormat" type="string" minOccurs="0">
+				<annotation>
+					<documentation>Dataformat used for the request of the time series. The default is yyyy-MM-dd.</documentation>
+				</annotation>
+			</element>
+			<element name="responseDateFormat" type="string" minOccurs="0">
+				<annotation>
+					<documentation>Dataformat used for the parsing of the time series.</documentation>
+				</annotation>
+			</element>
+			<element name="missingValue" type="float" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Values that are replaced by NaN during import. NaN is always recognized as missing value.</documentation>
+				</annotation>
+			</element>
+			<element name="missingValueText" type="string" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Values that are replaced by NaN during import. NaN is always recognized as missing value.</documentation>
+				</annotation>
+			</element>
+			<element name="unitConversionsId" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>Id of UnitConversions to be used for unit mapping</documentation>
+				</annotation>
+			</element>
+			<element name="convertDatum" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>Convert datum from local datum during import. The conversion wil be done for all  parameters which use datum (as configured  Parameters.xsd)</documentation>
+				</annotation>
+			</element>
+			<element name="delay" type="fews:DelayComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Defines a delay to apply during import of time series. A positive value will cause a delay of the timestamps before the data is imported. </documentation>
+				</annotation>
+			</element>
+			<element name="oauth2Config" type="fews:KiwisOAuth2ComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Configuration of the waterml2 service</documentation>
+				</annotation>
+			</element>
+			<element name="seamlessIntegrationTimeSeries" type="fews:TimeSeriesFilterComplexType" maxOccurs="unbounded">
+				<annotation>
+					<documentation>With this option can be configured which time series are available in the Kiwis webservice.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="KiwisOAuth2ComplexType">
+		<sequence>
+			<element name="authorizationUrl" type="anyURI"></element>
+			<element name="clientId" type="fews:idStringType"></element>
+			<element name="clientSecret" type="fews:nameStringType"></element>
+			<element name="authenticationType" type="fews:wiskiAuthenticationEnumStringType"></element>
+			<group ref="fews:UserAndPassword" minOccurs="0"/>
+		</sequence>
+	</complexType>
+	<simpleType name="wiskiAuthenticationEnumStringType">
+		<restriction base="string">
+			<enumeration value="Oauth2"/>
+			<enumeration value="kiwisOauth2"/>
+		</restriction>
+	</simpleType>
+	<complexType name="ExternalCFCompliantNetCDFStorageComplexType">
+		<sequence>
+			<element name="idMapId" type="fews:idStringType">
+				<annotation>
+					<documentation>Since 2019.02 Id of IdMap to be used for locationId- and parameterId mapping</documentation>
+				</annotation>
+			</element>
+			<element name="openDapUrl" type="anyURI">
+				<annotation>
+					<documentation>The url of the open dap server</documentation>
+				</annotation>
+			</element>
+			<element name="fileServerUrl" type="anyURI">
+				<annotation>
+					<documentation>The url of the file server of the netcdf storage. This url is used to download netcdf file from the archive.</documentation>
+				</annotation>
+			</element>
+
+			<element name="layerIndexAsLocationId" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>Since 2021.01. For z-layer it can be necessary to use the layer index as the location id when trying to import the netcdf-file.</documentation>
+				</annotation>
+			</element>
+			<group ref="fews:SeamlessIntegrationTimeSeriesGroup" minOccurs="0"/>
+		</sequence>
+		<attribute name="id" type="fews:idStringType" use="required">
+			<annotation>
+				<documentation>Since 2019.02 Id of IdMap to be used for locationId- and parameterId mapping</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="enabled" type="fews:booleanStringType" use="optional">
+			<annotation>
+				<documentation>Since 2024.01 Enable or disable the netcdf storage</documentation>
+			</annotation>
+		</attribute>
+	</complexType>
+	<group name="SeamlessIntegrationTimeSeriesGroup">
+		<sequence>
+			<choice>
+				<element name="seamlessIntegrationTimeSeries" type="fews:TimeSeriesFilterComplexType" maxOccurs="unbounded">
+					<annotation>
+						<documentation>Since 2021.01 With this option can be configured which time series are available in this external storage.</documentation>
+					</annotation>
+				</element>
+				<element name="notUsedForSeamlessIntegration" type="boolean" default="false">
+					<annotation>
+						<documentation>Since 2021.01 With this option can be configured if this external storage contains data to be used by the seamless integrtion.</documentation>
+					</annotation>
+				</element>
+			</choice>
+		</sequence>
+	</group>
+	<complexType name="ArchiveUploadTask">
+		<sequence>
+			<choice>
+				<element name="awsS3" type="fews:AwsS3ComplexType"/>
+			</choice>
+		</sequence>
+	</complexType>
+	<complexType name="AwsS3ComplexType">
+		<sequence>
+			<element name="accessKeyId" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>Only use if assume role policies cannot be used.</documentation>
+				</annotation>
+			</element>
+			<element name="secretAccessKey" type="fews:nameStringType" minOccurs="0">
+				<annotation>
+					<documentation>Only use if assume role policies cannot be used.</documentation>
+				</annotation>
+			</element>
+			<element name="awsRegion" type="fews:nameStringType"/>
+			<element name="bucket" type="fews:nameStringType"/>
+		</sequence>
+	</complexType>
+</schema>

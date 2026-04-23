@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--Delft FEWS (Copyright 2003 WL | Delft Hydraulics) -->
+<schema targetNamespace="http://www.wldelft.nl/fews" xmlns="http://www.w3.org/2001/XMLSchema" xmlns:fews="http://www.wldelft.nl/fews" elementFormDefault="qualified" attributeFormDefault="unqualified" version="1.1">
+	<include schemaLocation="sharedTypes.xsd"/>
+	<element name="supportStationSets" type="fews:SupportStationSetsComplexType"/>
+	<complexType name="SupportStationSetsComplexType">
+		<sequence>
+			<element name="supportStationSet" type="fews:SupportStationSetComplexType" maxOccurs="unbounded"/>
+		</sequence>
+	</complexType>
+	<complexType name="SupportStationSetComplexType">
+		<sequence>
+			<element name="supportStationTimeSeriesSet" type="fews:TimeSeriesSetComplexType"/>
+			<element name="dataTimeSeriesSets" type="fews:DataTimeSeriesSetsComplexType"/>
+		</sequence>
+	</complexType>
+	<complexType name="DataTimeSeriesSetsComplexType">
+		<sequence>
+			<element name="TimeSeriesSet" type="fews:TimeSeriesSetComplexType" maxOccurs="unbounded"/>
+		</sequence>
+	</complexType>
+</schema>

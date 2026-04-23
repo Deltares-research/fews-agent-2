@@ -1,0 +1,180 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- edited with XMLSpy v2007 sp2 (http://www.altova.com) by WL | Delft Hydraulics (WL | Delft Hydraulics) -->
+<!-- edited with XMLSPY v2004 rel. 3 U (http://www.xmlspy.com) by tacoma (WL | Delft Hydraulics) -->
+<!--Delft FE WS (Copyright 2003 WL | Delft Hydraulics) -->
+<schema xmlns="http://www.w3.org/2001/XMLSchema" xmlns:fews="http://www.wldelft.nl/fews" targetNamespace="http://www.wldelft.nl/fews" elementFormDefault="qualified" attributeFormDefault="unqualified"
+		version="1.0">
+	<include schemaLocation="sharedTypes.xsd"/>
+	<element name="archiveModuleDisplay" type="fews:ArchiveModuleDisplayComplexType"/>
+	<complexType name="ArchiveModuleDisplayComplexType">
+		<sequence>
+			<element name="levelThresholds" type="fews:ArchiveThresholdIdsComplexType" minOccurs="0">
+				<annotation>
+					<documentation>In the search event panel it is possible to search on the thresholds being crossed. This option can be used to define which level thresholds can be used in this
+						panel
+					</documentation>
+				</annotation>
+			</element>
+			<element name="defaultHistoricalEventTimeStep" type="fews:TimeStepComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Historical events will be created for time series with this time step only. The default time step will be written to the eventsfile</documentation>
+				</annotation>
+			</element>
+			<element name="workFolder" type="fews:directoryStringType">
+				<annotation>
+					<documentation>The work folder is used to temporary store the events which are created or modified locally.</documentation>
+				</annotation>
+			</element>
+			<element name="createEventPermission" type="string" minOccurs="0">
+				<annotation>
+					<documentation>
+						set a permission which allows a user to create new events
+					</documentation>
+				</annotation>
+			</element>
+			<element name="deleteEventPermission" type="string" minOccurs="0">
+				<annotation>
+					<documentation>
+						set a permission which allows a user to delete events
+					</documentation>
+				</annotation>
+			</element>
+			<element name="uploadNewDataPermission" type="string" minOccurs="0">
+				<annotation>
+					<documentation>set a permission which allows a user to upload new data</documentation>
+				</annotation>
+			</element>
+			<element name="disableDataDownloadAtOperatorClient" type="boolean" minOccurs="0">
+				<annotation>
+					<documentation>This option can be used to disable the (data) download buttons by which data can be downloaded at an Operator client. Note that it will still be possible to download
+						events and attachments.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="downloadFolders" type="fews:DownloadFoldersComplexType">
+				<annotation>
+					<documentation>This element can be used to define were the files downloaded from the archive should be stored. Each data type will be downloaded in a dedicated folder
+					</documentation>
+				</annotation>
+			</element>
+			<element name="archiveImportWorkflowId" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2015.01 Id of workflow which can be run to import downloaded archive data sets.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="fssImport" type="boolean" minOccurs="0" default="false">
+				<annotation>
+					<documentation>Since 2022.01 If this option is set to true data will be imported by using a FSS into the live-system database</documentation>
+				</annotation>
+			</element>
+			<element name="searchDataTypes" type="fews:searchDataTypesComplexType" minOccurs="0"/>
+			<element name="hideDownloadDataSetsTab" type="boolean" minOccurs="0">
+				<annotation>
+					<documentation>Since 2022.01 if set to true, the download data sets tab won't be visible int the Archive catalog.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="hideCreateEventTab" type="boolean" minOccurs="0">
+				<annotation>
+					<documentation>Since 2022.01 if set to true, the create events tab won't be visible int the Archive catalog.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="hideSearchEventTab" type="boolean" minOccurs="0">
+				<annotation>
+					<documentation>Since 2022.01 if set to true, the search events tab won't be visible int the Archive catalog.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="hideArchiveDatabaseTab" type="boolean" minOccurs="0">
+				<annotation>
+					<documentation>Since 2022.01 if set to true, the archive database tab won't be visible int the Archive catalog.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="hideArchiveUploadTab" type="boolean" minOccurs="0" default="true">
+				<annotation>
+					<documentation>Since 2022.02 If set to true, the archive upload tab won't be visible in the Archive catalog.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="archiveUploadIdMapId" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2022.02. Id of the id mapping to be used in the archive upload panel.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="initialSearchTimePeriod" type="fews:RelativePeriodComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2022.01 if configured the search window in the archive catalogue will be set to this period upon starting up.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="dataSearchProperty" type="fews:dataSearchPropertyComplexType" minOccurs="0" maxOccurs="2">
+				<annotation>
+					<documentation>Since 2022.01. If configured, a dropdown box with the possible values of the property will be added to the display as a possible filter for simulated time series.
+					</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="dataSearchPropertyComplexType">
+		<annotation>
+			<documentation>Since 2022.01. If configured, a dropdown box with the possible values of the property will be added to the display as a possible filter for simulated time series.
+			</documentation>
+		</annotation>
+		<sequence>
+			<element name="propertyId" type="fews:idStringType">
+			</element>
+			<element name="displayName" type="string" minOccurs="0">
+				<annotation>
+					<documentation>Name to be used on the display. If it's not configured, the id will be used.
+					</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="ArchiveThresholdIdsComplexType">
+		<sequence>
+			<element name="levelThresholdId" type="fews:idStringType" maxOccurs="unbounded"/>
+		</sequence>
+	</complexType>
+	<complexType name="DownloadFoldersComplexType">
+		<sequence>
+			<element name="downloadFolderObserved" type="fews:directoryStringType"/>
+			<element name="downloadFolderSimulated" type="fews:directoryStringType"/>
+			<element name="downloadFolderSimulatedHistorical" type="fews:directoryStringType" minOccurs="0" default="simulatedHistorical"/>
+			<element name="downloadFolderExternalForecasts" type="fews:directoryStringType"/>
+			<element name="downloadFolderRatingCurves" type="fews:directoryStringType"/>
+			<element name="downloadFolderHistoricalEvents" type="fews:directoryStringType"/>
+			<element name="downloadFolderForecasterNotes" type="fews:directoryStringType"/>
+			<element name="downloadFolderConfiguration" type="fews:directoryStringType"/>
+			<element name="downloadFolderEventAttachments" type="fews:directoryStringType"/>
+			<element name="downloadFolderSnapShots" type="fews:directoryStringType" minOccurs="0"/>
+			<element name="downloadFolderProducts" type="fews:directoryStringType" minOccurs="0"/>
+		</sequence>
+	</complexType>
+	<simpleType name="searchDataTypeSimpleType">
+		<restriction base="string">
+			<enumeration value="forecasterNotes"/>
+			<enumeration value="ratingcurves"/>
+			<enumeration value="observed"/>
+			<enumeration value="simulated"/>
+			<enumeration value="modifiers"/>
+			<enumeration value="reports"/>
+			<enumeration value="simulated time series"/>
+			<enumeration value="simulated historical"/>
+			<enumeration value="states"/>
+			<enumeration value="externalForecast"/>
+			<enumeration value="config"/>
+			<enumeration value="snapshot"/>
+			<enumeration value="products"/>
+		</restriction>
+	</simpleType>
+	<complexType name="searchDataTypesComplexType">
+		<sequence>
+			<element name="type" type="fews:searchDataTypeSimpleType" minOccurs="1" maxOccurs="unbounded"/>
+		</sequence>
+	</complexType>
+</schema>

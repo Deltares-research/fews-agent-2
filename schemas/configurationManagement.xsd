@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--Delft FEWS (Copyright 2003 WL | Delft Hydraulics) -->
+<schema targetNamespace="http://www.wldelft.nl/fews" xmlns:fews="http://www.wldelft.nl/fews" xmlns="http://www.w3.org/2001/XMLSchema" elementFormDefault="qualified" attributeFormDefault="unqualified" version="1.0">
+	<include schemaLocation="sharedTypes.xsd"/>
+	<element name="configurationManagement" type="fews:ConfigurationManagementComplexType">
+		<annotation>
+			<documentation>Schema for configuration management of modules</documentation>
+		</annotation>
+	</element>
+	<complexType name="ConfigurationManagementComplexType">
+		<sequence>
+			<element name="configParams" type="fews:ConfigParamsComplexType"/>
+			<element name="configGroup" type="fews:ConfigGroupComplexType" maxOccurs="unbounded"/>
+			<element name="excludedWorkflows" type="fews:ConfigExcludedWorkflowsComplexType" minOccurs="0" maxOccurs="1" />
+		</sequence>
+		<attribute name="version" type="fews:versionStringType" use="required" fixed="1.0"/>
+	</complexType>
+	<complexType name="ConfigGroupComplexType">
+		<sequence>
+			<element name="tableName" type="string"/>
+			<element name="columnName" type="string"/>
+ 			<element name="subDirectory" type="string"/>           
+			<element name="dataRelationType" type="fews:DataRelationSimpleType"/>
+			<element name="fileType" type="fews:ConfigFileTypeSimpleType"/>
+            <element name="childType" type="fews:ConfigChildTypeComplexType" minOccurs="0" maxOccurs="unbounded"/>
+            <element name="configTypeContainsSpace" type="boolean" minOccurs="0" maxOccurs="1" default="false"/>
+		</sequence>
+		<attribute name="title" type="fews:idStringType" use="required"/>
+	</complexType>
+	<complexType name="ConfigParamsComplexType">
+		<sequence>
+			<element name="defaultXmlEditor" type="string"/>
+			<element name="defaultHtmlEditor" type="string"/>
+			<element name="directPrimaryValidation" type="boolean"/>
+			<element name="analysisMatchLimit" type="int"/>
+		</sequence>
+	</complexType>
+	<complexType name="ConfigChildTypeComplexType">
+		<attribute name="name" type="fews:idStringType" use="required"/>
+	</complexType>
+	<complexType name="ConfigExcludedWorkflowsComplexType">
+		<sequence>
+			<element name="workflowName" type="string" maxOccurs="unbounded"/>
+		</sequence>
+	</complexType>
+	<!-- DataRelationSimpleType -->
+	<simpleType name="DataRelationSimpleType">
+		<restriction base="string">
+			<enumeration value="ROOTNODE"/>
+			<enumeration value="ONETOONE"/>
+			<enumeration value="ONETOMANY"/>
+			<enumeration value="MANYTOMANY"/>
+		</restriction>
+	</simpleType>
+	<!-- ConfigFileTypeSimpleType -->
+	<simpleType name="ConfigFileTypeSimpleType">
+		<restriction base="string">
+			<enumeration value="NONE"/>
+			<enumeration value="XML"/>
+			<enumeration value="HTML"/>
+			<enumeration value="ZIP"/>
+			<enumeration value="MAPS"/>
+			<enumeration value="IMAGES"/>
+            <enumeration value="TXT"/>
+		</restriction>
+	</simpleType>
+</schema>

@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- edited with XMLSpy v2009 sp1 (http://www.altova.com) by ICT (Stichting Deltares) -->
+<!-- edited with XMLSPY v2004 rel. 3 U (http://www.xmlspy.com) by tacoma (WL | Delft Hydraulics) -->
+<!--Delft FEWS (Copyright 2003 WL | Delft Hydraulics) -->
+<schema xmlns="http://www.w3.org/2001/XMLSchema" xmlns:fews="http://www.wldelft.nl/fews" targetNamespace="http://www.wldelft.nl/fews" elementFormDefault="qualified" attributeFormDefault="unqualified" version="1.0">
+	<include schemaLocation="sharedTypes.xsd"/>
+	<element name="forecastProductInfoDisplay" type="fews:ForecastProductInfoDisplayComplexType"/>
+	<complexType name="ForecastProductInfoDisplayComplexType">
+		<sequence>
+			<element name="productSelection" type="fews:ProductSelectionComplexType" minOccurs="0"/>
+			<element name="forecastTime" type="fews:ForecastProductInfoForecastTimeComplexType" minOccurs="0"/>
+			<element name="confidence" type="fews:ConfidenceComplexType" minOccurs="0"/>
+			<element name="classification" type="fews:ClassificationComplexType" minOccurs="0"/>
+			<element name="columns" type="fews:ForecastProductInfoColumnsComplexType" minOccurs="0"/>
+		</sequence>
+	</complexType>
+	<simpleType name="forecastTimeSelectionEnumStringType">
+		<restriction base="string">
+			<enumeration value="SINGLE"/>
+			<enumeration value="RANGE"/>
+		</restriction>
+	</simpleType>
+	<simpleType name="defaultConfidenceLevelEnumStringType">
+		<restriction base="string">
+			<enumeration value="LOW"/>
+			<enumeration value="MEDIUM"/>
+			<enumeration value="HIGH"/>
+		</restriction>
+	</simpleType>
+	<complexType name="ForecastProductInfoColumnComplexType">
+		<attribute name="visibleByDefault" type="boolean" default="true"/>
+	</complexType>
+	<complexType name="ProductSelectionComplexType">
+		<attribute name="enabled" type="boolean" default="true"/>
+	</complexType>
+	<complexType name="ClassificationComplexType">
+		<attribute name="enabled" type="boolean" default="true"/>
+	</complexType>
+	<complexType name="ConfidenceComplexType">
+		<sequence>
+			<element name="defaultLevel" type="fews:defaultConfidenceLevelEnumStringType" default="HIGH" minOccurs="0"/>
+		</sequence>
+		<attribute name="enabled" type="boolean" default="true"/>
+	</complexType>
+	<complexType name="ForecastProductInfoForecastTimeComplexType">
+		<sequence>
+			<element name="defaultForecastTimeSelection" type="fews:forecastTimeSelectionEnumStringType" default="SINGLE" minOccurs="0"/>
+			<element name="defaultForecastPeriod" type="fews:TimeSpanComplexType" minOccurs="0"/>
+		</sequence>
+		<attribute name="enabled" type="boolean" default="true"/>
+	</complexType>
+	<complexType name="ForecastProductInfoColumnsComplexType">
+		<sequence>
+			<element name="name" type="fews:ForecastProductInfoColumnComplexType" minOccurs="0"/>
+			<element name="forecastTime" type="fews:ForecastProductInfoColumnComplexType" minOccurs="0"/>
+			<element name="productTime" type="fews:ForecastProductInfoColumnComplexType" minOccurs="0"/>
+			<element name="user" type="fews:ForecastProductInfoColumnComplexType" minOccurs="0"/>
+			<element name="modificationTime" type="fews:ForecastProductInfoColumnComplexType" minOccurs="0"/>
+			<element name="confidence" type="fews:ForecastProductInfoColumnComplexType" minOccurs="0"/>
+			<element name="comment" type="fews:ForecastProductInfoColumnComplexType" minOccurs="0"/>
+			<element name="classification" type="fews:ForecastProductInfoColumnComplexType" minOccurs="0"/>
+			<element name="disapproved" type="fews:ForecastProductInfoColumnComplexType" minOccurs="0"/>
+		</sequence>
+	</complexType>
+</schema>

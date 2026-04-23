@@ -1,0 +1,313 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schema xmlns="http://www.w3.org/2001/XMLSchema" xmlns:fews="http://www.wldelft.nl/fews" targetNamespace="http://www.wldelft.nl/fews" elementFormDefault="qualified" attributeFormDefault="unqualified" version="1.0">
+	<include schemaLocation="sharedTypes.xsd"/>
+	<element name="systemMetrics" type="fews:SystemMetricsComplexType">
+		<annotation>
+			<documentation>Only available in DDA. Stores system metrics from the central database as TimeSeries. Only rows / records and bytes in the current MC can be counted. The timeseries are stored with the current mcId as a qualifier.</documentation>
+		</annotation>
+	</element>
+	<complexType name="SystemMetricsComplexType">
+		<sequence>
+			<element name="general" type="fews:SystemMetricGeneralSectionComplexType">
+				<annotation>
+					<documentation>Properties needed for creating the timeseries.</documentation>
+				</annotation>
+			</element>
+			<element name="database" type="fews:DatabaseMetricComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Collects the total rowCount or the total byteCount or both for the entire database. If neither rowCountParameterId nor byteCountParameterId is specified a ConfigError is produced. </documentation>
+				</annotation>
+			</element>
+			<element name="table" type="fews:TableMetricComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Collects the rowCount or byteCount for the specified table or view. If neither rowCountParameterId nor byteCountParameterId is specified a ConfigError is produced, </documentation>
+				</annotation>
+			</element>
+			<element name="logEntry" type="fews:LogEntryMetricComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Collects the rowCount for LogEntries with the specified logLevel and eventCode.</documentation>
+				</annotation>
+			</element>
+			<element name="mcStatus" type="fews:MCStatusMetricComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Collects the specified metrics from the MCStatus view.</documentation>
+				</annotation>
+			</element>
+			<element name="fssStatus" type="fews:FSSStatusMetricComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Collects the specified metrics from the FSSStatusView for each FSS. The fssId will be registered as a qualifier in the timeserie. Deprecated and obsolete since 2018.02.</documentation>
+				</annotation>
+			</element>
+			<element name="workflow" type="fews:WorkflowMetricComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Collects the specified metrics of the TaskRuns of Tasks with the selected workflowId.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="SystemMetricGeneralSectionComplexType">
+		<sequence>
+			<element name="locationId" type="fews:idStringType">
+				<annotation>
+					<documentation>Dummy location needed for storing the timeseries.</documentation>
+				</annotation>
+			</element>
+			<element name="synchLevel" type="fews:intStringType" minOccurs="0">
+				<annotation>
+					<documentation>Controls how the TimeSeries are distributed to synchronising clients.</documentation>
+				</annotation>
+			</element>
+			<element name="expiryTime" type="fews:CalendarTimeSpanComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Defines how long the TimeSeries will be stored in the database before they expire.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="DatabaseMetricComplexType">
+		<sequence>
+			<element name="rowCountParameterId" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>The parameterId to store the rowCount.</documentation>
+				</annotation>
+			</element>
+			<element name="byteCountParameterId" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>The parameterId to store the byteCount.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="TableMetricComplexType">
+		<sequence>
+			<element name="tableName" type="fews:tableOrViewNameStringType">
+				<annotation>
+					<documentation>Table or view name.</documentation>
+				</annotation>
+			</element>
+			<element name="rowCountParameterId" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>The parameterId to store the rowCount.</documentation>
+				</annotation>
+			</element>
+			<element name="byteCountParameterId" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>The parameterId to store the byteCount.</documentation>
+				</annotation>
+			</element>
+			<element name="maximalAge" type="fews:TimeSpanComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Only rows / records with a timestamp newer than the maximalAge will be used. Only applicable when a timestamp column exists, typically creationTime, or modificationTime and for the LogEntries table creationTime. If no timestamp column exists, a ConfigError will be generated.
+                    </documentation>
+				</annotation>
+			</element>
+			<element name="minimalAge" type="fews:TimeSpanComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Only rows / records with a timestamp older than the minimalAge will be used. Only applicable when a timestamp column exists, typically creationTime, or modificationTime and for the LogEntries table creationTime. If no timestamp column exists, a ConfigError will be generated.
+                    </documentation>
+				</annotation>
+			</element>
+			<element name="lifeSpan" type="fews:TimeSpanComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Only rows / records with a difference between expiryTime and timestamp column greater than this value are included. Only applicable when an expiiryTime and some timestamp column exists. A timeStamp column is typically called creationTime, modificationTime, and for the LogEntries table creationTime. If no timestamp column or expiryTime column exists, a ConfigError will be generated.
+                    </documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<simpleType name="tableOrViewNameStringType">
+		<union memberTypes="fews:predefinedTableOrViewNameStringType fews:customTableOrViewNameStringType"/>
+	</simpleType>
+	<simpleType name="predefinedTableOrViewNameStringType">
+		<restriction base="string">
+			<enumeration value="TimeSeries"/>
+			<enumeration value="Samples"/>
+			<enumeration value="WarmStates"/>
+			<enumeration value="ThresholdEvents"/>
+			<enumeration value="ModuleInstanceConfigs"/>
+			<enumeration value="ModuleInstanceDataSets"/>
+		</restriction>
+	</simpleType>
+	<simpleType name="customTableOrViewNameStringType">
+		<restriction base="string">
+			<minLength value="1"/>
+			<maxLength value="30"/>
+			<pattern value="([A-Za-z])*"/>
+		</restriction>
+	</simpleType>
+	<complexType name="LogEntryMetricComplexType">
+		<sequence>
+			<element name="rowCountParameterId" type="fews:idStringType">
+				<annotation>
+					<documentation>The parameterId for TimeSeries to store the number of selected LogEntries in.</documentation>
+				</annotation>
+			</element>
+			<element name="logLevel" type="fews:logLevelEnumStringType" minOccurs="0">
+				<annotation>
+					<documentation>Log level to consider.</documentation>
+				</annotation>
+			</element>
+			<element name="eventCode" type="fews:logEventCodeStringType" minOccurs="0">
+				<annotation>
+					<documentation>When specified only logentries with this eventCode are considered.</documentation>
+				</annotation>
+			</element>
+			<element name="maximalAge" type="fews:TimeSpanComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Only rows / records with a timestamp newer than the maximalAge will be used. Only applicable when a timestamp column exists, typically creationTime, or modificationTime and for the LogEntries table creationTime. If no timestamp column exists, a ConfigError will be generated.
+                    </documentation>
+				</annotation>
+			</element>
+			<element name="minimalAge" type="fews:TimeSpanComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Only LogEntries rows / records with a creationTime older than the minimalAge will be used.
+                    </documentation>
+				</annotation>
+			</element>
+			<element name="lifeSpan" type="fews:TimeSpanComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Only LogEntries rows / records with a difference between expiryTime and creationTime greater than this value are included.
+                    </documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="MCStatusMetricComplexType">
+		<sequence>
+			<element name="failedOverParameterId" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>Whether the mc is failed over. 0 (not failedOver) or 1 (failedOver).</documentation>
+				</annotation>
+			</element>
+			<element name="aliveRemoteMcCountParameterId" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>The number of remoteMCs reported to be alive.</documentation>
+				</annotation>
+			</element>
+			<element name="taskQueueLengthParameterId" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>The length of the queue.</documentation>
+				</annotation>
+			</element>
+			<element name="activeTasksCountParameterId" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>The number of active tasks.</documentation>
+				</annotation>
+			</element>
+			<element name="ocSessionsCountParameterId" type="fews:idStringType" minOccurs="0"/>
+			<element name="liveComponentCountParameterId" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>The sum of the live components status.</documentation>
+				</annotation>
+			</element>
+			<element name="oclListenerParameterId" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>Status of the component that allows clients to log on and communicate with the live system. 0 (down) or 1 (up). Deprecated since 2017.02.</documentation>
+				</annotation>
+			</element>
+			<element name="fslListenerParameterId" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>Status of the component that allows forecasting shells to log on and communicate with the live system. 0 (down) or 1 (up).  Deprecated since 2017.02.</documentation>
+				</annotation>
+			</element>
+			<element name="synchListenerParameterId" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>Status of the component that runs synchronisation processes. 0 (down) or 1 (up).  Deprecated since 2017.02.</documentation>
+				</annotation>
+			</element>
+			<element name="synchRunnerParameterId" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>Status of the component that is responsible for running synchronisation processes (also MCRollingBarrel and MCMarkedRecordManager). 0 (down) or 1 (up).  Deprecated since 2017.02.</documentation>
+				</annotation>
+			</element>
+			<element name="synchTaskListenerParameterId" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>Status of the component that dispatches MC Workflows. 0 (down) or 1 (up).  Deprecated since 2017.02.</documentation>
+				</annotation>
+			</element>
+			<element name="tmLauncherParameterId" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>Status of the TaskManager component responsible for dispatching tasks. 0 (down) or 1 (up).  Deprecated since 2017.02.</documentation>
+				</annotation>
+			</element>
+			<element name="tmChaserParameterId" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>Status of the component that kills tasks that exceeds the grace time. 0 (down) or 1 (up).  Deprecated since 2017.02.</documentation>
+				</annotation>
+			</element>
+			<element name="tmLogProcessorParameterId" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>Status of the component that triggers tasks for LogEntries for which Event Actions are applicable. 0 (down) or 1 (up).  Deprecated since 2017.02.</documentation>
+				</annotation>
+			</element>
+			<element name="sysMonListenerParameterId" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>Status of the listener component in the SystemMonitor. 0 (down) or 1 (up).  Deprecated since 2017.02.</documentation>
+				</annotation>
+			</element>
+			<element name="sysMonMonitorParameterId" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>Status of the monitor component in the SystemMonitor. 0 (down) or 1 (up).  Deprecated since 2017.02.</documentation>
+				</annotation>
+			</element>
+			<element name="sysMonHeartbeatParameterId" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>Status of the heartbeat component in the SystemMonitor. 0 (down) or 1 (up).  Deprecated since 2017.02.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="FSSStatusMetricComplexType">
+		<sequence>
+			<element name="buildVersionParameterId" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>Build number (patch) of fss. Deprecated and obsolete since 2018.02.</documentation>
+				</annotation>
+			</element>
+			<element name="queueLengthParameterId" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>Number of tasks in the fss queue. Deprecated and obsolete since 2018.02.</documentation>
+				</annotation>
+			</element>
+			<element name="downParameterId" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>0 (up) or 1 (down). Deprecated and obsolete since 2018.02.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="WorkflowMetricComplexType">
+		<sequence>
+			<element name="workflowId" type="fews:idStringType" maxOccurs="unbounded">
+				<annotation>
+					<documentation>The workflowId selecting TaskRuns to collect System Metrics for.</documentation>
+				</annotation>
+			</element>
+			<element name="timeSeriesByteCountParameterId" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>The parameterId to store the number of bytes in the database.</documentation>
+				</annotation>
+			</element>
+			<element name="timeSeriesRowCountParameterId" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>The parameterId to store the rowCount.</documentation>
+				</annotation>
+			</element>
+			<element name="taskRunDurationParameterId" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>The parameterId to store the duration in seconds.</documentation>
+				</annotation>
+			</element>
+			<element name="maximalAge" type="fews:TimeSpanComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Only taskruns with a timestamp newer than the maximalAge will be used.</documentation>
+				</annotation>
+			</element>
+			<element name="minimalAge" type="fews:TimeSpanComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Only taskruns with a timestamp as old or older than minimalAge will be used.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+</schema>

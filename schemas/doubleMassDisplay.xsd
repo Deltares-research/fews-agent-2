@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schema xmlns="http://www.w3.org/2001/XMLSchema" xmlns:fews="http://www.wldelft.nl/fews" targetNamespace="http://www.wldelft.nl/fews" elementFormDefault="qualified" attributeFormDefault="unqualified"
+		version="1.0">
+	<include schemaLocation="sharedTypes.xsd"/>
+	<element name="doubleMassDisplay" type="fews:DoubleMassDisplayComplexType"/>
+	<complexType name="DoubleMassDisplayComplexType">
+		<sequence>
+			<element name="modifierId" type="fews:idStringType" minOccurs="1"/>
+			<element name="baseGroupTimeSeriesSet" type="fews:TimeSeriesSetComplexType" minOccurs="1"/>
+			<element name="observedTimeSeriesSet" type="fews:TimeSeriesSetComplexType" minOccurs="1"/>
+			<element name="estimatedTimeSeriesSet" type="fews:TimeSeriesSetComplexType" minOccurs="1"/>
+		</sequence>
+	</complexType>
+</schema>

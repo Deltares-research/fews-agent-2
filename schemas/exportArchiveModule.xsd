@@ -1,0 +1,1569 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- edited with XMLSpy v2009 sp1 (http://www.altova.com) by ICT (Stichting Deltares) -->
+<schema xmlns="http://www.w3.org/2001/XMLSchema" xmlns:fews="http://www.wldelft.nl/fews"
+		targetNamespace="http://www.wldelft.nl/fews" elementFormDefault="qualified" attributeFormDefault="unqualified">
+	<include schemaLocation="sharedTypes.xsd"/>
+	<element name="exportArchiveModule" type="fews:ExportArchiveModuleComplexType"/>
+	<complexType name="ExportArchiveModuleComplexType">
+		<sequence>
+			<choice maxOccurs="unbounded">
+				<element name="exportSimulated" type="fews:ExportSimulatedComplexType"/>
+				<element name="exportSimulatedHistorical" type="fews:ExportSimulatedHistoricalComplexType"/>
+				<element name="exportObserved" type="fews:ExportObservedComplexType"/>
+				<element name="exportExternalForecast" type="fews:ExportExternalForecastComplexType"/>
+				<element name="exportMessages" type="fews:ExportMessagesComplexType"/>
+				<element name="exportRatingCurves" type="fews:ExportRatingCurvesComplexType"/>
+				<element name="exportConfig" type="fews:ExportConfigComplexType"/>
+				<element name="exportSnapShot" type="fews:ExportSnapShotComplexType"/>
+				<element name="exportProducts" type="fews:ExportProductsComplexType"/>
+				<element name="amalgamateObserved" type="fews:AmalgamateObservedComplexType"/>
+				<element name="mergeEditedObservedData" type="fews:MergEditedObservedDataComplexType"/>
+				<element name="exportExternalHistoricalTimeSeriesToArchiveDatabase" type="fews:ExportObservedToArchiveDatabaseComplexType"/>
+				<element name="exportSimulatedTimeSeriesToArchiveDatabase" type="fews:ExportSimulatedToArchiveDatabaseComplexType"/>
+				<element name="exportExternalForecastingTimeSeriesToArchiveDatabase" type="fews:ExportExternalForecastingTimeSeriesToArchiveDatabaseComplexType"/>
+				<element name="migrateOpenArchiveToArchiveDatabase" type="fews:MigrateOpenArchiveToArchiveDatabasePluginComplexType"/>
+				<element name="copyArchivedData" type="fews:CopyArchivedDataComplexType"/>
+			</choice>
+		</sequence>
+	</complexType>
+	<group name="UpdateCatalogueImmediatelyGroup">
+		<sequence>
+			<choice>
+				<element name="updateOpenArchiveCatalogueImmediately" type="boolean" default="false" minOccurs="0">
+					<annotation>
+						<documentation>Since 2023.01. If this option is set to true then the harvester will run directly after the export to the archive to update the open archive catalogue.
+						</documentation>
+					</annotation>
+				</element>
+				<element name="updateNetcdfStorageCatalogueImmediately" type="boolean" default="false" minOccurs="0">
+					<annotation>
+						<documentation>Since 2023.01. If this option is set to true then the harvester will run directly after the export to the archive to update the netcdf storage catalogue.
+						</documentation>
+					</annotation>
+				</element>
+			</choice>
+		</sequence>
+	</group>
+	<group name="SharedGeneralSettingsGroup">
+		<sequence>
+			<element name="archiveFolder" type="fews:directoryStringType">
+				<annotation>
+					<documentation>data folder of the archive (the folder which contains the catalogue folder)</documentation>
+				</annotation>
+			</element>
+			<element name="tempFolder" type="fews:directoryStringType" minOccurs="0">
+				<annotation>
+					<documentation>By default this is the %REGION_HOME%/temp dir. When the available disk space in this dir is too small you can configure directory with more disk space. This temp dir
+						is used by the snapshot export. The temp dir should be a local disk when using windows. For linux this is not required although the export will be slower. The temp file is
+						moved to the archive folder when the snapshot is completely finished. This this is much faster when the archiveFolder and tempFolder are on the same volume.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="properties" type="fews:PropertiesComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Properties can be used to add custom keywords to the catalogue (Geonetwork only)</documentation>
+				</annotation>
+			</element>
+			<element name="dataSetName" type="fews:nameStringType" minOccurs="0">
+				<annotation>
+					<documentation>With this option it is possible to define the name of the dataset (Geonetwork only)</documentation>
+				</annotation>
+			</element>
+			<choice minOccurs="0">
+				<annotation>
+					<documentation>
+						Since 2023.02. Optional choice for storing export status in the database (table ExportStatus). If this choice is omitted, export status will be stored in database using the
+						export folder name as dataFeedId.
+					</documentation>
+				</annotation>
+				<element name="dataFeedId" type="fews:idStringType">
+					<annotation>
+						<documentation>Id for data feed. Export status will be stored in database using this id</documentation>
+					</annotation>
+				</element>
+				<element name="disableDataFeedInfo" type="fews:emptyElement">
+					<annotation>
+						<documentation>Option disableDataFeedInfo indicates that no export status should be stored in database</documentation>
+					</annotation>
+				</element>
+			</choice>
+			<group ref="fews:UpdateCatalogueImmediatelyGroup"/>
+		</sequence>
+	</group>
+	<complexType name="ExportProductsComplexType">
+		<sequence>
+			<element name="general" type="fews:GeneralExportProductComplexType"/>
+			<element name="activities" type="fews:ExportProductActivitiesComplexType"/>
+		</sequence>
+	</complexType>
+	<complexType name="GeneralExportProductComplexType">
+		<sequence>
+			<group ref="fews:SharedGeneralSettingsGroup"/>
+			<element name="allowIFD" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>Since 2022.01. By default it is not allowed to export products to the archive in IFD mode. With this option the exporting of the products also in IFD mode can be
+						enabled
+					</documentation>
+				</annotation>
+			</element>
+			<element name="locationSetId" type="fews:idStringType" minOccurs="0" maxOccurs="unbounded">
+					<annotation>
+						<documentation>Since 2024.01. If it's configured, te export will loop through the location ids, replacing all %LOCATIONID% and %LOCATIONNAME% tags in the source file name and attributes with the respective ids/names.</documentation>
+					</annotation>
+			</element>
+			<element name="ignoreMissingFiles" type="boolean" minOccurs="0" default="false">
+					<annotation>
+						<documentation>
+							Since 2024.01. If it's configured, there will be no warning / error logged is the source file that is to be exported does not exist.
+						</documentation>
+					</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="ExportProductActivitiesComplexType">
+		<sequence>
+			<element name="exportProduct" type="fews:ExportProductActivityComplexType" maxOccurs="unbounded"/>
+		</sequence>
+	</complexType>
+	<complexType name="ExportProductActivityComplexType">
+		<sequence>
+			<element name="areaId" type="fews:idStringType">
+				<annotation>
+					<documentation>Each product can be labelled with an area id, this is used to easily search for data in the catalogue</documentation>
+				</annotation>
+			</element>
+			<element name="sourceId" type="fews:idStringType">
+				<annotation>
+					<documentation>Each product can be labelled with an source id, this is used to faciliate the searching for products in the catalogue</documentation>
+				</annotation>
+			</element>
+			<element name="attribute" type="fews:ArchiveAttributeComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Since 2022.02. An attribute which can be used to identify the product in the archive.</documentation>
+				</annotation>
+			</element>
+			<element name="subFolderName" type="string" minOccurs="0">
+				<annotation>
+					<documentation>Since 2022.02. Adds an extra subfolder to the archive structure if configured. Example: year/month/areaid/day/productid/subFolderName/metaData.xml</documentation>
+				</annotation>
+			</element>
+			<element name="useTimeZeroAsSubFolder" type="boolean" minOccurs="0" default="false">
+				<annotation>
+					<documentation>Since 2022.02. Adds an extra subfolder with the date and time of the workflow's Time0. to the archive structure if configured. Example:
+						year/month/areaid/day/productid/2022_01_19_T_ 20_00/metaData.xml
+					</documentation>
+				</annotation>
+			</element>
+			<choice>
+				<group ref="fews:ImportFolderGroup"/>
+				<group ref="fews:SourceFilesGroup"/>
+			</choice>
+		</sequence>
+	</complexType>
+	<complexType name="SourceFilesComplexType">
+		<sequence>
+			<element name="zipProduct" type="boolean" minOccurs="0" default="false">
+				<annotation>
+					<documentation>Indicate if the set of files (products) should be zipped after archiving</documentation>
+				</annotation>
+			</element>
+			<element name="sourceFiles" type="fews:fileStringType" maxOccurs="unbounded" minOccurs="0">
+				<annotation>
+					<documentation>Location of the files which should be send to the archive. This element allows the use of wildcards in the file and the filepath</documentation>
+				</annotation>
+			</element>
+			<element name="relativePath" type="fews:directoryStringType" minOccurs="0">
+				<annotation>
+					<documentation>This element can used to define a subfolder in the main folder in which the product in stored. All the files defined in this section will be stored in this subfolder
+					</documentation>
+				</annotation>
+			</element>
+			<element name="zipFileName" type="fews:nameStringType" minOccurs="0">
+				<annotation>
+					<documentation>Name of the zipfile</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<group name="SourceFilesGroup">
+		<sequence>
+			<element name="sources" type="fews:SourceFilesComplexType" maxOccurs="unbounded" minOccurs="0">
+				<annotation>
+					<documentation>To archive products by using wildcards this section can be used. It also allows to zip the content after archiving</documentation>
+				</annotation>
+			</element>
+			<element name="sourceFile" type="fews:fileStringType" maxOccurs="unbounded" minOccurs="0">
+				<annotation>
+					<documentation>Location of the file which should be send to the archive</documentation>
+				</annotation>
+			</element>
+			<element name="moveFile" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>Since 2019.02 Move the files to the archive instead of copying them</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</group>
+	<group name="ImportFolderGroup">
+		<sequence>
+			<element name="importFolder" type="fews:directoryStringType">
+				<annotation>
+					<documentation>The import folder from which the products should archived</documentation>
+				</annotation>
+			</element>
+			<choice>
+				<element name="fileNameProductDateTimePattern" type="fews:nonEmptyStringType">
+					<annotation>
+						<documentation>The pattern which will be used to determine the creation time of the file. Only files which comply to the configured date time pattern will be archived.
+						</documentation>
+					</annotation>
+				</element>
+				<element name="productFileNamePostFixDateTimePattern" type="fews:nonEmptyStringType">
+					<annotation>
+						<documentation>The file name (without extension will have postfix from which the creation time of the file will be derived.</documentation>
+					</annotation>
+				</element>
+			</choice>
+		</sequence>
+	</group>
+	<complexType name="ExportSnapShotComplexType">
+		<sequence>
+			<element name="general" type="fews:GeneralExportSnapShotComplexType"/>
+			<element name="activities" type="fews:ExportSnapShotActivitiesComplexType"/>
+		</sequence>
+	</complexType>
+	<complexType name="ExportConfigComplexType">
+		<sequence>
+			<element name="general" type="fews:GeneralExportConfigComplexType"/>
+			<element name="activities" type="fews:ExportConfigActivitiesComplexTypes"/>
+		</sequence>
+	</complexType>
+	<complexType name="ExportSnapShotActivitiesComplexType">
+		<sequence>
+			<element name="exportSnapShot" type="fews:ExportSnapShotActivityComplexType"/>
+		</sequence>
+	</complexType>
+	<complexType name="ExportSnapShotActivityComplexType">
+		<sequence>
+			<element name="areaId" type="fews:idStringType">
+				<annotation>
+					<documentation>option to label the snapshot with an area</documentation>
+				</annotation>
+			</element>
+			<element name="filter" type="fews:SynchProfileComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2017.02. Option to filter the data in the snapshots</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="ExportConfigActivitiesComplexTypes">
+		<sequence>
+			<element name="exportCurrentConfig" type="fews:ExportConfigActivityComplexType"/>
+		</sequence>
+	</complexType>
+	<complexType name="ExportConfigActivityComplexType">
+		<sequence>
+			<element name="areaId" type="fews:idStringType">
+				<annotation>
+					<documentation>Label the config export with an area id</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="GeneralExportSnapShotComplexType">
+		<sequence>
+			<group ref="fews:SharedGeneralSettingsGroup"/>
+			<element name="zipExportedSnapShot" type="boolean" default="true" minOccurs="0">
+				<annotation>
+					<documentation>zip the snapshot of the database. By default the snapshot is zipped</documentation>
+				</annotation>
+			</element>
+			<element name="incremental" type="boolean" default="true" minOccurs="0">
+				<annotation>
+					<documentation>Since 2024.01. Use the last exported snapshot as a base to speed up the export and reduce the load on the central database. A copy of the last exported snapshot is made, the rows that no longer exist in the central database are deleted from the copy, the new rows are added and the modified ones are updated. Default is true</documentation>
+				</annotation>
+			</element>
+			<group ref="fews:exportSnapShotFrequencyChoice" minOccurs="0">
+				<annotation>
+					<documentation>One daily export by default</documentation>
+				</annotation>
+			</group>
+			<element name="allowIFD" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>Since 2022.01. By default it is not allowed to export snapshot to the archive in IFD mode. With this option the exporting of the snapshot also in IFD mode can be
+						enabled
+					</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<group name="exportSnapShotFrequencyChoice">
+		<choice>
+			<element name="allowMultipleDailyExports" type="boolean" default="false">
+				<annotation>
+					<documentation>Since 2018.01. If this option is "false" then only 1 daily export is allowed. If there are multiple exports during the day, the previous export will be overwritten.
+						If this option is "true" the snapshort will stored in a directory which has the pattern hhmmss otherwise the folder will have the pattern dd (which will cause that only one
+						export is allowed during the day)
+					</documentation>
+				</annotation>
+			</element>
+			<element name="singularExport" type="fews:emptyElement">
+				<annotation>
+					<documentation>Since 2018.01 If this option is available , the previously exported snapshot will be always overwritten with the new one. The snapshot will be exported directly to
+						the configured archiveFolder (no subfolders are created)
+					</documentation>
+				</annotation>
+			</element>
+		</choice>
+	</group>
+	<complexType name="GeneralExportConfigComplexType">
+		<sequence>
+			<group ref="fews:SharedGeneralSettingsGroup"/>
+			<element name="allowIFD" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>Since 2022.01. By default it is not allowed to export config to the archive in IFD mode. With this option the exporting of the config also in IFD mode can be enabled
+					</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="ExportObservedComplexType">
+		<sequence>
+			<element name="general" type="fews:GeneralExportObservedSectionComplexType"/>
+			<element name="activities" type="fews:ObservedActivitiesComplexTypes"/>
+		</sequence>
+	</complexType>
+	<complexType name="ExportObservedToArchiveDatabaseComplexType">
+		<sequence>
+			<element name="general" type="fews:GeneralExportObservedToArchiveDatabaseSectionComplexType"/>
+			<element name="activities" type="fews:OpenDatabaseObservedExportActivityComplexType" maxOccurs="unbounded"/>
+		</sequence>
+	</complexType>
+	<complexType name="ExportSimulatedToArchiveDatabaseComplexType">
+		<sequence>
+			<element name="general" type="fews:GeneralExportSimulatedToArchiveDatabaseSectionComplexType"/>
+			<element name="activities" type="fews:OpenDatabaseSimulatedExportActivityComplexType" maxOccurs="unbounded"/>
+		</sequence>
+	</complexType>
+	<complexType name="ExportExternalForecastingTimeSeriesToArchiveDatabaseComplexType">
+		<sequence>
+			<element name="general" type="fews:GeneralExportExternalForecastToArchiveDatabaseSectionComplexType"/>
+			<element name="activities" type="fews:OpenDatabaseForecastExportActivityComplexType" maxOccurs="unbounded"/>
+		</sequence>
+	</complexType>
+	<complexType name="MigrateOpenArchiveToArchiveDatabasePluginComplexType">
+		<sequence>
+			<element name="general" type="fews:GeneralArchiveDatabaseSectionComplexType"/>
+			<element name="activities" type="fews:ArchiveDatabaseActivityComplexType" maxOccurs="unbounded"/>
+		</sequence>
+	</complexType>
+	<complexType name="CopyArchivedDataComplexType">
+		<sequence>
+			<element name="general" type="fews:GeneralCopyArchivedDataComplexType"/>
+			<element name="archiveNetcdf" type="fews:ArchiveNetcdfComplexType" maxOccurs="unbounded"/>
+		</sequence>
+	</complexType>
+	<complexType name="ArchiveNetcdfComplexType">
+		<sequence>
+			<element name="netcdfMapping" type="fews:NetcdfMappingComplexType" minOccurs="0"/>
+			<element name="timeSeriesSetMapping" type="fews:TimeSeriesSetMappingComplexType" minOccurs="0"/>
+		</sequence>
+		<attribute name="originalfileName" type="fews:idStringType" use="required"/>
+		<attribute name="targetfileName" type="fews:idStringType" use="required"/>
+	</complexType>
+	<complexType name="TimeSeriesSetMappingComplexType">
+		<sequence>
+			<element name="moduleInstance" type="fews:CopyModuleInstanceComplexType" minOccurs="0" maxOccurs="unbounded"/>
+			<element name="map" type="fews:InternalParameterMappingComplexType" minOccurs="0" maxOccurs="unbounded"/>
+		</sequence>
+	</complexType>
+	<complexType name="CopyModuleInstanceComplexType">
+		<attribute name="sourceId" type="fews:idStringType" use="required"/>
+		<attribute name="targetId" type="fews:idStringType" use="required"/>
+	</complexType>
+	<complexType name="NetcdfMappingComplexType">
+		<sequence>
+			<element name="parameter" type="fews:CopyExternalParameterComplexType" maxOccurs="unbounded"/>
+		</sequence>
+	</complexType>
+	<complexType name="CopyExternalParameterComplexType">
+		<attribute name="sourceId" type="fews:idStringType" use="required"/>
+		<attribute name="targetId" type="fews:idStringType" use="required"/>
+	</complexType>
+	<complexType name="InternalParameterMappingComplexType">
+		<attribute name="originalParameter" type="fews:idStringType" use="required"/>
+		<attribute name="targetParameter" type="fews:idStringType" use="required"/>
+		<attribute name="originalQualifier1" type="fews:idStringType"/>
+		<attribute name="originalQualifier2" type="fews:idStringType"/>
+		<attribute name="originalQualifier3" type="fews:idStringType"/>
+		<attribute name="originalQualifier4" type="fews:idStringType"/>
+		<attribute name="targetQualifier1" type="fews:idStringType"/>
+		<attribute name="targetQualifier2" type="fews:idStringType"/>
+		<attribute name="targetQualifier3" type="fews:idStringType"/>
+		<attribute name="targetQualifier4" type="fews:idStringType"/>
+	</complexType>
+	<complexType name="AmalgamateObservedComplexType">
+		<sequence>
+			<element name="general" type="fews:GeneralAmalgamateObservedSectionComplexType"/>
+			<element name="activities" type="fews:AmalgamateActivitiesComplexType"/>
+		</sequence>
+	</complexType>
+	<complexType name="MergEditedObservedDataComplexType">
+		<sequence>
+			<element name="archiveFolder" type="fews:directoryStringType">
+				<annotation>
+					<documentation>data folder of the archive</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="ExportSimulatedComplexType">
+		<sequence>
+			<element name="general" type="fews:GeneralExportForecastSectionComplexType"/>
+			<element name="activities" type="fews:ForecastActivitiesComplexTypes"/>
+		</sequence>
+	</complexType>
+	<complexType name="ExportSimulatedHistoricalComplexType">
+		<sequence>
+			<element name="general" type="fews:GeneralExportSimulatedHistoricalComplexType"/>
+			<element name="activities" type="fews:SimulatedHistoricalActivitiesComplexType"/>
+		</sequence>
+	</complexType>
+	<complexType name="ExportExternalForecastComplexType">
+		<sequence>
+			<element name="general" type="fews:GeneralExportExternalForecastSectionComplexType"/>
+			<element name="activities" type="fews:ExternalForecastActivitiesComplexTypes"/>
+		</sequence>
+	</complexType>
+	<complexType name="WorkflowTimeSeriesComplexType">
+		<sequence>
+			<element name="fileNamePrefix" type="fews:nonEmptyStringType" minOccurs="0">
+				<annotation>
+					<documentation>The name of the nc file is by default composed as follows: timeSeriesType_valueType_timeStep.nc, for example observed_scalar_15_minutes.nc. Optional fileNamePrefix
+						replaces the timeSeriesType, for example reservoirs_scalar_15_minutes.nc
+					</documentation>
+				</annotation>
+			</element>
+			<element name="properties" type="fews:PropertiesComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Properties can be used to add custom keywords to the catalogue (Geonetwork only)</documentation>
+				</annotation>
+			</element>
+			<element name="areaId" type="fews:idStringType">
+				<annotation>
+					<documentation>Exported data sets are labeld with areaId</documentation>
+				</annotation>
+			</element>
+			<element name="sourceId" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>Forecasts can be labelled with a source id, to facilitate searching in the archive</documentation>
+				</annotation>
+			</element>
+			<element name="idMapId" type="fews:fileStringType" minOccurs="0">
+				<annotation>
+					<documentation>Id of a file that contains mapping from internal to external location and parameter ID's</documentation>
+				</annotation>
+			</element>
+			<element name="dataSetPeriod" type="fews:dataSetPeriodStringType" minOccurs="0">
+				<annotation>
+					<documentation>dataSetPeriod specifies if the observed time series should be archived in daily netcdf files or in monthly netcdf files. Daily is default</documentation>
+				</annotation>
+			</element>
+			<element name="relativePeriod" type="fews:RelativePeriodComplexType" minOccurs="0">
+				<annotation>
+					<documentation>The relative period for which the observed time series and external forecasts should be archived. This element is required if the observed time series are archived.
+						If this element is omitted, external forecast are completely archived
+					</documentation>
+				</annotation>
+			</element>
+			<element name="ncMetaData" type="fews:NcMetaDataComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Defines additional metadat to the netcdf file</documentation>
+				</annotation>
+			</element>
+			<element name="includeComments" type="boolean" default="true" minOccurs="0">
+				<annotation>
+					<documentation>The comments added to the time series are by default also stored in the netcdf-file. With the option this can be disabled</documentation>
+				</annotation>
+			</element>
+			<element name="includeFlags" type="boolean" default="true" minOccurs="0">
+				<annotation>
+					<documentation>The flags of the values of the time series are by default also stored in the netcdf-file, with the option this can be disabled</documentation>
+				</annotation>
+			</element>
+			<element name="includeTimeSeriesProperties" type="boolean" default="true" minOccurs="0">
+				<annotation>
+					<documentation>The properties added to the time series are by default also stored in the netcdf-file, with the option this can be disabled</documentation>
+				</annotation>
+			</element>
+			<element name="verifyExportedTimeSeries" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>If this option is set to true, the data export will verify after the export that the exported time series in the netcdf files are the same as the time series in
+						FEWS.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="workflowId" type="string">
+				<annotation>
+					<documentation>Id of the workflow the time series should be archived</documentation>
+				</annotation>
+			</element>
+			<element name="timeSeries" type="fews:TimeSeriesFilterComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Filter defines the time series to be archived. If no filter is configured, then all time series created and/or modified by this workflow will be archived
+					</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="ExportMessagesComplexType">
+		<sequence>
+			<element name="general" type="fews:GeneralExportMessagesComplexType"/>
+			<element name="activities" type="fews:MessageActivitiesComplexTypes"/>
+		</sequence>
+	</complexType>
+	<complexType name="ExportRatingCurvesComplexType">
+		<sequence>
+			<element name="general" type="fews:GeneralExportRatingCurvesComplexType"/>
+			<element name="activities" type="fews:RatingCurvesActivitiesComplexTypes"/>
+		</sequence>
+	</complexType>
+	<complexType name="GeneralCopyArchivedDataComplexType">
+		<sequence>
+			<element name="archiveFolder" type="fews:directoryStringType"/>
+			<element name="relativePeriod" type="fews:RelativePeriodComplexType"/>
+		</sequence>
+	</complexType>
+
+	<complexType name="GeneralAmalgamateObservedSectionComplexType">
+		<sequence>
+			<element name="archiveFolder" type="fews:directoryStringType"/>
+			<element name="relativePeriod" type="fews:RelativePeriodComplexType"/>
+			<element name="allowMerge" default="false" type="boolean" minOccurs="0">
+				<annotation>
+					<documentation>this option should not be used in production! Only when migrating from an old archive to the fews archive this option is useful. It allows that you export to monthly
+						sets to a certain date from an sa and start exporting to daily files from fews at the same date. When the month is finished these files can be merged into a single montly data
+						set
+					</documentation>
+				</annotation>
+			</element>
+			<element name="allowIFD" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>Since 2022.01. By default it is not allowed to run amalgamateObserved in IFD mode. With this option the running amalgamate also in IFD mode can be enabled
+					</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<simpleType name="dataSetPeriodStringType">
+		<union memberTypes="fews:dataSetPeriodStringEnumType fews:propertyReferenceString"/>
+	</simpleType>
+	<simpleType name="dataSetPeriodStringEnumType">
+		<restriction base="string">
+			<enumeration value="day"/>
+			<enumeration value="month"/>
+		</restriction>
+	</simpleType>
+	<complexType name="GeneralExportObservedToArchiveDatabaseSectionComplexType">
+		<sequence>
+			<element name="allowIFD" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>Since 2022.01. By default it is not allowed to export external historical series to the archive in IFD mode. With this option the exporting of the external
+						historical series also in IFD mode can be enabled
+					</documentation>
+				</annotation>
+			</element>
+			<element name="relativePeriod" type="fews:RelativePeriodComplexType">
+				<annotation>
+					<documentation>Period of data which will be exported to the open database</documentation>
+				</annotation>
+			</element>
+			<group ref="fews:GeneralExportToArchiveDatabaseSection"/>
+		</sequence>
+	</complexType>
+	<complexType name="GeneralExportSimulatedToArchiveDatabaseSectionComplexType">
+		<sequence>
+			<element name="allowIFD" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>Since 2022.01. By default it is not allowed to simulated time series to the archive in IFD mode. With this option the exporting of the simulated series also in IFD
+						mode can be enabled
+					</documentation>
+				</annotation>
+			</element>
+			<element name="overwritePreviousForecast" type="boolean" minOccurs="0" default="false">
+				<annotation>
+					<documentation>if this option is set to true previous archived forecast for the same workflow time zero combination will be overwritten</documentation>
+				</annotation>
+			</element>
+			<group ref="fews:GeneralExportToArchiveDatabaseSection"/>
+		</sequence>
+	</complexType>
+	<complexType name="GeneralExportExternalForecastToArchiveDatabaseSectionComplexType">
+		<sequence>
+			<element name="relativePeriod" type="fews:RelativePeriodComplexType" minOccurs="0">
+				<annotation>
+					<documentation>The relative period for which external forecasts should be archived.</documentation>
+				</annotation>
+			</element>
+			<element name="allowIFD" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>Since 2022.01. By default it is not allowed to export time series to the archive in IFD mode. With this option the exporting of the time series also in IFD mode can
+						be enabled
+					</documentation>
+				</annotation>
+			</element>
+			<group ref="fews:GeneralExportToArchiveDatabaseSection"/>
+		</sequence>
+	</complexType>
+	<complexType name="GeneralArchiveDatabaseSectionComplexType">
+		<sequence>
+			<group ref="fews:GeneralExportToArchiveDatabaseSection"/>
+			<element name="archiveRootFolder" type="fews:directoryStringType">
+				<annotation>
+					<documentation>URL of the archive database</documentation>
+				</annotation>
+			</element>
+			<element name="numberOfDatabaseThreads" type="fews:positiveInteger">
+				<annotation>
+					<documentation>total amount of threads to insert data into the database</documentation>
+				</annotation>
+			</element>
+			<element name="numberOfNetcdfReadThreads" type="fews:positiveInteger">
+				<annotation>
+					<documentation>total amount of threads to read data from the netcdf files</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<group name="GeneralExportToArchiveDatabaseSection">
+		<sequence>
+			<element name="exportUnitConversionsId" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>Id of UnitConversions to be used for export unit mapping</documentation>
+				</annotation>
+			</element>
+			<element name="timeZoneName" type="fews:timeZoneStringType" minOccurs="0">
+				<annotation>
+					<documentation>It is possible to provide the export plugin a time zone to convert the provided times to a local time.</documentation>
+				</annotation>
+			</element>
+			<element name="options" type="fews:PropertiesComplexType" minOccurs="0">
+				<annotation>
+					<documentation>the options group can be used to pass configuration options to the plugin class</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</group>
+	<complexType name="GeneralExportObservedSectionComplexType">
+		<sequence>
+			<group ref="fews:SharedGeneralSettingsGroup"/>
+			<element name="dataSetPeriod" type="fews:dataSetPeriodStringType" minOccurs="0">
+				<annotation>
+					<documentation>FEWS can export observed data in daily netcdf files or in monthly netcdf files.</documentation>
+				</annotation>
+			</element>
+			<element name="relativePeriod" type="fews:RelativePeriodComplexType">
+				<annotation>
+					<documentation>Period of data which will be archived</documentation>
+				</annotation>
+			</element>
+			<element name="idMapId" type="fews:fileStringType" minOccurs="0">
+				<annotation>
+					<documentation>Id of a file that contains mapping from internal to external location and parameter ID's.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="ignoreNonExistingLocationSets" type="boolean" minOccurs="0" default="false">
+				<annotation>
+					<documentation>If this option is set to true FEWS will not log an error when an location set is not configured</documentation>
+				</annotation>
+			</element>
+			<element name="allowIFD" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>Since 2022.01. By default it is not allowed to export observed time series to the archive in IFD mode. With this option the exporting of the observed series also in
+						IFD mode can be
+						enabled
+					</documentation>
+				</annotation>
+			</element>
+			<element name="unitConversionsId" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>Id of UnitConversions to be used for unit mapping. Available since 2022.02</documentation>
+				</annotation>
+			</element>
+			<element name="omitMissingValues" type="boolean" minOccurs="0" default="false">
+				<annotation>
+					<documentation>Available since 2022.02</documentation>
+				</annotation>
+			</element>
+			<element name="verifyExportedTimeSeries" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>Deprecated since 2024.01.</documentation>
+				</annotation>
+			</element>
+			<element name="ignoreMultipleHeaderMappingWarning" type="boolean" default="false" minOccurs="0"/>
+		</sequence>
+	</complexType>
+	<complexType name="GeneralExportSimulatedHistoricalComplexType">
+		<sequence>
+			<group ref="fews:SharedGeneralSettingsGroup"/>
+			<element name="relativePeriod" type="fews:RelativePeriodComplexType">
+				<annotation>
+					<documentation>Period of data which will be archived</documentation>
+				</annotation>
+			</element>
+			<element name="idMapId" type="fews:fileStringType" minOccurs="0">
+				<annotation>
+					<documentation>Id of a file that contains mapping from internal to external location and parameter ID's.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="ignoreNonExistingLocationSets" type="boolean" minOccurs="0" default="false">
+				<annotation>
+					<documentation>If this option is set to true FEWS will not log an error when an location set is not configured</documentation>
+				</annotation>
+			</element>
+			<element name="allowIFD" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>Since 2017.02. By default it is not allowed to export to the archive in IFD mode. With this option the exporting of the forecasts also in IFD mode can be
+						enabled
+					</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="GeneralExportForecastSectionComplexType">
+		<sequence>
+			<group ref="fews:SharedGeneralSettingsGroup"/>
+			<element name="areaId" type="fews:idStringType">
+				<annotation>
+					<documentation>Forecasts can be labelled with an area id</documentation>
+				</annotation>
+			</element>
+			<element name="sourceId" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>a simulated dataset can be labelled with an source id , to facilitate searching in the archive</documentation>
+				</annotation>
+			</element>
+			<element name="subFolderPrefix" type="string" minOccurs="0">
+				<annotation>
+					<documentation>By default the workflow id is used as an prefix for the folder in which the forecast is stored, this can be overruled by using this setting</documentation>
+				</annotation>
+			</element>
+			<group ref="fews:ExportForecastsInRelativePeriodComplexType" minOccurs="0"/>
+			<element name="idMapId" type="fews:fileStringType" minOccurs="0">
+				<annotation>
+					<documentation>Id of a file that contains mapping from internal to external location and parameter ID's.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="ignoreNonExistingLocationSets" type="boolean" minOccurs="0" default="false">
+				<annotation>
+					<documentation>If this option is set to true FEWS will not log an error when an location set is not configured</documentation>
+				</annotation>
+			</element>
+			<element name="relatedWorkflowId" type="fews:idStringType" maxOccurs="unbounded" minOccurs="0">
+				<annotation>
+					<documentation>The modifiers, states of related workflows will also be archived</documentation>
+				</annotation>
+			</element>
+			<element name="overwritePreviousForecast" type="boolean" minOccurs="0" default="false">
+				<annotation>
+					<documentation>if this option is set to true previous archived forecast for the same workflow time zero combination will be overwritten</documentation>
+				</annotation>
+			</element>
+			<choice>
+				<element name="useTaskRunInOutputPath" type="boolean" minOccurs="0" default="false">
+					<annotation>
+						<documentation>By default the task dispatch time is used to create output folder path. With this option the dispatch time can be replaced
+							by the taskRunId. This option only has effect when overwritePreviousForecast is set to false
+						</documentation>
+					</annotation>
+				</element>
+				<element name="useWhatIfExportPath" type="boolean" minOccurs="0" default="false">
+					<annotation>
+						<documentation>Since 2021.01. The output directory to which the forecast will be exported will be according to the following
+							path:whatIfTemplateId/whatIfId/timezero-dispatchtime
+						</documentation>
+					</annotation>
+				</element>
+				<element name="netcdfStorageExport" type="fews:NetcdfStorageExportComplexType"/>
+				<element name="ignoreMultipleHeaderMappingWarning" type="boolean" default="false" minOccurs="0"/>
+			</choice>
+			<element name="allowIFD" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>Since 2017.02. By default it is not allowed to export forecasts to the archive in IFD mode. With this option the exporting of the forecasts also in IFD mode can be
+						enabled
+					</documentation>
+				</annotation>
+			</element>
+			<element name="unitConversionsId" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>Available since 2022.02. Id of UnitConversions to be used for unit mapping.</documentation>
+				</annotation>
+			</element>
+			<element name="omitMissingValues" type="boolean" minOccurs="0" default="false">
+				<annotation>
+					<documentation>Available since 2022.02. If set to true, missing values won't be written to the export file.</documentation>
+				</annotation>
+			</element>
+			<element name="coldStartDataExportRelativeStartTime" type="fews:RelativeTimeComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Available since 2022.02. Optional. If this is specified, then the period for which data is exported will be truncated for simulated data that was created in a run
+						that started with a cold state. In other words for this type of data, any data before the specified start time will not be exported. This start time is relative to the time
+						zero of the run in which the data was created. This can be used to avoid exporting data that was created during the warm-up period of a model run after a cold start. Note: this
+						option only works when the default state selection was configured to be cold state for the run in which the data was created.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="verifyExportedTimeSeries" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>Deprecated since 2024.01. If this option is set to true, only the export metadata will be verified, not the timeseries.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="NetcdfStorageExportComplexType">
+		<sequence>
+			<element name="filePathPattern" type="fews:nonEmptyStringType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2022.01. The netcdf files will not be exported to the open archive but to an external data storage</documentation>
+				</annotation>
+			</element>
+			<element name="matchingAttributeId" type="string" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Since 2022.02. This attribute will be used to identify the file in the netcdf storage in addition to the taskrun id and the file name</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<group name="ExportForecastsInRelativePeriodComplexType">
+		<sequence>
+			<element name="relativePeriod" type="fews:RelativePeriodComplexType">
+				<annotation>
+					<documentation>Since 2017.02 If this period is configured all forecasts in this period will be exported</documentation>
+				</annotation>
+			</element>
+			<element name="workflowId" type="fews:idStringType">
+				<annotation>
+					<documentation>Since 2017.02 the workflow id of the forecast which should be exported</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</group>
+	<complexType name="GeneralExportExternalForecastSectionComplexType">
+		<sequence>
+			<group ref="fews:SharedGeneralSettingsGroup"/>
+			<element name="relativePeriod" type="fews:RelativePeriodComplexType" minOccurs="0">
+				<annotation>
+					<documentation>The relative period for which external forecasts should be archived.</documentation>
+				</annotation>
+			</element>
+			<element name="idMapId" type="fews:fileStringType" minOccurs="0">
+				<annotation>
+					<documentation>Id of a file that contains mapping from internal to external location and parameter ID's.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="ignoreNonExistingLocationSets" type="boolean" minOccurs="0" default="false">
+				<annotation>
+					<documentation>If this option is set to true FEWS will not log an error when an location set is not configured</documentation>
+				</annotation>
+			</element>
+			<element name="allowIFD" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>Since 2022.01. By default it is not allowed to export external forecast to the archive in IFD mode. With this option the exporting of the external forecast also in
+						IFD mode can be
+						enabled
+					</documentation>
+				</annotation>
+			</element>
+			<element name="verifyExportedTimeSeries" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>Deprecated since 2024.01.</documentation>
+				</annotation>
+			</element>
+			<element name="unitConversionsId" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>Available since 2022.02. Id of UnitConversions to be used for unit mapping.</documentation>
+				</annotation>
+			</element>
+			<element name="omitMissingValues" type="boolean" minOccurs="0" default="false">
+				<annotation>
+					<documentation>Available since 2022.02. If set to true, missing values won't be written to the export file.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="GeneralLogMessagesComplexType">
+		<sequence>
+			<group ref="fews:SharedGeneralSettingsGroup"/>
+			<element name="relativePeriod" type="fews:RelativePeriodComplexType">
+				<annotation>
+					<documentation>The period for which log messages will be archived.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="GeneralExportMessagesComplexType">
+		<sequence>
+			<group ref="fews:SharedGeneralSettingsGroup"/>
+			<element name="relativePeriod" type="fews:RelativePeriodComplexType">
+				<annotation>
+					<documentation>The period for which messages (forecaster notes) will be archived. The creation time of the messages should be in this period</documentation>
+				</annotation>
+			</element>
+			<element name="allowIFD" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>Since 2022.01. By default it is not allowed to export messages to the archive in IFD mode. With this option the exporting of the messages also in IFD mode can be
+						enabled
+					</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="GeneralExportRatingCurvesComplexType">
+		<sequence>
+			<group ref="fews:SharedGeneralSettingsGroup"/>
+			<element name="relativePeriod" type="fews:RelativePeriodComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Optional relative view period exporting rating curves. When used all rating curves that
+						where added or updated within this period will be exported.
+						If omitted all rating curves will be exported to file.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="prefix" type="fews:PrefixComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Optional prefix to be used in combination with the 'relativePeriod' element. When using
+						the relativePeriod it is advised to include the T0 timestamp in the export file name.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="idMapId" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>Id of a file that contains mapping from internal to external location and parameter ID's.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="unitConversionsId" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>Id of UnitConversions to be used for export unit mapping</documentation>
+				</annotation>
+			</element>
+			<element name="includeModifiers" type="boolean" minOccurs="0">
+				<annotation>
+					<documentation>Option to export ratingcurves with modifiers applied. If omitted then un-modified
+						rating curves will be exported
+					</documentation>
+				</annotation>
+			</element>
+			<element name="allowIFD" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>Since 2022.01. By default it is not allowed to export ratings to the archive in IFD mode. With this option the exporting of the ratings also in IFD mode can be
+						enabled
+					</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="ObservedActivitiesComplexTypes">
+		<sequence>
+			<element name="netcdfExportActivities" type="fews:NetcdfObservedExportActivitiesComplexType"/>
+		</sequence>
+	</complexType>
+	<complexType name="AmalgamateActivitiesComplexTypes">
+		<sequence>
+			<element name="amalgamateActivities" type="fews:AmalgamateActivitiesComplexType"/>
+		</sequence>
+	</complexType>
+	<complexType name="MessageActivitiesComplexTypes">
+		<sequence>
+			<element name="forecasterNotesExportActivities" type="fews:ForecasterNotesExportActivitiesComplexType" minOccurs="0"/>
+			<element name="logMessagesExportActivities" type="fews:LogMessagesExportActivitiesComplexType" minOccurs="0"/>
+		</sequence>
+	</complexType>
+	<complexType name="RatingCurvesActivitiesComplexTypes">
+		<sequence>
+			<element name="ratingCurvesExportActivities" type="fews:RatingCurvesExportActivitiesComplexType"/>
+		</sequence>
+	</complexType>
+	<complexType name="SimulatedHistoricalActivitiesComplexType">
+		<sequence>
+			<element name="netcdfExportActivities" type="fews:NetcdfSimulatedHistoricalExportActivitiesComplexType" minOccurs="0"/>
+		</sequence>
+	</complexType>
+	<complexType name="ForecastActivitiesComplexTypes">
+		<sequence>
+			<element name="netcdfExportActivities" type="fews:NetcdfForecastExportActivitiesComplexType" minOccurs="0"/>
+			<element name="reportsExportActivities" type="fews:ReportsExportActivityComplexType" minOccurs="0"/>
+			<element name="moduleStatesExportActivities" type="fews:ModuleStatesExportActivityComplexType" minOccurs="0"/>
+		</sequence>
+	</complexType>
+	<complexType name="ExternalForecastActivitiesComplexTypes">
+		<sequence>
+			<element name="netcdfExportActivities" type="fews:NetcdfExternalForecastExportActivitiesComplexType" minOccurs="0"/>
+		</sequence>
+	</complexType>
+	<complexType name="AmalgamateActivitiesComplexType">
+		<sequence>
+			<element name="amalgamateObservedData" type="fews:AmalgamateActivityComplexType" maxOccurs="unbounded"/>
+		</sequence>
+	</complexType>
+	<complexType name="AmalgamateActivityComplexType">
+		<sequence>
+			<element name="areaId" type="fews:idStringType"/>
+		</sequence>
+	</complexType>
+	<complexType name="NetcdfObservedExportActivitiesComplexType">
+		<sequence>
+			<element name="netcdfExportActivity" type="fews:NetcdfObservedExportActivityComplexType" maxOccurs="unbounded"/>
+		</sequence>
+	</complexType>
+	<complexType name="NetcdfForecastExportActivitiesComplexType">
+		<sequence>
+			<element name="netcdfExportActivity" type="fews:NetcdfForecastExportActivityComplexType" maxOccurs="unbounded"/>
+		</sequence>
+	</complexType>
+	<complexType name="NetcdfSimulatedHistoricalExportActivitiesComplexType">
+		<sequence>
+			<element name="netcdfExportActivity" type="fews:NetcdfSimulatedHistoricalExportActivityComplexType" maxOccurs="unbounded"/>
+		</sequence>
+	</complexType>
+	<complexType name="NetcdfExternalForecastExportActivitiesComplexType">
+		<sequence>
+			<element name="netcdfExportActivity" type="fews:NetcdfExternalForecastExportActivityComplexType" maxOccurs="unbounded"/>
+		</sequence>
+	</complexType>
+	<complexType name="LogMessagesExportActivitiesComplexType">
+		<sequence>
+			<element name="logMessagesExportActivity" type="fews:ExportLogMessagesActivityComplexType" minOccurs="0" maxOccurs="unbounded"/>
+		</sequence>
+	</complexType>
+	<complexType name="ForecasterNotesExportActivitiesComplexType">
+		<sequence>
+			<element name="forecasterNotesExportActivity" type="fews:ForecasterNotesExportActivityComplexType" minOccurs="0" maxOccurs="unbounded"/>
+		</sequence>
+	</complexType>
+	<complexType name="RatingCurvesExportActivitiesComplexType">
+		<sequence>
+			<element name="ratingCurvesExportActivity" type="fews:RatingCurvesExportActivityComplexType" maxOccurs="unbounded"/>
+		</sequence>
+	</complexType>
+	<complexType name="OpenDatabaseObservedExportActivityComplexType">
+		<sequence>
+			<element name="areaId" type="fews:idStringType">
+				<annotation>
+					<documentation>a dataset containing observed data can be labelled with an areaid, to facilitate searching in the archive</documentation>
+				</annotation>
+			</element>
+			<element name="sourceId" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>an observed dataset can be labelled with an source id , to facilitate searching in the archive</documentation>
+				</annotation>
+			</element>
+			<choice>
+				<element name="timeSeriesSet" type="fews:TimeSeriesSetComplexType" maxOccurs="unbounded">
+					<annotation>
+						<documentation>Define the time series which should be exported to the archive</documentation>
+					</annotation>
+				</element>
+				<element name="workflowTimeSeriesSelection" type="fews:WorkflowTimeSeriesSelectionComplexType" maxOccurs="unbounded">
+					<annotation>
+						<documentation>Since 2021.01 A selection of time series from a workflow. If the workflow is not configured the time series filter will be applied on the time series from the
+							curent workflow.
+						</documentation>
+					</annotation>
+				</element>
+			</choice>
+		</sequence>
+	</complexType>
+	<complexType name="OpenDatabaseSimulatedExportActivityComplexType">
+		<sequence>
+			<element name="areaId" type="fews:idStringType">
+				<annotation>
+					<documentation>a dataset containing observed data can be labelled with an areaid, to facilitate searching in the archive</documentation>
+				</annotation>
+			</element>
+			<element name="sourceId" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>an observed dataset can be labelled with an source id , to facilitate searching in the archive</documentation>
+				</annotation>
+			</element>
+			<choice>
+				<element name="timeSeriesSet" type="fews:TimeSeriesSetComplexType" maxOccurs="unbounded">
+					<annotation>
+						<documentation>Define the time series which should be exported to the archive</documentation>
+					</annotation>
+				</element>
+				<element name="workflowTimeSeriesSelection" type="fews:WorkflowTimeSeriesSelectionComplexType" maxOccurs="unbounded">
+					<annotation>
+						<documentation>Since 2021.01 A selection of time series from a workflow. If the workflow is not configured the time series filter will be applied on the time series from the
+							curent workflow.
+						</documentation>
+					</annotation>
+				</element>
+			</choice>
+		</sequence>
+	</complexType>
+	<complexType name="ArchiveDatabaseActivityComplexType">
+		<sequence>
+			<choice>
+				<group ref="fews:MigrateArchiveDatabaseGroup"></group>
+				<element name="finalizeMigration" type="boolean"></element>
+			</choice>
+		</sequence>
+	</complexType>
+	<group name="MigrateArchiveDatabaseGroup">
+		<sequence>
+			<element name="areaId" type="fews:idStringType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>a dataset can be labelled with an areaid, to facilitate searching in the archive</documentation>
+				</annotation>
+			</element>
+			<element name="sourceId" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>an dataset can be labelled with an source id , to facilitate searching in the archive</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</group>
+	<complexType name="OpenDatabaseForecastExportActivityComplexType">
+		<sequence>
+			<element name="areaId" type="fews:idStringType">
+				<annotation>
+					<documentation>a dataset containing observed data can be labelled with an areaid, to facilitate searching in the archive</documentation>
+				</annotation>
+			</element>
+			<element name="sourceId" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>an observed dataset can be labelled with an source id , to facilitate searching in the archive</documentation>
+				</annotation>
+			</element>
+			<choice>
+				<element name="timeSeriesSet" type="fews:TimeSeriesSetComplexType" maxOccurs="unbounded">
+					<annotation>
+						<documentation>Define the time series which should be exported to the archive</documentation>
+					</annotation>
+				</element>
+				<element name="workflowTimeSeriesSelection" type="fews:WorkflowTimeSeriesSelectionComplexType" maxOccurs="unbounded">
+					<annotation>
+						<documentation>Since 2021.01 A selection of time series from a workflow. If the workflow is not configured the time series filter will be applied on the time series from the
+							curent workflow.
+						</documentation>
+					</annotation>
+				</element>
+			</choice>
+		</sequence>
+	</complexType>
+	<complexType name="NetcdfObservedExportActivityComplexType">
+		<sequence>
+			<choice>
+				<element name="fileName" type="fews:nonEmptyStringType">
+					<annotation>
+						<documentation>name of the netcdf file in which the external forecast should be archived</documentation>
+					</annotation>
+				</element>
+				<element name="fileNamePrefix" type="fews:nonEmptyStringType">
+					<annotation>
+						<documentation>prefix for the generated file (only used when exporting with a workflow selection)</documentation>
+					</annotation>
+				</element>
+			</choice>
+			<element name="areaId" type="fews:idStringType">
+				<annotation>
+					<documentation>a dataset containing observed data can be labelled with an areaid, to facilitate searching in the archive</documentation>
+				</annotation>
+			</element>
+			<element name="sourceId" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>an observed dataset can be labelled with an source id , to facilitate searching in the archive</documentation>
+				</annotation>
+			</element>
+			<element name="ncMetaData" type="fews:NcMetaDataComplexType" minOccurs="0">
+				<annotation>
+					<documentation>use this section to enhance the meta data which is going to be stored in the netcdf file</documentation>
+				</annotation>
+			</element>
+			<element name="includeComments" type="boolean" default="true" minOccurs="0">
+				<annotation>
+					<documentation>the comments added to the time series are by default also stored in the netcdf-file, with the option this can be disabled</documentation>
+				</annotation>
+			</element>
+			<element name="includeFlags" type="boolean" default="true" minOccurs="0">
+				<annotation>
+					<documentation>the flags of the values of the time series are by default also stored in the netcdf-file, with the option this can be disabled</documentation>
+				</annotation>
+			</element>
+			<element name="includeTimeSeriesProperties" type="boolean" default="true" minOccurs="0">
+				<annotation>
+					<documentation>the flags added to the time series are by default also stored in the netcdf-file, with the option this can be disabled</documentation>
+				</annotation>
+			</element>
+			<element name="useModuleInstanceIdAsSourceId" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>use the module instance id (if unique in a file) as the source</documentation>
+				</annotation>
+			</element>
+			<element name="thresholdGroupId" type="fews:idStringType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>store in the metadata file at which times these thresholds are passed</documentation>
+				</annotation>
+			</element>
+			<element name="exportLocationAttributeAsNetCDFVariable" type="fews:ExportLocationAttributeAsNetCDFVariableComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Since 2021.01. Adds a new variable to the NetCdf export for locations. The value of the attributes is a location attribute.
+					</documentation>
+				</annotation>
+			</element>
+			<choice>
+				<element name="timeSeriesSet" type="fews:TimeSeriesSetComplexType" maxOccurs="unbounded">
+					<annotation>
+						<documentation>Define the time series which should be exported to the archive</documentation>
+					</annotation>
+				</element>
+				<element name="workflowTimeSeriesSelection" type="fews:WorkflowTimeSeriesSelectionComplexType" maxOccurs="unbounded">
+					<annotation>
+						<documentation>Since 2021.01 A selection of time series from a workflow. If the workflow is not configured the time series filter will be applied on the time series from the
+							curent workflow.
+						</documentation>
+					</annotation>
+				</element>
+			</choice>
+		</sequence>
+	</complexType>
+	<complexType name="WorkflowTimeSeriesSelectionComplexType">
+		<sequence>
+			<element name="timeSeriesFilter" type="fews:TimeSeriesFilterComplexType" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Since 2024.01. The time series filter which will be used to determine which time series should be archived.</documentation>
+				</annotation>
+			</element>
+			<element name="workflowId" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2024.01. If this workflow id is defined then the time series which are generated in this workflow will be used to determine which time series should be archived. If this option is not used then time series of the current workflow will be used.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="NetcdfSimulatedHistoricalExportActivityComplexType">
+		<sequence>
+			<choice>
+				<element name="fileName" type="fews:nonEmptyStringType">
+					<annotation>
+						<documentation>name of the netcdf file in which the external forecast should be archived</documentation>
+					</annotation>
+				</element>
+				<element name="fileNamePrefix" type="fews:nonEmptyStringType">
+					<annotation>
+						<documentation>prefix for the generated file (only used when exporting with a workflow selection)</documentation>
+					</annotation>
+				</element>
+			</choice>
+			<element name="areaId" type="fews:idStringType">
+				<annotation>
+					<documentation>Forecasts can be labelled with an area id</documentation>
+				</annotation>
+			</element>
+			<element name="sourceId" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>a simulated dataset can be labelled with an source id , to facilitate searching in the archive</documentation>
+				</annotation>
+			</element>
+			<element name="ncMetaData" type="fews:NcMetaDataComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Define additional metadata to the netcdf file</documentation>
+				</annotation>
+			</element>
+			<element name="includeComments" type="boolean" default="true" minOccurs="0">
+				<annotation>
+					<documentation>the comments added to the time series are by default also stored in the netcdf-file, with the option this can be disabled</documentation>
+				</annotation>
+			</element>
+			<element name="includeFlags" type="boolean" default="true" minOccurs="0">
+				<annotation>
+					<documentation>If this option is set to true the flags of the time series will also be archived. By default this option is true.</documentation>
+				</annotation>
+			</element>
+			<element name="includeTimeSeriesProperties" type="boolean" default="true" minOccurs="0">
+				<annotation>
+					<documentation>If this option is set to true the properties of the time series will also be archived. By default thiss option is true.</documentation>
+				</annotation>
+			</element>
+			<element name="useModuleInstanceIdAsSourceId" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>use the module instance id (if unique in a file) as the source</documentation>
+				</annotation>
+			</element>
+			<choice>
+				<element name="timeSeriesSet" type="fews:TimeSeriesSetComplexType" maxOccurs="unbounded"/>
+				<element name="workflowTimeSeriesSelection" type="fews:WorkflowTimeSeriesSelectionComplexType" maxOccurs="unbounded"/>
+			</choice>
+		</sequence>
+	</complexType>
+	<complexType name="NetcdfForecastExportActivityComplexType">
+		<sequence>
+			<choice>
+				<element name="fileName" type="fews:nonEmptyStringType">
+					<annotation>
+						<documentation>name of the netcdf file in which the forecasts should be archived</documentation>
+					</annotation>
+				</element>
+				<element name="fileNamePattern" type="fews:nonEmptyStringType">
+					<annotation>
+						<documentation>file name to pattern to define the name of the file. The time zero of the forecast will be used to determine the file name.</documentation>
+					</annotation>
+				</element>
+			</choice>
+			<element name="sourceId" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>a forecast can be labelled with a sourceid to facilitate searching</documentation>
+				</annotation>
+			</element>
+			<element name="ncMetaData" type="fews:NcMetaDataComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Define additional metadata to the netcdf file</documentation>
+				</annotation>
+			</element>
+			<element name="includeComments" type="boolean" default="true" minOccurs="0">
+				<annotation>
+					<documentation>the comments added to the time series are by default also stored in the netcdf-file, with the option this can be disabled</documentation>
+				</annotation>
+			</element>
+			<element name="includeFlags" type="boolean" default="true" minOccurs="0">
+				<annotation>
+					<documentation>If this option is set to true the flags of the time series will also be archived. By default this option is true.</documentation>
+				</annotation>
+			</element>
+			<element name="omitMissingValues" type="boolean" minOccurs="0" default="false">
+				<annotation>
+					<documentation>Available since 2022.02. If set to true, missing values won't be written to the export file.</documentation>
+				</annotation>
+			</element>
+			<element name="coldStartDataExportRelativeStartTime" type="fews:RelativeTimeComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Available since 2022.02. Optional. If this is specified, then the period for which data is exported will be truncated for simulated data that was created in a run
+						that started with a cold state. In other words for this type of data, any data before the specified start time will not be exported. This start time is relative to the time
+						zero of the run in which the data was created. This can be used to avoid exporting data that was created during the warm-up period of a model run after a cold start. Note: this
+						option only works when the default state selection was configured to be cold state for the run in which the data was created.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="includeTimeSeriesProperties" type="boolean" default="true" minOccurs="0">
+				<annotation>
+					<documentation>If this option is set to true the properties of the time series will also be archived. By default thiss option is true.</documentation>
+				</annotation>
+			</element>
+			<element name="includeTimeRanges" type="boolean" default="true" minOccurs="0">
+				<annotation>
+					<documentation>time ranges added to the time series are by default NOT stored in the netcdf-file, with the option this can be disabled. Not supported for ensembles.</documentation>
+				</annotation>
+			</element>
+			<element name="includeValueRanges" type="boolean" default="true" minOccurs="0">
+				<annotation>
+					<documentation>value ranges added to the time series are by default stored in the netcdf-file, with the option this can be disabled. Not supported for ensembles.</documentation>
+				</annotation>
+			</element>
+			<choice>
+				<element name="timeSeriesSet" type="fews:TimeSeriesSetComplexType" maxOccurs="unbounded"/>
+				<element name="workflowTimeSeriesSelection" type="fews:WorkflowTimeSeriesSelectionComplexType"/>
+			</choice>
+		</sequence>
+	</complexType>
+	<complexType name="NetcdfExternalForecastExportActivityComplexType">
+		<sequence>
+			<choice>
+				<element name="fileName" type="fews:nonEmptyStringType">
+					<annotation>
+						<documentation>name of the netcdf file in which the external forecast should be archived</documentation>
+					</annotation>
+				</element>
+				<element name="fileNamePrefix" type="fews:nonEmptyStringType">
+					<annotation>
+						<documentation>prefix for the generated file (only used when exporting with a workflow selection)</documentation>
+					</annotation>
+				</element>
+			</choice>
+			<element name="areaId" type="fews:idStringType">
+				<annotation>
+					<documentation>an external forecast can be labelled with a areaid to facilitate searching</documentation>
+				</annotation>
+			</element>
+			<element name="sourceId" type="fews:idStringType">
+				<annotation>
+					<documentation>an external forecast can be labelled with a sourceid to facilitate searching</documentation>
+				</annotation>
+			</element>
+			<element name="ncMetaData" type="fews:NcMetaDataComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Define additional metadata to the netcdf file</documentation>
+				</annotation>
+			</element>
+			<element name="includeComments" type="boolean" default="true" minOccurs="0">
+				<annotation>
+					<documentation>the comments added to the time series are by default also stored in the netcdf-file, with the option this can be disabled</documentation>
+				</annotation>
+			</element>
+			<element name="includeFlags" type="boolean" default="true" minOccurs="0">
+				<annotation>
+					<documentation>If this option is set to true the flags of the time series will also be archived. By default this option is true.</documentation>
+				</annotation>
+			</element>
+			<element name="includeTimeSeriesProperties" type="boolean" default="true" minOccurs="0">
+				<annotation>
+					<documentation>If this option is set to true the properties of the time series will also be archived. By default thiss option is true.</documentation>
+				</annotation>
+			</element>
+			<element name="includeTimeRanges" type="boolean" default="true" minOccurs="0">
+				<annotation>
+					<documentation>time ranges added to the time series are by default NOT stored in the netcdf-file, with the option this can be disabled. Only supported for scalar non equidistant
+						timeSeries. Not supported for ensembles.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="includeValueRanges" type="boolean" default="true" minOccurs="0">
+				<annotation>
+					<documentation>value ranges added to the time series are by default stored in the netcdf-file, with the option this can be disabled. Only supported for scalar non equidistant
+						timeSeries. Not supported for ensembles.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="useModuleInstanceIdAsSourceId" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>use the module instance id (if unique in a file) as the source</documentation>
+				</annotation>
+			</element>
+			<choice>
+				<element name="timeSeriesSet" type="fews:TimeSeriesSetComplexType" maxOccurs="unbounded"/>
+				<element name="workflowTimeSeriesSelection" type="fews:WorkflowTimeSeriesSelectionComplexType" maxOccurs="unbounded"/>
+			</choice>
+		</sequence>
+	</complexType>
+	<complexType name="ForecasterNotesExportActivityComplexType">
+		<sequence>
+			<element name="areaId" type="fews:idStringType">
+				<annotation>
+					<documentation>Each forecaster note can be labelled with an area id to faciltate searching in the archive</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="ExportLogMessagesActivityComplexType">
+		<sequence>
+			<element name="areaId" type="fews:idStringType">
+				<annotation>
+					<documentation>id of the area to which the log messages should be archived</documentation>
+				</annotation>
+			</element>
+			<element name="logLevel" type="fews:logLevelStringType" minOccurs="0">
+				<annotation>
+					<documentation>The (minimum) loglevel of the exported log messages</documentation>
+				</annotation>
+			</element>
+			<element name="eventCode" type="string" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>A filter for the event code</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<simpleType name="logLevelStringType">
+		<restriction base="string">
+			<enumeration value="fatal"/>
+			<enumeration value="error"/>
+			<enumeration value="warn"/>
+			<enumeration value="info"/>
+		</restriction>
+	</simpleType>
+
+	<complexType name="NcMetaDataComplexType">
+		<sequence>
+			<group ref="fews:MetadataGroup">
+				<annotation>
+					<documentation>define additional metadata which will be added to the netcdf file</documentation>
+				</annotation>
+			</group>
+		</sequence>
+	</complexType>
+	<complexType name="ReportsExportActivityComplexType">
+		<sequence>
+			<element name="reportExportActivity" type="fews:ReportExportActivityComplexType" maxOccurs="unbounded"/>
+		</sequence>
+	</complexType>
+	<complexType name="ReportExportActivityComplexType">
+		<sequence>
+			<element name="subFolder" type="fews:nonEmptyStringType" minOccurs="0">
+				<annotation>
+					<documentation>define a subfolder for the reports which are going to be exported in this section</documentation>
+				</annotation>
+			</element>
+			<element name="moduleInstanceId" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>if this element is omitted all reports will be exported which are created in the forecast run. However it can be used to filter by module instance id</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="ModuleStatesExportActivityComplexType">
+		<sequence>
+			<element name="moduleStateExportActivity" type="fews:ModuleStateExportActivityComplexType" maxOccurs="unbounded">
+				<annotation>
+					<documentation>This section can be used to define an export for the states which are produced in this run. Use ModuleInstanceIdsChoice to filter for module instances. If no
+						ModuleInstanceIdsChoice is configured, all states are exported.
+					</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="ModuleStateExportActivityComplexType">
+		<sequence>
+			<group ref="fews:ModuleInstanceIdsChoice"/>
+			<element name="relativeViewPeriod" type="fews:RelativePeriodComplexType" minOccurs="0">
+				<annotation>
+					<documentation>If a relative view period is configured, only states within this relative view period are exported.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="RatingCurvesExportActivityComplexType">
+		<sequence>
+			<element name="fileName" type="fews:nonEmptyStringType">
+				<annotation>
+					<documentation>Name of file to which the rating curve will be exported. This file is always placed in exportDir.</documentation>
+				</annotation>
+			</element>
+			<element name="areaId" type="fews:idStringType">
+				<annotation>
+					<documentation>A rating curve export can be labelled with an area id, to facilitate searching in the archive</documentation>
+				</annotation>
+			</element>
+			<element name="linearTableStageResolution" type="fews:nonNegativeDouble" minOccurs="0">
+				<annotation>
+					<documentation>Stage resolution. Use unit configured with 'displayUnit' in stage parameter group. If there is no 'displayUnit' , m are used. Every resolution 'step' (e.g. 0.5 ft)
+						stage/flow pair are exported.
+						The exporting stage/value pairs starts at rating curve minStage and goes up to the ratingCurve maxStage, if any available, otherwise up to the last rating curve stage value.
+						Background info: the logarithmic interpolation in a rating curve needs a complex algorithm.
+						For this reason it's it is convenient when we can convert to a more detailed table where we can use linear interpolation
+					</documentation>
+				</annotation>
+			</element>
+			<choice>
+				<annotation>
+					<documentation>ID of the location(s) for which the rating curve will be exported.</documentation>
+				</annotation>
+				<element name="locationId" type="fews:idStringType" maxOccurs="unbounded"/>
+				<element name="locationSetId" type="fews:idStringType"/>
+			</choice>
+		</sequence>
+	</complexType>
+	<complexType name="PrefixComplexType">
+		<sequence>
+			<element name="timeZeroFormattingString" type="fews:dateTimeFormatType">
+				<annotation>
+					<documentation>Use timeZero of the task-run as prefix/suffix. Format it as specified with this element.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+</schema>

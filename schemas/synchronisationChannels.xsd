@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--DEPRECATED NO LONGER USED SINCE 2017.02-->
+<schema targetNamespace="http://www.wldelft.nl/fews" xmlns="http://www.w3.org/2001/XMLSchema" xmlns:fews="http://www.wldelft.nl/fews" elementFormDefault="qualified" attributeFormDefault="unqualified" version="1.0">
+	<include schemaLocation="sharedTypes.xsd"/>
+	<!-- Synchronisation channels -->
+	<element name="channels" type="fews:ObsoleteSynchChannelsComplexType"/>
+	<!-- SynchChannelComplexType -->
+	<complexType name="ObsoleteSynchChannelsComplexType">
+		<sequence>
+			<element name="channel" type="fews:ObsoleteSynchChannelComplexType" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Particular synchronisation channel identified by its id.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<!-- SynchChannelComplexType -->
+	<complexType name="ObsoleteSynchChannelComplexType">
+		<sequence>
+			<element name="description" type="string" minOccurs="0"/>
+			<element name="incoming" type="fews:ObsoleteTableNamesComplexType">
+				<annotation>
+					<documentation>Table names for incoming synchronisation.</documentation>
+				</annotation>
+			</element>
+			<element name="outgoing" type="fews:ObsoleteTableNamesComplexType">
+				<annotation>
+					<documentation>Table names for outgoing synchronisation.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+		<attribute name="id" type="fews:idStringType" use="required" id="id"/>
+	</complexType>
+	<!-- TableNamesComplexType -->
+	<complexType name="ObsoleteTableNamesComplexType">
+		<sequence>
+			<element name="table" type="string" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Name of a particular database table.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+</schema>

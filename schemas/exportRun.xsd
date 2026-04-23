@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--INACTIVE -->
+<schema targetNamespace="http://www.wldelft.nl/fews" xmlns:fews="http://www.wldelft.nl/fews" xmlns="http://www.w3.org/2001/XMLSchema" elementFormDefault="qualified" attributeFormDefault="unqualified" version="1.0">
+	<include schemaLocation="sharedTypes.xsd"/>
+	<element name="exportRun">
+		<annotation>
+			<documentation>Configuration settings for the import module</documentation>
+		</annotation>
+		<complexType>
+			<sequence>
+				<element name="export" type="fews:ExportRunComplexType" maxOccurs="unbounded"/>
+			</sequence>
+		</complexType>
+	</element>
+	<complexType name="ExportRunComplexType">
+		<annotation>
+			<documentation>Configuration settings for an export type</documentation>
+		</annotation>
+		<sequence>
+			<element name="folder" type="fews:directoryStringType" nillable="false">
+				<annotation>
+					<documentation>Folder to which export files are written</documentation>
+				</annotation>
+			</element>
+            <element name="validate" type="boolean" nillable="false" minOccurs="0">
+                <annotation>
+                    <documentation>Option to allow validation of the export files against the EA Time series data exchange format schema.</documentation>
+                </annotation>
+            </element>
+			<element name="idMapId" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>Id of IdMap to be used for locationId- and parameterId mapping</documentation>
+				</annotation>
+			</element>
+			<element name="unitConversionsId" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>Id of UnitConversions to be used for unit mapping</documentation>
+				</annotation>
+			</element>
+			<element name="flagConversionsId" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>Id of FlagConversions to be used for flag mapping</documentation>
+				</annotation>
+			</element>
+            <element name="exportMissingValues" type="boolean" minOccurs="0">
+                <annotation>
+                    <documentation>Are missing values to be written to the export file or should they be left out.</documentation>
+                </annotation>
+            </element>
+            <element name="exportEmptyHeaders" type="boolean" minOccurs="0">
+                <annotation>
+                    <documentation>Are empty time series to be written as entries with only a header element or should the be skipped</documentation>
+                </annotation>
+            </element>
+            <element name="timeSeriesSet" type="fews:TimeSeriesSetComplexType" nillable="false" maxOccurs="unbounded"/>
+			<element name="exportFilePrefix" type="string" minOccurs="0">
+				<annotation>
+					<documentation>Prefix for export files.</documentation>
+				</annotation>
+			</element>
+			<element name="exportTimeZone" type="fews:TimeZoneComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Time zone of the exported data.</documentation>
+				</annotation>
+			</element>
+			<element name="exportMissingValue" type="float" minOccurs="0">
+				<annotation>
+					<documentation>Missing value of the exported data</documentation>
+				</annotation>
+			</element>
+			<element name="temporaryFilePrefix" type="string" minOccurs="0">
+				<annotation>
+					<documentation>Prefix for export files that are in the process of being written.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+</schema>

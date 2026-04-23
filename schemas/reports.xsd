@@ -1,0 +1,2590 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- edited with XMLSpy v2014 rel. 2 sp1 (x64) (http://www.altova.com) by Afdeling ICT (Stichting Deltares) -->
+<!--Delft FEWS (Copyright 2003 WL | Delft Hydraulics) -->
+<schema xmlns="http://www.w3.org/2001/XMLSchema" xmlns:fews="http://www.wldelft.nl/fews" targetNamespace="http://www.wldelft.nl/fews" elementFormDefault="qualified" attributeFormDefault="unqualified" version="1.0">
+	<include schemaLocation="sharedTypes.xsd"/>
+	<include schemaLocation="scadaDisplay.xsd"/>
+	<include schemaLocation="exportArchiveModule.xsd"/>
+	<!--Top-level element Declaration -->
+	<element name="reports" type="fews:ReportsComplexType"/>
+	<!--The root element-->
+	<complexType name="ReportsComplexType">
+		<sequence>
+			<element name="declarations" type="fews:ReportsDeclarationsComplexType"/>
+			<element name="report" type="fews:ReportComplexType" maxOccurs="unbounded"/>
+		</sequence>
+		<attribute name="version" type="fews:versionStringType" use="required" fixed="1.0"/>
+	</complexType>
+	<!--Reports Complex Type-->
+	<complexType name="ReportsDeclarationsComplexType">
+		<sequence>
+			<element name="defineGlobal" type="fews:ReportValueComplexType" minOccurs="0" maxOccurs="unbounded"/>
+			<element name="chartFormat" type="fews:ChartFormatComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Chart declaration for reports.</documentation>
+				</annotation>
+			</element>
+			<element name="summaryFormat" type="fews:ReportSummaryFormatComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Summary declaration for reports.</documentation>
+				</annotation>
+			</element>
+			<element name="tableFormat" type="fews:ReportTableFormatComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Table declaration for reports.</documentation>
+				</annotation>
+			</element>
+			<element name="htmlTableFormat" type="fews:ReportHtmlTableFormatComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>HTML Table declaration for reports.</documentation>
+				</annotation>
+			</element>
+			<element name="rowPerLocationHtmlTableFormat" type="fews:RowPerLocationHtmlTableComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>A rowPerLocationHtmlTable displays for each location one row with attributes and values. Values are computed using the configured function .</documentation>
+				</annotation>
+			</element>
+			<element name="rowPerLocationCsvTableFormat" type="fews:RowPerLocationCsvTableComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>A rowPerLocationCsvTable displays for each location one row with attributes and values. Values are computed using the configured function</documentation>
+				</annotation>
+			</element>
+			<element name="rowPerEventTimeHtmlTableFormat" type="fews:RowPerEventTimeHtmlTableComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>SINCE 2016.01. A rowPerEventHtmlTable displays for each event time  one row with several columns. Content of each column is computed using the configured function in that column</documentation>
+				</annotation>
+			</element>
+			<element name="thresholdsCrossingsTable" type="fews:ReportThresholdsCrossingsTableComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Thresholds Crossings Overview in a table</documentation>
+				</annotation>
+			</element>
+			<element name="thresholdCrossingCountsTableFormat" type="fews:ReportThresholdCrossingCountsTableFormatComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Format declaration for a ThresholdCrossingCountsTable. The table displays threshold crossing counts depending on which thresholds have been crossed within a given time period.</documentation>
+				</annotation>
+			</element>
+			<element name="flagCountsTableFormat" type="fews:ReportFlagCountsTableFormatComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Format declaration for a FlagCountsTable. A FlagCountsTable displays flag counts depending on the flags of the values in a time series within a given time period.</documentation>
+				</annotation>
+			</element>
+			<element name="flagSourceCountsTableFormat" type="fews:ReportFlagSourceCountsTableFormatComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Format declaration for a FlagSourceCountsTable. A FlagSourceCountsTable displays counts of flag sources depending on the flag sources of the values in a time series within a given time period. The flag source for a value contains the reason why that value got a certain flag. For example if a value was rejected by a "hard max" validation rule, then it gets flag unreliable and flag source "hard max".</documentation>
+				</annotation>
+			</element>
+			<element name="ratingCurveTableFormat" type="fews:ReportRatingCurveTableFormatComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Since 2014.02</documentation>
+				</annotation>
+			</element>
+			<element name="ensembleThresholdsTable" type="fews:ReportEnsembleThresholdsTableComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Overview of the stability of the ensemble forecast in predicting the threshold crossings</documentation>
+				</annotation>
+			</element>
+			<element name="maximumStatusTable" type="fews:ReportMaximumStatusTableComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Maximum Status Overview in a table</documentation>
+				</annotation>
+			</element>
+			<element name="mergedPrecipitationTable" type="fews:ReportMergedPrecipitationTableComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Merged Precipitation Overview in a table</documentation>
+				</annotation>
+			</element>
+			<element name="modifierSummariesTableFormat" type="fews:ReportModifierSummariesTableFormatComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Format for a modifier summaries table.</documentation>
+				</annotation>
+			</element>
+			<element name="forecastPerformanceTableFormat" type="fews:ForecastPerformanceTableFormatComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Since 2014.02. FEWS-11254. todo Jitka add doc</documentation>
+				</annotation>
+			</element>
+			<element name="forecastStatisticsTableFormat" type="fews:ForecastStatisticsTableFormatComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Since 2014.02. FEWS-11254. todo Jitka add doc</documentation>
+				</annotation>
+			</element>
+			<element name="statusFormat" type="fews:ReportQueryListFormatComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Status lists declaration for reports.</documentation>
+				</annotation>
+			</element>
+			<element name="systemStatusTable" type="fews:SystemStatusTableComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>System Status Information in a table</documentation>
+				</annotation>
+			</element>
+			<element name="floodScenarioFormat" type="fews:FloodScenarioFormatComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Since 2018.01 Format of the floodScenario report</documentation>
+				</annotation>
+			</element>
+			<element name="dateFormat" type="fews:ReportDateFormatComplexType" minOccurs="0" maxOccurs="unbounded"/>
+			<element name="numberFormat" type="fews:ReportValueComplexType" minOccurs="0" maxOccurs="unbounded"/>
+			<element name="units" type="fews:unitSystemEnumStringType" default="user" minOccurs="0">
+				<annotation>
+					<documentation>Use 'user' to show the values in display units. Use 'system' to show the values in Fews intern (system) units. Default is 'user'</documentation>
+				</annotation>
+			</element>
+			<element name="generatePdf" type="fews:booleanStringType" minOccurs="0">
+				<annotation>
+					<documentation>Enable to generate each report html as a pdf, in the global.properties the option REPORT_HTML2PDF_PROGRAM should be set to the path of the conversion program or shell script.</documentation>
+				</annotation>
+			</element>
+			<element name="generatePdfCommandLineOptions" type="string" minOccurs="0">
+				<annotation>
+					<documentation>Extra command line options passed to the wkhtmltopdf.exe, see https://wkhtmltopdf.org/usage/wkhtmltopdf.txt. Eg --orientation Landscape</documentation>
+				</annotation>
+			</element>
+			<element name="generateImage" minOccurs="0">
+				<annotation>
+					<documentation>Enable to generate each html as an image of the specified format/extension, in the global.properties the option REPORT_HTML2IMG_PROGRAM should be set to the path of the conversion program or shell script.</documentation>
+				</annotation>
+				<complexType>
+					<sequence>
+						<element name="format" type="string" minOccurs="0">
+							<annotation>
+								<documentation>Image format file extension (i.e. PNG / JPG / BMP, default is JPG)</documentation>
+							</annotation>
+						</element>
+						<element name="options" type="string" minOccurs="0">
+							<annotation>
+								<documentation>Command line options (i.e. --width 720) to be provided to the image conversion program.</documentation>
+							</annotation>
+						</element>
+					</sequence>
+				</complexType>
+			</element>
+			<element name="templateDir" type="fews:fileStringType" minOccurs="0">
+				<annotation>
+					<documentation>Deprecated, no longer used. Report templates can be placed in the config folder ReportTemplateFiles (since 2017.02)</documentation>
+				</annotation>
+			</element>
+			<element name="reportsRootDir" type="fews:fileStringType"/>
+			<element name="reportsRootSubDir" type="string" minOccurs="0">
+				<annotation>
+					<documentation>Empty string only allowed for backward compatibility</documentation>
+				</annotation>
+			</element>
+			<choice minOccurs="0">
+				<element name="sendToLocalFileSystem" type="fews:booleanStringType">
+					<annotation>
+						<documentation>When true the reports are saved to the file system INSTEAD of saving them in the datastore
+                        </documentation>
+					</annotation>
+				</element>
+				<element name="temporary" type="boolean">
+					<annotation>
+						<documentation>Since 2015.01. When temporary the reports are only available for the report export module executed in the same run. The reports are not saved to the database but instead to a temp file that is deleted at the end of the run</documentation>
+					</annotation>
+				</element>
+				<element name="embedImagesInReport" type="fews:booleanStringType">
+					<annotation>
+						<documentation>When true Chart images and spatial snapshots will not be stored in the database. In the report template they have to be marked with a IMAGE_BASE64 tag which will embed them in the report itself.</documentation>
+					</annotation>
+				</element>
+			</choice>
+			<element name="timeZone" type="fews:TimeZoneComplexType" minOccurs="0">
+				<annotation>
+					<documentation>report data is converted from GMT to this timezone.</documentation>
+				</annotation>
+			</element>
+			<element name="locale" type="fews:LocaleComplexType" minOccurs="0"/>
+			<!-- Here -->
+			<element name="inputVariable" type="fews:VariableComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>input variable that can be used in combination with a location filter by multiple reports.  Please NOTE that "schematicStatusDisplay" reports never use the inputVariables from this declaration section !  They use only local variables configured in the "schematicStatusDisplay"  report</documentation>
+				</annotation>
+			</element>
+			<choice minOccurs="0">
+				<annotation>
+					<documentation>
+						Since 2023.02. Optional choice for storing export status in the database (table ExportStatus). If this choice is omitted, export status will be stored in database using the
+						export folder name as dataFeedId.
+					</documentation>
+				</annotation>
+				<element name="dataFeedId" type="fews:idStringType">
+					<annotation>
+						<documentation>Id for data feed. Export status will be stored in database using this id</documentation>
+					</annotation>
+				</element>
+				<element name="disableDataFeedInfo" type="fews:emptyElement">
+					<annotation>
+						<documentation>Option disableDataFeedInfo indicates that no export status should be stored in database</documentation>
+					</annotation>
+				</element>
+			</choice>
+		</sequence>
+	</complexType>
+	<!-- Declarations for Reports Complex Type-->
+	<!--Report Complex Type-->
+	<complexType name="ReportComplexType">
+		<sequence>
+			<choice minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>the (parent) location (sets) specifies a filter for the locations in the input and output variables
+                    This makes it possible to reuse the input variables specified in the declaration section </documentation>
+				</annotation>
+				<element name="locationId" type="fews:idStringType"/>
+				<element name="locationSetId" type="fews:idStringType"/>
+			</choice>
+			<choice minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>the (parent) location (sets) specifies a filter for the locations in the input and
+                        output variables
+                        This makes it possible to reuse the input variables specified in the declaration
+                        section</documentation>
+				</annotation>
+				<element name="parentLocationId" type="fews:idStringType"/>
+				<element name="parentLocationSetId" type="fews:idStringType"/>
+			</choice>
+			<choice minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Define with locations can provide threshold value sets.
+                        By default all visible locations in a plot can provide threshold value sets.
+                        When multiple threshold values sets are active in one sub plot all thresholds are hidden for this
+                        plot.
+                    </documentation>
+				</annotation>
+				<element name="thresholdLocationId" type="fews:idStringType"/>
+				<element name="thresholdLocationSetId" type="fews:idStringType"/>
+			</choice>
+			<element name="inputVariable" type="fews:VariableComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>input variable.</documentation>
+				</annotation>
+			</element>
+			<element name="fileResource" type="fews:ReportValueComplexType" minOccurs="0" maxOccurs="unbounded"/>
+			<element name="chart" type="fews:ChartReportChartComplexType" minOccurs="0" maxOccurs="unbounded"/>
+			<element name="displayChart" type="fews:ReportDisplayChartComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>This element can be used to insert a chart into a report by direct reference to an existing display ID in the displaygroups.	Use the $CHART(chartId)$ tag in the HTML template.
+						In case of automatically populated displays (eg singleLocationDisplays), use the name of the display. Available since 2021.01
+					</documentation>
+				</annotation>
+			</element>
+			<element name="ratingCurveChart" type="fews:RatingCurveChartComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Since 2014.02  Rating curve charts show the rating curves  that are valid for the timeZero of the Reports module run.</documentation>
+				</annotation>
+			</element>
+			<element name="summary" type="fews:ReportSummaryInstanceComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Objects declarations for reports. Can be summary, chart, table or grid
+                        plot.</documentation>
+				</annotation>
+			</element>
+			<element name="table" type="fews:ReportTableInstanceComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Objects declarations for reports. Can be summary, chart, table or grid
+                        plot.</documentation>
+				</annotation>
+			</element>
+			<element name="htmlTable" type="fews:ReportTableInstanceComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Objects declarations for reports. Can be summary, chart, table or video.
+                    </documentation>
+				</annotation>
+			</element>
+			<element name="thresholdLabelTable" type="fews:ThresholdLabelTableComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Displays highest threshold crossing label and color per location per time step</documentation>
+				</annotation>
+			</element>
+			<element name="valuePropertiesTags" type="fews:ValuePropertiesTagsComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Creates report based on templates in which it replaces value properties within $$, location attributes within @@ and replaces special tags with dedicated functionality within %%</documentation>
+				</annotation>
+			</element>
+			<element name="hwLwHtmlTable" type="fews:ReportHwLwTableInstanceComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Html table with  HW (high water) and LW (low water) indicators in the time series event  columns.  HW is used when the event value is positive, LW is used when the event value is negative.</documentation>
+				</annotation>
+			</element>
+			<element name="ratingCurveTable" type="fews:ReportRatingCurveTableInstanceComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Since 2014.02  Rating curve tables show the rating curves  that are valid for the timeZero of the Reports module run.</documentation>
+				</annotation>
+			</element>
+			<group ref="fews:RowPerLocationHtmlTableGroup" minOccurs="0" maxOccurs="unbounded"/>
+			<group ref="fews:RowPerLocationCsvTableGroup" minOccurs="0" maxOccurs="unbounded"/>
+			<element name="rowPerEventTimeHtmlTable" type="fews:RowPerEventTimeHtmlTableInstanceComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>SINCE 2016.01. A rowPerEventHtmlTable displays for each event time  one row with several columns. Content of each column is determined using the configured function in that column</documentation>
+				</annotation>
+			</element>
+			<element name="mp4" type="fews:AnimationComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Since 2024.01. Objects declarations for video in MP4 format.
+						add this to your html template
+						<![CDATA[<embed src="$MP4(myId)$" controls="true" autoplay="true" loop="true">]]></documentation>
+				</annotation>
+			</element>
+			<element name="avi" type="fews:AnimationComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Deprecated and obsolete since 2026.01</documentation>
+				</annotation>
+			</element>
+			<element name="animatedGif" type="fews:AnimationComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Deprecated and obsolete since 2026.01</documentation>
+				</annotation>
+			</element>
+			<element name="spatialPlotSnapshots" type="fews:SpatialPlotSnapshotsComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Same as mp4, but now you can take snapshots from the mp4 that are saved as png files. In the template
+                    you can use $SPATIAL_PLOT(plotId). You can make multiple snapshots in one go.</documentation>
+				</annotation>
+			</element>
+			<element name="schematicStatusDisplayPanelMp4" type="fews:SchematicStatusDisplayPanelAnimationComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Since 2013.01. FEWS-5228. Add this to your html template
+						<![CDATA[<embed src="$SSD_MP4(myId)$" controls="true" autoplay="true" loop="true">]]></documentation>
+				</annotation>
+			</element>
+			<element name="schematicStatusDisplayPanelAvi" type="fews:SchematicStatusDisplayPanelAnimationComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Deprecated and obsolete since 2026.01</documentation>				</annotation>
+			</element>
+			<element name="schematicStatusDisplayPanelAnimatedGif" type="fews:SchematicStatusDisplayPanelAnimationComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Deprecated and obsolete since 2026.01</documentation>
+				</annotation>
+			</element>
+			<element name="schematicStatusDisplayPanelSnapshotsPng" type="fews:SchematicStatusDisplayPanelSnapshotsComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Since 2013.01. FEWS-5228. In the template you can use $SSD_PNG(myId)$. You can make multiple snapshots in one go.</documentation>
+				</annotation>
+			</element>
+			<element name="schematicStatusDisplayPanelSnapshotsSvg" type="fews:SchematicStatusDisplayPanelSnapshotsComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Since 2013.01. FEWS-5228. In the template you can use $SSD_SVG(myId)$. You can make multiple snapshots in one go.</documentation>
+				</annotation>
+			</element>
+			<element name="thresholdsCrossingsTable" type="fews:ReportTableInstanceComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Objects declarations for reports. Can be summary, chart, table or
+                        avi.</documentation>
+				</annotation>
+			</element>
+			<element name="thresholdCrossingCountsTable" type="fews:ReportTableInstanceComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>One or more ThresholdCrossingCountsTables. The table displays threshold crossing counts depending on which thresholds have been crossed within a given time period.</documentation>
+				</annotation>
+			</element>
+			<element name="flagCountsTable" type="fews:ReportFlagCountsTableInstanceComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>One or more FlagCountsTables. A FlagCountsTable displays flag counts depending on the flags of the values in a time series within a given time period.</documentation>
+				</annotation>
+			</element>
+			<element name="flagSourceCountsTable" type="fews:ReportFlagSourceCountsTableInstanceComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>One or more FlagSourceCountsTables. A FlagSourceCountsTable displays counts of flag sources depending on the flag sources of the values in a time series within a given time period. The flag source for a value contains the reason why that value got a certain flag. For example if a value was rejected by a "hard max" validation rule, then it gets flag unreliable and flag source "hard max".</documentation>
+				</annotation>
+			</element>
+			<element name="ensembleThresholdsTable" type="fews:ReportEnsembleThresholdsTableInstanceComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>This table type displays number of ensemble members  (or % of members)  predicting to be above a defined threshold(s)</documentation>
+				</annotation>
+			</element>
+			<element name="maximumStatusTable" type="fews:ReportTableInstanceComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Objects declarations for reports. Can be summary, chart, table or
+                        avi.</documentation>
+				</annotation>
+			</element>
+			<element name="mergedPrecipitationTable" type="fews:ReportTableInstanceComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Objects declarations for reports. Can be summary, chart, table or avi.</documentation>
+				</annotation>
+			</element>
+			<element name="modifierSummariesTable" type="fews:ReportModifierSummariesTableComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>One or more modifier summaries tables. A modifier summaries table shows modifier summaries for all modifiers that have been used in the workflow in which this report is generated.</documentation>
+				</annotation>
+			</element>
+			<element name="forecastPerformanceTable" type="fews:ReportForecastPerformanceTableComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Since 2014.02</documentation>
+				</annotation>
+			</element>
+			<element name="forecastStatisticsTable" type="fews:ReportForecastStatisticsTableComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Since 2014.02</documentation>
+				</annotation>
+			</element>
+			<element name="status" type="fews:ReportQueryListInstanceComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Objects declarations for reports. Can be summary, chart, status or
+                        table.</documentation>
+				</annotation>
+			</element>
+			<element name="systemStatusTable" type="fews:SystemTableQueryInstanceComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Objects declarations for reports. Can be summary, chart, table or avi.</documentation>
+				</annotation>
+			</element>
+			<element name="statusShapeFile" type="fews:statusShapeFileComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Status Information in an (ESRI) Shape file</documentation>
+				</annotation>
+			</element>
+			<element name="floodScenarioXml" type="fews:FloodScenarioXmlComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2018.01: Generate a Flood Scenario XML.</documentation>
+				</annotation>
+			</element>
+			<element name="forecastModelResultsXml" type="fews:HyFSModelReportComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2018.01: Generate a Flood Scenario XML.</documentation>
+				</annotation>
+			</element>
+			<element name="forecastThresholdCrossingXml" type="fews:ForecastThresholdCrossingXmlComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2018.01: Generate a Forecast Threshold Crossing Xml</documentation>
+				</annotation>
+			</element>
+			<element name="template" type="fews:fileStringType"/>
+			<element name="outputSubDir" type="string" minOccurs="0">
+				<annotation>
+					<documentation>Optional output subdirectory for this report. If singleLocation is true, then outputSubDir can contain location attribute ids, e.g. "H_@BASIN@", where tags between "@" signs refer to location attributes that are defined in the locationSets config file. These tags will be replaced with the corresponding attribute values of the location of the report. These values can be different for different locations. If required to use a "@" sign in this element without using locationAttributes, then need to add an extra escape character "@" before each "@" sign. In other words "@@" is replaced with a single "@" sign.</documentation>
+				</annotation>
+			</element>
+			<element name="outputFileName" type="fews:fileStringType">
+				<annotation>
+					<documentation>Output file name for this report. If singleLocation is true, then can use tag %LOCATIONID% here, which will be replaced with the id of the location of the report. If singleLocation is true, and the %LOCATIONID% tag is not present, then a "_" sign and the id of the location of the report will be inserted automatically just before the "." sign in the filename. Additionally, if singleLocation is true, then outputFileName can contain location attribute ids, e.g. "H_@BASIN@", where tags between "@" signs refer to location attributes that are defined in the locationSets config file. These tags will be replaced with the corresponding attribute values of the location of the report. These values can be different for different locations. If required to use a "@" sign in this element without using locationAttributes, then need to add an extra escape character "@" before each "@" sign. In other words "@@" is replaced with a single "@" sign.</documentation>
+				</annotation>
+			</element>
+			<element name="outputLineSeparator" type="fews:lineSeparatorEnumStringType" minOccurs="0">
+				<annotation>
+					<documentation>By default the line separator of the OS is used. The line separator of the used input template is always ignored</documentation>
+				</annotation>
+			</element>
+			<element name="defineLocal" type="fews:ReportValueComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Optional definitions of id value pairs that can be referred to in DEFINITION functions in this report. The template function tag $DEFINITION(defineLocalId)$ will be replaced with the value of the defineLocal element with the corresponding id. If singleLocation is true, then the value of a defineLocal element can contain location attribute ids, e.g. "H_@BASIN@", where tags between "@" signs refer to location attributes that are defined in the locationSets config file. These tags will be replaced with the corresponding attribute values of the location of the report. These values can be different for different locations. If required to use a "@" sign in this element without using locationAttributes, then need to add an extra escape character "@" before each "@" sign. In other words "@@" is replaced with a single "@" sign.</documentation>
+				</annotation>
+			</element>
+			<!-- General string that can be used in a template -->
+		</sequence>
+		<attribute name="scrubFolder" type="boolean" use="optional" default="false"/>
+		<attribute name="sameAxesScale" type="boolean" use="optional" default="false">
+			<annotation>
+				<documentation>If True all charts in the report have  the same lower and upper bound, even if the configured min,max has been exceeded in one of the charts.</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="singleLocation" type="boolean" use="optional" default="false">
+			<annotation>
+				<documentation>If True, for each location a separate report  will be created.  Location can be specified using location(Set)Id or parentLocation(Set)Id . By default the locations available in TimeSeriesSets are used.  The report may contain chart and/or htmlTable definitions. Other definitions (such as avi)  are not supported yet in combination with this singleLocation option</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="omitLocationIdInOutputFileName" type="boolean" use="optional" default="false">
+			<annotation>
+				<documentation>This option is only relevant  if singleLocation is True.  Use omitLocationIdInOutputFileName=True to prevent appending of the locationId to the location outputFileName.
+To distinguish the location files, use location attributes instead, for example  report_@LOCNAME@.html</documentation>
+			</annotation>
+		</attribute>
+	</complexType>
+	<!-- -->
+	<complexType name="ReportSummaryFormatComplexType">
+		<sequence>
+			<element name="map" type="fews:ReportMapComplexType"/>
+		</sequence>
+		<attribute name="id" type="fews:idStringType" use="required"/>
+	</complexType>
+	<complexType name="ReportMapComplexType">
+		<sequence>
+			<group ref="fews:reportMapChoice"/>
+			<element name="mapFormat" type="string"/>
+			<element name="overlayFormat" type="string">
+				<annotation>
+					<documentation>Format string that is used to create a location icon for each location on the map of this report summary. This can contain location attribute ids, e.g. "@BASIN@", where tags between "@" signs refer to location attributes that are defined in the locationSets config file. These tags will be replaced with the corresponding attribute values for each location. These values can be different for different locations. If required to use a "@" sign in this element without using locationAttributes, then need to add an extra escape character "@" before each "@" sign. In other words "@@" is replaced with a single "@" sign.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<group name="reportMapChoice">
+		<choice>
+			<group ref="fews:reportImageSequence"/>
+			<group ref="fews:reportPlotSequence">
+				<annotation>
+					<documentation>Since 2018.01. Configure a plot and the report will generate the image from this plot configuration. The plot will be saved in the configured file name</documentation>
+				</annotation>
+			</group>
+		</choice>
+	</group>
+	<group name="reportImageSequence">
+		<sequence>
+			<element name="image" type="fews:ReportImageComplexType"/>
+			<element name="x0" type="int"/>
+			<element name="y0" type="int"/>
+			<element name="leftLongitude" type="fews:doubleStringType"/>
+			<element name="rightLongitude" type="fews:doubleStringType"/>
+			<element name="bottomLatitude" type="fews:doubleStringType"/>
+			<element name="topLatitude" type="fews:doubleStringType"/>
+		</sequence>
+	</group>
+	<group name="reportPlotSequence">
+		<sequence>
+			<element name="file" type="fews:fileStringType">
+				<annotation>
+					<documentation>File name to store the generated plot</documentation>
+				</annotation>
+			</element>
+			<element name="plot" type="fews:AnimationComplexType">
+				<annotation>
+					<documentation>Plot definition</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</group>
+	<!-- Declarations for Report Table (Row) Complex Type-->
+	<complexType name="ReportTableFormatComplexType">
+		<sequence>
+			<element name="column" type="fews:tableAxisEnumStringType"/>
+			<element name="row" type="fews:tableAxisEnumStringType"/>
+			<element name="tableStart" type="string" minOccurs="0"/>
+			<element name="tableEnd" type="string" minOccurs="0"/>
+			<element name="rowStart" type="string" minOccurs="0"/>
+			<element name="rowEnd" type="string" minOccurs="0"/>
+			<element name="topRowStart" type="string" minOccurs="0"/>
+			<element name="topRowEnd" type="string" minOccurs="0"/>
+			<element name="columnStart" type="string" minOccurs="0"/>
+			<element name="columnEnd" type="string" minOccurs="0"/>
+			<element name="leftColumnStart" type="string" minOccurs="0"/>
+			<element name="leftColumnEnd" type="string" minOccurs="0"/>
+			<element name="colWidth" type="int" minOccurs="0"/>
+			<element name="topLeftText" type="string" minOccurs="0"/>
+			<element name="missingValueText" type="string" minOccurs="0"/>
+			<element name="nullValueText" type="string" minOccurs="0"/>
+			<element name="cellFormat" type="string"/>
+			<element name="includeBeforeOrEqualToTimeZeroInChoiceFormat" type="boolean" minOccurs="0"/>
+			<element name="thresholdFormat" type="string" minOccurs="0"/>
+			<element name="warningFormat" type="string" minOccurs="0"/>
+			<element name="topFormat" type="string"/>
+			<element name="leftFormat" type="string"/>
+			<element name="relativeWholePeriod" type="fews:RelativePeriodComplexType" minOccurs="0"/>
+			<element name="scrollableTable" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>Use this to split the table into two parts, one for the header row(s) and one for the data rows. The data row part refers to the tableStyle for this table with "_scrollable" appended. This can be used to make the data rows scrollable while the header row(s) remain fixed. For this to work the referred style needs to be defined in the report tables .css file. This option only works if the table is written in html format.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+		<attribute name="id" type="fews:idStringType" use="required"/>
+	</complexType>
+	<!-- Declarations for HTML Report Table (Row) Complex Type-->
+	<complexType name="ReportHtmlTableFormatComplexType">
+		<sequence>
+			<element name="column" type="fews:tableAxisEnumStringType"/>
+			<element name="row" type="fews:tableAxisEnumStringType"/>
+			<element name="includeBeforeOrEqualToTimeZeroInChoiceFormat" type="boolean" minOccurs="0"/>
+			<choice minOccurs="0">
+				<annotation>
+					<documentation>Customize view period</documentation>
+				</annotation>
+				<element name="relativeWholePeriod" type="fews:RelativePeriodComplexType">
+					<annotation>
+						<documentation>Use relativeWholePeriod to specify table view period that overrules the relative view period as specified  with TimeSerieSets and rounds the table view period to whole days</documentation>
+					</annotation>
+				</element>
+				<element name="season" type="fews:SeasonConditionComplexType">
+					<annotation>
+						<documentation>Since 2015.02 Use season to specify table view period that overrules the relative view period as specified  with TimeSerieSets</documentation>
+					</annotation>
+				</element>
+			</choice>
+			<element name="trimViewPeriodToLastNonMissingAfterTime0" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>Since 2015.02 If True  then the time series view period  will be first trimmed to the last non missing value after time0,  and then the time series will be written to the report. </documentation>
+				</annotation>
+			</element>
+			<element name="topLeftText" type="string" minOccurs="0"/>
+			<element name="cellFormat" type="string"/>
+			<element name="topFormat" type="string">
+				<annotation>
+					<documentation>Format of the column headers: "0,number,0.00" for a number, "0,date,dd/MMM" for a date. In combination with <column>location</column>, the topFormat specifies what should be written in the header of the column: "1" for location name, "2" for parameter name, "3" for parameter unit (N.B. use curly brackets in place of the quotation marks). In combination with <column>parameters</column> or <column>allSeries</column>, the topFormat element can be used to specify a custom column header for each data column. For a table with one data column just specify the custom column header in the topFormat element. For a table with multiple data columns, specify multiple custom column headers (one for each column), separated by "#" symbols, in the topFormat element. E.g. "header1#header2#header3". To use default headers instead of custom column headers, leave the topFormat element completely empty. If custom column headers are used, then there should be as many custom column headers as data columns in the table, otherwise a warning is logged and default column headers are used instead.</documentation>
+				</annotation>
+			</element>
+			<element name="leftFormat" type="string"/>
+			<element name="missingValueText" type="fews:missingValueEnumStringType" minOccurs="0"/>
+			<element name="nullValueText" type="fews:nullValueEnumStringType" minOccurs="0"/>
+			<element name="timesInDescendingOrder" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>Sinds 2015.02  Use this element to write the times in descending order . By default the times are written in ascending order.</documentation>
+				</annotation>
+			</element>
+			<element name="scrollableTable" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>Use this to split the table into two parts, one for the header row(s) and one for the data rows. The data row part refers to the tableStyle for this table with "_scrollable" appended. This can be used to make the data rows scrollable while the header row(s) remain fixed. For this to work the referred style needs to be defined in the report tables .css file.</documentation>
+				</annotation>
+			</element>
+			<element name="tableBackgroundColors" type="fews:TableBackgroundColorsComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2014.02. FEWS-10066. Override background colors for certain hours in the week</documentation>
+				</annotation>
+			</element>
+		</sequence>
+		<attribute name="id" type="fews:idStringType" use="required"/>
+		<attribute name="tableStyle" type="fews:tableStyleEnumStringType" use="required"/>
+	</complexType>
+	<group name="RowPerLocationHtmlTableGroup">
+		<choice>
+			<element name="rowPerLocationHtmlTable" type="fews:RowPerLocationHtmlTableComplexType"/>
+			<element name="rowPerLocationHtmlTableInstance" type="fews:RowPerLocationHtmlTableInstanceComplexType"/>
+		</choice>
+	</group>
+	<group name="RowPerLocationCsvTableGroup">
+		<choice>
+			<element name="rowPerLocationCsvTable" type="fews:RowPerLocationCsvTableComplexType"/>
+			<element name="rowPerLocationCsvTableInstance" type="fews:RowPerLocationCsvTableInstanceComplexType"/>
+		</choice>
+	</group>
+	<complexType name="RowPerEventTimeHtmlTableComplexType">
+		<sequence>
+			<element name="column" type="fews:FunctionColumnComplexType" maxOccurs="unbounded"/>
+		</sequence>
+		<attribute name="id" type="fews:idStringType" use="required"/>
+		<attribute name="tableStyle" type="fews:tableStyleEnumStringType" use="required"/>
+	</complexType>
+	<complexType name="RowPerLocationHtmlTableComplexType">
+		<sequence>
+			<choice minOccurs="0">
+				<element name="omitRowsWithOnlyMissingValues" type="boolean" default="false">
+					<annotation>
+						<documentation>Since 2016.02  If  true then the rows with only missings are not written to the table. If  false, then always all rows are written. Default is false.</documentation>
+					</annotation>
+				</element>
+				<element name="onlyWriteRowsWithCrossedThresholds" type="boolean" default="true">
+					<annotation>
+						<documentation>Since 2015.01. Optional. This is only used if one or more columns have a THRESHOLDCROSSING function configured. If this is true, then rows (i.e. locations) for which there are no thresholds crossed are not written in the table. If this is false, then all rows (i.e. locations) are written in the table. Default is true.</documentation>
+					</annotation>
+				</element>
+			</choice>
+			<element name="addUnfilledRowToEmptyTable" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>Since 2024.01. If set to true and the generated table  is completely empty (i.e. only a header is there),  add  an unfilled (clear) row to the table, so that the table has at least one row</documentation>
+				</annotation>
+			</element>
+			<element name="writeSingleTable" type="fews:WriteSingleTableComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Sinds 2015.02  Optional. If  configured,  a separate table will be generated for each timestep in the configured view period or season</documentation>
+				</annotation>
+			</element>
+			<element name="season" type="fews:SeasonConditionComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2015.02 Use season to specify table view period that overrules the relative view period as specified  with TimeSerieSets</documentation>
+				</annotation>
+			</element>
+			<choice>
+				<element name="column" type="fews:FunctionColumnComplexType" maxOccurs="unbounded"/>
+				<element name="htmlColumn" type="fews:HtmlColumnComplexType" maxOccurs="unbounded">
+					<annotation>
+						<documentation>Since 2024.01</documentation>
+					</annotation>
+				</element>
+			</choice>
+		</sequence>
+		<attribute name="id" type="fews:idStringType" use="required"/>
+		<attribute name="tableStyle" type="fews:tableStyleEnumStringType" use="optional"/>
+		<attribute name="tableClass" type="string" use="optional">
+			<annotation>
+				<documentation>Since 2023.01</documentation>
+			</annotation>
+		</attribute>
+	</complexType>
+	<complexType name="RowPerLocationCsvTableComplexType">
+		<sequence>
+			<choice minOccurs="0">
+				<element name="omitRowsWithOnlyMissingValues" type="boolean" default="false">
+					<annotation>
+						<documentation>Since 2016.02  If  true then the rows with only missings are not written to the table. If  false, then always all rows are written. Default is false.</documentation>
+					</annotation>
+				</element>
+				<element name="onlyWriteRowsWithCrossedThresholds" type="boolean" default="true">
+					<annotation>
+						<documentation>Since 2015.01. Optional. This is only used if one or more columns have a THRESHOLDCROSSING function configured. If this is true, then rows (i.e. locations) for which there are no thresholds crossed are not written in the table. If this is false, then all rows (i.e. locations) are written in the table. Default is true.</documentation>
+					</annotation>
+				</element>
+			</choice>
+			<choice maxOccurs="unbounded">
+				<element name="column" type="fews:FunctionColumnComplexType">
+					<annotation>
+						<documentation>A single column.</documentation>
+					</annotation>
+				</element>
+				<element name="repeatingColumnGroup" type="fews:RepeatingFunctionColumnGroupComplexType">
+					<annotation>
+						<documentation>A group of columns that is repeated for each time in the specified referenceTimesVariable. For a given repeat the corresponding time from the referenceTimesVariable and the configured relativeTimeWindow are combined to create a timeWindow for that repeat. A given repeat only uses data within its timeWindow for evaluating the functions that are configured in the columns. This can be used e.g. to create a maxValue and a minValue column that are repeated each day for four days. Then each repeat will write the minimum value and the maximum value of the data within a given day.</documentation>
+					</annotation>
+				</element>
+			</choice>
+		</sequence>
+		<attribute name="id" type="fews:idStringType" use="required"/>
+	</complexType>
+	<complexType name="ForecastStatisticsTableFormatComplexType">
+		<sequence>
+			<element name="row" type="fews:FunctionRowComplexType" maxOccurs="unbounded"/>
+		</sequence>
+		<attribute name="id" type="fews:idStringType" use="required"/>
+		<attribute name="tableStyle" type="fews:tableStyleEnumStringType" use="required"/>
+	</complexType>
+	<complexType name="ForecastPerformanceTableFormatComplexType">
+		<sequence>
+			<element name="forecastTimeColumn" type="fews:GeneralReportColumnComplexType">
+				<annotation>
+					<documentation>Since 2014.02. FEWS-11254: Column to display the (external) forecast time of the forecast</documentation>
+				</annotation>
+			</element>
+			<element name="forecastEventTimeColumn" type="fews:GeneralReportColumnComplexType">
+				<annotation>
+					<documentation>Since 2014.02. FEWS-11254: Column to display separate event times of the forecast </documentation>
+				</annotation>
+			</element>
+			<element name="forecastValueColumn" type="fews:GeneralReportColumnComplexType">
+				<annotation>
+					<documentation>Since 2014.02. FEWS-11254: Column to display separate event values of the forecast</documentation>
+				</annotation>
+			</element>
+			<element name="observedValueColumn" type="fews:GeneralReportColumnComplexType">
+				<annotation>
+					<documentation>Since 2014.02. FEWS-11254: Column to display event values of the observed series at the forecast event time </documentation>
+				</annotation>
+			</element>
+			<element name="commentColumn" type="fews:ReportColumnComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2014.02. FEWS-11254: Column to display comment of the observed series at the forecast event time </documentation>
+				</annotation>
+			</element>
+		</sequence>
+		<attribute name="id" type="fews:idStringType" use="required">
+			<annotation>
+				<documentation>Since 2014.02. FEWS-11254: . todo Jitka add doc</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="tableStyle" type="fews:tableStyleEnumStringType" use="required">
+			<annotation>
+				<documentation>Since 2014.02. FEWS-11254:  todo Jitka add doc </documentation>
+			</annotation>
+		</attribute>
+	</complexType>
+	<!-- Declarations for Threshold Crossings Table Complex Type-->
+	<complexType name="ReportThresholdsCrossingsTableComplexType">
+		<sequence>
+			<element name="thresholdsCrossingsTableCounterHeaderText" type="string"/>
+			<element name="thresholdsCrossingsTableUpCrossingsHeaderText" type="string"/>
+			<element name="thresholdsCrossingsTableDownCrossingsHeaderText" type="string"/>
+			<element name="cellFormat" type="string"/>
+			<element name="topFormat" type="string"/>
+			<element name="colWidth" type="int"/>
+			<element name="missingThresholdsText" type="fews:missingValueEnumStringType" minOccurs="0"/>
+			<element name="noThresholdsCrossedText" type="fews:nullValueEnumStringType" minOccurs="0">
+				<annotation>
+					<documentation>This is not used anymore in the code.</documentation>
+				</annotation>
+			</element>
+			<element name="countIndividualThresholds" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>When false, the "ThresholdsCrossingsTable" counts the 'worst' case of a threshold, assuming there is an order in severity of the thresholds. So, if a time series crosses e.g. Flood Watch and then a Flood Warning, followed by a Severe Flood Warning (order of severity) it only counts the Severe Flood Warning. When true, the table counts individual threshold crossings.</documentation>
+				</annotation>
+			</element>
+			<element name="thresholdTypes" type="fews:ThresholdTypesComplexType" maxOccurs="unbounded"/>
+			<element name="scrollableTable" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>Use this to split the table into two parts, one for the header row(s) and one for the data rows. The data row part refers to the tableStyle for this table with "_scrollable" appended. This can be used to make the data rows scrollable while the header row(s) remain fixed. For this to work the referred style needs to be defined in the report tables .css file.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+		<attribute name="id" type="fews:idStringType" use="required"/>
+		<attribute name="tableStyle" type="fews:tableStyleEnumStringType" use="required"/>
+	</complexType>
+	<!--Declarations for Threshold Crossing Counts Table Complex Type-->
+	<complexType name="ReportThresholdCrossingCountsTableFormatComplexType">
+		<sequence>
+			<element name="thresholdGroupId" type="fews:idStringType">
+				<annotation>
+					<documentation>Id of a thresholdGroup that is defined in the thresholds configuration file. This table displays all thresholds in the specified thresholdGroup.</documentation>
+				</annotation>
+			</element>
+			<element name="relativePeriod" type="fews:RelativePeriodComplexType">
+				<annotation>
+					<documentation>Relative time period for this table. The time period is relative to timeZero. A relative period can be e.g. -3 to +3 hours or e.g. +3 to +6 hours (relative to timeZero).</documentation>
+				</annotation>
+			</element>
+			<element name="countAllActiveThresholds" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>If true, then this table counts all thresholds that are active (all thresholds that have been crossed). If false, then for a given location this table only takes into account the active threshold with the most severe warning level. Default is false.</documentation>
+				</annotation>
+			</element>
+			<element name="countWarningAreas" type="boolean" default="true" minOccurs="0">
+				<annotation>
+					<documentation>If true, then this table counts warning areas, as follows. It is possible to define warning areas for a levelThresholdValue in the thresholdValueSets configuration file. If a crossed levelThresholdValue has warning areas defined, then the number of warning areas is counted for that levelThresholdValue. If a crossed levelThresholdValue has no warning areas defined, then a count of 1 is used for that levelThresholdValue. If this option is false, then for each crossed levelThresholdValue a count of 1 is used (i.e. the warning areas are ignored). Default is true.</documentation>
+				</annotation>
+			</element>
+			<element name="noThresholdsDefinedText" type="fews:nonEmptyStringType" minOccurs="0">
+				<annotation>
+					<documentation>If specified, then this text is shown in cells that correspond to data for which no thresholds are defined. Default is empty space.</documentation>
+				</annotation>
+			</element>
+			<element name="noDataAvailableText" type="fews:nonEmptyStringType" minOccurs="0">
+				<annotation>
+					<documentation>If specified, then this text is shown in cells for which no data is available. Default is "n/a".</documentation>
+				</annotation>
+			</element>
+			<element name="crossingCountZeroText" type="fews:nonEmptyStringType" minOccurs="0">
+				<annotation>
+					<documentation>If specified, then this text is shown in cells for which there are no threshold crossings. Default is "-".</documentation>
+				</annotation>
+			</element>
+			<element name="tableHeaderText" type="fews:nonEmptyStringType">
+				<annotation>
+					<documentation>String to be displayed in the table header. The relative period and thresholdGroup name will be appended to this string.</documentation>
+				</annotation>
+			</element>
+			<element name="columnWidth" type="fews:positiveInteger">
+				<annotation>
+					<documentation>The width of the columns in the table.</documentation>
+				</annotation>
+			</element>
+			<element name="tableStyle" type="fews:tableStyleEnumStringType">
+				<annotation>
+					<documentation>The tableStyle to use for this table. The available tableStyles are defined in the report tables .css file.</documentation>
+				</annotation>
+			</element>
+			<element name="cellFormat" type="fews:nonEmptyStringType">
+				<annotation>
+					<documentation>The cellFormat to use for this table. The available cellFormats for the configured tableStyle are defined in the report tables .css file.</documentation>
+				</annotation>
+			</element>
+			<element name="scrollableTable" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>Use this to split the table into two parts, one for the header row(s) and one for the data rows. The data row part refers to the tableStyle for this table with "_scrollable" appended. This can be used to make the data rows scrollable while the header row(s) remain fixed. For this to work the referred style needs to be defined in the report tables .css file.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+		<attribute name="id" type="fews:idStringType" use="required">
+			<annotation>
+				<documentation>Identifier of this table format.</documentation>
+			</annotation>
+		</attribute>
+	</complexType>
+	<!--Declarations for Flag Counts Table Complex Type-->
+	<complexType name="ReportFlagCountsTableFormatComplexType">
+		<sequence>
+			<element name="tableStyle" type="fews:tableStyleEnumStringType">
+				<annotation>
+					<documentation>The tableStyle to use for this table. The available tableStyles are defined in the report tables .css file.</documentation>
+				</annotation>
+			</element>
+			<element name="hyperlinkUrl" type="fews:nonEmptyStringType" minOccurs="0">
+				<annotation>
+					<documentation>Optional URL. If specified, then the location name for each time series will be a hyperlink that refers to this URL. It is possible to insert the following tags: !LOCATION_ID!, !LOCATION_NAME!, !PARAMETER_ID! and !PARAMETER_NAME!. The !LOCATION_ID! tag will be replaced with the location id for the time series. The !LOCATION_NAME! tag will be replaced with the location name for the time series. The !PARAMETER_ID! tag will be replaced with the parameter id for the time series. The !PARAMETER_NAME! tag will be replaced with the parameter name for the time series. This can e.g. be used to link each row in this FlagCountsTable to a page (or an anchor within a page) that contains a FlagSourceCountsTable with more detailed information about the time series for that row.</documentation>
+				</annotation>
+			</element>
+			<element name="scrollableTable" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>Use this to split the table into two parts, one for the header row(s) and one for the data rows. The data row part refers to the tableStyle for this table with "_scrollable" appended. This can be used to make the data rows scrollable while the header row(s) remain fixed. For this to work the referred style needs to be defined in the report tables .css file.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+		<attribute name="id" type="fews:idStringType" use="required">
+			<annotation>
+				<documentation>Identifier of this table format.</documentation>
+			</annotation>
+		</attribute>
+	</complexType>
+	<!--Declarations for Flag Source Counts Table Complex Type-->
+	<complexType name="ReportFlagSourceCountsTableFormatComplexType">
+		<sequence>
+			<element name="tableStyle" type="fews:tableStyleEnumStringType">
+				<annotation>
+					<documentation>The tableStyle to use for this table. The available tableStyles are defined in the report tables .css file.</documentation>
+				</annotation>
+			</element>
+			<element name="scrollableTable" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>Use this to split the table into two parts, one for the header row(s) and one for the data rows. The data row part refers to the tableStyle for this table with "_scrollable" appended. This can be used to make the data rows scrollable while the header row(s) remain fixed. For this to work the referred style needs to be defined in the report tables .css file.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+		<attribute name="id" type="fews:idStringType" use="required">
+			<annotation>
+				<documentation>Identifier of this table format.</documentation>
+			</annotation>
+		</attribute>
+	</complexType>
+	<!--Declarations for Rating curve Table Format -->
+	<complexType name="ReportRatingCurveTableFormatComplexType">
+		<annotation>
+			<documentation>Since 2014.02</documentation>
+		</annotation>
+		<sequence>
+			<element name="stageColumn" type="fews:ReportColumnComplexType">
+				<annotation>
+					<documentation>Column header can contain a tag  %UNIT%, that will be replaced with the actual stage unit</documentation>
+				</annotation>
+			</element>
+			<element name="dischargeColumn" type="fews:ReportColumnComplexType">
+				<annotation>
+					<documentation>Column header can contain a tag  %UNIT%, that will be replaced with the actual discharge unit</documentation>
+				</annotation>
+			</element>
+		</sequence>
+		<attribute name="id" type="fews:idStringType" use="required">
+			<annotation>
+				<documentation>Identifier of this table format</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="tableStyle" type="fews:tableStyleEnumStringType" use="required">
+			<annotation>
+				<documentation>The tableStyle to use for this table. The available tableStyles are defined in the report tables .css file</documentation>
+			</annotation>
+		</attribute>
+	</complexType>
+	<!--Declarations for Ensemble Threshold Crossings Table Complex Type-->
+	<complexType name="ReportEnsembleThresholdsTableComplexType">
+		<annotation>
+			<documentation>This table type displays number of ensemble members  (or % of members)  predicting to be above a defined threshold(s)</documentation>
+		</annotation>
+		<sequence>
+			<choice>
+				<element name="numberOfForecasts" type="int">
+					<annotation>
+						<documentation>Nr.of forecasts to include in the analysis</documentation>
+					</annotation>
+				</element>
+				<element name="searchPeriod" type="fews:RelativePeriodComplexType">
+					<annotation>
+						<documentation>Relative period before T0 to search for forecasts</documentation>
+					</annotation>
+				</element>
+			</choice>
+			<element name="aggregationTimeStep" type="fews:TimeStepComplexType">
+				<annotation>
+					<documentation>Width of the box for aggregation of thresholds. </documentation>
+				</annotation>
+			</element>
+			<element name="timeHeaderInterval" minOccurs="0">
+				<annotation>
+					<documentation>Interval =  1 : display each aggregation time step in the header row.  Interval > 1 :  display only each 'interval'-agg.timestep in the header row</documentation>
+				</annotation>
+				<simpleType>
+					<restriction base="int">
+						<minInclusive value="1"/>
+					</restriction>
+				</simpleType>
+			</element>
+			<element name="timeHeaderDisplayFormat" type="fews:dateTimeFormatType" minOccurs="0">
+				<annotation>
+					<documentation>Specifies how the time should be displayed in the header row. E.g. HH:mm,  only H possible</documentation>
+				</annotation>
+			</element>
+			<choice>
+				<element name="singleThreshold" type="fews:SingleThresholdComplexType">
+					<annotation>
+						<documentation>Table wil be created for just one level threshold. The colour gradient is used for colouring of the cells. </documentation>
+					</annotation>
+				</element>
+				<element name="thresholdId" type="fews:idStringType" maxOccurs="unbounded">
+					<annotation>
+						<documentation>Table wil be created for specified level thresholds. The colors for coloring of the cells are taken from the defined attribute map or from the thresholdWarningLevels if no mapId defined.</documentation>
+					</annotation>
+				</element>
+				<element name="thresholdGroupId" type="fews:idStringType">
+					<annotation>
+						<documentation>Table will be created for all level thresholds in the specified thresholdGroup. The colors for coloring of the cells are taken from the defined attribute map or from the thresholdWarningLevels if no mapId defined.</documentation>
+					</annotation>
+				</element>
+			</choice>
+			<element name="scrollableTable" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>Use this to split the table into two parts, one for the header row(s) and one for the data rows. The data row part refers to the tableStyle for this table with "_scrollable" appended. This can be used to make the data rows scrollable while the header row(s) remain fixed. For this to work the referred style needs to be defined in the report tables .css file.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+		<attribute name="id" type="fews:idStringType" use="required"/>
+		<attribute name="mapId" type="fews:idStringType" use="optional">
+			<annotation>
+				<documentation>Attribute mapId to get the colors of defined thresholds, in case that multiple thresholds are used. Can be overruled in table-instance definition. If mapId not specified, then information from the thresholdWarningLevels config file is used instead of a valueAttributeMap.</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="cellType" type="fews:cellEnumStringType" use="required">
+			<annotation>
+				<documentation>The value in the cell can be displayed as nr.of members or as percentage of members</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="tableStyle" type="fews:tableStyleEnumStringType" use="required"/>
+	</complexType>
+	<!-- Declarations for Maximum Status Table Complex Type-->
+	<complexType name="ReportMaximumStatusTableComplexType">
+		<sequence>
+			<element name="mainHeaderText" type="string"/>
+			<element name="timeStepsInTable" type="int"/>
+			<element name="timeStepsAggregation" type="int"/>
+			<element name="timeHeaderInterval" type="int"/>
+			<choice>
+				<element name="timeHeaderDisplayMinutes" type="boolean"/>
+				<element name="timeHeaderDisplayFormat" type="string"/>
+			</choice>
+			<element name="colWidth" type="int"/>
+			<element name="showAsSingleColumn" type="boolean"/>
+			<element name="singleColumnHeader" type="string" default="Obs." minOccurs="0"/>
+			<element name="suppressNameColumn" type="boolean" default="true" minOccurs="0"/>
+			<element name="showWarningLevelNames" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>If true, then each cell in the maximumStatusTable shows the name of the warningLevel in addition to the colour of the warningLevel. If these names should be different than the names of the warningLevels, then this is possible by adding a valueAttributeMap with custom names (descriptions) and referencing the valueAttributeMap in the mapId in the timeSeries in the maximumStatusTable report configuration. Default is false.</documentation>
+				</annotation>
+			</element>
+			<element name="noThresholdsDefinedText" type="fews:nonEmptyStringType" minOccurs="0">
+				<annotation>
+					<documentation>If specified, then this text is shown in cells that correspond to data for which no thresholdValueSet is defined.</documentation>
+				</annotation>
+			</element>
+			<element name="noDataAvailableText" type="fews:nonEmptyStringType" minOccurs="0">
+				<annotation>
+					<documentation>If specified, then this text is shown in cells that correspond to data that has only missing values.</documentation>
+				</annotation>
+			</element>
+			<sequence minOccurs="0">
+				<element name="checkOnPartlyMissing" type="boolean" default="false">
+					<annotation>
+						<documentation>If true, then cells that correspond to data for which some (but not all) values are missing, get a different color than cells that correspond to data for which there are no missing values at all. The colour for these "partly missing" cells should be configured in the css (cascading style sheet) for the reports, as part of the element "tableStyle_thresholds_PartlyMissing", where tableStyle is the configured tableStyle for this maximumStatusTable. Default is false.</documentation>
+					</annotation>
+				</element>
+				<element name="partlyMissingText" type="fews:nonEmptyStringType" minOccurs="0">
+					<annotation>
+						<documentation>If specified, then this text is shown in cells that correspond to data for which some (but not all) values are missing. Please note that this partlyMissingText is only used if checkOnPartlyMissing is true.</documentation>
+					</annotation>
+				</element>
+			</sequence>
+			<element name="scrollableTable" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>Use this to split the table into two parts, one for the header row(s) and one for the data rows. The data row part refers to the tableStyle for this table with "_scrollable" appended. This can be used to make the data rows scrollable while the header row(s) remain fixed. For this to work the referred style needs to be defined in the report tables .css file.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+		<attribute name="id" type="fews:idStringType" use="required"/>
+		<attribute name="tableStyle" type="fews:tableStyleEnumStringType" use="required"/>
+	</complexType>
+	<!-- Declarations for Merged Precipitation Table Complex Type-->
+	<complexType name="ReportMergedPrecipitationTableComplexType">
+		<sequence>
+			<element name="headerRow1Text" type="string"/>
+			<element name="headerRow2Text" type="string"/>
+			<element name="dataColumns" type="fews:dataColumn" minOccurs="0" maxOccurs="unbounded"/>
+			<element name="nameColumnText" type="string" minOccurs="0"/>
+			<element name="nameColumnWidth" type="int" default="200"/>
+			<element name="dataColumnWidth" type="int" default="50"/>
+			<element name="suppressNameColumn" type="boolean" default="true"/>
+			<element name="scrollableTable" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>Use this to split the table into two parts, one for the header row(s) and one for the data rows. The data row part refers to the tableStyle for this table with "_scrollable" appended. This can be used to make the data rows scrollable while the header row(s) remain fixed. For this to work the referred style needs to be defined in the report tables .css file.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+		<attribute name="id" type="fews:idStringType" use="required"/>
+		<attribute name="tableStyle" type="fews:tableStyleEnumStringType" use="required"/>
+	</complexType>
+	<!-- Declarations for Report Summary Complex Type-->
+	<complexType name="ReportSummaryInstanceComplexType">
+		<sequence>
+			<element name="timeSeries" type="fews:SummaryTimeSeriesComplexType" maxOccurs="unbounded"/>
+		</sequence>
+		<attribute name="id" type="fews:idStringType" use="required"/>
+		<attribute name="formatId" type="fews:idStringType" use="required"/>
+	</complexType>
+	<!-- Declarations for System Status Table Complex Type-->
+	<complexType name="SystemStatusTableComplexType">
+		<sequence>
+			<element name="statusTableSubType" type="fews:statusTableSubTypeEnumStringType"/>
+			<element name="tableTitle" type="string"/>
+			<element name="headerRows" type="int"/>
+			<element name="itemHeader" type="string"/>
+			<element name="benchmarkHeader" type="string"/>
+			<element name="statusHeader" type="string"/>
+			<element name="statusHeaderSplit" type="int" default="1"/>
+			<element name="statusSubHeader" type="string" minOccurs="0" maxOccurs="unbounded"/>
+			<element name="extraOutputFieldHeader" type="string" minOccurs="0" maxOccurs="unbounded"/>
+			<element name="showOutputFieldsOnly" type="boolean" default="false"/>
+			<element name="scrollableTable" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>Use this to split the table into two parts, one for the header row(s) and one for the data rows. The data row part refers to the tableStyle for this table with "_scrollable" appended. This can be used to make the data rows scrollable while the header row(s) remain fixed. For this to work the referred style needs to be defined in the report tables .css file.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+		<attribute name="id" type="fews:idStringType" use="required"/>
+		<attribute name="tableStyle" type="fews:tableStyleEnumStringType" use="required"/>
+	</complexType>
+	<!-- Declarations for Report Chart Instance Complex Type-->
+	<complexType name="ReportTableInstanceComplexType">
+		<sequence>
+			<choice maxOccurs="unbounded">
+				<element name="timeSeries" type="fews:TableTimeSeriesComplexType"/>
+				<element name="tableRow" type="fews:ReportTableRowInstanceComplexType"/>
+				<element name="table" type="fews:ReportTableInstanceComplexType"/>
+			</choice>
+		</sequence>
+		<attribute name="id" type="fews:idStringType" use="required"/>
+		<attribute name="formatId" type="fews:idStringType" use="required">
+			<annotation>
+				<documentation>Reference to a table format that is defined in the declarations in this file.</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="name" type="fews:idStringType" use="optional"/>
+		<attribute name="mergedLocations" type="boolean" use="optional" default="false"/>
+	</complexType>
+	<!-- Declarations for Report Table Instance Complex Type-->
+	<complexType name="ReportTableRowInstanceComplexType">
+		<sequence>
+			<element name="timeSeries" type="fews:TableTimeSeriesComplexType" minOccurs="0" maxOccurs="unbounded"/>
+		</sequence>
+		<attribute name="id" type="fews:idStringType" use="required"/>
+		<attribute name="formatId" type="fews:idStringType">
+			<annotation>
+				<documentation>This is not used in the code.</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="name" type="fews:idStringType" use="optional"/>
+	</complexType>
+	<complexType name="ReportHwLwTableInstanceComplexType">
+		<complexContent>
+			<extension base="fews:ReportTableInstanceComplexType">
+				<sequence>
+					<element name="hwLwTimeSeries" type="fews:TimeSeriesFilterComplexType">
+						<annotation>
+							<documentation>This filter specifies which time series should be used to determine HW or LW . The filter should refer to exactly one single time series. </documentation>
+						</annotation>
+					</element>
+				</sequence>
+			</extension>
+		</complexContent>
+	</complexType>
+	<!-- Declarations for System Table Query Complex Type-->
+	<complexType name="SystemTableQueryInstanceComplexType">
+		<sequence>
+			<choice maxOccurs="unbounded">
+				<element name="singleRecordQuery" type="fews:singleRecordQueryComplexType"/>
+				<element name="directoryFileCount" type="fews:directoryFileCountComplexType"/>
+				<element name="workflowStatusQuery" type="fews:workflowStatusQueryComplexType"/>
+				<element name="datafeedStatusQuery" type="fews:datafeedStatusQueryComplexType"/>
+				<element name="logMessageQuery" type="fews:logMessageQueryComplexType"/>
+				<element name="currentForecastQuery" type="fews:currentForecastQueryComplexType"/>
+				<element name="logMessageParseQuery" type="fews:logMessageParseQueryComplexType"/>
+				<element name="mcStatusQuery" type="fews:mcStatusQueryComplexType"/>
+				<element name="fssStatusQuery" type="fews:fssStatusQueryComplexType"/>
+				<element name="forecastHistoryQuery" type="fews:forecastHistoryQueryComplexType"/>
+			</choice>
+		</sequence>
+		<attribute name="id" type="fews:idStringType" use="required"/>
+		<attribute name="formatId" type="fews:idStringType" use="required"/>
+	</complexType>
+	<!---->
+	<complexType name="ReportFlagCountsTableInstanceComplexType">
+		<sequence>
+			<element name="inputVariableId" type="fews:idStringType" maxOccurs="unbounded">
+				<annotation>
+					<documentation>One or more ids of inputVariables that are defined at the start of this report. For each time series in the inputVariable(s), there will be one row in the table with the location, parameter and flag counts for that time series. For a given time series this uses only the data within the relativeViewPeriod that is defined for that time series in the timeSeriesSet. If a timeSeriesSet contains multiple time series (e.g. a locationSet), then for each time series in the timeSeriesSet a separate row is created.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+		<attribute name="id" type="fews:idStringType" use="required">
+			<annotation>
+				<documentation>Identifier for this FlagCountsTable.</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="formatId" type="fews:idStringType" use="required">
+			<annotation>
+				<documentation>The id of the FlagCountsTableFormat to use for this FlagCountsTable.</documentation>
+			</annotation>
+		</attribute>
+	</complexType>
+	<!---->
+	<complexType name="ReportFlagSourceCountsTableInstanceComplexType">
+		<sequence>
+			<element name="inputVariableId" type="fews:idStringType">
+				<annotation>
+					<documentation>The id of an inputVariable that is defined at the start of this report. The time series of this inputVariable is used for this table. This table shows for each validation rule (hard max, hard min, rate of change, etc.) the number of values that were rejected because of that validation rule. This uses only the data within the relativeViewPeriod that is defined for the time series in the timeSeriesSet. If the timeSeriesSet contains multiple time series (e.g. a locationSet), then an error message is given.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+		<attribute name="id" type="fews:idStringType" use="required">
+			<annotation>
+				<documentation>Identifier for this FlagSourceCountsTable.</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="formatId" type="fews:idStringType" use="required">
+			<annotation>
+				<documentation>The id of the FlagSourceCountsTableFormat to use for this FlagSourceCountsTable.</documentation>
+			</annotation>
+		</attribute>
+	</complexType>
+	<!---->
+	<complexType name="ReportRatingCurveTableInstanceComplexType">
+		<sequence>
+			<element name="locationId" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>locationId  the rating table should be created for. If omitted, the option singleLocation="true" must be configured for the report</documentation>
+				</annotation>
+			</element>
+		</sequence>
+		<attribute name="id" type="fews:idStringType" use="required">
+			<annotation>
+				<documentation>Identifier for this RatingCurveTable</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="formatId" type="fews:idStringType" use="required">
+			<annotation>
+				<documentation>The id of the RatingCurveTable format to use for this table</documentation>
+			</annotation>
+		</attribute>
+	</complexType>
+	<!---->
+	<complexType name="ReportEnsembleThresholdsTableInstanceComplexType">
+		<sequence>
+			<element name="timeSeries" type="fews:EnsembleTableTimeSeriesComplexType">
+				<annotation>
+					<documentation>Refers to the inputVariable Id configured for this report </documentation>
+				</annotation>
+			</element>
+		</sequence>
+		<attribute name="id" type="fews:idStringType" use="required"/>
+		<attribute name="formatId" type="fews:idStringType" use="required"/>
+	</complexType>
+	<complexType name="RowPerEventTimeHtmlTableInstanceComplexType">
+		<attribute name="id" type="fews:idStringType" use="required">
+			<annotation>
+				<documentation>Identifier for this table</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="formatId" type="fews:idStringType" use="required">
+			<annotation>
+				<documentation>The id of the RowPerEventTimeHtmlTableFormat used for this table</documentation>
+			</annotation>
+		</attribute>
+	</complexType>
+	<complexType name="RowPerLocationHtmlTableInstanceComplexType">
+		<attribute name="id" type="fews:idStringType" use="required">
+			<annotation>
+				<documentation>Identifier for this table</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="formatId" type="fews:idStringType" use="required">
+			<annotation>
+				<documentation>The id of the RowPerLocationHtmlTableFormat use for this table</documentation>
+			</annotation>
+		</attribute>
+	</complexType>
+	<complexType name="RowPerLocationCsvTableInstanceComplexType">
+		<attribute name="id" type="fews:idStringType" use="required">
+			<annotation>
+				<documentation>Identifier for this table</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="formatId" type="fews:idStringType" use="required">
+			<annotation>
+				<documentation>The id of the RowPerLocationCsvTableFormat use for this table</documentation>
+			</annotation>
+		</attribute>
+	</complexType>
+	<!---->
+	<complexType name="ReportThresholdCounterTableInstanceComplexType">
+		<sequence>
+			<element name="timeSeries" type="fews:TableTimeSeriesComplexType" maxOccurs="unbounded"/>
+		</sequence>
+		<attribute name="id" type="fews:idStringType" use="required"/>
+		<attribute name="formatId" type="fews:idStringType" use="required"/>
+	</complexType>
+	<!-- Declarations for Threshold Counter Table Instance Complex Type-->
+	<!-- Declarations for Report Value Complex Type-->
+	<complexType name="ReportValueComplexType">
+		<simpleContent>
+			<extension base="string">
+				<attribute name="id" type="fews:idStringType" use="required"/>
+				<attribute name="fixedLength" type="positiveInteger" use="optional">
+					<annotation>
+						<documentation>
+Prefixes the number with spaces to the specified length.
+						</documentation>
+					</annotation>
+				</attribute>
+			</extension>
+		</simpleContent>
+	</complexType>
+	<!-- Declarations for report-chart type -->
+	<complexType name="ChartReportChartComplexType">
+		<complexContent>
+			<extension base="fews:ChartComplexType">
+				<sequence minOccurs="0">
+					<element name="onlyWriteChartsWithCrossedThresholds" type="boolean" default="false" minOccurs="0">
+						<annotation>
+							<documentation>Since 2024.01. If true, then a chart will be created only if the thresholds are crossed at least in one series. The (optional) configured thresholdGroupId is taken into account</documentation>
+						</annotation>
+					</element>
+					<element name="fileName" type="fews:fileStringType" minOccurs="0">
+						<annotation>
+							<documentation>File name for this chart. If singleLocation is true, then can use tag %LOCATIONID% here, which will be replaced with the id of the location of the report. If singleLocation is true, and the %LOCATIONID% tag is not present, then a "_" sign and the id of the location of the report will be inserted automatically just before the "." sign in the filename.</documentation>
+						</annotation>
+					</element>
+					<element name="fileFormat" type="fews:imageFormatStringType" minOccurs="0">
+						<annotation>
+							<documentation>Image format of the chart.  PNG is the default. </documentation>
+						</annotation>
+					</element>
+				</sequence>
+			</extension>
+		</complexContent>
+	</complexType>
+	<!-- Declarations for chart type based on displayGroups config-->
+	<complexType name="ReportDisplayChartComplexType">
+		<sequence minOccurs="1">
+			<element name="displayId" type="fews:idStringType" minOccurs="1" maxOccurs="1">
+				<annotation>
+					<documentation>reference to a display Id in the display groups configuration used to configure this chart</documentation>
+				</annotation>
+		</element>
+		<element name="fileName" type="fews:fileStringType" minOccurs="0">
+				<annotation>
+					<documentation>File name for this chart. If singleLocation is true, then can use tag %LOCATIONID% here, which will be replaced with the id of the location of the report. If singleLocation is true, and the %LOCATIONID% tag is not present, then a "_" sign and the id of the location of the report will be inserted automatically just before the "." sign in the filename.</documentation>
+				</annotation>
+			</element>
+			<element name="fileFormat" type="fews:imageFormatStringType" minOccurs="0">
+				<annotation>
+					<documentation>Image format of the chart.  PNG is the default. </documentation>
+				</annotation>
+			</element>
+		</sequence>
+		<attribute name="id" type="fews:idStringType" use="required"/>
+		<attribute name="width" type="int" use="required"/>
+		<attribute name="height" type="int" use="required"/>
+	</complexType>
+	<!-- Declarations for rating curve chart type -->
+	<complexType name="RatingCurveChartComplexType">
+		<sequence minOccurs="0">
+			<element name="locationId" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>locationId  the rating table should be created for. If omitted, the option singleLocation="true" must be configured for the report</documentation>
+				</annotation>
+			</element>
+			<element name="fileName" type="fews:fileStringType" minOccurs="0">
+				<annotation>
+					<documentation>File name for this chart. If singleLocation is true, then can use tag %LOCATIONID% here, which will be replaced with the id of the location of the report. If singleLocation is true, and the %LOCATIONID% tag is not present, then a "_" sign and the id of the location of the report will be inserted automatically just before the "." sign in the filename.</documentation>
+				</annotation>
+			</element>
+			<element name="fileFormat" type="fews:imageFormatStringType" minOccurs="0">
+				<annotation>
+					<documentation>Image format of the chart.  PNG is the default. </documentation>
+				</annotation>
+			</element>
+		</sequence>
+		<attribute name="id" type="fews:idStringType" use="required"/>
+		<attribute name="width" type="int" use="required"/>
+		<attribute name="height" type="int" use="required"/>
+	</complexType>
+	<!-- Declarations for Single Record Query Complex Type-->
+	<complexType name="singleRecordQueryComplexType">
+		<sequence>
+			<element name="tableName" type="string"/>
+			<element name="inputField" type="string"/>
+			<element name="recordId" type="string"/>
+			<element name="statusField" type="string"/>
+			<element name="itemText" type="string"/>
+			<element name="benchmarkText" type="string"/>
+		</sequence>
+	</complexType>
+	<!-- Declarations for Workflow Status Query Complex Type-->
+	<complexType name="workflowStatusQueryComplexType">
+		<sequence>
+			<element name="workflowId" type="string"/>
+			<element name="itemText" type="string"/>
+			<element name="benchmarkText" type="string"/>
+			<element name="selectCompletedWorkflowsOnly" type="boolean" default="false"/>
+			<element name="statusField" type="string"/>
+			<element name="extraOutputField" type="string" minOccurs="0" maxOccurs="unbounded"/>
+		</sequence>
+	</complexType>
+	<!-- Declarations for Directory File CountComplex Type-->
+	<complexType name="directoryFileCountComplexType">
+		<sequence>
+			<element name="itemText" type="string"/>
+			<element name="benchmarkText" type="string"/>
+			<element name="directoryNameToCount" type="fews:fileStringType"/>
+		</sequence>
+	</complexType>
+	<!-- Declarations for Datafeed Status Query Complex Type-->
+	<complexType name="datafeedStatusQueryComplexType">
+		<sequence>
+			<element name="benchmarkText" type="fews:BenchmarkText" minOccurs="0" maxOccurs="unbounded"/>
+			<element name="statusField" type="string"/>
+			<element name="extraOutputField" type="string" minOccurs="0" maxOccurs="unbounded"/>
+		</sequence>
+	</complexType>
+	<!-- Declarations for Datafeed Status Query Complex Type-->
+	<complexType name="logMessageQueryComplexType">
+		<sequence>
+			<element name="logLevelFilter" type="fews:logLevelEnumStringType" maxOccurs="unbounded"/>
+			<element name="logEntryEventCode" type="string" minOccurs="0"/>
+			<element name="statusField" type="string"/>
+			<element name="extraOutputField" type="string" minOccurs="0" maxOccurs="unbounded"/>
+			<element name="logPeriodInHours" type="int"/>
+		</sequence>
+	</complexType>
+	<complexType name="currentForecastQueryComplexType">
+		<sequence>
+			<element name="workflowId" type="string"/>
+			<element name="itemText" type="string"/>
+			<element name="benchmarkText" type="string"/>
+			<element name="statusField" type="string"/>
+			<element name="extraOutputField" type="string" minOccurs="0" maxOccurs="unbounded"/>
+		</sequence>
+	</complexType>
+	<complexType name="logMessageParseQueryComplexType">
+		<sequence>
+			<element name="itemText" type="string"/>
+			<element name="benchmarkText" type="string"/>
+			<element name="logEntryEventCode" type="string"/>
+			<element name="keyWord" type="string"/>
+			<element name="displayWord" type="int"/>
+		</sequence>
+	</complexType>
+	<complexType name="mcStatusQueryComplexType">
+		<sequence>
+			<element name="itemTextStatus" type="string"/>
+			<element name="benchmarkTextStatus" type="string"/>
+		</sequence>
+	</complexType>
+	<complexType name="fssStatusQueryComplexType">
+		<sequence>
+			<element name="itemTextStatus" type="string"/>
+			<element name="benchmarkTextStatus" type="string"/>
+			<element name="itemTextSize" type="string"/>
+			<element name="benchmarkTextSize" type="string"/>
+		</sequence>
+	</complexType>
+	<complexType name="forecastHistoryQueryComplexType">
+		<sequence>
+			<element name="nrOfForecasts" type="int"/>
+			<element name="statusField" type="string"/>
+			<element name="extraOutputField" type="string" minOccurs="0" maxOccurs="unbounded"/>
+		</sequence>
+	</complexType>
+	<complexType name="ReportDateFormatComplexType">
+		<sequence>
+			<element name="timeZone" type="fews:TimeZoneComplexType" minOccurs="0"/>
+			<element name="locale" type="fews:LocaleComplexType" minOccurs="0"/>
+			<element name="pattern" type="string"/>
+		</sequence>
+		<attribute name="id" type="fews:idStringType" use="required"/>
+	</complexType>
+	<!-- Declarations for Report Date Complex Type-->
+	<complexType name="LocaleComplexType">
+		<sequence>
+			<element name="language" type="string"/>
+			<element name="country" type="string" minOccurs="0"/>
+			<element name="variant" type="string" minOccurs="0"/>
+		</sequence>
+		<attribute name="id" type="fews:idStringType" use="required"/>
+	</complexType>
+	<complexType name="statusShapeFileComplexType">
+		<sequence>
+			<element name="timeSeries" type="fews:SummaryTimeSeriesComplexType" maxOccurs="unbounded"/>
+			<element name="addLocationId" type="boolean" default="true"/>
+			<element name="addDescription" type="boolean" default="true"/>
+			<element name="addMinValue" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>If true, then the minimum reliable or doubtful value of the timeseries is added to the shape file in a column named MIN_VALUE. Default is false.</documentation>
+				</annotation>
+			</element>
+			<element name="addMaxValue" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>If true, then the maximum reliable or doubtful value of the timeseries is added to the shape file in a column named MAX_VALUE. Default is false.</documentation>
+				</annotation>
+			</element>
+			<element name="statusField" type="string"/>
+			<element name="hyperLinkField" type="string" default="hyperLink"/>
+			<element name="hyperLinkText" type="string"/>
+		</sequence>
+		<attribute name="id" type="fews:idStringType" use="required"/>
+	</complexType>
+	<!--Declarations for Locale Complex Type-->
+	<simpleType name="tableAxisEnumStringType">
+		<restriction base="string">
+			<enumeration value="location"/>
+			<enumeration value="time"/>
+			<enumeration value="date"/>
+			<enumeration value="locationcritical"/>
+			<enumeration value="parameter"/>
+			<enumeration value="parameters"/>
+			<enumeration value="choice"/>
+			<enumeration value="allSeries"/>
+		</restriction>
+	</simpleType>
+	<!--Declarations for types of Table Axis-->
+	<complexType name="ReportImageComplexType">
+		<sequence>
+			<element name="file" type="fews:fileStringType"/>
+			<element name="width" type="fews:positiveIntegerStringType"/>
+			<element name="height" type="fews:positiveIntegerStringType"/>
+		</sequence>
+	</complexType>
+	<!-- Declarations for Report Image Complex Type-->
+	<complexType name="ReportQueryListFormatComplexType">
+		<sequence>
+			<element name="query" type="fews:ReportQueryComplexType"/>
+			<element name="lineFormat" type="string"/>
+			<element name="scrollableTable" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>Use this to split the table into two parts, one for the header row(s) and one for the data rows. The data row part refers to the tableStyle for this table with "_scrollable" appended. This can be used to make the data rows scrollable while the header row(s) remain fixed. For this to work the referred style needs to be defined in the report tables .css file.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+		<attribute name="id" type="fews:idStringType" use="required"/>
+	</complexType>
+	<!-- Declarations for Report Query List Format Complex Type-->
+	<complexType name="ReportQueryListInstanceComplexType">
+		<attribute name="id" type="fews:idStringType" use="required"/>
+		<attribute name="formatId" type="fews:idStringType" use="required"/>
+	</complexType>
+	<!-- Declarations for Report Query List Instance Complex Type-->
+	<complexType name="ReportQueryComplexType">
+		<sequence>
+			<element name="select" type="string"/>
+		</sequence>
+	</complexType>
+	<!-- Declarations for Report Query Complex Type-->
+	<complexType name="TableTimeSeriesComplexType">
+		<simpleContent>
+			<extension base="fews:idStringType">
+				<attribute name="mapId" type="string" use="optional">
+					<annotation>
+						<documentation>If mapId not specified, then information from the thresholdWarningLevels config file is used instead of a valueAttributeMap.</documentation>
+					</annotation>
+				</attribute>
+				<attribute name="useThresholds" type="boolean" use="optional">
+					<annotation>
+						<documentation>Optional flag to indicate if thresholds should be used for this timeSeries. If true, then threshold crossings are determined and used to display warningLevels. If false, then thresholds are ignored and the timesSeries data values are displayed. If this flag is not specified, then the thresholds are only used if a mapId is specified and a thresholdValueSet is defined for this timeSeries. This flag is only used in elements table and htmlTable.</documentation>
+					</annotation>
+				</attribute>
+				<attribute name="cellFormat" type="string" use="optional"/>
+				<attribute name="thresholdFormat" type="string" use="optional"/>
+				<attribute name="warningFormat" type="string" use="optional"/>
+				<attribute name="choiceIndex" type="int" use="optional"/>
+				<attribute name="colWidth" type="int" use="optional"/>
+				<attribute name="applyMaxValueStyle" type="boolean" use="optional"/>
+				<attribute name="thresholdGroupId" type="fews:idStringType" use="optional">
+					<annotation>
+						<documentation>Optional. If specified, then only thresholds in the specified thresholdGroup are used in the determination of threshold crossings and warningLevels for this timeSeries. If not specified, then thresholds in all thresholdGroups are used.</documentation>
+					</annotation>
+				</attribute>
+			</extension>
+		</simpleContent>
+	</complexType>
+	<complexType name="EnsembleTableTimeSeriesComplexType">
+		<simpleContent>
+			<extension base="fews:idStringType">
+				<attribute name="mapId" type="string" use="optional">
+					<annotation>
+						<documentation>If mapId not specified, then information from the thresholdWarningLevels config file is used instead of a valueAttributeMap.</documentation>
+					</annotation>
+				</attribute>
+			</extension>
+		</simpleContent>
+	</complexType>
+	<complexType name="ReportModifierSummariesTableFormatComplexType">
+		<sequence>
+			<element name="tableStyle" type="fews:tableStyleEnumStringType">
+				<annotation>
+					<documentation>The tableStyle to use for this table. The available tableStyles are defined in the report tables .css file.</documentation>
+				</annotation>
+			</element>
+			<element name="scrollableTable" type="boolean" default="false">
+				<annotation>
+					<documentation>Use this to split the table into two parts, one for the header row(s) and one for the data rows. The data row part refers to the tableStyle for this table with "_scrollable" appended. This can be used to make the data rows scrollable while the header row(s) remain fixed. For this to work the referred style needs to be defined in the report tables .css file.</documentation>
+				</annotation>
+			</element>
+			<group ref="fews:ModifierSummaryOutputElements" minOccurs="0"/>
+		</sequence>
+		<attribute name="id" type="fews:idStringType" use="required">
+			<annotation>
+				<documentation>Identifier of this table format.</documentation>
+			</annotation>
+		</attribute>
+	</complexType>
+	<group name="ModifierSummaryOutputElements">
+		<sequence>
+			<element name="dateFormatId" type="fews:idStringType">
+				<annotation>
+					<documentation>Since 2016.01 This element is used to format modifier date/time  fields. </documentation>
+				</annotation>
+			</element>
+			<element name="writeFullModifierDescription" type="fews:emptyElement">
+				<annotation>
+					<documentation>Since 2016.01  Use this option to write all fields of the modifier descriptor .  If this element is omitted,  only  location name, modifier type id, and modifier summary  are written </documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</group>
+	<complexType name="SummaryTimeSeriesComplexType">
+		<simpleContent>
+			<extension base="fews:idStringType">
+				<attribute name="mapId" type="string" use="optional">
+					<annotation>
+						<documentation>If mapId not specified, then information from the thresholdWarningLevels config file is used instead of a valueAttributeMap.</documentation>
+					</annotation>
+				</attribute>
+				<attribute name="thresholdGroupId" type="fews:idStringType" use="optional">
+					<annotation>
+						<documentation>Optional. If specified, then only thresholds in the specified thresholdGroup are used in the determination of threshold crossings and warningLevels for this timeSeries. If not specified, then thresholds in all thresholdGroups are used.</documentation>
+					</annotation>
+				</attribute>
+			</extension>
+		</simpleContent>
+	</complexType>
+	<!-- Declarations for a MergedRainfallColumn-->
+	<complexType name="SingleThresholdComplexType">
+		<sequence>
+			<group ref="fews:ClassBreaksChoice" minOccurs="0">
+				<annotation>
+					<documentation>Class breaks</documentation>
+				</annotation>
+			</group>
+		</sequence>
+		<attribute name="thresholdId" type="fews:idStringType" use="required"/>
+	</complexType>
+	<complexType name="dataColumn">
+		<sequence>
+			<element name="columnHeader" type="string"/>
+			<element name="unitHeader" type="string"/>
+			<choice>
+				<element name="relativeViewPeriod" type="fews:TimeSeriesSetRelativePeriodComplexType" minOccurs="0"/>
+				<element name="singleValue" type="fews:singleValueEnumStringType" minOccurs="0"/>
+			</choice>
+		</sequence>
+	</complexType>
+	<simpleType name="tableStyleEnumStringType">
+		<restriction base="string">
+			<enumeration value="tableStyle1"/>
+			<enumeration value="tableStyle2"/>
+			<enumeration value="tableStyle3"/>
+			<enumeration value="tableStyle4"/>
+			<enumeration value="tableStyle5"/>
+			<enumeration value="tableStyle6"/>
+			<enumeration value="tableStyle7"/>
+			<enumeration value="tableStyle8"/>
+			<enumeration value="tableStyle9"/>
+		</restriction>
+	</simpleType>
+	<simpleType name="missingValueEnumStringType">
+		<restriction base="string">
+			<enumeration value="-"/>
+			<enumeration value="--"/>
+			<enumeration value=" "/>
+			<enumeration value="#"/>
+		</restriction>
+	</simpleType>
+	<simpleType name="nullValueEnumStringType">
+		<restriction base="string">
+			<enumeration value=" "/>
+			<enumeration value="-999"/>
+			<enumeration value="-"/>
+			<enumeration value="no data"/>
+		</restriction>
+	</simpleType>
+	<simpleType name="statusTableSubTypeEnumStringType">
+		<restriction base="string">
+			<enumeration value="liveSystemStatus"/>
+			<enumeration value="currentForecastStatus"/>
+			<enumeration value="exportStatus"/>
+			<enumeration value="scheduledWorkflowStatus"/>
+			<enumeration value="completedWorkflowStatus"/>
+			<enumeration value="logMessageListing"/>
+			<enumeration value="importStatus"/>
+			<enumeration value="forecastHistory"/>
+		</restriction>
+	</simpleType>
+	<simpleType name="imageFormatStringType">
+		<restriction base="string">
+			<enumeration value="png"/>
+			<enumeration value="svg"/>
+		</restriction>
+	</simpleType>
+	<complexType name="ThresholdTypesComplexType">
+		<attribute name="typeId" type="fews:idStringType" use="required"/>
+		<attribute name="name" type="fews:idStringType" use="required"/>
+	</complexType>
+	<complexType name="BenchmarkText">
+		<attribute name="id" type="string" use="required"/>
+		<attribute name="text" type="string" use="required"/>
+	</complexType>
+	<simpleType name="singleValueEnumStringType">
+		<restriction base="string">
+			<enumeration value="first"/>
+			<enumeration value="last"/>
+		</restriction>
+	</simpleType>
+	<simpleType name="cellEnumStringType">
+		<restriction base="string">
+			<enumeration value="number"/>
+			<enumeration value="percentage"/>
+		</restriction>
+	</simpleType>
+	<complexType name="FunctionRowComplexType">
+		<sequence>
+			<element name="header" type="fews:nonEmptyStringType">
+				<annotation>
+					<documentation>Text that will be displayed in the first column of the row</documentation>
+				</annotation>
+			</element>
+			<element name="format" type="fews:nonEmptyStringType" minOccurs="0">
+				<annotation>
+					<documentation>Applies only to HTML tables. The format  ( colors, font, ...)  to use for this row. The available formats  for the tableStyle are defined in the report tables .css file.</documentation>
+				</annotation>
+			</element>
+			<element name="function" type="fews:nonEmptyStringType">
+				<annotation>
+					<documentation>This should contain exactly one function and cannot contain any additional text or whitespace. Contains function name, variableID or tag, and optionally format id. Syntax : functionName(variableId;formatId), or  functionName(tag;formatId) Examples with variable Id: MAXVALUE(Hobs;numberFormat1),  MAXTIME(Hobs;dateFormat1). Example with a tag: ATTRIBUTE_VALUE(unit),  ATTRIBUTE_VALUE(alarmlevel; numberFormat2)</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="HtmlColumnComplexType">
+		<sequence>
+			<element name="thTemplate" type="fews:nonEmptyStringType">
+				<annotation>
+					<documentation>Since 2024.01. custom HTML for the table header.  Example 1 :  <![CDATA[<th>Location name</th>]]>>     Example 2:  <![CDATA[<th class="data-status" style="color:#F9E11E">Max value</th>]]></documentation>
+				</annotation>
+			</element>
+			<element name="tdTemplate" type="fews:nonEmptyStringType">
+				<annotation>
+					<documentation>Since 2024.01. custom HTML for the table column.  Example 1 :  <![CDATA[<td>%LOCATIONATTRIBUTE(shortname)%</td>]]>      Example 2: <![CDATA[<td class="data-status" style="color:%THRESHOLDCROSSING(MAX_THRESHOLDCOLOR;Hm)%">%THRESHOLDCROSSING(MAX_THRESHOLDNAME;Hm)%</td>]]></documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="ReportColumnComplexType">
+		<sequence>
+			<element name="header" type="fews:nonEmptyStringType">
+				<annotation>
+					<documentation>Text that will be displayed in the column header</documentation>
+				</annotation>
+			</element>
+			<element name="format" type="fews:nonEmptyStringType" minOccurs="0">
+				<annotation>
+					<documentation>Applies only to HTML tables. The format  ( colors, font, ...)  to use for this column. The available formats  for the tableStyle are defined in the report tables .css file.</documentation>
+				</annotation>
+			</element>
+			<element name="width" type="positiveInteger" minOccurs="0">
+				<annotation>
+					<documentation>Width for this column.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="FunctionColumnComplexType">
+		<complexContent>
+			<extension base="fews:ReportColumnComplexType">
+				<sequence>
+					<group ref="fews:ColorFunctionChoice" minOccurs="0">
+						<annotation>
+							<documentation>Since 2015.01 Applies only to HTML tables. Contains function to compute cell color. This color overrules the default color configured with element 'format'.  Examples: THRESHOLDCROSSING(MAX_THRESHOLDCOLOR;Hmeasured)   or   INDEXMAXWARNINGLEVELCOLOR(0;Hmeasured) </documentation>
+						</annotation>
+					</group>
+					<element name="function" type="fews:nonEmptyStringType">
+						<annotation>
+							<documentation>Function to determine cell value. This should contain exactly one function and cannot contain any additional text or whitespace. Contains function name, variableID or tag, and optionally format id. Syntax : functionName(variableId;formatId), or  functionName(tag;formatId) Examples with variable Id: MAXVALUE(Hobs;numberFormat1),  MAXTIME(Hobs;dateFormat1). Example with a tag: ATTRIBUTE_VALUE(unit),  ATTRIBUTE_VALUE(alarmlevel; numberFormat2)</documentation>
+						</annotation>
+					</element>
+				</sequence>
+			</extension>
+		</complexContent>
+	</complexType>
+	<complexType name="GeneralReportColumnComplexType">
+		<complexContent>
+			<extension base="fews:ReportColumnComplexType">
+				<sequence>
+					<element name="cellFormatId" type="fews:idStringType" minOccurs="0">
+						<annotation>
+							<documentation>Id of the dateFormat or numberFormat that is declared in the  declarations section</documentation>
+						</annotation>
+					</element>
+				</sequence>
+			</extension>
+		</complexContent>
+	</complexType>
+	<complexType name="RepeatingFunctionColumnGroupComplexType">
+		<sequence>
+			<element name="referenceTimesVariableId" type="fews:idStringType">
+				<annotation>
+					<documentation>Id that refers to a variable with reference times, that is defined as inputVariable for the report. This group of columns is repeated for each time that is present in this referenceTimesVariable.</documentation>
+				</annotation>
+			</element>
+			<element name="relativeTimeWindow" type="fews:RelativePeriodComplexType">
+				<annotation>
+					<documentation>Time window that is used for each row to find data that corresponds to a given time in the referenceTimesVariable. This can e.g. be used when the times for different rows (i.e. locations) are not exactly the same. For a given repeat the corresponding time from the referenceTimesVariable and this relativeTimeWindow are combined to create a timeWindow for that repeat. A given repeat only uses data within its timeWindow for evaluating the functions that are configured in the columns.</documentation>
+				</annotation>
+			</element>
+			<element name="includeRowForReferenceLocation" type="boolean" default="false">
+				<annotation>
+					<documentation>If this is true, then the location of the configured referenceTimesVariable is included as a row in the table. If this is false, then there will be no row for the location of the configured referenceTimesVariable in the table. Default is false.</documentation>
+				</annotation>
+			</element>
+			<element name="column" type="fews:FunctionColumnComplexType" maxOccurs="unbounded">
+				<annotation>
+					<documentation>A group of one or more columns. This group is repeated as a whole for each time in the specified referenceTimesVariableId.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="SchematicStatusDisplayPanelReportComplexType">
+		<sequence>
+			<element name="variable" type="fews:ScadaVariableDefinitionComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Definitions of variables that can be used as input and/or output for the components in this scada panel report or for the on-the-fly transformations that can be defined below. A variable is always a time series. Alternatively variable definitions can be embedded in the configuration below.</documentation>
+				</annotation>
+			</element>
+			<element name="transformation" type="fews:TransformationFunctionComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>One or more transformations that will be carried out on-the-fly when the an output image is created. The results will not to be stored permanently in the local datastore.</documentation>
+				</annotation>
+			</element>
+			<choice>
+				<element name="scadaPanel" type="fews:ScadaPanelComplexType">
+					<annotation>
+						<documentation>The definition of a single scada panel as in the Schematic Status Display.  Note that the interactive sections such as Left Single Click Action and Left Double Click Action that can be configured in the Schematic Status Display are not supported within the reports.</documentation>
+					</annotation>
+				</element>
+				<element name="scadaPanelId" type="fews:idStringType">
+					<annotation>
+						<documentation>Since 2017.02  Id of a scadaPanel that is configured in the Schematic Status Display.  Note that the interactive sections such as Left Single Click Action and Left Double Click Action that can be configured in the Schematic Status Display are not supported within the reports.</documentation>
+					</annotation>
+				</element>
+			</choice>
+			<element name="width" type="positiveInteger">
+				<annotation>
+					<documentation>Width of the output in pixels</documentation>
+				</annotation>
+			</element>
+			<element name="height" type="positiveInteger">
+				<annotation>
+					<documentation>Height of the output in pixels</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="SchematicStatusDisplayPanelAnimationComplexType">
+		<complexContent>
+			<extension base="fews:SchematicStatusDisplayPanelReportComplexType">
+				<sequence>
+					<element name="relativePeriod" type="fews:RelativePeriodComplexType">
+						<annotation>
+							<documentation>This is the period to display in the output. This period is always relative to the current system time.</documentation>
+						</annotation>
+					</element>
+					<element name="timeStep" type="fews:TimeStepComplexType">
+						<annotation>
+							<documentation>This is the timestep between the subsequent frames to be generated. </documentation>
+						</annotation>
+					</element>
+					<element name="movieFrameDurationMillis" type="fews:positiveInteger" default="200" minOccurs="0">
+						<annotation>
+							<documentation>The duration of a frame when the avi is played. This is the number of milliseconds a frame/time step is visible before the next time step becomes visible. If not specified, then 200 milliseconds is used by default.</documentation>
+						</annotation>
+					</element>
+					<element name="fileName" type="fews:fileStringType" minOccurs="0">
+						<annotation>
+							<documentation>The file name under which the avi-file is stored on the file system can be optionally configured. When omitted a file name is generated.</documentation>
+						</annotation>
+					</element>
+				</sequence>
+				<attribute name="id" type="fews:idStringType" use="required"/>
+			</extension>
+		</complexContent>
+	</complexType>
+	<complexType name="SchematicStatusDisplayPanelSnapshotsComplexType">
+		<complexContent>
+			<extension base="fews:SchematicStatusDisplayPanelReportComplexType">
+				<sequence>
+					<element name="snapshot" type="fews:SchematicStatusDisplayPanelSnapshotComplexType" maxOccurs="unbounded">
+						<annotation>
+							<documentation>A series of snapshots to generate of the provided schematic status display panel.</documentation>
+						</annotation>
+					</element>
+				</sequence>
+			</extension>
+		</complexContent>
+	</complexType>
+	<complexType name="SchematicStatusDisplayPanelSnapshotComplexType">
+		<sequence>
+			<element name="relativeTime" type="fews:RelativeTimeComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Time of the plot relative of time0 of the report run, when no times are specified the first time in the time series is used</documentation>
+				</annotation>
+			</element>
+			<element name="fileName" type="fews:fileStringType" minOccurs="0">
+				<annotation>
+					<documentation>The file name under which the spatial snapshot (image) is stored on the file system can be optionally configured. When omitted a file name is generated.</documentation>
+				</annotation>
+			</element>
+			<element name="fileNamePrefix" type="fews:PrefixComplexType" minOccurs="0">
+				<annotation>
+					<documentation>
+						Available since 2018.02. Sting is a date format, that is added to file name as suffix if configured.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="fileNameSuffix" type="fews:PrefixComplexType" minOccurs="0">
+				<annotation>
+					<documentation>
+						Available since 2018.02. Sting is a date format, that is added to file name as suffix if configured.
+					</documentation>
+				</annotation>
+			</element>
+		</sequence>
+		<attribute name="id" type="fews:idStringType" use="required">
+			<annotation>
+				<documentation>Id referenced in the report template.</documentation>
+			</annotation>
+		</attribute>
+	</complexType>
+	<complexType name="ReportModifierSummariesTableComplexType">
+		<attribute name="id" type="fews:idStringType" use="required">
+			<annotation>
+				<documentation>Identifier for this table.</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="formatId" type="fews:idStringType" use="required">
+			<annotation>
+				<documentation>Reference to a table format that is defined in the declarations in this file.</documentation>
+			</annotation>
+		</attribute>
+	</complexType>
+	<complexType name="ReportForecastPerformanceTableComplexType">
+		<sequence>
+			<choice>
+				<element name="numberOfRecentForecasts" type="fews:positiveInteger">
+					<annotation>
+						<documentation>Since 2014.02. FEWS-11254: Number of forecasts to include in the report</documentation>
+					</annotation>
+				</element>
+				<element name="searchPeriod" type="fews:RelativePeriodComplexType">
+					<annotation>
+						<documentation>Since 2014.02. FEWS-11254: Relative period before T0 to search for forecasts</documentation>
+					</annotation>
+				</element>
+			</choice>
+			<element name="forecastInputVariableId" type="fews:idStringType"/>
+			<element name="observedInputVariableId" type="fews:idStringType"/>
+		</sequence>
+		<attribute name="id" type="fews:idStringType" use="required">
+			<annotation>
+				<documentation>Since 2014.02. FEWS-11254: Identifier for this table</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="formatId" type="fews:idStringType" use="required">
+			<annotation>
+				<documentation>Since 2014.02. FEWS-11254: Reference to a table format that is defined in the declarations in this file.</documentation>
+			</annotation>
+		</attribute>
+	</complexType>
+	<complexType name="ReportForecastStatisticsTableComplexType">
+		<sequence>
+			<choice>
+				<element name="numberOfRecentForecasts" type="fews:positiveInteger">
+					<annotation>
+						<documentation>Since 2014.02. FEWS-11600: Number of forecasts to include in the report</documentation>
+					</annotation>
+				</element>
+				<element name="searchPeriod" type="fews:RelativePeriodComplexType">
+					<annotation>
+						<documentation>Since 2014.02. FEWS-11600 Relative period before T0 to search for forecasts</documentation>
+					</annotation>
+				</element>
+			</choice>
+			<element name="forecastInputVariableId" type="fews:idStringType">
+				<annotation>
+					<documentation>Since 2014.02. FEWS-11600 . todo Jitka add doc </documentation>
+				</annotation>
+			</element>
+			<element name="observedInputVariableId" type="fews:idStringType">
+				<annotation>
+					<documentation>Since 2014.02. FEWS-11600 . todo Jitka add doc </documentation>
+				</annotation>
+			</element>
+		</sequence>
+		<attribute name="id" type="fews:idStringType" use="required">
+			<annotation>
+				<documentation>Since 2014.02. FEWS-11600: Identifier for this table</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="formatId" type="fews:idStringType" use="required">
+			<annotation>
+				<documentation>Since 2014.02. FEWS-11600: Reference to a table format that is defined in the declarations in this file.</documentation>
+			</annotation>
+		</attribute>
+	</complexType>
+	<group name="ColorFunctionChoice">
+		<choice>
+			<element name="foregroundColorFunction" type="fews:nonEmptyStringType"/>
+			<element name="backgroundColorFunction" type="fews:nonEmptyStringType"/>
+		</choice>
+	</group>
+	<complexType name="WriteSingleTableComplexType">
+		<sequence>
+			<element name="timeStep" type="fews:TimeStepComplexType"/>
+		</sequence>
+		<attribute name="enabled" type="boolean" use="required"/>
+	</complexType>
+	<complexType name="FloodScenarioFormatComplexType">
+		<sequence>
+			<element name="plot" type="fews:AnimationComplexType"/>
+		</sequence>
+		<attribute name="id" type="fews:idStringType" use="required"/>
+	</complexType>
+	<complexType name="FloodScenarioSequenceXmlComplexType">
+		<sequence>
+			<element name="scenario" type="fews:FloodScenarioComplexType" maxOccurs="unbounded"/>
+		</sequence>
+	</complexType>
+	<complexType name="FloodScenarioXmlComplexType">
+		<annotation>
+			<documentation>Since 2017.02. Generate a flood scenario xml file.</documentation>
+		</annotation>
+		<sequence>
+			<element name="floodScenarioXmlTemplate" type="fews:fileStringType">
+				<annotation>
+					<documentation>Template file to be used during XML generation</documentation>
+				</annotation>
+			</element>
+			<element name="backgroundMap" type="fews:floodPeriodBackgroundMapComplexType">
+				<annotation>
+					<documentation>Background map used by the flood scenario xml report.</documentation>
+				</annotation>
+			</element>
+			<element name="catchmentViewportAttribute" type="fews:catchmentViewportAttributeComplexType">
+				<annotation>
+					<documentation>Location attributes used to get the view port sizes per catchment</documentation>
+				</annotation>
+			</element>
+			<element name="scenarios" type="fews:FloodScenarioSequenceXmlComplexType" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Specifies at one or more flood scenarios</documentation>
+				</annotation>
+			</element>
+		</sequence>
+		<attribute name="fileName" type="fews:idStringType" use="required">
+			<annotation>
+				<documentation>fileName is used to determine the name of the xml output file and the png image map file.</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="catchmentLocationAttribute" type="fews:idStringType" use="required">
+			<annotation>
+				<documentation>Location attribute that will be used to aggregate locations into catchments.</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="catchmentLocationNameAttribute" type="fews:idStringType">
+			<annotation>
+				<documentation>Optional. Location attribute that contains the name that will be used to write the catchment name. If not set or found, the location id will be used instead.</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="catchmentSortingAttributeId" type="fews:idStringType">
+			<annotation>
+				<documentation>Optional. Location attribute that will be used to sort the catchments in the report.</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="timeStepsAggregation" type="int" use="required">
+			<annotation>
+				<documentation>Number of hours the timeSteps have to be aggregated into.</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="timeStepsInForecast" type="int" use="required">
+			<annotation>
+				<documentation>Number of forecast timesteps that will be written to the xml output.</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="locationIdAttribute" type="fews:idStringType" use="required">
+			<annotation>
+				<documentation>Location attribute of the location-id.</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="externalLocationIdAttribute" type="fews:idStringType" use="required">
+			<annotation>
+				<documentation>Location attribute of the external-id.</documentation>
+			</annotation>
+		</attribute>
+	</complexType>
+	<complexType name="FloodScenarioComplexType">
+		<sequence>
+			<element name="heightTimeSeries" type="fews:FormattedTimeSeriesComplexType"/>
+			<element name="floodClassTimeSeries" type="fews:idStringType"/>
+		</sequence>
+		<attribute name="id" type="fews:idStringType" use="required">
+			<annotation>
+				<documentation>Since 2018.01. Id of the scenario.</documentation>
+			</annotation>
+		</attribute>
+	</complexType>
+	<complexType name="HyFSModelReportComplexType">
+		<annotation>
+			<documentation>Since 2018.02. Generate a HyFS model report xml file.</documentation>
+		</annotation>
+		<sequence>
+			<element name="modelResultXmlTemplate" type="fews:fileStringType">
+				<annotation>
+					<documentation>Template file to be used during XML generation</documentation>
+				</annotation>
+			</element>
+			<element name="backgroundMap" type="fews:floodPeriodBackgroundMapComplexType">
+				<annotation>
+					<documentation>Background map used by theHyFS model xml report.</documentation>
+				</annotation>
+			</element>
+			<element name="catchmentViewportAttribute" type="fews:catchmentViewportAttributeComplexType">
+				<annotation>
+					<documentation>Location attributes used to get the view port sizes per catchment</documentation>
+				</annotation>
+			</element>
+			<element name="observedTimeSeries" type="fews:FormattedTimeSeriesComplexType"/>
+			<element name="observedFloodClassTimeSeries" type="fews:idStringType"/>
+			<element name="forecastTimeSeries" type="fews:FormattedTimeSeriesComplexType"/>
+			<element name="forecastFloodClassTimeSeries" type="fews:idStringType"/>
+			<element name="maxForecastTimeSeries" type="fews:FormattedTimeSeriesComplexType"/>
+			<element name="maxForecastFloodClassTimeSeries" type="fews:idStringType"/>
+			<element name="floodClasses" type="fews:FloodClassesComplexType"/>
+			<element name="additionalThresholds" type="fews:AdditionalThresholdsComplexType" minOccurs="0"/>
+			<element name="siteFigures" type="fews:ThresholdCrossingXmlSiteFiguresComplexType"/>
+		</sequence>
+		<attribute name="fileName" type="fews:idStringType" use="required">
+			<annotation>
+				<documentation>fileName is used to determine the name of the xml output file and the png image map file.</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="catchmentId" type="fews:idStringType" use="required">
+			<annotation>
+				<documentation>Location attribute that will be used to aggregate locations into catchments.</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="catchmentName" type="fews:idStringType" use="required">
+			<annotation>
+				<documentation>Location attribute that will be used to aggregate locations into catchments.</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="timeStepsAggregation" type="int" use="required">
+			<annotation>
+				<documentation>Number of the timeSteps to be aggregated into one "aggregated time step".</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="timeStepsInForecast" type="int" use="required">
+			<annotation>
+				<documentation>Number of aggregated time steps that will be written to the xml output. If it is configured lower than the existing number of aggregated steps, than only this number will be written to the report. If a higher number is configured than there are, a warning will be logged, and all aggregation time steps written to the file..</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="locationIdAttribute" type="fews:idStringType" use="required">
+			<annotation>
+				<documentation>Location attribute of the location-id.</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="externalLocationIdAttribute" type="fews:idStringType" use="required">
+			<annotation>
+				<documentation>Location attribute of the external-id.</documentation>
+			</annotation>
+		</attribute>
+	</complexType>
+
+	<complexType name="FormattedTimeSeriesComplexType">
+		<simpleContent>
+			<extension base="string">
+				<attribute name="numberFormatId" type="fews:idStringType">
+					<annotation>
+						<documentation>Since 2018.01. id of the number format that is used to generate the height value.</documentation>
+					</annotation>
+				</attribute>
+			</extension>
+		</simpleContent>
+	</complexType>
+	<complexType name="catchmentViewportAttributeComplexType">
+		<attribute name="left" type="fews:idStringType" use="required">
+			<annotation>
+				<documentation>Since 2018.01. Location attribute with the left pixel position of the catchment viewport.</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="top" type="fews:idStringType" use="required">
+			<annotation>
+				<documentation>Since 2018.01. Location attribute with the top pixel position of the catchment viewport.</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="width" type="fews:idStringType" use="required">
+			<annotation>
+				<documentation>Since 2018.01. Location attribute with the width in pixels of the catchment viewport.</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="height" type="fews:idStringType" use="required">
+			<annotation>
+				<documentation>Since 2018.01. Location attribute with the height in pixels of the catchment viewport.</documentation>
+			</annotation>
+		</attribute>
+	</complexType>
+	<complexType name="floodPeriodBackgroundMapComplexType">
+		<attribute name="left" type="fews:idStringType" use="required">
+			<annotation>
+				<documentation>Since 2018.01. Location attribute with the left pixel position of the catchment viewport.</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="top" type="fews:idStringType" use="required">
+			<annotation>
+				<documentation>Since 2018.01. Location attribute with the top pixel position of the catchment viewport.</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="width" type="fews:idStringType" use="required">
+			<annotation>
+				<documentation>Since 2018.01. Location attribute with the width in pixels of the catchment viewport.</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="height" type="fews:idStringType" use="required">
+			<annotation>
+				<documentation>Since 2018.01. Location attribute with the height in pixels of the catchment viewport.</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="leftLongitude" type="fews:idStringType" use="required">
+			<annotation>
+				<documentation>Since 2018.01. Location attribute with the left longitude position of the catchment viewport.</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="rightLongitude" type="fews:idStringType" use="required">
+			<annotation>
+				<documentation>Since 2018.01. Location attribute with the right longitude position of the catchment viewport.</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="bottomLatitude" type="fews:idStringType" use="required">
+			<annotation>
+				<documentation>Since 2018.01. Location attribute with the bottom longitude position of the catchment viewport.</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="topLatitude" type="fews:idStringType" use="required">
+			<annotation>
+				<documentation>Since 2018.01. Location attribute with the top latitude position of the catchment viewport.</documentation>
+			</annotation>
+		</attribute>
+	</complexType>
+	<complexType name="ForecastThresholdCrossingXmlComplexType">
+		<sequence>
+			<element name="forecastThresholdCrossingXmlTemplate" type="fews:fileStringType">
+				<annotation>
+					<documentation>Template file to be used during XML generation</documentation>
+				</annotation>
+			</element>
+			<element name="forecastEnsembleTimeSeries" type="string">
+				<annotation>
+					<documentation>The ensemble time series on which the forecastTimeSeries was based. The ensemble time series will be used to calculate the exceedance percentage for each threshold and the x% likely scenarios</documentation>
+				</annotation>
+			</element>
+			<element name="forecastScenarios" type="fews:ForecastScenariosComplexType">
+				<annotation>
+					<documentation>Selected forecast data from the ensemble. The exported ensemble element will contain a scenario element for each of these time series, and each of the time series will be included in the threshold crossing information reported per site/location.</documentation>
+				</annotation>
+			</element>
+			<element name="exceedance" type="fews:ThresholdCrossingXmlExceedanceComplexType">
+				<annotation>
+					<documentation>Configure the way the exceedance and earliest exceedance times should be calculated as well as the scenarios for which this should be done.</documentation>
+				</annotation>
+			</element>
+			<element name="currentLevelTimeSeries" type="fews:FormattedTimeSeriesComplexType">
+				<annotation>
+					<documentation>A time series containing a single value representing the current level for each location.</documentation>
+				</annotation>
+			</element>
+			<element name="floodClasses" type="fews:FloodClassesComplexType">
+				<annotation>
+					<documentation>The flood classes corresponding to each threshold. Also used to determine which thresholds should be included in the report.</documentation>
+				</annotation>
+			</element>
+			<element name="additionalThresholds" type="fews:AdditionalThresholdsComplexType" minOccurs="0">
+				<annotation>
+					<documentation>The additional thresholds to be included in the threshold portion of the report. The thresholds configured in the floodClasses are already included in the report.</documentation>
+				</annotation>
+			</element>
+			<element name="siteFigures" type="fews:ThresholdCrossingXmlSiteFiguresComplexType">
+				<annotation>
+					<documentation>The figures to be reported for each site in the xml report.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+		<attribute name="fileName" type="fews:idStringType" use="required">
+			<annotation>
+				<documentation>Used to determine the name of the xml output file.</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="locationNameAttribute" type="fews:idStringType">
+			<annotation>
+				<documentation>Optional. The attribute id of the location attribute that should be used as the site name. If not configured, the FEWS location name will be used.</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="externalLocationIdAttribute" type="fews:idStringType">
+			<annotation>
+				<documentation>Optional. The attribute id of the location attribute that contains the external location id to be exported (if present).</documentation>
+			</annotation>
+		</attribute>
+	</complexType>
+	<complexType name="FloodClassesComplexType">
+		<sequence>
+			<element name="default" type="string">
+				<annotation>
+					<documentation>The desired output in the flood-class elements when no threshold is exceeded.</documentation>
+				</annotation>
+			</element>
+			<element name="floodClass" type="fews:FloodClassComplexType" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Links a threshold to the desired output in the flood-class element of the report when that threshold is exceeded (and none of the higher thresholds are exceeded).</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="FloodClassComplexType">
+		<simpleContent>
+			<extension base="string">
+				<attribute name="thresholdId" type="fews:idStringType">
+					<annotation>
+						<documentation>Id of the threshold this flood class corresponds to.</documentation>
+					</annotation>
+				</attribute>
+			</extension>
+		</simpleContent>
+	</complexType>
+	<complexType name="ThresholdCrossingXmlSiteFiguresComplexType">
+		<sequence>
+			<element name="siteFigure" type="fews:ThresholdCrossingXmlSiteFigureComplexType" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Defines a figure to be reported for each location in the xml report.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="ThresholdCrossingXmlSiteFigureComplexType">
+		<sequence>
+			<element name="id" type="fews:idStringType">
+				<annotation>
+					<documentation>Id of the figure.</documentation>
+				</annotation>
+			</element>
+			<element name="name" type="string">
+				<annotation>
+					<documentation>Name of the figure, can contain location attribute tags (@ATTRIBUTE_ID@).</documentation>
+				</annotation>
+			</element>
+			<element name="fileName" type="string">
+				<annotation>
+					<documentation>Name of the figure file, can contain location attribute tags (@AATTRIBUTE_ID@).</documentation>
+				</annotation>
+			</element>
+			<element name="type" type="string">
+				<annotation>
+					<documentation>File type of the figure file, i.e., the file extension.</documentation>
+				</annotation>
+			</element>
+			<element name="alternativeText" type="string">
+				<annotation>
+					<documentation>The alternative text reported for the figure, can contain location attribute tags (@AATTRIBUTE_ID@).</documentation>
+				</annotation>
+			</element>
+			<element name="viewPort" type="fews:FigureViewPortComplexType">
+				<annotation>
+					<documentation>The figure view port.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="FigureViewPortComplexType">
+		<attribute name="left" type="fews:intStringType" use="required">
+			<annotation>
+				<documentation>Location attribute with the left pixel position of the figure viewport.</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="top" type="fews:intStringType" use="required">
+			<annotation>
+				<documentation>Location attribute with the top pixel position of the figure viewport.</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="width" type="fews:intStringType" use="required">
+			<annotation>
+				<documentation>Location attribute with the width in pixels of the figure viewport.</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="height" type="fews:intStringType" use="required">
+			<annotation>
+				<documentation>Location attribute with the height in pixels of the figure viewport.</documentation>
+			</annotation>
+		</attribute>
+	</complexType>
+	<complexType name="ThresholdCrossingXmlExceedanceComplexType">
+		<sequence>
+			<element name="numberFormatId" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>If configured this number format is used to format the exceedance.</documentation>
+				</annotation>
+			</element>
+			<element name="minEnsembleMembers" type="fews:positiveIntegerStringType">
+				<annotation>
+					<documentation>The minimum number of ensemble members that should cross a threshold for the earliest exceedance times to be calculated.</documentation>
+				</annotation>
+			</element>
+			<element name="belowMinimumLabel" type="string" minOccurs="0">
+				<annotation>
+					<documentation>If at least one ensemble member but less than the minimum number of ensemble members cross a threshold, this text will be reported as the "exceedance" instead of the percentage of ensemble members that crossed the threshold.</documentation>
+				</annotation>
+			</element>
+			<element name="earliestExceedanceTimeStep" type="fews:TimeStepComplexType" minOccurs="0">
+				<annotation>
+					<documentation>When configured the reported earliest exceedance times will be the closest time to the calculated earliest exceedance time within this time step.</documentation>
+				</annotation>
+			</element>
+			<element name="scenarios" type="fews:ThresholdCrossingXmlScenariosComplexType">
+				<annotation>
+					<documentation>The scenarios for which the earliest exceedance times should be reported.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="ThresholdCrossingXmlScenariosComplexType">
+		<sequence>
+			<element name="earliest" type="fews:NamedEmptyElement" minOccurs="0">
+				<annotation>
+					<documentation>When this element is included in the configuration (the element's body should be empty), the earliest exceedance time of the first ensemble member that exceeds the threshold will be included in the report.</documentation>
+				</annotation>
+			</element>
+			<element name="percentile" type="fews:ThresholdCrossingXmlPercentileScenarioComplexType" maxOccurs="unbounded">
+				<annotation>
+					<documentation>A percentile for which a scenario should be included in the earliest exceedance time section of the report. To determine the earliest exceedance time for a percentile scenario, the earliest time at which each ensemble member exceeds the threshold is determined. Of those ensemble members that cross the threshold, the earliest exceedance times are ordered from earliest to latest. Then the x-th percentile of these times is determined. So for example, if this element is set to 25, the earliest time at which 25% of the ensemble members that cross the threshold at some point, have crossed the threshold is reported</documentation>
+				</annotation>
+			</element>
+			<element name="latest" type="fews:NamedEmptyElement" minOccurs="0">
+				<annotation>
+					<documentation>When this element is included in the configuration (the element's body should be empty), the earliest exceedance time of the last ensemble member that exceeds the threshold will be included in the report.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="NamedEmptyElement">
+		<complexContent>
+			<extension base="fews:emptyElement">
+				<attribute name="name" type="string" use="required">
+					<annotation>
+						<documentation>The name to be used for the scenario.</documentation>
+					</annotation>
+				</attribute>
+			</extension>
+		</complexContent>
+	</complexType>
+	<complexType name="ThresholdCrossingXmlPercentileScenarioComplexType">
+		<simpleContent>
+			<extension base="fews:percentageType">
+				<attribute name="name" type="string" use="required">
+					<annotation>
+						<documentation>The name to be used for the percentile scenario.</documentation>
+					</annotation>
+				</attribute>
+			</extension>
+		</simpleContent>
+	</complexType>
+	<complexType name="ForecastScenariosComplexType">
+		<sequence>
+			<element name="forecastTimeSeries" type="fews:ForecastScenarioTimeSeriesComplexType" maxOccurs="unbounded">
+				<annotation>
+					<documentation>The input time series which will be reported.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="ForecastScenarioTimeSeriesComplexType">
+		<simpleContent>
+			<extension base="fews:FormattedTimeSeriesComplexType">
+				<attribute name="id" type="fews:positiveIntegerStringType">
+					<annotation>
+						<documentation>Sortable index, id of the forecast which is to be reported.</documentation>
+					</annotation>
+				</attribute>
+				<attribute name="name" type="string" use="required">
+					<annotation>
+						<documentation>Name of the forecast which is to be reported.</documentation>
+					</annotation>
+				</attribute>
+			</extension>
+		</simpleContent>
+	</complexType>
+	<complexType name="AdditionalThresholdsComplexType">
+		<sequence>
+			<element name="thresholdId" type="fews:idStringType" maxOccurs="unbounded">
+				<annotation>
+					<documentation>The id of the threshold which is to be included in the report.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="ThresholdLabelTableComplexType">
+		<sequence>
+			<element name="inputVariableId" type="fews:idStringType" maxOccurs="unbounded">
+				<annotation>
+					<documentation>One or more ids of inputVariables that are defined at the start of this report. For each location in the inputVariable(s), there will be one row in the table with the location and all time steps. For each time step there will be a column with a color and label depending on the highest crossed threshold in any of the time series belonging to that location.</documentation>
+				</annotation>
+			</element>
+			<element name="includeLocationColumn" type="boolean" minOccurs="0" default="true">
+				<annotation>
+					<documentation>Determines whether the table starts with a column for the location name. Setting to false is useful for when multiple tables with the same locations are show horizontally.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+		<attribute name="id" type="fews:idStringType" use="required"/>
+		<attribute name="dateFormatId" type="fews:idStringType" use="required"/>
+	</complexType>
+	<complexType name="ValuePropertiesTagsComplexType">
+		<sequence>
+			<element name="numberOfForecasts" type="int">
+				<annotation>
+					<documentation>Nr.of forecasts to read</documentation>
+				</annotation>
+			</element>
+			<element name="searchPeriod" type="fews:RelativePeriodComplexType">
+				<annotation>
+					<documentation>Relative period to search for forecasts</documentation>
+				</annotation>
+			</element>
+			<element name="templateFile" type="fews:fileStringType"/>
+			<element name="valuePropertiesVariableId" type="fews:idStringType">
+				<annotation>
+					<documentation>Variable id for the main time series to read the properties from.</documentation>
+				</annotation>
+			</element>
+			<element name="externalIdAttributeFunction" type="fews:nonEmptyStringType" minOccurs="0">
+				<annotation>
+					<documentation>Function that will be resolved based on location attributes to determine the id for the export tag %EXTERNAL_ID%</documentation>
+				</annotation>
+			</element>
+			<element name="externalNameAttributeFunction" type="fews:nonEmptyStringType" minOccurs="0">
+				<annotation>
+					<documentation>Function that will be resolved based on location attributes to determine the name used in the forecast text and flood warning title</documentation>
+				</annotation>
+			</element>
+			<element name="convertDatumAttributeFunction" type="fews:nonEmptyStringType" minOccurs="0">
+				<annotation>
+					<documentation>Function that can be resolved based on location attributes to determine whether for the location datum conversion should be applied</documentation>
+				</annotation>
+			</element>
+			<element name="subLocationsStructure" type="fews:SubLocationsStructureComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>The structure associated with sub locations which match the main location. Can be used to show each matching sub location in its own row in a table. Can also be used
+						to determine the value of a connected element of the main location by combining the values of the sub locations
+					</documentation>
+				</annotation>
+			</element>
+			<element name="forecastLocationsStructure" type="fews:ForecastLocationsStructureComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Structure of the forecast locations that can be connected to matching sub locations. Can be used to determine separate properties for forecast locations and an
+						editable table to enter and edit values for creating a forecast time series.
+					</documentation>
+				</annotation>
+			</element>
+		</sequence>
+		<attribute name="id" type="fews:idStringType" use="required"/>
+	</complexType>
+</schema>

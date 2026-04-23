@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Web OC only -->
+<schema xmlns="http://www.w3.org/2001/XMLSchema" xmlns:fews="http://www.wldelft.nl/fews" targetNamespace="http://www.wldelft.nl/fews" elementFormDefault="qualified"
+		version="1.0">
+	<include schemaLocation="sharedTypes.xsd"/>
+	<element name="webOCMicroFrontEnds" type="fews:WebOCMicroFrontEndsComplexType">
+		<annotation>
+			<documentation>Web OC micro front ends configuration. Micro front ends can be connected to the topology tree</documentation>
+		</annotation>
+	</element>
+	<complexType name="WebOCMicroFrontEndsComplexType">
+		<annotation>
+			<documentation>Configure a dashboard for the Web OC</documentation>
+		</annotation>
+		<sequence>
+			<element name="microFrontEnd" type="fews:WebOCMicroFrontEndComplexType" maxOccurs="unbounded"/>
+		</sequence>
+	</complexType>
+	<complexType name="WebOCMicroFrontEndComplexType">
+		<annotation>
+			<documentation>Configure a micro front end for the Web</documentation>
+		</annotation>
+		<sequence>
+			<element name="id" type="fews:idStringType">
+				<annotation>
+					<documentation>Provide a unique identifier to the micro front end. This id is used to reference the micro front end on a topology node.</documentation>
+				</annotation>
+			</element>
+			<element name="icon" type="string">
+				<annotation>
+					<documentation>Icon to be used. For example: md-icon</documentation>
+				</annotation>
+			</element>
+			<element name="remoteId" type="string">
+				<annotation>
+					<documentation>Remote id of the micro front end</documentation>
+				</annotation>
+			</element>
+			<element name="componentId" type="string">
+				<annotation>
+					<documentation>Component id in the micro frontend.</documentation>
+				</annotation>
+			</element>
+			<element name="display" type="string">
+				<annotation>
+					<documentation>Display where the micro front end will be shown in the Web OC. For example: main, sidepanel</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+</schema>

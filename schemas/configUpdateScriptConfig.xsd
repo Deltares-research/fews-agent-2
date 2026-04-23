@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--INACTIVE-->
+<schema xmlns="http://www.w3.org/2001/XMLSchema" xmlns:fews="http://www.wldelft.nl/fews" targetNamespace="http://www.wldelft.nl/fews" elementFormDefault="qualified" attributeFormDefault="unqualified" version="1.0">
+	<!-- -->
+	<element name="configUpdateScriptConfig" type="fews:ConfigUpdateScriptConfigComplexType"/>
+	<!-- -->
+	<complexType name="ConfigUpdateScriptConfigComplexType">
+        <sequence>
+            <element name="versionIncrement" type="float" minOccurs="1" default="0.1">
+                <annotation>
+					<documentation>Number to increment configuration file version with.</documentation>
+				</annotation>
+            </element>
+            <element name="scriptDirectory" type="string" minOccurs="1">
+                <annotation>
+                    <documentation>Location of script files to be imported.</documentation>
+                </annotation>
+            </element>
+            <element name="failedDirectory" type="string" minOccurs="0">
+				<annotation>
+					<documentation>Script files that could not be executed due to an error are moved to this directory.</documentation>
+				</annotation>
+			</element>
+			<element name="backupDirectory" type="string" minOccurs="0">
+				<annotation>
+					<documentation>Script files that have been successfully executed are moved to this directory.</documentation>
+				</annotation>
+			</element>
+			<element name="importMapLayerFilesSettings" type="fews:ImportMapLayerFilesSettingsComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Optional settings for importMapLayerFiles commands that are defined in the script files in the configured scriptDirectory.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="ImportMapLayerFilesSettingsComplexType">
+		<sequence>
+			<element name="failedDirectory" type="string" minOccurs="0">
+				<annotation>
+					<documentation>Map layer files that could not be imported due to an error are moved to this directory.</documentation>
+				</annotation>
+			</element>
+			<element name="backupDirectory" type="string" minOccurs="0">
+				<annotation>
+					<documentation>Map layer files that have been successfully imported are moved to this directory.</documentation>
+				</annotation>
+			</element>
+        </sequence>
+	</complexType>
+</schema>

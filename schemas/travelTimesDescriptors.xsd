@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--Delft FEWS (Copyright 2003 WL | Delft Hydraulics) -->
+<schema targetNamespace="http://www.wldelft.nl/fews" xmlns="http://www.w3.org/2001/XMLSchema" xmlns:fews="http://www.wldelft.nl/fews" elementFormDefault="qualified" attributeFormDefault="unqualified" version="1.0">
+	<include schemaLocation="sharedTypes.xsd"/>
+	<element name="travelTimesDescriptors" type="fews:TravelTimesDescriptorsComplexType"/>
+	<complexType name="TravelTimesDescriptorsComplexType">
+		<sequence>
+			<element name="travelTimesDescriptor" type="fews:TravelTimesDescriptorComplexType" maxOccurs="unbounded"/>
+		</sequence>
+	</complexType>
+	<complexType name="TravelTimesDescriptorComplexType">
+		<sequence>
+			<element name="description" type="string" minOccurs="0"/>
+		</sequence>
+		<attribute name="id" type="fews:idStringType" use="required"/>
+		<attribute name="name" type="fews:nameStringType" use="optional"/>
+	</complexType>
+</schema>

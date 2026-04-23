@@ -1,0 +1,221 @@
+<!-- edited with XMLSpy v2009 sp1 (http://www.altova.com) by ICT (Stichting Deltares) -->
+<!--Delft FEWS (Copyright 2003 WL | Delft Hydraulics) -->
+<schema xmlns="http://www.w3.org/2001/XMLSchema" xmlns:fews="http://www.wldelft.nl/fews" targetNamespace="http://www.wldelft.nl/fews" elementFormDefault="qualified" attributeFormDefault="unqualified" version="1.0">
+	<include schemaLocation="sharedTypes.xsd"/>
+	<element name="whatIfTemplates" type="fews:WhatIfTemplatesComplexType"/>
+	<complexType name="WhatIfTemplatesComplexType">
+		<sequence>
+			<element name="valueTypes" type="fews:WhatIfTemplateValueTypesComplexType" minOccurs="0"/>
+			<element name="whatIfTemplate" type="fews:WhatIfTemplateComplexType" maxOccurs="unbounded">
+				<annotation>
+					<documentation>A what-if template consists of properties, modifier types, a what-if location set id and references to other what-if templates</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="WhatIfTemplateComplexType">
+		<sequence>
+			<element name="whatIfExpiryTime" type="fews:CalendarTimeSpanComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Used  for whatIf created with this template . Overrides expiry time from global properties DEFAULT_EXPIRY_DAYS. Overrides also  expirytime of the templates that are  referenced with whatIfTemplateId, and the expiryTime of the modifiers that are created for the  whatIf</documentation>
+				</annotation>
+			</element>
+			<element name="singleRunWhatIf" type="fews:singleRunWhatIfComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2023.02. Only used in the WebOC! Determine if a what-if is a single run what if, and if this setting can be overruled.</documentation>
+				</annotation>
+			</element>
+			<element name="properties" type="fews:WhatIfTemplatePropertiesComplexType" minOccurs="0"/>
+			<element name="modifierType" type="fews:idStringType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>The modifier type which can be used in this template</documentation>
+				</annotation>
+			</element>
+			<element name="defaultModifierType" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2025.01. Modifier type to show by default in the what-if modifier panel.</documentation>
+				</annotation>
+			</element>
+			<element name="whatIfTemplateId" type="fews:idStringType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>A what-if template can consist of other templates. You can refer to the what-if template by using the id of the template
+					</documentation>
+				</annotation>
+			</element>
+		</sequence>
+		<attribute name="id" type="fews:idStringType" use="required">
+			<annotation>
+				<documentation>The id of the what-if template.</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="name" type="fews:idStringType" use="required">
+			<annotation>
+				<documentation>The name of the what-if template</documentation>
+			</annotation>
+		</attribute>
+	</complexType>
+	<complexType name="WhatIfTemplateValueTypesComplexType">
+		<choice maxOccurs="unbounded">
+			<element name="enumeration" type="fews:WhatIfTemplateEnumerationComplexType"/>
+			<element name="multiPropertyEnumeration" type="fews:WhatIfTemplateMultiPropertyEnumerationComplexType"/>
+			<element name="configFile" type="fews:WhatIfTemplateConfigFileComplexType"/>
+			<element name="string" type="fews:WhatIfTemplateStringValueComplexType"/>
+			<element name="int" type="fews:WhatIfTemplateIntValueComplexType"/>
+			<element name="double" type="fews:WhatIfTemplateDoubleValueComplexType"/>
+			<element name="bool" type="fews:WhatIfTemplateBoolValueComplexType"/>
+			<element name="dateTime" type="fews:WhatIfTemplateDateTimeValueComplexType"/>
+			<element name="whatIfTemplateId" type="fews:WhatIfTemplateTemplateIdComplexType"/>
+		</choice>
+	</complexType>
+	<complexType name="singleRunWhatIfComplexType">
+		<sequence>
+			<element name="default" type="boolean">
+				<annotation>
+					<documentation>Since 2023.02. If this option is set to true the newly created whatifs are single run by default</documentation>
+				</annotation>
+			</element>
+			<element name="overRulable" type="boolean" default="false">
+				<annotation>
+					<documentation>Since 2023.02. Determine if the default setting above can be overruled</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="WhatIfTemplateEnumerationComplexType">
+		<sequence>
+			<element name="value" type="fews:WhatIfTemplateEnumerationValueComplexType" maxOccurs="unbounded"/>
+		</sequence>
+		<attribute name="id" type="fews:idStringType" use="required"/>
+		<attribute name="default" type="fews:nonEmptyStringType">
+			<annotation>
+				<documentation>Code  of the  default value </documentation>
+			</annotation>
+		</attribute>
+	</complexType>
+	<complexType name="WhatIfTemplateMultiPropertyEnumerationComplexType">
+		<sequence>
+			<element name="value" type="fews:WhatIfTemplateMultiPropertyEnumerationValueComplexType" maxOccurs="unbounded"/>
+		</sequence>
+		<attribute name="id" type="fews:idStringType" use="required"/>
+		<attribute name="default" type="fews:nonEmptyStringType">
+			<annotation>
+				<documentation>Available since 2024.02. Chosing one enumaration value will also change a number of pre-configured other properties, call trigger properties. Only the multi property
+					enumeration will be visible in the WhatIf editor. Enumartion values that belong to the same MultiPropertyEnumeration must have the same number of trigger properties with the same ids.</documentation>
+			</annotation>
+		</attribute>
+	</complexType>
+	<complexType name="WhatIfTemplateEnumerationValueComplexType">
+		<attribute name="code" type="fews:nonEmptyStringType" use="required"/>
+		<attribute name="label" type="fews:nonEmptyStringType" use="optional"/>
+	</complexType>
+	<complexType name="TriggerPropertyComplexType">
+		<attribute name="code" type="string" use="required"/>
+		<attribute name="propertyId" type="fews:nonEmptyStringType" use="optional"/>
+	</complexType>
+	<complexType name="WhatIfTemplateMultiPropertyEnumerationValueComplexType">
+		<sequence>
+			<element name="triggerProperty" type="fews:TriggerPropertyComplexType" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Available since 2024.02. Enumartion values that belong to the same MultiPropertyEnumeration must have the same number of trigger properties with the same ids.
+					</documentation>
+				</annotation>
+			</element>
+		</sequence>
+		<attribute name="code" type="string" use="required"/>
+		<attribute name="label" type="fews:nonEmptyStringType" use="optional"/>
+	</complexType>
+	<complexType name="WhatIfTemplateConfigFileComplexType">
+		<attribute name="id" type="fews:idStringType" use="required">
+			<annotation>
+				<documentation>id  referenced in template properties</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="type" type="fews:WhatIfTemplateConfigFileTypeSimpleType" use="required">
+			<annotation>
+				<documentation>Config file type</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="pattern" type="fews:nonEmptyStringType" use="required">
+			<annotation>
+				<documentation>For example  Cold* . Only wild cards  * and ?  are recognized.</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="hidePattern" type="boolean">
+			<annotation>
+				<documentation>When true then  the configFile name without the configured 'pattern' is visible  the dropdown box.  </documentation>
+			</annotation>
+		</attribute>
+		<attribute name="default" type="fews:nonEmptyStringType">
+			<annotation>
+				<documentation>File name of part of the file  name that specifies  the default  file</documentation>
+			</annotation>
+		</attribute>
+	</complexType>
+	<complexType name="WhatIfTemplatePropertiesComplexType">
+		<sequence maxOccurs="unbounded">
+			<element name="property" type="fews:WhatIfTemplatePropertyComplexType"/>
+		</sequence>
+	</complexType>
+	<complexType name="WhatIfTemplatePropertyComplexType">
+		<sequence>
+			<element name="description" type="fews:nonEmptyStringType" minOccurs="0" maxOccurs="1">
+				<annotation>
+					<documentation>Since 2024.01. Description showed in a tooltip on the name of the what-if property</documentation>
+				</annotation>
+			</element>
+		</sequence>
+		<attribute name="id" type="fews:nonEmptyStringType" use="required"/>
+		<attribute name="name" type="fews:nonEmptyStringType"/>
+		<attribute name="valueTypeId" type="fews:nonEmptyStringType" use="required"/>
+		<attribute name="triggerPropertyId" type="fews:nonEmptyStringType"/>
+	</complexType>
+	<complexType name="WhatIfTemplateStringValueComplexType">
+		<attribute name="id" type="string" use="required"/>
+		<attribute name="default" type="string"/>
+	</complexType>
+	<complexType name="WhatIfTemplateTemplateIdComplexType">
+		<attribute name="id" type="string" use="required"/>
+		<attribute name="templateId" type="string" use="required"/>
+	</complexType>
+	<complexType name="WhatIfTemplateIntValueComplexType">
+		<attribute name="id" type="string" use="required"/>
+		<attribute name="default" type="int"/>
+		<attribute name="min" type="int"/>
+		<attribute name="max" type="int"/>
+	</complexType>
+	<complexType name="WhatIfTemplateDoubleValueComplexType">
+		<attribute name="id" type="string" use="required"/>
+		<attribute name="default" type="double"/>
+		<attribute name="min" type="double"/>
+		<attribute name="max" type="double"/>
+	</complexType>
+	<complexType name="WhatIfTemplateBoolValueComplexType">
+		<attribute name="id" type="string" use="required"/>
+		<attribute name="default" type="boolean"/>
+	</complexType>
+	<complexType name="WhatIfTemplateDateTimeValueComplexType">
+		<sequence>
+			<element name="relativePeriod" type="fews:RelativePeriodComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2025.01. The relative period for which date/time entries are allowed.</documentation>
+				</annotation>
+			</element>
+			<element name="cardinalTimeStep" type="fews:TimeStepComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2025.01. For the WebOC only regular time step with a constant time interval are supported. The time step will be applied to new entries and to the relative period.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+		<attribute name="id" type="string" use="required"/>
+		<attribute name="defaultDate" type="fews:dateType"/>
+		<attribute name="defaultTime" type="fews:timeType"/>
+		<attribute name="dateTimeFormat" type="fews:dateTimeFormatType"/>
+	</complexType>
+	<simpleType name="WhatIfTemplateConfigFileTypeSimpleType">
+		<restriction base="string">
+			<enumeration value="cold state"/>
+			<enumeration value="module dataset"/>
+			<enumeration value="module parameter"/>
+		</restriction>
+	</simpleType>
+</schema>
