@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<importArchiveModule xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/importArchiveModule.xsd">
+{%- macro basic(i, tag) %}<{{ tag }}>
+    {% if i.timeSeriesSetIdMap is not none %}<timeSeriesSetIdMap>{{ i.timeSeriesSetIdMap }}</timeSeriesSetIdMap>{% endif %}
+    <importFolder>{{ i.importFolder }}</importFolder>
+  </{{ tag }}>{%- endmacro %}
+  {% for i in importSimulated %}{{ basic(i, 'importSimulated') }}
+  {% endfor %}
+  {% for i in importSimulatedHistorical %}{{ basic(i, 'importSimulatedHistorical') }}
+  {% endfor %}
+  {% for i in importObserved %}{{ basic(i, 'importObserved') }}
+  {% endfor %}
+  {% for i in importMessages %}<importMessages>
+    <importFolder>{{ i.importFolder }}</importFolder>
+  </importMessages>
+  {% endfor %}
+  {% for i in importExternalForecast %}{{ basic(i, 'importExternalForecast') }}
+  {% endfor %}
+  {% for i in importHistoricalEvents %}{{ basic(i, 'importHistoricalEvents') }}
+  {% endfor %}
+  {% for i in importRatingCurves %}{{ basic(i, 'importRatingCurves') }}
+  {% endfor %}
+  {% for i in importEditedData %}{{ basic(i, 'importEditedData') }}
+  {% endfor %}
+  {% for i in importRequestedDataSets %}{{ basic(i, 'importRequestedDataSets') }}
+  {% endfor %}
+  {% if logErrorsAsWarnings is not none %}<logErrorsAsWarnings>{{ 'true' if logErrorsAsWarnings else 'false' }}</logErrorsAsWarnings>{% endif %}
+  {% if logErrorsAsWarningsToFileOnly is not none %}<logErrorsAsWarningsToFileOnly>{{ 'true' if logErrorsAsWarningsToFileOnly else 'false' }}</logErrorsAsWarningsToFileOnly>{% endif %}
+</importArchiveModule>

@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ribasimModel version="{{ version }}" xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/ribasimModel.xsd">
+  {% if description is not none %}<description>{{ description }}</description>{% endif %}
+  {% if simulationTimestep is not none %}<simulationTimestep>{{ simulationTimestep }}</simulationTimestep>{% endif %}
+  {% if ribasimVersion is not none %}<ribasimVersion>{{ ribasimVersion }}</ribasimVersion>{% endif %}
+  {% for h in fileHeaders %}<fileHeaders{% if h.id is not none %} id="{{ h.id }}"{% endif %}>
+    <text>{{ h.text }}</text>
+  </fileHeaders>
+  {% endfor %}
+  <directories>
+    {% if directories.workDir is not none %}<workDir>{{ directories.workDir }}</workDir>{% endif %}
+    {% if directories.inputDir is not none %}<inputDir>{{ directories.inputDir }}</inputDir>{% endif %}
+    {% if directories.outputDir is not none %}<outputDir>{{ directories.outputDir }}</outputDir>{% endif %}
+    {% if directories.stateDir is not none %}<stateDir>{{ directories.stateDir }}</stateDir>{% endif %}
+  </directories>
+  <adapterfiles>
+    {% if adapterfiles.stateFile is not none %}<stateFile>{{ adapterfiles.stateFile }}</stateFile>{% endif %}
+{%- macro rfile(f, tag) %}<{{ tag }} type="{{ f.type }}" fileOut="{{ f.fileOut }}" fileIn="{{ f.fileIn }}"{% if f.conversionfile is not none %} conversionfile="{{ f.conversionfile }}"{% endif %}{% if f.headerId is not none %} headerId="{{ f.headerId }}"{% endif %}{% if f.unit is not none %} unit="{{ f.unit }}"{% endif %}/>{%- endmacro %}
+    {% for f in adapterfiles.inputFile %}{{ rfile(f, 'inputFile') }}
+    {% endfor %}
+    {% for f in adapterfiles.outputFile %}{{ rfile(f, 'outputFile') }}
+    {% endfor %}
+    {% if adapterfiles.diagnosticFile is not none %}<diagnosticFile>{{ adapterfiles.diagnosticFile }}</diagnosticFile>{% endif %}
+  </adapterfiles>
+  <modelFiles>
+    {% if modelFiles.logFile is not none %}<logFile>{{ modelFiles.logFile }}</logFile>{% endif %}
+  </modelFiles>
+</ribasimModel>

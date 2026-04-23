@@ -94,13 +94,68 @@ from .correlation_event_sets_descriptors import (
     CorrelationEventSetsDescriptors,
 )
 from .annotation_display import AnnotationDisplay
+from .annotations_display import AnnotationsDisplay
 from .clob_historical_event import ClobHistoricalEvent
+from .import_archive_module import (
+    ArchiveImportBasic,
+    ArchiveImportMessages,
+    ImportArchiveModule,
+)
+from .overtopping_module import (
+    OvertoppingDataCoefficient,
+    OvertoppingDataCoefficientMappings,
+    OvertoppingFile,
+    OvertoppingFileDataMapping,
+    OvertoppingFileDataMappings,
+    OvertoppingGeneral,
+    OvertoppingModule,
+)
+from .sobek_model import (
+    SobekAdapterFiles,
+    SobekFolderNames,
+    SobekModel,
+    SobekModelFiles,
+)
+from .lis_flood import (
+    LisFlood,
+    LisFloodAdapterFiles,
+    LisFloodDirectories,
+    LisFloodModelFiles,
+    LisFloodOutputFile,
+)
+from .log_message import LogMessage
+from .ribasim_model import (
+    RibasimAdapterFiles,
+    RibasimFile,
+    RibasimFileHeader,
+    RibasimFolderNames,
+    RibasimModel,
+    RibasimModelFiles,
+)
+from .configuration_management import (
+    ConfigChildType,
+    ConfigGroup,
+    ConfigParams,
+    ConfigurationManagement,
+)
 from .configuration_validation import (
     ConfigRef,
     ConfigType,
     ConfigurationValidation,
 )
 from .custom_colors import CustomColorKey, CustomColors
+from .correlation_display import (
+    CorrelationDisplay,
+    CorrelationDisplayOptions,
+    DisplayOptions,
+    ReferencePoint,
+    ReferencePoints,
+    ScatterPlotDisplayOptions,
+    ScatterPlotThresholdOptions,
+    TimeSeriesSetInfo,
+    UserDefinedRelation,
+)
+from .forecaster_aid_selection_panel import ForecasterAidSelectionPanel
 from .forecast_management import (
     DefaultTimeThreshold,
     ExtraDispatchTimeThreshold,
@@ -736,6 +791,57 @@ __all__ = [
     # WaterCoachDictionary
     "WaterCoachDictionary",
     "DictionaryEntry",
+    # LogMessage
+    "LogMessage",
+    # AnnotationsDisplay (stub)
+    "AnnotationsDisplay",
+    # LisFlood
+    "LisFlood",
+    "LisFloodDirectories",
+    "LisFloodAdapterFiles",
+    "LisFloodOutputFile",
+    "LisFloodModelFiles",
+    # RibasimModel
+    "RibasimModel",
+    "RibasimFolderNames",
+    "RibasimAdapterFiles",
+    "RibasimFile",
+    "RibasimFileHeader",
+    "RibasimModelFiles",
+    # SobekModel
+    "SobekModel",
+    "SobekFolderNames",
+    "SobekAdapterFiles",
+    "SobekModelFiles",
+    # ImportArchiveModule
+    "ImportArchiveModule",
+    "ArchiveImportBasic",
+    "ArchiveImportMessages",
+    # OvertoppingModule
+    "OvertoppingModule",
+    "OvertoppingGeneral",
+    "OvertoppingFile",
+    "OvertoppingFileDataMappings",
+    "OvertoppingFileDataMapping",
+    "OvertoppingDataCoefficientMappings",
+    "OvertoppingDataCoefficient",
+    # ConfigurationManagement
+    "ConfigurationManagement",
+    "ConfigParams",
+    "ConfigGroup",
+    "ConfigChildType",
+    # ForecasterAidSelectionPanel
+    "ForecasterAidSelectionPanel",
+    # CorrelationDisplay
+    "CorrelationDisplay",
+    "TimeSeriesSetInfo",
+    "CorrelationDisplayOptions",
+    "ScatterPlotDisplayOptions",
+    "ScatterPlotThresholdOptions",
+    "DisplayOptions",
+    "UserDefinedRelation",
+    "ReferencePoints",
+    "ReferencePoint",
     # SamplePropertiesFile (root of SampleProperties.xml;
     # named *File to avoid collision with SampleMetadataSchema.SampleProperties)
     "SamplePropertiesFile",

@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sobekModel version="{{ version }}" xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/sobekModel.xsd">
+  {% if description is not none %}<description>{{ description }}</description>{% endif %}
+  <directories>
+    <configDir>{{ directories.configDir }}</configDir>
+    <workDir>{{ directories.workDir }}</workDir>
+    {% if directories.purgeWorkDir is not none %}<purgeWorkDir>{{ 'true' if directories.purgeWorkDir else 'false' }}</purgeWorkDir>{% endif %}
+    <moduleDir>{{ directories.moduleDir }}</moduleDir>
+    <importDir>{{ directories.importDir }}</importDir>
+    <exportDir>{{ directories.exportDir }}</exportDir>
+    {% if directories.purgeExportDir is not none %}<purgeExportDir>{{ 'true' if directories.purgeExportDir else 'false' }}</purgeExportDir>{% endif %}
+  </directories>
+  <adapterfiles>
+    {% if adapterfiles.stateFile is not none %}<stateFile>{{ adapterfiles.stateFile }}</stateFile>{% endif %}
+    {% if adapterfiles.diagnosticFile is not none %}<diagnosticFile>{{ adapterfiles.diagnosticFile }}</diagnosticFile>{% endif %}
+    {% if adapterfiles.branchFile is not none %}<branchFile>{{ adapterfiles.branchFile }}</branchFile>{% endif %}
+    {% if adapterfiles.controlsDefTemplateFile is not none %}<controlsDefTemplateFile>{{ adapterfiles.controlsDefTemplateFile }}</controlsDefTemplateFile>{% endif %}
+    {% if adapterfiles.triggersDefTemplateFile is not none %}<triggersDefTemplateFile>{{ adapterfiles.triggersDefTemplateFile }}</triggersDefTemplateFile>{% endif %}
+  </adapterfiles>
+  <modelFiles>
+    {% if modelFiles.useNefis4 is not none %}<useNefis4>{{ 'true' if modelFiles.useNefis4 else 'false' }}</useNefis4>{% endif %}
+    <mdaFile>{{ modelFiles.mdaFile }}</mdaFile>
+    <dataFile>{{ modelFiles.dataFile }}</dataFile>
+    {% if modelFiles.definitionFile is not none %}<definitionFile>{{ modelFiles.definitionFile }}</definitionFile>{% endif %}
+    {% if modelFiles.rstDataClusterFile is not none %}<rstDataClusterFile>{{ modelFiles.rstDataClusterFile }}</rstDataClusterFile>{% endif %}
+    {% if modelFiles.modelRunPeriodFile is not none %}<modelRunPeriodFile>{{ modelFiles.modelRunPeriodFile }}</modelRunPeriodFile>{% endif %}
+    {% if modelFiles.logFile is not none %}<logFile>{{ modelFiles.logFile }}</logFile>{% endif %}
+    {% for h in modelFiles.hisFile %}<hisFile>{{ h }}</hisFile>
+    {% endfor %}
+    {% if modelFiles.mapFile is not none %}<mapFile>{{ modelFiles.mapFile }}</mapFile>{% endif %}
+    {% if modelFiles.returnFile is not none %}<returnFile>{{ modelFiles.returnFile }}</returnFile>{% endif %}
+  </modelFiles>
+  {% for m in mapping %}<mapping>
+    <parameterId>{{ m.parameterId }}</parameterId>
+    <locationId>{{ m.locationId }}</locationId>
+    <column>{{ m.column }}</column>
+  </mapping>
+  {% endfor %}
+</sobekModel>

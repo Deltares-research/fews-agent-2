@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<lisFlood version="{{ version }}" xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/lisFlood.xsd">
+  {% if description is not none %}<description>{{ description }}</description>{% endif %}
+  <directories>
+    {% if directories.workDir is not none %}<workDir>{{ directories.workDir }}</workDir>{% endif %}
+    <inputDir>{{ directories.inputDir }}</inputDir>
+    {% if directories.outputDir is not none %}<outputDir>{{ directories.outputDir }}</outputDir>{% endif %}
+    {% if directories.stateDir is not none %}<stateDir>{{ directories.stateDir }}</stateDir>{% endif %}
+  </directories>
+  <adapterfiles>
+    {% if adapterfiles.stateFile is not none %}<stateFile>{{ adapterfiles.stateFile }}</stateFile>{% endif %}
+    {% if adapterfiles.parameterFile is not none %}<parameterFile>{{ adapterfiles.parameterFile }}</parameterFile>{% endif %}
+    {% if adapterfiles.diagnosticFile is not none %}<diagnosticFile>{{ adapterfiles.diagnosticFile }}</diagnosticFile>{% endif %}
+    {% for f in adapterfiles.inputMapStackFile %}<inputMapStackFile>{{ f }}</inputMapStackFile>
+    {% endfor %}
+    {% for o in adapterfiles.outputFile %}<outputFile fileType="{{ o.fileType }}" file="{{ o.file }}" xmlFile="{{ o.xmlFile }}"{% if o.conversionFile is not none %} conversionFile="{{ o.conversionFile }}"{% endif %}{% if o.parameterID is not none %} parameterID="{{ o.parameterID }}"{% endif %}{% if o.locationID is not none %} locationID="{{ o.locationID }}"{% endif %}{% if o.locationIdPrefix is not none %} locationIdPrefix="{{ o.locationIdPrefix }}"{% endif %}/>
+    {% endfor %}
+  </adapterfiles>
+  {% if modelFiles is not none %}<modelFiles>
+    <LisFloodModFile>{{ modelFiles.LisFloodModFile }}</LisFloodModFile>
+    {% if modelFiles.logFile is not none %}<logFile>{{ modelFiles.logFile }}</logFile>{% endif %}
+  </modelFiles>{% endif %}
+</lisFlood>
