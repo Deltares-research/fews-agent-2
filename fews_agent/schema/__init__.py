@@ -94,7 +94,24 @@ from .correlation_event_sets_descriptors import (
     CorrelationEventSetsDescriptors,
 )
 from .custom_colors import CustomColorKey, CustomColors
+from .da_filter import DAFilter
 from .data_download_display import DataDownloadDisplay, DataDownloadTemplate
+from .environment_agency_time_units import (
+    EnvironmentAgencyTimeUnit,
+    EnvironmentAgencyTimeUnits,
+)
+from .launcher import (
+    Launcher,
+    LauncherAction,
+    LauncherExecutable,
+    LauncherJavaApp,
+    LauncherWebPage,
+)
+from .ldap_login_module import (
+    LDAPConnection,
+    LDAPLoginModule,
+    LDAPSearch,
+)
 from .forecast_product_info_display import (
     ClassificationToggle,
     Confidence,
@@ -614,6 +631,21 @@ __all__ = [
     # WebOCMicroFrontEnds
     "WebOCMicroFrontEnds",
     "WebOCMicroFrontEnd",
+    # DAFilter
+    "DAFilter",
+    # EnvironmentAgencyTimeUnits
+    "EnvironmentAgencyTimeUnits",
+    "EnvironmentAgencyTimeUnit",
+    # LDAPLoginModule
+    "LDAPLoginModule",
+    "LDAPConnection",
+    "LDAPSearch",
+    # Launcher
+    "Launcher",
+    "LauncherAction",
+    "LauncherWebPage",
+    "LauncherJavaApp",
+    "LauncherExecutable",
     # SamplePropertiesFile (root of SampleProperties.xml;
     # named *File to avoid collision with SampleMetadataSchema.SampleProperties)
     "SamplePropertiesFile",
