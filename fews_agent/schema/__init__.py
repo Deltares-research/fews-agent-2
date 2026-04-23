@@ -25,7 +25,10 @@ from .common import (
     ExtremeValueLimit,
     ExtremeValues,
     FewsModel,
+    DataVariable,
+    HarmonicComponent,
     RelativeViewPeriod,
+    TimeSeriesDataPoint,
     TimeSeriesSet,
     TimeStep,
     TimeZone,
@@ -95,7 +98,26 @@ from .correlation_event_sets_descriptors import (
 )
 from .annotation_display import AnnotationDisplay
 from .annotations_display import AnnotationsDisplay
+from .branches import Branch, BranchNodePoint, Branches
 from .clob_historical_event import ClobHistoricalEvent
+from .correlation_event_sets import (
+    AttrMappedCorrelationEventSet,
+    CorrelationEvent,
+    CorrelationEventSet,
+    CorrelationEventSets,
+    InlineCorrelationEventSet,
+)
+from .event_actions import (
+    EventActions,
+    LegacyEnhance,
+    LegacyEventAction,
+    LegacyOneoff,
+    LegacyOneoffCardinalTime,
+    LegacyRepeatInterval,
+    LegacyResume,
+    LegacySuspend,
+    LegacyTag,
+)
 from .import_archive_module import (
     ArchiveImportBasic,
     ArchiveImportMessages,
@@ -115,6 +137,58 @@ from .sobek_model import (
     SobekFolderNames,
     SobekModel,
     SobekModelFiles,
+)
+from .southern_transfer_functions import (
+    SouthernTransferFunctions,
+    SouthernTransferFunctionsArgument,
+    SouthernTransferFunctionsFileNames,
+    SouthernTransferFunctionsFolderNames,
+)
+from .transformations import (
+    PeriodDependantTransformation,
+    Transformations,
+    TransformationEntry,
+    TransformationTable,
+    TransformationTableRecord,
+    TransformationValidPeriod,
+)
+from .lookup_display import (
+    LookupDisplay,
+    LookupDisplayDescriptor,
+    LookupDisplayGeneral,
+)
+from .html_template_displays import (
+    DataObject,
+    HtmlTemplateDisplay,
+    HtmlTemplateDisplays,
+    HtmlTemplateField,
+    HtmlTemplateRequiredValue,
+    LoopEnsembleMemberVariable,
+    LoopLocationVariable,
+    LoopTimeSeriesSetVariable,
+    SelectedLocationVariable,
+    SelectedTimeVariable,
+    TimeSeriesSetReferences,
+    TimeSeriesSetVariable,
+)
+from .dynamic_report_displays import (
+    DynamicReportDisplay,
+    DynamicReportDisplays,
+)
+from .scenarios import Scenario, ScenarioVariable, Scenarios
+from .statistics_sets import (
+    MovingAverage,
+    StandardStatistics,
+    StatisticalFunctions,
+    StatisticsSet,
+    StatisticsSets,
+)
+from .workflow_loop_runner import (
+    RunPeriodOptions,
+    StepValueTrigger,
+    TriggerOptions,
+    ValueTrigger,
+    WorkflowLoopRunner,
 )
 from .lis_flood import (
     LisFlood,
@@ -536,6 +610,9 @@ __all__ = [
     "ExternUnit",
     "ExtremeValues",
     "ExtremeValueLimit",
+    "DataVariable",
+    "HarmonicComponent",
+    "TimeSeriesDataPoint",
     # enums
     "ValueType",
     "TimeSeriesType",
@@ -813,6 +890,54 @@ __all__ = [
     "SobekFolderNames",
     "SobekAdapterFiles",
     "SobekModelFiles",
+    # SouthernTransferFunctions
+    "SouthernTransferFunctions",
+    "SouthernTransferFunctionsFolderNames",
+    "SouthernTransferFunctionsFileNames",
+    "SouthernTransferFunctionsArgument",
+    # StatisticsSets
+    "StatisticsSets",
+    "StatisticsSet",
+    "StatisticalFunctions",
+    "StandardStatistics",
+    "MovingAverage",
+    # LookupDisplay
+    "LookupDisplay",
+    "LookupDisplayGeneral",
+    "LookupDisplayDescriptor",
+    # HtmlTemplateDisplays
+    "HtmlTemplateDisplays",
+    "HtmlTemplateDisplay",
+    "DataObject",
+    "HtmlTemplateField",
+    "HtmlTemplateRequiredValue",
+    "TimeSeriesSetReferences",
+    "TimeSeriesSetVariable",
+    "LoopTimeSeriesSetVariable",
+    "LoopLocationVariable",
+    "SelectedLocationVariable",
+    "SelectedTimeVariable",
+    "LoopEnsembleMemberVariable",
+    # DynamicReportDisplays (reuses inner types from HtmlTemplateDisplays)
+    "DynamicReportDisplays",
+    "DynamicReportDisplay",
+    # Scenarios
+    "Scenarios",
+    "Scenario",
+    "ScenarioVariable",
+    # WorkflowLoopRunner
+    "WorkflowLoopRunner",
+    "RunPeriodOptions",
+    "TriggerOptions",
+    "ValueTrigger",
+    "StepValueTrigger",
+    # Transformations (region-level lookup form)
+    "Transformations",
+    "TransformationEntry",
+    "PeriodDependantTransformation",
+    "TransformationTable",
+    "TransformationTableRecord",
+    "TransformationValidPeriod",
     # ImportArchiveModule
     "ImportArchiveModule",
     "ArchiveImportBasic",
@@ -832,6 +957,26 @@ __all__ = [
     "ConfigChildType",
     # ForecasterAidSelectionPanel
     "ForecasterAidSelectionPanel",
+    # Branches
+    "Branches",
+    "Branch",
+    "BranchNodePoint",
+    # CorrelationEventSets
+    "CorrelationEventSets",
+    "CorrelationEventSet",
+    "InlineCorrelationEventSet",
+    "AttrMappedCorrelationEventSet",
+    "CorrelationEvent",
+    # EventActions
+    "EventActions",
+    "LegacyEventAction",
+    "LegacyEnhance",
+    "LegacyOneoff",
+    "LegacyOneoffCardinalTime",
+    "LegacyRepeatInterval",
+    "LegacyResume",
+    "LegacySuspend",
+    "LegacyTag",
     # CorrelationDisplay
     "CorrelationDisplay",
     "TimeSeriesSetInfo",

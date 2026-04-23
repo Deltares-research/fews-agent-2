@@ -1,0 +1,24 @@
+{# Shared Variable emission — XSD VariableComplexType choice.
+   Emits exactly one of the three forms:
+     A) <timeSeriesSet>...</timeSeriesSet>
+     B) optional <timeStep>/<relativeViewPeriod>, <data>+, optional <timeZone>
+     C) <component>+
+   Caller passes the outer `tag` (e.g. "inputVariable", "outputVariable").
+#}
+{%- import "_partials/timeseries_set.xml.j2" as tss -%}
+{%- macro render(v, tag) -%}
+<{{ tag }}>
+  {% if v.timeSeriesSet is not none %}{{ tss.render(v.timeSeriesSet) }}
+  {% elif v.data %}
+    {% if v.timeStep is not none %}{% if v.timeStep.id is not none %}<timeStep id="{{ v.timeStep.id }}"/>
+    {% else %}<timeStep unit="{{ v.timeStep.unit }}"{% if v.timeStep.multiplier is not none %} multiplier="{{ v.timeStep.multiplier }}"{% endif %}/>{% endif %}{% endif %}
+    {% if v.relativeViewPeriod is not none %}<relativeViewPeriod unit="{{ v.relativeViewPeriod.unit }}"{% if v.relativeViewPeriod.start is not none %} start="{{ v.relativeViewPeriod.start }}"{% endif %}{% if v.relativeViewPeriod.end is not none %} end="{{ v.relativeViewPeriod.end }}"{% endif %}/>{% endif %}
+    {% for d in v.data %}<data value="{{ d.value | xmlstr }}"{% if d.dateTime is not none %} dateTime="{{ d.dateTime }}"{% endif %}{% if d.time is not none %} time="{{ d.time }}"{% endif %}{% if d.monthDay is not none %} monthDay="{{ d.monthDay }}"{% endif %}{% if d.dayofWeek is not none %} dayofWeek="{{ d.dayofWeek }}"{% endif %}{% if d.monthofYear is not none %} monthofYear="{{ d.monthofYear }}"{% endif %}{% if d.comment is not none %} comment="{{ d.comment }}"{% endif %}/>
+    {% endfor %}
+    {% if v.timeZone is not none %}<timeZone>{% if v.timeZone.timeZoneName is not none %}<timeZoneName>{{ v.timeZone.timeZoneName }}</timeZoneName>{% endif %}{% if v.timeZone.timeZoneOffset is not none %}<timeZoneOffset>{{ v.timeZone.timeZoneOffset }}</timeZoneOffset>{% endif %}</timeZone>{% endif %}
+  {% else %}
+    {% for c in v.component %}<component name="{{ c.name }}" amplitude="{{ c.amplitude | xmlstr }}" phase="{{ c.phase | xmlstr }}"/>
+    {% endfor %}
+  {% endif %}
+</{{ tag }}>
+{%- endmacro %}

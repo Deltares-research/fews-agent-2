@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<southernTransferFunctions xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/southernTransferFunctions.xsd">
+  <directories>
+    <configDir>{{ directories.configDir }}</configDir>
+    <workDir>{{ directories.workDir }}</workDir>
+    <moduleDir>{{ directories.moduleDir }}</moduleDir>
+    <importDir>{{ directories.importDir }}</importDir>
+    <exportDir>{{ directories.exportDir }}</exportDir>
+  </directories>
+  <files>
+    <configCsvFile>{{ files.configCsvFile }}</configCsvFile>
+    <parameterCsvFile>{{ files.parameterCsvFile }}</parameterCsvFile>
+    {% if files.ratingsCsvFile is not none %}<ratingsCsvFile>{{ files.ratingsCsvFile }}</ratingsCsvFile>{% endif %}
+    <inputInpFile>{{ files.inputInpFile }}</inputInpFile>
+    {% for o in files.outputOutFile %}<outputOutFile>{{ o }}</outputOutFile>
+    {% endfor %}
+    <inputXmlFile>{{ files.inputXmlFile }}</inputXmlFile>
+    <outputXmlFile>{{ files.outputXmlFile }}</outputXmlFile>
+    <diagnosticFile>{{ files.diagnosticFile }}</diagnosticFile>
+    <stfLogFile>{{ files.stfLogFile }}</stfLogFile>
+  </files>
+  <arguments>
+    <outputLocationId1>{{ arguments.outputLocationId1 }}</outputLocationId1>
+    {% if arguments.outputLocationId2 is not none %}<outputLocationId2>{{ arguments.outputLocationId2 }}</outputLocationId2>{% endif %}
+    {% if arguments.inputForecastParameterId1 is not none %}<inputForecastParameterId1>{{ arguments.inputForecastParameterId1 }}</inputForecastParameterId1>{% endif %}
+    {% if arguments.inputHistoricParameterId1 is not none %}<inputHistoricParameterId1>{{ arguments.inputHistoricParameterId1 }}</inputHistoricParameterId1>{% endif %}
+    <outputForecastParameterId1>{{ arguments.outputForecastParameterId1 }}</outputForecastParameterId1>
+    <outputHistoricParameterId1>{{ arguments.outputHistoricParameterId1 }}</outputHistoricParameterId1>
+    {% if arguments.outputForecastParameterId2 is not none %}<outputForecastParameterId2>{{ arguments.outputForecastParameterId2 }}</outputForecastParameterId2>{% endif %}
+    {% if arguments.outputHistoricParameterId2 is not none %}<outputHistoricParameterId2>{{ arguments.outputHistoricParameterId2 }}</outputHistoricParameterId2>{% endif %}
+    <outputDataType1>{{ arguments.outputDataType1 }}</outputDataType1>
+    {% if arguments.outputDataType2 is not none %}<outputDataType2>{{ arguments.outputDataType2 }}</outputDataType2>{% endif %}
+  </arguments>
+</southernTransferFunctions>

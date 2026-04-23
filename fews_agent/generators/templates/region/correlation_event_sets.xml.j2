@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<correlationEventSets xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/correlationEventSets.xsd">
+  {% if timeZone is not none %}<timeZone>{{ timeZone }}</timeZone>{% endif %}
+  {% for s in correlationEventSet %}<correlationEventSet>
+    {% if s.inline is not none %}<locationId>{{ s.inline.locationId }}</locationId>
+    <parameterId>{{ s.inline.parameterId }}</parameterId>
+    {% for e in s.inline.event %}<event value="{{ e.value | xmlstr }}" date="{{ e.date }}"{% if e.eventId is not none %} eventId="{{ e.eventId }}"{% endif %}{% if e.time is not none %} time="{{ e.time }}"{% endif %}{% if e.tag is not none %} tag="{{ e.tag }}"{% endif %}{% if e.tag1 is not none %} tag1="{{ e.tag1 }}"{% endif %}{% if e.tag2 is not none %} tag2="{{ e.tag2 }}"{% endif %}{% if e.tag3 is not none %} tag3="{{ e.tag3 }}"{% endif %}{% if e.tag4 is not none %} tag4="{{ e.tag4 }}"{% endif %}{% if e.comment is not none %} comment="{{ e.comment }}"{% endif %}/>
+    {% endfor %}
+    {% else %}<locationSetId>{{ s.attrMapped.locationSetId }}</locationSetId>
+    <eventIdAttributeId>{{ s.attrMapped.eventIdAttributeId }}</eventIdAttributeId>
+    <eventParameterLocationAttributeId>{{ s.attrMapped.eventParameterLocationAttributeId }}</eventParameterLocationAttributeId>
+    <eventTimeLocationAttributeId>{{ s.attrMapped.eventTimeLocationAttributeId }}</eventTimeLocationAttributeId>
+    <eventValueLocationAttributeId>{{ s.attrMapped.eventValueLocationAttributeId }}</eventValueLocationAttributeId>
+    {% for t in s.attrMapped.eventTagLocationAttributeId %}<eventTagLocationAttributeId>{{ t }}</eventTagLocationAttributeId>
+    {% endfor %}
+    {% if s.attrMapped.eventCommentLocationAttributeId is not none %}<eventCommentLocationAttributeId>{{ s.attrMapped.eventCommentLocationAttributeId }}</eventCommentLocationAttributeId>{% endif %}
+    {% endif %}
+  </correlationEventSet>
+  {% endfor %}
+  {% if comment is not none %}<comment>{{ comment }}</comment>{% endif %}
+</correlationEventSets>

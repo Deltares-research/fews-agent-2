@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<eventActions xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/eventActions.xsd">
+{% for e in eventAction %}
+  <eventAction actionConfigurationId="{{ e.actionConfigurationId }}" description="{{ e.description }}">
+    {% if e.enhance is not none %}<enhance>
+      <tag{% if e.enhance.tag.name is not none %} name="{{ e.enhance.tag.name }}"{% endif %}/>
+      {% if e.enhance.resume is not none %}<resume/>{% endif %}
+      {% if e.enhance.suspend is not none %}<suspend/>{% endif %}
+      {% if e.enhance.repeatinterval is not none %}<repeatinterval{% if e.enhance.repeatinterval.interval is not none %} interval="{{ e.enhance.repeatinterval.interval }}"{% endif %}/>{% endif %}
+    </enhance>{% endif %}
+    {% if e.oneoff is not none %}<oneoff>
+      <cardinaltime{% if e.oneoff.cardinaltime.interval is not none %} interval="{{ e.oneoff.cardinaltime.interval }}"{% endif %}{% if e.oneoff.cardinaltime.reference is not none %} reference="{{ e.oneoff.cardinaltime.reference }}"{% endif %}{% if e.oneoff.cardinaltime.unit is not none %} unit="{{ e.oneoff.cardinaltime.unit }}"{% endif %}/>
+      <tag{% if e.oneoff.tag.name is not none %} name="{{ e.oneoff.tag.name }}"{% endif %}/>
+    </oneoff>{% endif %}
+  </eventAction>
+{% endfor %}
+</eventActions>

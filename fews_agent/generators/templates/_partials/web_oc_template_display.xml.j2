@@ -1,0 +1,40 @@
+{# Shared emission macro for Web OC template displays
+   (htmlTemplateDisplays / dynamicReportDisplays — identical inner shape).
+   `root_tag` is the outer element (e.g. "htmlTemplateDisplays").
+   `xsd` is the XSD file name for xsi:schemaLocation.
+#}
+{%- import "_partials/timeseries_set.xml.j2" as tss -%}
+{%- macro render(data, root_tag, xsd) -%}
+<?xml version="1.0" encoding="UTF-8"?>
+<{{ root_tag }} xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/{{ xsd }}">
+  {% for ts in data.timeSeriesSet %}{{ tss.render(ts) }}
+  {% endfor %}
+  {% for r in data.timeSeriesSets %}<timeSeriesSets id="{{ r.id }}"{% if r.name is not none %} name="{{ r.name }}"{% endif %}>
+    {% for tid in r.timeSeriesSetId %}<timeSeriesSetId>{{ tid }}</timeSeriesSetId>
+    {% endfor %}
+  </timeSeriesSets>
+  {% endfor %}
+  {% for d in data.display %}<display id="{{ d.id }}"{% if d.name is not none %} name="{{ d.name }}"{% endif %}>
+    {% for do in d.dataObject %}<dataObject id="{{ do.id }}">
+      {% for v in do.timeSeriesSetVariable %}<timeSeriesSetVariable id="{{ v.id }}" timeSeriesSetId="{{ v.timeSeriesSetId }}"/>
+      {% endfor %}
+      {% if do.loopTimeSeriesSetVariable is not none %}<loopTimeSeriesSetVariable id="{{ do.loopTimeSeriesSetVariable.id }}" timeSeriesSetsId="{{ do.loopTimeSeriesSetVariable.timeSeriesSetsId }}"/>{% endif %}
+      {% if do.loopLocationVariable is not none %}<loopLocationVariable id="{{ do.loopLocationVariable.id }}"{% if do.loopLocationVariable.locationSetId is not none %} locationSetId="{{ do.loopLocationVariable.locationSetId }}"{% endif %}/>{% endif %}
+      {% if do.selectedLocationVariable is not none %}<selectedLocationVariable id="{{ do.selectedLocationVariable.id }}" validLocationSetId="{{ do.selectedLocationVariable.validLocationSetId }}"/>{% endif %}
+      {% if do.selectedTimeVariable is not none %}<selectedTimeVariable id="{{ do.selectedTimeVariable.id }}">
+        {% if do.selectedTimeVariable.timeStep.id is not none %}<timeStep id="{{ do.selectedTimeVariable.timeStep.id }}"/>
+        {% else %}<timeStep unit="{{ do.selectedTimeVariable.timeStep.unit }}"{% if do.selectedTimeVariable.timeStep.multiplier is not none %} multiplier="{{ do.selectedTimeVariable.timeStep.multiplier }}"{% endif %}/>{% endif %}
+        <relativeViewPeriod unit="{{ do.selectedTimeVariable.relativeViewPeriod.unit }}"{% if do.selectedTimeVariable.relativeViewPeriod.start is not none %} start="{{ do.selectedTimeVariable.relativeViewPeriod.start }}"{% endif %}{% if do.selectedTimeVariable.relativeViewPeriod.end is not none %} end="{{ do.selectedTimeVariable.relativeViewPeriod.end }}"{% endif %}/>
+      </selectedTimeVariable>{% endif %}
+      {% if do.loopEnsembleMemberVariable is not none %}<loopEnsembleMemberVariable name="{{ do.loopEnsembleMemberVariable.name }}"{% if do.loopEnsembleMemberVariable.timeSeriesSetId is not none %} timeSeriesSetId="{{ do.loopEnsembleMemberVariable.timeSeriesSetId }}"{% endif %}/>{% endif %}
+      {% for rv in do.requiredValue %}<requiredValue function="{{ rv.function }}"/>
+      {% endfor %}
+      {% for f in do.field %}<field id="{{ f.id }}" function="{{ f.function }}"{% if f.name is not none %} name="{{ f.name }}"{% endif %}{% if f.sort is not none %} sort="{{ f.sort }}"{% endif %}{% if f.required is not none %} required="{{ 'true' if f.required else 'false' }}"{% endif %}/>
+      {% endfor %}
+    </dataObject>
+    {% endfor %}
+    {% if d.reportTemplateName is not none %}<reportTemplateName>{{ d.reportTemplateName }}</reportTemplateName>{% endif %}
+  </display>
+  {% endfor %}
+</{{ root_tag }}>
+{%- endmacro %}

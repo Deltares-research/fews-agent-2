@@ -6,7 +6,7 @@ duplicated per generator.
 """
 from __future__ import annotations
 
-from typing import Annotated
+from typing import Annotated, Any
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -200,5 +200,88 @@ class TimeSeriesSet(FewsModel):
         if has_loc == has_set:
             raise ValueError(
                 "timeSeriesSet: supply exactly one of locationId or locationSetId"
+            )
+        return self
+
+
+class TimeSeriesDataPoint(FewsModel):
+    """XSD TimeSeriesDataComplexType — one <data> row inside a Variable's
+    defined-data form. Mirrors the shape used by HistoricalEvents but
+    lives here so any Variable consumer can reuse it.
+
+    `value` is Decimal to preserve source digits through the xmlstr
+    filter (same rationale as locations.x/y).
+    """
+
+    value: Any  # Decimal preferred; str accepted for placeholder tokens
+    dateTime: str | None = None
+    time: str | None = None
+    monthDay: str | None = None
+    dayofWeek: str | None = None
+    monthofYear: str | None = None
+    comment: str | None = None
+
+
+class HarmonicComponent(FewsModel):
+    """XSD HarmonicComponentComplexType — tidal-harmonic component.
+
+    `name` is an enum of ~100 tidal constituent names (A0, M2, S2, ...);
+    we pass through as str and let the XSD validate.
+    """
+
+    name: str
+    amplitude: Any  # Decimal
+    phase: Any  # Decimal
+
+
+class DataVariable(FewsModel):
+    """XSD VariableComplexType — choice between three mutually-exclusive forms.
+
+    Named ``DataVariable`` (not ``Variable``) to avoid colliding with
+    ``fews_agent.schema.transformation_module.Variable`` — a
+    TransformationModule-specific wrapper carrying a ``variableId`` + a
+    single ``timeSeriesSet``. Both map to ``VariableComplexType`` in
+    their respective XSDs, but their Python shapes differ.
+
+    Form A — timeSeriesSet (the common case):
+        supply `timeSeriesSet` only.
+    Form B — defined data:
+        supply `data[]`, optionally with `timeStep`, `relativeViewPeriod`,
+        `timeZone`. Do not set `timeSeriesSet` or `component`.
+    Form C — harmonic components (tidal):
+        supply `component[]` only.
+
+    A model_validator enforces exactly one form is active.
+    """
+
+    # Form A
+    timeSeriesSet: TimeSeriesSet | None = None
+    # Form B
+    timeStep: TimeStep | None = None
+    relativeViewPeriod: RelativeViewPeriod | None = None
+    data: list[TimeSeriesDataPoint] = Field(default_factory=list)
+    timeZone: TimeZone | None = None
+    # Form C
+    component: list[HarmonicComponent] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _exactly_one_form(self) -> DataVariable:
+        has_tss = self.timeSeriesSet is not None
+        has_defined = bool(self.data) or any([
+            self.timeStep is not None,
+            self.relativeViewPeriod is not None,
+            self.timeZone is not None,
+        ])
+        has_harmonic = bool(self.component)
+        forms = sum([has_tss, has_defined, has_harmonic])
+        if forms != 1:
+            raise ValueError(
+                "variable: supply exactly one form — timeSeriesSet, defined-data "
+                "(data[] + optional timeStep/relativeViewPeriod/timeZone), or "
+                "harmonic component[]"
+            )
+        if has_defined and not self.data:
+            raise ValueError(
+                "variable: defined-data form requires at least one <data> entry"
             )
         return self

@@ -1,0 +1,16 @@
+{%- import "_partials/variable.xml.j2" as var -%}
+<?xml version="1.0" encoding="UTF-8"?>
+<scenarios version="{{ version }}" xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/scenarios.xsd">
+  {% if description is not none %}<description>{{ description }}</description>{% endif %}
+  {% for s in scenario %}<scenario{% if s.id is not none %} id="{{ s.id }}"{% endif %} name="{{ s.name }}">
+    {% if s.description is not none %}<description>{{ s.description }}</description>{% endif %}
+    {% for sv in s.scenarioVariable %}<scenarioVariable>
+      {{ var.render(sv.variable, 'variable') }}
+      <transformationType>{{ sv.transformationType }}</transformationType>
+      {% for v in sv.defaultValue %}<defaultValue>{{ v | xmlstr }}</defaultValue>
+      {% endfor %}
+    </scenarioVariable>
+    {% endfor %}
+  </scenario>
+  {% endfor %}
+</scenarios>

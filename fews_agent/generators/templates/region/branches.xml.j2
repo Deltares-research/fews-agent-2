@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<branches version="{{ version }}" xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/branches.xsd">
+  <geoDatum>{{ geoDatum }}</geoDatum>
+{% for b in branch %}
+  <branch id="{{ b.id }}">
+    <branchName>{{ b.branchName }}</branchName>
+    <startChainage>{{ b.startChainage | xmlstr }}</startChainage>
+    <endChainage>{{ b.endChainage | xmlstr }}</endChainage>
+    {% if b.upNode is not none %}<upNode>{{ b.upNode }}</upNode>{% endif %}
+    {% if b.downNode is not none %}<downNode>{{ b.downNode }}</downNode>{% endif %}
+    {% if b.zone is not none %}<zone>{{ b.zone }}</zone>{% endif %}
+    {% for p in b.pt %}<pt chainage="{{ p.chainage | xmlstr }}" label="{{ p.label }}"{% if p.x is not none %} x="{{ p.x | xmlstr }}"{% endif %}{% if p.y is not none %} y="{{ p.y | xmlstr }}"{% endif %}{% if p.z is not none %} z="{{ p.z | xmlstr }}"{% endif %}{% if p.z_lmc is not none %} z_lmc="{{ p.z_lmc | xmlstr }}"{% endif %}{% if p.z_rmc is not none %} z_rmc="{{ p.z_rmc | xmlstr }}"{% endif %}{% if p.z_lb is not none %} z_lb="{{ p.z_lb | xmlstr }}"{% endif %}{% if p.z_rb is not none %} z_rb="{{ p.z_rb | xmlstr }}"{% endif %}{% if p.z_lfp is not none %} z_lfp="{{ p.z_lfp | xmlstr }}"{% endif %}{% if p.z_rfp is not none %} z_rfp="{{ p.z_rfp | xmlstr }}"{% endif %}{% if p.description is not none %} description="{{ p.description }}"{% endif %}{% if p.thresholdValueSetId is not none %} thresholdValueSetId="{{ p.thresholdValueSetId }}"{% endif %}/>
+    {% endfor %}
+    {% if b.comment is not none %}<comment>{{ b.comment }}</comment>{% endif %}
+  </branch>
+{% endfor %}
+</branches>
