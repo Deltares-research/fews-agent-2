@@ -95,7 +95,27 @@ from .correlation_event_sets_descriptors import (
 )
 from .annotation_display import AnnotationDisplay
 from .clob_historical_event import ClobHistoricalEvent
+from .configuration_validation import (
+    ConfigRef,
+    ConfigType,
+    ConfigurationValidation,
+)
 from .custom_colors import CustomColorKey, CustomColors
+from .forecast_management import (
+    DefaultTimeThreshold,
+    ExtraDispatchTimeThreshold,
+    ForecastManagement,
+    TimeThreshold,
+)
+from .product_info import ProductInfo
+from .sacramento_model import (
+    AdapterMapping,
+    SacramentoAdapterActivities,
+    SacramentoAdapterActivity,
+    SacramentoAdapterGeneral,
+    SacramentoModel,
+)
+from .water_coach_dictionary import DictionaryEntry, WaterCoachDictionary
 from .encoded_partition_sequences import (
     EncodedPartitionSequence,
     EncodedPartitionSequences,
@@ -696,6 +716,26 @@ __all__ = [
     # ModifierMigrationTool
     "ModifierMigrationTool",
     "LocationAttributeModifierMigration",
+    # ProductInfo
+    "ProductInfo",
+    # ConfigurationValidation
+    "ConfigurationValidation",
+    "ConfigType",
+    "ConfigRef",
+    # SacramentoModel
+    "SacramentoModel",
+    "SacramentoAdapterGeneral",
+    "SacramentoAdapterActivities",
+    "SacramentoAdapterActivity",
+    "AdapterMapping",
+    # ForecastManagement
+    "ForecastManagement",
+    "DefaultTimeThreshold",
+    "ExtraDispatchTimeThreshold",
+    "TimeThreshold",
+    # WaterCoachDictionary
+    "WaterCoachDictionary",
+    "DictionaryEntry",
     # SamplePropertiesFile (root of SampleProperties.xml;
     # named *File to avoid collision with SampleMetadataSchema.SampleProperties)
     "SamplePropertiesFile",
