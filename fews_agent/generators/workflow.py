@@ -7,4 +7,4 @@ from .base import render
 
 
 def generate(model: Workflow) -> str:
-    return render("workflow.xml.j2", model)
+    return render("workflow/workflow.xml.j2", model)

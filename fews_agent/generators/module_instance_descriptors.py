@@ -7,4 +7,4 @@ from .base import render
 
 
 def generate(model: ModuleInstanceDescriptors) -> str:
-    return render("module_instance_descriptors.xml.j2", model)
+    return render("region/module_instance_descriptors.xml.j2", model)

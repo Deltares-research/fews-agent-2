@@ -7,4 +7,4 @@ from .base import render
 
 
 def generate(model: UserGroups) -> str:
-    return render("user_groups.xml.j2", model)
+    return render("system/user_groups.xml.j2", model)

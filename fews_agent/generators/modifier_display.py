@@ -7,4 +7,4 @@ from .base import render
 
 
 def generate(model: ModifierDisplay) -> str:
-    return render("modifier_display.xml.j2", model)
+    return render("display/modifier_display.xml.j2", model)

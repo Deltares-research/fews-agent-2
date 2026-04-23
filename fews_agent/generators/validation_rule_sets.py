@@ -7,4 +7,4 @@ from .base import render
 
 
 def generate(model: ValidationRuleSets) -> str:
-    return render("validation_rule_sets.xml.j2", model)
+    return render("region/validation_rule_sets.xml.j2", model)

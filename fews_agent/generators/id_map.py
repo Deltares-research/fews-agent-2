@@ -7,4 +7,4 @@ from .base import render
 
 
 def generate(model: IdMap) -> str:
-    return render("id_map.xml.j2", model)
+    return render("id_mapping/id_map.xml.j2", model)

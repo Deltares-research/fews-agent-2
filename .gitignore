@@ -225,6 +225,7 @@ data/*
 !data/.gitkeep
 !data/variables
 !data/variables/*
+!data/wiki_index.json
 
 examples/*
 !examples/.gitkeep

@@ -7,4 +7,4 @@ from .base import render
 
 
 def generate(model: TimeSeriesImportRun) -> str:
-    return render("import_module.xml.j2", model)
+    return render("module/import_module.xml.j2", model)

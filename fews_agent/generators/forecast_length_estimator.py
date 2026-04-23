@@ -7,4 +7,4 @@ from .base import render
 
 
 def generate(model: ForecastLengthEstimator) -> str:
-    return render("forecast_length_estimator.xml.j2", model)
+    return render("module/forecast_length_estimator.xml.j2", model)

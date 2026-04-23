@@ -7,4 +7,4 @@ from .base import render
 
 
 def generate(model: GeneralAdapterRun) -> str:
-    return render("general_adapter_run.xml.j2", model)
+    return render("module/general_adapter_run.xml.j2", model)
