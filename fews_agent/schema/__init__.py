@@ -93,8 +93,22 @@ from .correlation_event_sets_descriptors import (
     CorrelationEventSetsDescriptor,
     CorrelationEventSetsDescriptors,
 )
+from .annotation_display import AnnotationDisplay
 from .clob_historical_event import ClobHistoricalEvent
 from .custom_colors import CustomColorKey, CustomColors
+from .encoded_partition_sequences import (
+    EncodedPartitionSequence,
+    EncodedPartitionSequences,
+)
+from .modifier_migration_tool import (
+    LocationAttributeModifierMigration,
+    ModifierMigrationTool,
+)
+from .threshold_events_display import ThresholdEventsDisplay
+from .time_series_modifiers import (
+    TimeSeriesModifierEntry,
+    TimeSeriesModifiers,
+)
 from .da_filter import DAFilter
 from .data_download_display import DataDownloadDisplay, DataDownloadTemplate
 from .double_mass_display import DoubleMassDisplay
@@ -669,6 +683,19 @@ __all__ = [
     # OnTheFlyExpressionTimeSeries
     "OnTheFlyExpressionTimeSeries",
     "OnTheFlyExpressionTimeSeriesDefinition",
+    # AnnotationDisplay
+    "AnnotationDisplay",
+    # EncodedPartitionSequences
+    "EncodedPartitionSequences",
+    "EncodedPartitionSequence",
+    # ThresholdEventsDisplay
+    "ThresholdEventsDisplay",
+    # TimeSeriesModifiers
+    "TimeSeriesModifiers",
+    "TimeSeriesModifierEntry",
+    # ModifierMigrationTool
+    "ModifierMigrationTool",
+    "LocationAttributeModifierMigration",
     # SamplePropertiesFile (root of SampleProperties.xml;
     # named *File to avoid collision with SampleMetadataSchema.SampleProperties)
     "SamplePropertiesFile",
