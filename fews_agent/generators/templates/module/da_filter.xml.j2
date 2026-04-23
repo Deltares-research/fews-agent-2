@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<dAFilter version="{{ version }}" xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/daFilter.xsd">
+  {% if description is not none %}<description>{{ description }}</description>{% endif %}
+  {% if daExecutiveRootDir is not none %}<daExecutiveRootDir>{{ daExecutiveRootDir }}</daExecutiveRootDir>{% endif %}
+  <referencePiTimeSeries>{{ referencePiTimeSeries }}</referencePiTimeSeries>
+  <daExecutiveModelRunPeriodFile>{{ daExecutiveModelRunPeriodFile }}</daExecutiveModelRunPeriodFile>
+  {% if diagnosticFile is not none %}<diagnosticFile>{{ diagnosticFile }}</diagnosticFile>{% endif %}
+</dAFilter>

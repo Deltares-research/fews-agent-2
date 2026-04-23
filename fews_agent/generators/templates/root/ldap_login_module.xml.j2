@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<LDAPLoginModule xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/LDAPLoginModule.xsd">
+  {% for c in connection %}<connection>
+    <hostName>{{ c.hostName }}</hostName>
+    {% if c.port is not none %}<port>{{ c.port }}</port>{% endif %}
+    {% if c.ldapVersion is not none %}<ldapVersion>{{ c.ldapVersion }}</ldapVersion>{% endif %}
+    <dn>{{ c.dn }}</dn>
+    <password>{{ c.password }}</password>
+  </connection>
+  {% endfor %}
+{%- macro search(s, tag) %}<{{ tag }}>
+    <searchBase>{{ s.searchBase }}</searchBase>
+    {% if s.searchScope is not none %}<searchScope>{{ s.searchScope }}</searchScope>{% endif %}
+    {% if s.searchFilter is not none %}<searchFilter>{{ s.searchFilter }}</searchFilter>{% endif %}
+    <attributeName>{{ s.attributeName }}</attributeName>
+  </{{ tag }}>{%- endmacro %}
+  {{ search(userSearch, 'userSearch') }}
+  {{ search(groupSearch, 'groupSearch') }}
+</LDAPLoginModule>

@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<launcher xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/launcher.xsd">
+  {% if language is not none %}<language>{{ language }}</language>{% endif %}
+  {% if title is not none %}<title>{{ title }}</title>{% endif %}
+  {% for a in action %}<action id="{{ a.id }}">
+    {% if a.buttonText is not none %}<buttonText>{{ a.buttonText }}</buttonText>{% endif %}
+    {% if a.description is not none %}<description>{{ a.description }}</description>{% endif %}
+    {% for w in a.webPage %}<webPage name="{{ w.name }}" appPath="{{ w.appPath }}" arg="{{ w.arg }}"/>
+    {% endfor %}
+    {% for j in a.javaApp %}<javaApp region="{{ j.region }}" operationMode="{{ j.operationMode }}"{% if j.operationModeCaption is not none %} operationModeCaption="{{ j.operationModeCaption }}"{% endif %}{% if j.operationModeHidden is not none %} operationModeHidden="{{ 'true' if j.operationModeHidden else 'false' }}"{% endif %}{% if j.path is not none %} path="{{ j.path }}"{% endif %}{% if j.javaClass is not none %} javaClass="{{ j.javaClass }}"{% endif %}{% if j.jvmOption is not none %} jvmOption="{{ j.jvmOption }}"{% endif %}{% if j.argument is not none %} argument="{{ j.argument }}"{% endif %}/>
+    {% endfor %}
+    {% for e in a.executable %}<executable>
+      <appPath>{{ e.appPath }}</appPath>
+      <region>{{ e.region }}</region>
+      <operationMode>{{ e.operationMode }}</operationMode>
+      {% if e.operationModeCaption is not none %}<operationModeCaption>{{ e.operationModeCaption }}</operationModeCaption>{% endif %}
+      {% if e.operationModeHidden is not none %}<operationModeHidden>{{ 'true' if e.operationModeHidden else 'false' }}</operationModeHidden>{% endif %}
+      {% if e.arguments %}<arguments>
+        {% for arg in e.arguments %}<argument>{{ arg }}</argument>
+        {% endfor %}
+      </arguments>{% endif %}
+    </executable>
+    {% endfor %}
+  </action>
+  {% endfor %}
+</launcher>
