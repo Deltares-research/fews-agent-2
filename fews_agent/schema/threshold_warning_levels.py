@@ -23,6 +23,13 @@ class ThresholdWarningLevel(FewsModel):
 
 
 class ThresholdWarningLevels(FewsModel):
-    """Root of ThresholdWarningLevels.xml."""
+    """Root of ThresholdWarningLevels.xml.
+
+    ``missingDataThreshold`` (since FEWS 2018.02) is a separate
+    background color for the no-data state, distinct from the lowest
+    ``thresholdWarningLevel`` (which represents the no-threshold-crossed
+    state).
+    """
 
     thresholdWarningLevel: list[ThresholdWarningLevel] = Field(min_length=1)
+    missingDataThreshold: ThresholdWarningLevel | None = None

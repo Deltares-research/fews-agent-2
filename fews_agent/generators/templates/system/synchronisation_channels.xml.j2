@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<channels xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/synchronisationChannels.xsd">
+  {%- for c in channel %}
+  <channel id="{{ c.id }}">
+    {%- if c.description is not none %}
+    <description>{{ c.description }}</description>
+    {%- endif %}
+    <incoming>
+      {%- for t in c.incoming.table %}
+      <table>{{ t }}</table>
+      {%- endfor %}
+    </incoming>
+    <outgoing>
+      {%- for t in c.outgoing.table %}
+      <table>{{ t }}</table>
+      {%- endfor %}
+    </outgoing>
+  </channel>
+  {%- endfor %}
+</channels>

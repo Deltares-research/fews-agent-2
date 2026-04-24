@@ -1,0 +1,63 @@
+{%- macro body(s) -%}
+<interpolationOption>{{ s.interpolationOption }}</interpolationOption>
+    <interpolationType>{{ s.interpolationType }}</interpolationType>
+    {%- if s.valueOption is not none %}
+    <valueOption>{{ s.valueOption }}</valueOption>
+    {%- endif %}
+    {%- if s.variogram is not none %}
+    <variogram>
+      <type>{{ s.variogram.type }}</type>
+      <nugget>{{ s.variogram.nugget | xmlstr }}</nugget>
+      {%- if s.variogram.slope is not none %}
+      <slope>{{ s.variogram.slope | xmlstr }}</slope>
+      {%- else %}
+      <sill>{{ s.variogram.sill | xmlstr }}</sill>
+      {%- endif %}
+      <range>{{ s.variogram.range | xmlstr }}</range>
+    </variogram>
+    {%- endif %}
+    {%- if s.numberOfStations is not none %}
+    <numberOfStations>{{ s.numberOfStations }}</numberOfStations>
+    {%- endif %}
+    {%- if s.regressionElevation is not none %}
+    <regressionElevation>{{ s.regressionElevation | xmlstr }}</regressionElevation>
+    {%- endif %}
+    {%- if s.minimumValue is not none %}
+    <minimumValue>{{ s.minimumValue | xmlstr }}</minimumValue>
+    {%- endif %}
+    {%- if s.distanceParameters is not none %}
+    <distanceParameters>
+      <g1>{{ s.distanceParameters.g1 | xmlstr }}</g1>
+      <g2>{{ s.distanceParameters.g2 | xmlstr }}</g2>
+      <g3>{{ s.distanceParameters.g3 | xmlstr }}</g3>
+      <g4>{{ s.distanceParameters.g4 | xmlstr }}</g4>
+    </distanceParameters>
+    {%- endif %}
+    {%- if s.debug is not none %}
+    <debug>
+      <level>{{ s.debug.level }}</level>
+      <file>{{ s.debug.file }}</file>
+    </debug>
+    {%- endif %}
+    {%- if s.extrapolationOption is not none %}
+    <extrapolationOption>{{ s.extrapolationOption }}</extrapolationOption>
+    {%- endif %}
+    {%- if s.coordinateScalingFactor is not none %}
+    <coordinateScalingFactor>{{ s.coordinateScalingFactor | xmlstr }}</coordinateScalingFactor>
+    {%- endif %}
+    {%- if s.coordinateFile is not none %}
+    <coordinateFile>{{ s.coordinateFile }}</coordinateFile>
+    {%- endif %}
+    {%- if s.coordinateSytem is not none %}
+    <coordinateSytem>{{ s.coordinateSytem }}</coordinateSytem>
+    {%- endif %}
+    {%- if s.inversDistancePower is not none %}
+    <inversDistancePower>{{ s.inversDistancePower | xmlstr }}</inversDistancePower>
+    {%- endif %}
+    {%- if s.searchCriteria is not none %}
+    <searchCriteria>{{ s.searchCriteria }}</searchCriteria>
+    {%- endif %}
+    {%- if s.searchRadius is not none %}
+    <searchRadius>{{ s.searchRadius | xmlstr }}</searchRadius>
+    {%- endif %}
+{%- endmacro -%}

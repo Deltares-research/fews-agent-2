@@ -1,0 +1,97 @@
+{%- macro modifier_list(tag, ml) -%}
+<{{ tag }}>
+        {%- for m in ml.modifier %}
+        <modifier>
+          <tableId>{{ m.tableId }}</tableId>
+          {%- if m.synchLevel %}
+          {%- for sl in m.synchLevel %}
+          <synchLevel>{{ sl }}</synchLevel>
+          {%- endfor %}
+          {%- elif m.logType %}
+          {%- for lt in m.logType %}
+          <logType>{{ lt }}</logType>
+          {%- endfor %}
+          {%- else %}
+          <onlyActive>{{ 'true' if m.onlyActive else 'false' }}</onlyActive>
+          {%- endif %}
+          {%- if m.downloadDataOnDemand is not none %}
+          <downloadDataOnDemand>{{ 'true' if m.downloadDataOnDemand else 'false' }}</downloadDataOnDemand>
+          {%- endif %}
+        </modifier>
+        {%- endfor %}
+      </{{ tag }}>
+{%- endmacro -%}
+<?xml version="1.0" encoding="UTF-8"?>
+<profiles xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/synchronisationProfiles.xsd">
+  <defaultProfileId>{{ defaultProfileId }}</defaultProfileId>
+  {%- for p in profile %}
+  <profile id="{{ p.id }}">
+    {%- if p.description is not none %}
+    <description>{{ p.description }}</description>
+    {%- endif %}
+    <autoconnect>{{ 'true' if p.autoconnect else 'false' }}</autoconnect>
+    {%- if p.customizable is not none %}
+    <customizable>{{ 'true' if p.customizable else 'false' }}</customizable>
+    {%- endif %}
+    {%- if p.maxSynchPeriod is not none %}
+    <maxSynchPeriod unit="{{ p.maxSynchPeriod.unit }}" multiplier="{{ p.maxSynchPeriod.multiplier }}"/>
+    {%- endif %}
+    {%- if p.activities is not none %}
+    <activities>
+      {%- for a in p.activities.activity %}
+      <activity id="{{ a.id }}">
+        <channelId>{{ a.channelId }}</channelId>
+        <schedule>
+          {%- if a.schedule.single is not none %}
+          <single>
+            {%- if a.schedule.single.priority is not none %}
+            <priority>{{ a.schedule.single.priority }}</priority>
+            {%- endif %}
+          </single>
+          {%- else %}
+          <continuous>
+            <period unit="{{ a.schedule.continuous.period.unit }}" multiplier="{{ a.schedule.continuous.period.multiplier }}"/>
+            {%- if a.schedule.continuous.priority is not none %}
+            <priority>{{ a.schedule.continuous.priority }}</priority>
+            {%- endif %}
+          </continuous>
+          {%- endif %}
+        </schedule>
+        <timeOut>{{ a.timeOut }}</timeOut>
+        {%- if a.optional is not none %}
+        <optional>{{ 'true' if a.optional else 'false' }}</optional>
+        {%- endif %}
+        {%- if a.ignoreMaxSynchPeriod is not none %}
+        <ignoreMaxSynchPeriod>{{ 'true' if a.ignoreMaxSynchPeriod else 'false' }}</ignoreMaxSynchPeriod>
+        {%- endif %}
+        {%- if a.overrulingMaxSynchPeriod is not none %}
+        <overrulingMaxSynchPeriod unit="{{ a.overrulingMaxSynchPeriod.unit }}" multiplier="{{ a.overrulingMaxSynchPeriod.multiplier }}"/>
+        {%- endif %}
+        {%- if a.modifiers is not none %}
+        <modifiers>
+          {%- if a.modifiers.incoming is not none %}
+          {{ modifier_list('incoming', a.modifiers.incoming) }}
+          {%- endif %}
+          {%- if a.modifiers.outgoing is not none %}
+          {{ modifier_list('outgoing', a.modifiers.outgoing) }}
+          {%- endif %}
+        </modifiers>
+        {%- endif %}
+        {%- if a.triggers is not none %}
+        <triggers>
+          {%- for t in a.triggers.trigger %}
+          <trigger>
+            <activityId>{{ t.activityId }}</activityId>
+            <onlyForCurrentForecasts>{{ 'true' if t.onlyForCurrentForecasts else 'false' }}</onlyForCurrentForecasts>
+            <useLastSynchTime>{{ 'true' if t.useLastSynchTime else 'false' }}</useLastSynchTime>
+          </trigger>
+          {%- endfor %}
+        </triggers>
+        {%- endif %}
+      </activity>
+      {%- endfor %}
+    </activities>
+    {%- endif %}
+  </profile>
+  {%- endfor %}
+</profiles>

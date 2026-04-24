@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from pydantic import Field
 
-from .common import FewsModel, TimeSeriesSet
+from .common import FewsModel, RelativePeriod, TimeSeriesSet
 from .ids import LevelThresholdId, ParameterId, ThresholdValueSetId
 
 
@@ -38,6 +38,12 @@ class ThresholdValueSet(FewsModel):
 
 
 class ThresholdValueSets(FewsModel):
-    """Root of ThresholdValueSets.xml."""
+    """Root of ThresholdValueSets.xml.
+
+    ``eventTimeViewPeriod`` (since 2017.02) is the default view period
+    used by the Threshold Events display; evaluated against FEWS system
+    time at render.
+    """
 
     thresholdValueSet: list[ThresholdValueSet] = Field(min_length=1)
+    eventTimeViewPeriod: RelativePeriod | None = None

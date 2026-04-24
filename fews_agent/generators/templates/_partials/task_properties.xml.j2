@@ -59,14 +59,28 @@
     {%- if tp.whatIfScenarioId is not none %}
     <whatIfScenarioId>{{ tp.whatIfScenarioId }}</whatIfScenarioId>
     {%- endif %}
-    {%- if tp.stateSelectionXml is not none %}
+    {%- if tp.stateSelection is not none %}
+    <stateSelection>{{ tp.stateSelection | dict_to_xml | safe }}</stateSelection>
+    {%- elif tp.stateSelectionXml is not none %}
     {{ tp.stateSelectionXml }}
+    {%- endif %}
+    {%- if tp.areaSelectionShapeFileBase64 is not none %}
+    <areaSelectionShapeFileBase64>{{ tp.areaSelectionShapeFileBase64 }}</areaSelectionShapeFileBase64>
     {%- endif %}
     {%- for lid in tp.selectedLocationId %}
     <selectedLocationId>{{ lid }}</selectedLocationId>
     {%- endfor %}
+    {%- if tp.makeStateCurrent is not none %}
+    <makeStateCurrent>{{ 'true' if tp.makeStateCurrent else 'false' }}</makeStateCurrent>
+    {%- endif %}
     {%- if tp.runExpiryTime is not none %}
     <runExpiryTime unit="{{ tp.runExpiryTime.unit }}"{% if tp.runExpiryTime.multiplier is not none %} multiplier="{{ tp.runExpiryTime.multiplier }}"{% endif %}{% if tp.runExpiryTime.divider is not none %} divider="{{ tp.runExpiryTime.divider }}"{% endif %}/>
+    {%- endif %}
+    {%- if tp.configFiles is not none %}
+    <configFiles>{{ tp.configFiles | dict_to_xml | safe }}</configFiles>
+    {%- endif %}
+    {%- if tp.archiveTask is not none %}
+    <archiveTask>{{ tp.archiveTask | dict_to_xml | safe }}</archiveTask>
     {%- endif %}
     {%- if tp.taskRunType is not none %}
     <taskRunType>{{ tp.taskRunType }}</taskRunType>
@@ -133,6 +147,9 @@
       </recordtype>
       {%- endfor %}
     </mcSynchronisation>
+    {%- endif %}
+    {%- if tp.mcSystemAlerter is not none %}
+    <mcSystemAlerter>{{ tp.mcSystemAlerter | dict_to_xml | safe }}</mcSystemAlerter>
     {%- endif %}
     {%- if tp.ensembleParts is not none %}
     <ensembleParts>{{ tp.ensembleParts }}</ensembleParts>

@@ -1,5 +1,6 @@
 {%- import "_partials/variable.xml.j2" as var -%}
 {%- import "_partials/timeseries_set.xml.j2" as tss -%}
+{%- import "_partials/archive_run_body.xml.j2" as ar -%}
 {%- macro task_base(t) -%}
 {%- if t.center is not none %}
       <center{% if t.center.x is not none %} x="{{ t.center.x }}"{% endif %}{% if t.center.y is not none %} y="{{ t.center.y }}"{% endif %}/>
@@ -87,6 +88,14 @@ name="{{ t.name }}" workflowId="{{ t.workflowId }}"{% if t.iconName is not none 
       </panel>
       {%- endfor %}
     </operatorTask>
+    {%- endfor %}
+    {%- for t in g.archiveTask %}
+    <archiveTask {{ task_attrs(t) }}{% if t.queryServiceUrl is not none %} queryServiceUrl="{{ t.queryServiceUrl }}"{% endif %}>
+      {{ task_base(t) }}
+      <archiveRun>
+      {{ ar.body(t.archiveRun) }}
+      </archiveRun>
+    </archiveTask>
     {%- endfor %}
   </taskGroup>
 {%- endfor %}

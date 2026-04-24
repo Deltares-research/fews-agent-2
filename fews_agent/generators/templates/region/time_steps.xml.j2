@@ -1,6 +1,33 @@
+{%- macro day_of_week(name, d) -%}
+{%- if d is not none %}<{{ name }} times="{{ d.times }}"/>{% endif -%}
+{%- endmacro -%}
 <?xml version="1.0" encoding="UTF-8"?>
 <timeSteps xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/timeSteps.xsd">
 {% for t in timeStep %}
   <timeStep id="{{ t.id }}"{% if t.unit is not none %} unit="{{ t.unit }}"{% endif %}{% if t.multiplier is not none %} multiplier="{{ t.multiplier }}"{% endif %}{% if t.times is not none %} times="{{ t.times }}"{% endif %}{% if t.timeZone is not none %} timeZone="{{ t.timeZone }}"{% endif %}/>
+{% endfor %}
+{% for w in weeklyTimeStep %}
+  <weeklyTimeStep id="{{ w.id }}"{% if w.label is not none %} label="{{ w.label }}"{% endif %}>
+    {% if w.timeZone is not none %}<timeZone>{{ w.timeZone }}</timeZone>{% endif %}
+    {{ day_of_week('sunday', w.sunday) }}
+    {{ day_of_week('monday', w.monday) }}
+    {{ day_of_week('tuesday', w.tuesday) }}
+    {{ day_of_week('wednesday', w.wednesday) }}
+    {{ day_of_week('thursday', w.thursday) }}
+    {{ day_of_week('friday', w.friday) }}
+    {{ day_of_week('saturday', w.saturday) }}
+  </weeklyTimeStep>
+{% endfor %}
+{% for m in monthlyTimeStep %}
+  <monthlyTimeStep id="{{ m.id }}"{% if m.label is not none %} label="{{ m.label }}"{% endif %}>
+    {% if m.timeZone is not none %}<timeZone>{{ m.timeZone }}</timeZone>{% endif %}
+    {% for d in m.day %}<day value="{{ d.value }}" start="{{ d.start }}" end="{{ d.end }}"/>{% endfor %}
+  </monthlyTimeStep>
+{% endfor %}
+{% for y in yearlyTimeStep %}
+  <yearlyTimeStep id="{{ y.id }}"{% if y.label is not none %} label="{{ y.label }}"{% endif %}>
+    {% if y.timeZone is not none %}<timeZone>{{ y.timeZone }}</timeZone>{% endif %}
+    {% for md in y.monthDay %}<monthDay value="{{ md.value }}" start="{{ md.start }}" end="{{ md.end }}"/>{% endfor %}
+  </yearlyTimeStep>
 {% endfor %}
 </timeSteps>

@@ -1,6 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <modifierTypes xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/modifierTypes.xsd">
+  {% if restoreModifiersWhenApprovingForecastRun is not none %}<restoreModifiersWhenApprovingForecastRun>{{ 'true' if restoreModifiersWhenApprovingForecastRun else 'false' }}</restoreModifiersWhenApprovingForecastRun>{% endif %}
   {% if rollbackOverlappingModifiers is not none %}<rollbackOverlappingModifiers>{{ 'true' if rollbackOverlappingModifiers else 'false' }}</rollbackOverlappingModifiers>{% endif %}
+  {% if autoCommit is not none %}<autoCommit>{{ 'true' if autoCommit else 'false' }}</autoCommit>{% endif %}
+  {% if autoExtendExpiryTime is not none %}<autoExtendExpiryTime>{{ 'true' if autoExtendExpiryTime else 'false' }}</autoExtendExpiryTime>{% endif %}
 {% for m in timeSeriesModifier %}
   <timeSeriesModifier id="{{ m.id }}"{% if m.name is not none %} name="{{ m.name }}"{% endif %}>
     {% if m.applyToEnsemble is not none %}<applyToEnsemble>{{ m.applyToEnsemble }}</applyToEnsemble>{% endif %}
@@ -62,4 +65,19 @@
     {% for mid in g.modifierId %}<modifierId>{{ mid }}</modifierId>{% endfor %}
   </modifiersGroup>
 {% endfor %}
+{%- for kind in ['missingValueModifier', 'typicalProfileModifier',
+                 'constantValueModifier', 'singleValueModifier', 'enumerationModifier',
+                 'markUnreliableModifier', 'adjustQModifiers',
+                 'timeShiftConstantModifiers', 'sampleHistoricalModifiers',
+                 'mergeSimpleModifiers', 'compoundModifier',
+                 'highLowSurgeSelectionModifier', 'switchOptionModifier',
+                 'optionModifier', 'moduleParameterModifier', 'priorityModifier',
+                 'multipleModuleParameterModifier', 'unitHydrographModifiers',
+                 'mergeWeightedModifiers', 'ratingCurveModifiers',
+                 'attributeModifiers', 'copyModifiers'] %}
+{%- set entries = _root[kind] %}
+{%- for m in entries %}
+  {{ {kind: m} | dict_to_xml | safe }}
+{%- endfor %}
+{%- endfor %}
 </modifierTypes>

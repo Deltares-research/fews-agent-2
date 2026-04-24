@@ -1,0 +1,9 @@
+{%- import "_partials/what_if_scenario_body.xml.j2" as wifs -%}
+<?xml version="1.0" encoding="UTF-8"?>
+<whatIfScenarios xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/whatIfScenarios.xsd" version="{{ version }}">
+  {%- for s in whatifScenario %}
+  <whatifScenario id="{{ s.id }}" name="{{ s.name }}" version="{{ s.version }}">
+  {{ wifs.body(s) }}
+  </whatifScenario>
+  {%- endfor %}
+</whatIfScenarios>

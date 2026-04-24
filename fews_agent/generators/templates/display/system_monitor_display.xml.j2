@@ -1,3 +1,4 @@
+{%- import "_partials/forecaster_notes_elements.xml.j2" as fn -%}
 {%- macro tt(t) -%}
 <timeThreshold>
         <periodLength value="{{ t.periodLength.value }}" unit="{{ t.periodLength.unit }}"/>
@@ -92,23 +93,7 @@
     {%- if bulletinBoardPlus.tabMnemonic is not none %}
     <tabMnemonic>{{ bulletinBoardPlus.tabMnemonic }}</tabMnemonic>
     {%- endif %}
-    {%- if bulletinBoardPlus.notes.messageTemplate %}
-    {%- for mt in bulletinBoardPlus.notes.messageTemplate %}
-    <messageTemplate>{{ mt }}</messageTemplate>
-    {%- endfor %}
-    {%- else %}
-    {%- for mt in bulletinBoardPlus.notes.msgTemplate %}
-    <msgTemplate id="{{ mt.id }}">
-      <message>{{ mt.message }}</message>
-      {%- if mt.messageWidth is not none %}
-      <messageWidth>{{ mt.messageWidth }}</messageWidth>
-      {%- endif %}
-      {%- if mt.messageHeight is not none %}
-      <messageHeight>{{ mt.messageHeight }}</messageHeight>
-      {%- endif %}
-    </msgTemplate>
-    {%- endfor %}
-    {%- endif %}
+    {{ fn.body(bulletinBoardPlus.notes) }}
   </bulletinBoardPlus>
   {%- endif %}
 </systemMonitorDisplay>

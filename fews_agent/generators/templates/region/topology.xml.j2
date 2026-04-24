@@ -1,10 +1,24 @@
 {%- import "_partials/topology_nodes.xml.j2" as topo -%}
 <?xml version="1.0" encoding="UTF-8"?>
 <topology xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/topology.xsd">
+  {% if forecasterHelperDirectories is not none %}<forecasterHelperDirectories>{{ forecasterHelperDirectories }}</forecasterHelperDirectories>{% endif %}
+  {% if enableOriginalButtons is not none %}<enableOriginalButtons>{{ 'true' if enableOriginalButtons else 'false' }}</enableOriginalButtons>{% endif %}
+  {% if hideThresholdsButton is not none %}<hideThresholdsButton>{{ 'true' if hideThresholdsButton else 'false' }}</hideThresholdsButton>{% endif %}
+  {% if hideNextSegmentButton is not none %}<hideNextSegmentButton>{{ 'true' if hideNextSegmentButton else 'false' }}</hideNextSegmentButton>{% endif %}
+  {% if hidePreviousSegmentButton is not none %}<hidePreviousSegmentButton>{{ 'true' if hidePreviousSegmentButton else 'false' }}</hidePreviousSegmentButton>{% endif %}
   {% if enableAutoRun is not none %}<enableAutoRun>{{ 'true' if enableAutoRun else 'false' }}</enableAutoRun>{% endif %}
-  {% if enableAutoSelectParameters is not none %}<enableAutoSelectParameters>{{ 'true' if enableAutoSelectParameters else 'false' }}</enableAutoSelectParameters>{% endif %}
+  {% if enableAutoSelectParameters is not none %}<enableAutoSelectParameters>{{ 'true' if enableAutoSelectParameters else 'false' }}</enableAutoSelectParameters>{% elif enableAutoClearParameters is not none %}<enableAutoClearParameters>{{ 'true' if enableAutoClearParameters else 'false' }}</enableAutoClearParameters>{% endif %}
+  {% if enableRunUpstreamServerNodes is not none %}<enableRunUpstreamServerNodes>{{ 'true' if enableRunUpstreamServerNodes else 'false' }}</enableRunUpstreamServerNodes>{% endif %}
+  {% if enableRunAllPreviousNodes is not none %}<enableRunAllPreviousNodes>{{ 'true' if enableRunAllPreviousNodes else 'false' }}</enableRunAllPreviousNodes>{% endif %}
   {% if enableSelectNodesFromMap is not none %}<enableSelectNodesFromMap>{{ 'true' if enableSelectNodesFromMap else 'false' }}</enableSelectNodesFromMap>{% endif %}
+  {% if enableAutoSaveOnRun is not none %}<enableAutoSaveOnRun>{{ 'true' if enableAutoSaveOnRun else 'false' }}</enableAutoSaveOnRun>{% endif %}
+  {% if enableCrossGroupNodeReferencing is not none %}<enableCrossGroupNodeReferencing>{{ 'true' if enableCrossGroupNodeReferencing else 'false' }}</enableCrossGroupNodeReferencing>{% endif %}
+  {% if enableSelectLastNodeOnStartUp is not none %}<enableSelectLastNodeOnStartUp>{{ 'true' if enableSelectLastNodeOnStartUp else 'false' }}</enableSelectLastNodeOnStartUp>{% endif %}
+  {% if selectFirstPlotOnSelectionChange is not none %}<selectFirstPlotOnSelectionChange>{{ 'true' if selectFirstPlotOnSelectionChange else 'false' }}</selectFirstPlotOnSelectionChange>{% endif %}
 {% for group in nodes %}
   {{ topo.render_group(group) }}
+{% endfor %}
+{% for gid in groupId %}
+  <groupId>{{ gid }}</groupId>
 {% endfor %}
 </topology>

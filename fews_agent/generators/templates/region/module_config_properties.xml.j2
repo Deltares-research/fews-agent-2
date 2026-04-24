@@ -1,19 +1,5 @@
+{%- import "_partials/properties_body.xml.j2" as props -%}
 <?xml version="1.0" encoding="UTF-8"?>
 <moduleConfigProperties xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/moduleConfigProperties.xsd">
-  {% if description is not none %}<description>{{ description }}</description>{% endif %}
-{%- macro emit_desc(p) -%}
-{% if p.description is not none %}<description>{{ p.description }}</description>{% endif %}
-{%- endmacro %}
-  {% for p in string %}<string key="{{ p.key }}" value="{{ p.value }}">{{ emit_desc(p) }}</string>
-  {% endfor %}
-  {% for p in int_ %}<int key="{{ p.key }}" value="{{ p.value }}">{{ emit_desc(p) }}</int>
-  {% endfor %}
-  {% for p in float_ %}<float key="{{ p.key }}" value="{{ p.value | xmlstr }}">{{ emit_desc(p) }}</float>
-  {% endfor %}
-  {% for p in double %}<double key="{{ p.key }}" value="{{ p.value | xmlstr }}">{{ emit_desc(p) }}</double>
-  {% endfor %}
-  {% for p in bool_ %}<bool key="{{ p.key }}" value="{{ 'true' if p.value else 'false' }}">{{ emit_desc(p) }}</bool>
-  {% endfor %}
-  {% for p in dateTime %}<dateTime key="{{ p.key }}" date="{{ p.date }}" time="{{ p.time }}">{{ emit_desc(p) }}</dateTime>
-  {% endfor %}
+  {{ props.body(_root) }}
 </moduleConfigProperties>

@@ -1,0 +1,61 @@
+{%- macro body(f) -%}
+{%- if f.moduleInstanceId %}
+{%- for m in f.moduleInstanceId %}
+    <moduleInstanceId>{{ m }}</moduleInstanceId>
+{%- endfor %}
+{%- elif f.moduleInstanceIdPattern %}
+{%- for m in f.moduleInstanceIdPattern %}
+    <moduleInstanceIdPattern>{{ m }}</moduleInstanceIdPattern>
+{%- endfor %}
+{%- elif f.moduleInstanceSetId is not none %}
+    <moduleInstanceSetId>{{ f.moduleInstanceSetId }}</moduleInstanceSetId>
+{%- endif %}
+{%- if f.valueType is not none %}
+    <valueType>{{ f.valueType }}</valueType>
+{%- endif %}
+{%- for p in f.parameterGroupId %}
+    <parameterGroupId>{{ p }}</parameterGroupId>
+{%- endfor %}
+{%- for p in f.parameterId %}
+    <parameterId>{{ p }}</parameterId>
+{%- endfor %}
+{%- for q in f.qualifierId %}
+    <qualifierId>{{ q }}</qualifierId>
+{%- endfor %}
+{%- if f.locationId %}
+{%- for l in f.locationId %}
+    <locationId>{{ l }}</locationId>
+{%- endfor %}
+{%- elif f.locationSetId is not none %}
+    <locationSetId>{{ f.locationSetId }}</locationSetId>
+{%- endif %}
+{%- if f.timeSeriesType is not none %}
+    <timeSeriesType>{{ f.timeSeriesType }}</timeSeriesType>
+{%- endif %}
+{%- if f.timeStep is not none %}
+    <timeStep{% if f.timeStep.unit is not none %} unit="{{ f.timeStep.unit }}"{% endif %}{% if f.timeStep.multiplier is not none %} multiplier="{{ f.timeStep.multiplier }}"{% endif %}{% if f.timeStep.id is not none %} id="{{ f.timeStep.id }}"{% endif %}/>
+{%- endif %}
+{%- if f.aggregationPeriod is not none %}
+    <aggregationPeriod start="{{ f.aggregationPeriod.start }}" end="{{ f.aggregationPeriod.end }}"{% if f.aggregationPeriod.startOverrulable is not none %} startOverrulable="{{ 'true' if f.aggregationPeriod.startOverrulable else 'false' }}"{% endif %}{% if f.aggregationPeriod.endOverrulable is not none %} endOverrulable="{{ 'true' if f.aggregationPeriod.endOverrulable else 'false' }}"{% endif %} unit="{{ f.aggregationPeriod.unit }}">
+      {%- if f.aggregationPeriod.description is not none %}
+      <description>{{ f.aggregationPeriod.description }}</description>
+      {%- endif %}
+    </aggregationPeriod>
+{%- endif %}
+{%- if f.cycle is not none %}
+    <cycle unit="{{ f.cycle.unit }}" multiplier="{{ f.cycle.multiplier }}"/>
+{%- endif %}
+{%- if f.ensembleId is not none %}
+    <ensembleId>{{ f.ensembleId }}</ensembleId>
+{%- endif %}
+{%- if f.ensembleMemberId is not none %}
+    <ensembleMemberId>{{ f.ensembleMemberId }}</ensembleMemberId>
+{%- endif %}
+{%- if f.not_ is not none %}
+    <not>
+      {%- for m in f.not_.moduleInstanceIdPattern %}
+      <moduleInstanceIdPattern>{{ m }}</moduleInstanceIdPattern>
+      {%- endfor %}
+    </not>
+{%- endif %}
+{%- endmacro -%}

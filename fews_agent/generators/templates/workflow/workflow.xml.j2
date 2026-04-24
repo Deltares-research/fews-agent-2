@@ -1,29 +1,87 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<workflow xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/workflow.xsd" version="{{ version }}">
-  {% if properties is not none %}
-  <properties>
-    {% for p in properties.string %}<string key="{{ p.key }}" value="{{ p.value }}"/>{% endfor %}
-  </properties>
-  {% endif %}
-{% for a in activity %}
-  <activity>
-    {% if a.properties is not none %}
+{%- macro emit_activity(a, tag="activity") -%}
+<{{ tag }}{% if a.logStartedAsDebug is not none %} logStartedAsDebug="{{ 'true' if a.logStartedAsDebug else 'false' }}"{% endif %}{% if a.logFinishedAsDebug is not none %} logFinishedAsDebug="{{ 'true' if a.logFinishedAsDebug else 'false' }}"{% endif %}>
+    {%- if a.properties is not none %}
     <properties>
-      {% for p in a.properties.string %}<string key="{{ p.key }}" value="{{ p.value }}"/>{% endfor %}
+      {%- for p in a.properties.string %}
+      <string key="{{ p.key }}" value="{{ p.value }}"/>
+      {%- endfor %}
     </properties>
-    {% endif %}
-    {% if a.runIndependent is not none %}<runIndependent>{{ 'true' if a.runIndependent else 'false' }}</runIndependent>{% endif %}
-    {% if a.moduleInstanceId is not none %}<moduleInstanceId>{{ a.moduleInstanceId }}</moduleInstanceId>{% endif %}
-    {% if a.workflowId is not none %}<workflowId>{{ a.workflowId }}</workflowId>{% endif %}
-    {% if a.moduleConfigFileName is not none %}<moduleConfigFileName>{{ a.moduleConfigFileName }}</moduleConfigFileName>{% endif %}
-    {% if a.loopLocationSetId is not none %}<loopLocationSetId>{{ a.loopLocationSetId }}</loopLocationSetId>{% endif %}
-    {% if a.ensemble is not none %}
+    {%- endif %}
+    {%- if a.enable is not none %}
+    <enable>{{ a.enable }}</enable>
+    {%- elif a.enabled is not none %}
+    <enabled locationId="{{ a.enabled.locationId }}" attributeId="{{ a.enabled.attributeId }}"/>
+    {%- endif %}
+    {%- if a.runIndependent is not none %}
+    <runIndependent>{{ 'true' if a.runIndependent else 'false' }}</runIndependent>
+    {%- endif %}
+    {%- if a.downloadMissingDataFromArchive is not none %}
+    <downloadMissingDataFromArchive>{{ 'true' if a.downloadMissingDataFromArchive else 'false' }}</downloadMissingDataFromArchive>
+    {%- if a.downloadMissingDataFromArchiveForManualTasksOnly is not none %}
+    <downloadMissingDataFromArchiveForManualTasksOnly>{{ 'true' if a.downloadMissingDataFromArchiveForManualTasksOnly else 'false' }}</downloadMissingDataFromArchiveForManualTasksOnly>
+    {%- endif %}
+    {%- endif %}
+    {%- if a.downloadMissingStatesFromArchive is not none %}
+    <downloadMissingStatesFromArchive>{{ 'true' if a.downloadMissingStatesFromArchive else 'false' }}</downloadMissingStatesFromArchive>
+    {%- endif %}
+    {%- if a.predefinedActivity is not none %}
+    <predefinedActivity>{{ a.predefinedActivity }}</predefinedActivity>
+    {%- if a.moduleInstanceId is not none %}
+    <moduleInstanceId>{{ a.moduleInstanceId }}</moduleInstanceId>
+    {%- endif %}
+    {%- elif a.workflowId is not none %}
+    <workflowId>{{ a.workflowId }}</workflowId>
+    {%- else %}
+    {%- if a.defaultFlagSource is not none %}
+    <defaultFlagSource>{{ a.defaultFlagSource }}</defaultFlagSource>
+    {%- endif %}
+    {%- if a.flagSourceColumnId is not none %}
+    <flagSourceColumnId>{{ a.flagSourceColumnId }}</flagSourceColumnId>
+    {%- endif %}
+    <moduleInstanceId>{{ a.moduleInstanceId }}</moduleInstanceId>
+    {%- if a.moduleConfigFileName is not none %}
+    <moduleConfigFileName>{{ a.moduleConfigFileName }}</moduleConfigFileName>
+    {%- endif %}
+    {%- endif %}
+    {%- if a.fallbackActivity is not none %}
+    {{ emit_activity(a.fallbackActivity, tag="fallbackActivity") }}
+    {%- endif %}
+    {%- if a.ensemble is not none %}
     <ensemble>
       <ensembleId>{{ a.ensemble.ensembleId }}</ensembleId>
-      {% if a.ensemble.ensembleMemberIndexRange is not none %}<ensembleMemberIndexRange start="{{ a.ensemble.ensembleMemberIndexRange.start }}" end="{{ a.ensemble.ensembleMemberIndexRange.end }}"/>{% endif %}
-      {% if a.ensemble.runInLoop is not none %}<runInLoop>{{ 'true' if a.ensemble.runInLoop else 'false' }}</runInLoop>{% endif %}
+      {%- if a.ensemble.ensembleMemberId is not none %}
+      <ensembleMemberId>{{ a.ensemble.ensembleMemberId }}</ensembleMemberId>
+      {%- elif a.ensemble.ensembleMemberIndex is not none %}
+      <ensembleMemberIndex>{{ a.ensemble.ensembleMemberIndex }}</ensembleMemberIndex>
+      {%- elif a.ensemble.ensembleMemberIndexRange is not none %}
+      <ensembleMemberIndexRange start="{{ a.ensemble.ensembleMemberIndexRange.start }}" end="{{ a.ensemble.ensembleMemberIndexRange.end }}"/>
+      {%- elif a.ensemble.ensembleMemberIdRegularExpression is not none %}
+      <ensembleMemberIdRegularExpression>{{ a.ensemble.ensembleMemberIdRegularExpression }}</ensembleMemberIdRegularExpression>
+      {%- endif %}
+      <runInLoop>{{ 'true' if a.ensemble.runInLoop else 'false' }}</runInLoop>
     </ensemble>
-    {% endif %}
-  </activity>
+    {%- endif %}
+    {%- if a.loopLocationSetId is not none %}
+    <loopLocationSetId>{{ a.loopLocationSetId }}</loopLocationSetId>
+    {%- if a.skipNonExistingLoopLocationSet is not none %}
+    <skipNonExistingLoopLocationSet>{{ 'true' if a.skipNonExistingLoopLocationSet else 'false' }}</skipNonExistingLoopLocationSet>
+    {%- endif %}
+    {%- endif %}
+    {%- if a.description is not none %}
+    <description>{{ a.description }}</description>
+    {%- endif %}
+  </{{ tag }}>
+{%- endmacro -%}
+<?xml version="1.0" encoding="UTF-8"?>
+<workflow xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/workflow.xsd" version="{{ version }}">
+  {%- if properties is not none %}
+  <properties>
+    {%- for p in properties.string %}
+    <string key="{{ p.key }}" value="{{ p.value }}"/>
+    {%- endfor %}
+  </properties>
+  {%- endif %}
+{% for a in activity %}
+  {{ emit_activity(a) }}
 {% endfor %}
 </workflow>

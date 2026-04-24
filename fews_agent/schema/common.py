@@ -50,6 +50,14 @@ class TimeStep(FewsModel):
     unit: TimeUnit | None = None
     multiplier: int | str | None = None
     id: str | None = None
+    divider: int | str | None = None
+    label: str | None = None
+    times: str | None = None  # shortTimeListStringType, e.g. "10:00 23:00"
+    minutes: str | None = None  # "05 25" for 0:05, 0:25, 1:05, ...
+    daysOfMonth: str | None = None  # e.g. "01 11 21"
+    monthDays: str | None = None  # e.g. "--03-01 --06-01"
+    timeZone: str | None = None
+    description: str | None = None
 
     @model_validator(mode="after")
     def _exactly_one_form(self) -> TimeStep:
@@ -103,6 +111,67 @@ class RelativeViewPeriod(FewsModel):
         return self
 
 
+class RelativePeriod(FewsModel):
+    """XSD RelativePeriodComplexType — start/end/unit are required,
+    plus optional startOverrulable/endOverrulable attrs and an optional
+    description child element.
+
+    Distinct from RelativeViewPeriod (start/end optional, no description
+    child). Both share the same four attributes; the XSD element name
+    ``<relativeViewPeriod>`` binds to the former, ``<relativePeriod>`` /
+    ``<archivePeriod>`` / ``<aggregationPeriod>`` to this one.
+
+    start/end are int | str for the same reason as RelativeViewPeriod —
+    FEWS tutorial uses runtime placeholders like ``$STARTTIME$``.
+    """
+
+    unit: TimeUnit
+    start: int | str
+    end: int | str
+    startOverrulable: bool | None = None
+    endOverrulable: bool | None = None
+    description: str | None = None
+
+
+class TimeSeriesFilterNot(FewsModel):
+    """XSD TimeSeriesFilterNotComplexType — lists moduleInstanceIdPatterns
+    to exclude from the outer filter."""
+
+    moduleInstanceIdPattern: list[str] = Field(default_factory=list)
+
+
+class TimeSeriesFilter(FewsModel):
+    """XSD TimeSeriesFilterComplexType (= TimeSeriesFilterGroup).
+
+    Narrower-than-TimeSeriesSet selector used by forecastMixer,
+    timeSeriesButtonsPanels, displayGroups, and other read-side configs:
+    no readWriteMode, no value-editing fields. Every field is optional.
+
+    XSD choices flattened to parallel optional fields:
+    - moduleInstanceId[] / moduleInstanceIdPattern[] / moduleInstanceSetId
+      (ModuleInstanceIdsChoice — modelled as three optional fields,
+      callers honour the "exactly one" constraint).
+    - locationId[] / locationSetId (modelled as two optional fields).
+    """
+
+    moduleInstanceId: list[ModuleInstanceId] = Field(default_factory=list)
+    moduleInstanceIdPattern: list[str] = Field(default_factory=list)
+    moduleInstanceSetId: str | None = None
+    valueType: ValueType | None = None
+    parameterGroupId: list[str] = Field(default_factory=list)
+    parameterId: list[ParameterId] = Field(default_factory=list)
+    qualifierId: list[QualifierId] = Field(default_factory=list)
+    locationId: list[LocationId] = Field(default_factory=list)
+    locationSetId: LocationSetId | None = None
+    timeSeriesType: TimeSeriesType | None = None
+    timeStep: TimeStep | None = None
+    aggregationPeriod: RelativePeriod | None = None
+    cycle: "UnitMultiplier | None" = None
+    ensembleId: str | None = None
+    ensembleMemberId: str | None = None
+    not_: TimeSeriesFilterNot | None = Field(default=None, alias="not")
+
+
 class TimeZone(FewsModel):
     """FEWS wraps a zone declaration in a timeZone element.
 
@@ -131,11 +200,28 @@ class UnitMultiplier(FewsModel):
 
 
 class ExternUnit(FewsModel):
-    """Declares the source-system unit for one parameter in an import."""
+    """Declares the source-system unit for one parameter in an import.
+
+    ``cumulative*`` flags (all default=false) control import-time
+    deaccumulation: ``cumulativeSum`` treats the value as a running
+    total, ``cumulativeMean`` as a running mean, and
+    ``cumulativeSumIgnoreFirstTimeStep`` skips the first time step of
+    deaccumulation (FEWS-33762)."""
 
     parameterId: ParameterId
     unit: str
     cumulativeSum: bool = False
+    cumulativeMean: bool = False
+    cumulativeSumIgnoreFirstTimeStep: bool = False
+
+
+class TimeShift(FewsModel):
+    """XSD TimeShiftComplexType — attribute-only (unit required, optional
+    divider / multiplier). Used for TimeSeriesSet ``delay``."""
+
+    unit: str  # timeUnitEnumStringType
+    multiplier: int | None = None
+    divider: int | None = None
 
 
 class SeasonCondition(FewsModel):
@@ -278,6 +364,10 @@ class TimeSeriesSet(FewsModel):
     ModelRunModule import activities.
 
     Invariant: exactly one of locationId / locationSetId is supplied.
+    Relatively broad coverage of the XSD's optional fields — callers
+    only need to supply the required ones (moduleInstanceId, valueType,
+    parameterId, location{Id,SetId}, timeSeriesType, timeStep,
+    readWriteMode).
     """
 
     # timeSeriesType/valueType/readWriteMode are logically enums, but
@@ -293,15 +383,36 @@ class TimeSeriesSet(FewsModel):
     timeSeriesType: str
     timeStep: TimeStep
     readWriteMode: str
+    description: str | None = None
+    domainParameterId: list[str] = Field(default_factory=list)
     qualifierId: QualifierId | None = None
+    aggregationPeriod: "RelativePeriod | None" = None
+    cycle: "CalendarTimeSpan | None" = None
+    relativeViewPeriod: RelativeViewPeriod | None = None
+    relativeForecastPeriod: RelativeViewPeriod | None = None
+    externalForecastSearchTimeStep: TimeStep | None = None
+    externalForecastTimeCardinalTimeStep: TimeStep | None = None
+    qualifierAggregation: str | None = None
     synchLevel: int | None = None
     expiryTime: TimeStep | None = None
-    ensembleId: str | None = None
-    relativeViewPeriod: RelativeViewPeriod | None = None
+    delay: TimeShift | None = None
     # Optional scaling factor; str to preserve source text ("1" must not
     # become "1.0"). Same precision-preservation strategy as missingValue
     # and ExtremeValueLimit.constantLimit.
     multiplier: str | None = None
+    divider: str | None = None
+    incrementer: str | None = None
+    ensembleId: str | None = None
+    ensembleMemberId: list[str] = Field(default_factory=list)
+    ensembleMemberIndex: str | None = None
+    ensembleMemberIndexRange: list["EnsembleMemberIndexRangeAttr"] = Field(
+        default_factory=list
+    )
+    visibilityControllingFlagSourceColumnId: str | None = None
+    onlyReliableFlagSourceColumnId: str | None = None
+    # Root attributes (XSD attr, not child element):
+    id: str | None = None
+    name: str | None = None
 
     @model_validator(mode="after")
     def _location_xor_set(self) -> TimeSeriesSet:
@@ -311,7 +422,28 @@ class TimeSeriesSet(FewsModel):
             raise ValueError(
                 "timeSeriesSet: supply exactly one of locationId or locationSetId"
             )
+        # Also enforce the ensemble-member choice: at most one of the three forms
+        ens_variants = sum([
+            bool(self.ensembleMemberId),
+            self.ensembleMemberIndex is not None,
+            bool(self.ensembleMemberIndexRange),
+        ])
+        if ens_variants > 1:
+            raise ValueError(
+                "timeSeriesSet: at most one of ensembleMemberId / "
+                "ensembleMemberIndex / ensembleMemberIndexRange"
+            )
         return self
+
+
+class EnsembleMemberIndexRangeAttr(FewsModel):
+    """XSD EnsembleMemberIndexRangeComplexType — attribute-only
+    ``<ensembleMemberIndexRange start="..." end="..."/>``. Both are
+    nonNegativeIntegerStringType (i.e. strings in XML); we accept
+    str or int and stringify in the template."""
+
+    start: int | str
+    end: int | str | None = None
 
 
 class TimeSeriesDataPoint(FewsModel):
@@ -373,6 +505,10 @@ class DataVariable(FewsModel):
     timeZone: TimeZone | None = None
     # Form C
     component: list[HarmonicComponent] = Field(default_factory=list)
+    # Attributes (optional)
+    variableId: str | None = None
+    variableType: str | None = None
+    convertDatum: bool | None = None
 
     @model_validator(mode="after")
     def _exactly_one_form(self) -> DataVariable:
@@ -395,3 +531,63 @@ class DataVariable(FewsModel):
                 "variable: defined-data form requires at least one <data> entry"
             )
         return self
+
+
+class ConfigFile(FewsModel):
+    """XSD ConfigFileComplexType — attribute-only (name + version).
+    Used wherever a configuration file is referenced by name/version pair
+    (whatIfScenario / whatIfScenarioFilters moduleParameterFiles and
+    moduleDataSetFiles lists)."""
+
+    name: str
+    version: str
+
+
+class Attribute(FewsModel):
+    """XSD AttributeComplexType — custom attribute on a location, parameter,
+    qualifier, or similar entity.
+
+    XSD choice:
+      - ``text`` + optional (``enumerationValue[]`` XOR ``regularExpression``)
+      - ``number``
+      - ``boolean``
+      - ``dateTime``
+
+    All four value fields are non-empty strings: FEWS uses ``%TOKENS%`` in
+    them (e.g. ``%EXTERNAL_ID%``, ``%HARD_MAX%/1000``) plus literal values.
+    Exactly one of text / number / boolean / dateTime must be set.
+    """
+
+    text: str | None = None
+    number: str | None = None
+    boolean: str | None = None
+    dateTime: str | None = None
+    enumerationValue: list[str] = Field(default_factory=list)
+    regularExpression: str | None = None
+    description: str | None = None
+    required: bool | None = None
+    id: str | None = None
+    name: str | None = None
+
+    @model_validator(mode="after")
+    def _one_value(self) -> Attribute:
+        variants = [self.text, self.number, self.boolean, self.dateTime]
+        if sum(v is not None for v in variants) != 1:
+            raise ValueError(
+                "attribute: supply exactly one of text / number / boolean / dateTime"
+            )
+        if self.text is None and (self.enumerationValue or self.regularExpression):
+            raise ValueError(
+                "attribute: enumerationValue[] and regularExpression are only "
+                "valid alongside the text variant"
+            )
+        if self.enumerationValue and self.regularExpression is not None:
+            raise ValueError(
+                "attribute: enumerationValue[] and regularExpression are "
+                "mutually exclusive"
+            )
+        return self
+
+
+TimeSeriesFilter.model_rebuild()
+TimeSeriesSet.model_rebuild()

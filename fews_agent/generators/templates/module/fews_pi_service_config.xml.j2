@@ -1,0 +1,98 @@
+{%- import "_partials/timeseries_set.xml.j2" as tss -%}
+<?xml version="1.0" encoding="UTF-8"?>
+<fewsPiServiceConfig xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/fewsPiServiceConfig.xsd">
+  {%- if general is not none %}
+  <general>
+    {%- if general.importDir is not none %}
+    <importDir>{{ general.importDir }}</importDir>
+    {%- endif %}
+    {%- if general.importIdMap is not none %}
+    <importIdMap>{{ general.importIdMap }}</importIdMap>
+    {%- endif %}
+    {%- if general.importUnitConversionsId is not none %}
+    <importUnitConversionsId>{{ general.importUnitConversionsId }}</importUnitConversionsId>
+    {%- endif %}
+    {%- if general.exportDir is not none %}
+    <exportDir>{{ general.exportDir }}</exportDir>
+    {%- endif %}
+    {%- if general.exportIdMap is not none %}
+    <exportIdMap>{{ general.exportIdMap }}</exportIdMap>
+    {%- endif %}
+    {%- if general.exportUnitConversionsId is not none %}
+    <exportUnitConversionsId>{{ general.exportUnitConversionsId }}</exportUnitConversionsId>
+    {%- endif %}
+    {%- if general.writeToFile is not none %}
+    <writeToFile>{{ 'true' if general.writeToFile else 'false' }}</writeToFile>
+    {%- endif %}
+    {%- if general.timeZone is not none %}
+    <timeZone>
+      {%- if general.timeZone.timeZoneOffset is not none %}
+      <timeZoneOffset>{{ general.timeZone.timeZoneOffset }}</timeZoneOffset>
+      {%- endif %}
+      {%- if general.timeZone.timeZoneName is not none %}
+      <timeZoneName>{{ general.timeZone.timeZoneName }}</timeZoneName>
+      {%- endif %}
+    </timeZone>
+    {%- endif %}
+  </general>
+  {%- endif %}
+  {%- for ts in timeSeries %}
+  <timeSeries>
+    {%- if ts.description is not none %}
+    <description>{{ ts.description }}</description>
+    {%- endif %}
+    <id>{{ ts.id }}</id>
+    {%- if ts.exportBinFile is not none %}
+    <exportBinFile>{{ 'true' if ts.exportBinFile else 'false' }}</exportBinFile>
+    {%- endif %}
+    {%- if ts.timeSeriesSet %}
+    {%- for s in ts.timeSeriesSet %}
+    {{ tss.render(s) }}
+    {%- endfor %}
+    {%- elif ts.selectedTimeSeries %}
+    <selectedTimeSeries/>
+    {%- else %}
+    <selectedSegmentTimeSeries/>
+    {%- endif %}
+    {%- if ts.omitMissingValues is not none %}
+    <omitMissingValues>{{ 'true' if ts.omitMissingValues else 'false' }}</omitMissingValues>
+    {%- endif %}
+    {%- if ts.missingValue is not none %}
+    <missingValue>{{ ts.missingValue | xmlstr }}</missingValue>
+    {%- endif %}
+    {%- if ts.convertDatum is not none %}
+    <convertDatum>{{ 'true' if ts.convertDatum else 'false' }}</convertDatum>
+    {%- endif %}
+    {%- for eu in ts.externalUnit %}
+    <externalUnit parameterId="{{ eu.parameterId }}" unit="{{ eu.unit }}"/>
+    {%- endfor %}
+  </timeSeries>
+  {%- endfor %}
+  {%- for m in moduleDataSet %}
+  <moduleDataSet>
+    {%- if m.description is not none %}
+    <description>{{ m.description }}</description>
+    {%- endif %}
+    <id>{{ m.id }}</id>
+    <moduleInstanceId>{{ m.moduleInstanceId }}</moduleInstanceId>
+  </moduleDataSet>
+  {%- endfor %}
+  {%- for m in moduleParameterSet %}
+  <moduleParameterSet>
+    {%- if m.description is not none %}
+    <description>{{ m.description }}</description>
+    {%- endif %}
+    <id>{{ m.id }}</id>
+    <moduleInstanceId>{{ m.moduleInstanceId }}</moduleInstanceId>
+  </moduleParameterSet>
+  {%- endfor %}
+  {%- for m in moduleState %}
+  <moduleState>
+    {%- if m.description is not none %}
+    <description>{{ m.description }}</description>
+    {%- endif %}
+    <id>{{ m.id }}</id>
+    <moduleInstanceId>{{ m.moduleInstanceId }}</moduleInstanceId>
+  </moduleState>
+  {%- endfor %}
+</fewsPiServiceConfig>

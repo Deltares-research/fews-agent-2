@@ -59,7 +59,7 @@
     {{ tss.render(ts) }}
     {% endfor %}
     {% for eu in imp.externUnit %}
-    <externUnit parameterId="{{ eu.parameterId }}" unit="{{ eu.unit }}"{% if eu.cumulativeSum %} cumulativeSum="true"{% endif %}/>
+    <externUnit parameterId="{{ eu.parameterId }}" unit="{{ eu.unit }}"{% if eu.cumulativeSum %} cumulativeSum="true"{% endif %}{% if eu.cumulativeMean %} cumulativeMean="true"{% endif %}{% if eu.cumulativeSumIgnoreFirstTimeStep %} cumulativeSumIgnoreFirstTimeStep="true"{% endif %}/>
     {% endfor %}
   </import>
 {% endfor %}

@@ -19,4 +19,7 @@
     {% endif %}
   </thresholdValueSet>
 {% endfor %}
+{% if eventTimeViewPeriod is not none %}
+  <eventTimeViewPeriod start="{{ eventTimeViewPeriod.start }}" end="{{ eventTimeViewPeriod.end }}"{% if eventTimeViewPeriod.startOverrulable is not none %} startOverrulable="{{ 'true' if eventTimeViewPeriod.startOverrulable else 'false' }}"{% endif %}{% if eventTimeViewPeriod.endOverrulable is not none %} endOverrulable="{{ 'true' if eventTimeViewPeriod.endOverrulable else 'false' }}"{% endif %} unit="{{ eventTimeViewPeriod.unit }}">{% if eventTimeViewPeriod.description is not none %}<description>{{ eventTimeViewPeriod.description }}</description>{% endif %}</eventTimeViewPeriod>
+{% endif %}
 </thresholdValueSets>

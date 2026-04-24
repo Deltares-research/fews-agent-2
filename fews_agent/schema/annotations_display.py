@@ -11,4 +11,9 @@ from .common import FewsModel
 
 
 class AnnotationsDisplay(FewsModel):
-    """Root of AnnotationsDisplay.xml — no fields (both children empty per XSD)."""
+    """Root of AnnotationsDisplay.xml. Both children are empty elements
+    per XSD; kept as bool flags for consistency with the gap-audit
+    (default True — element always emitted as required by XSD)."""
+
+    valueTypes: bool = True
+    properties: bool = True

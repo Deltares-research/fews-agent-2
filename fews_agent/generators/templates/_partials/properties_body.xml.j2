@@ -1,0 +1,18 @@
+{%- macro emit_desc(p) -%}
+{% if p.description is not none %}<description>{{ p.description }}</description>{% endif %}
+{%- endmacro -%}
+{%- macro body(m) -%}
+{% if m.description is not none %}<description>{{ m.description }}</description>{% endif %}
+  {% for p in m.string %}<string key="{{ p.key }}" value="{{ p.value }}">{{ emit_desc(p) }}</string>
+  {% endfor %}
+  {% for p in m.int_ %}<int key="{{ p.key }}" value="{{ p.value }}">{{ emit_desc(p) }}</int>
+  {% endfor %}
+  {% for p in m.float_ %}<float key="{{ p.key }}" value="{{ p.value | xmlstr }}">{{ emit_desc(p) }}</float>
+  {% endfor %}
+  {% for p in m.double %}<double key="{{ p.key }}" value="{{ p.value | xmlstr }}">{{ emit_desc(p) }}</double>
+  {% endfor %}
+  {% for p in m.bool_ %}<bool key="{{ p.key }}" value="{{ 'true' if p.value else 'false' }}">{{ emit_desc(p) }}</bool>
+  {% endfor %}
+  {% for p in m.dateTime %}<dateTime key="{{ p.key }}" date="{{ p.date }}" time="{{ p.time }}">{{ emit_desc(p) }}</dateTime>
+  {% endfor %}
+{%- endmacro -%}

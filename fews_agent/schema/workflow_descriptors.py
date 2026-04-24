@@ -29,10 +29,22 @@ class WorkflowDescriptor(FewsModel):
 
 
 class WorkflowDescriptorNode(FewsModel):
-    """Grouping node inside `<rootNode>` — bundles workflow ids under a
-    display name for the UI tree."""
+    """Tree-node entry. XSD TreeNodeComplexType requires ``name`` attr
+    plus the NodeElements group (description + choice of workflowId /
+    nested node / nodeId ref). Simplified here to name + workflowId[]
+    since that's the common ManualForecast-dialog flat form."""
 
     name: str
+    workflowId: list[WorkflowId] = Field(default_factory=list)
+
+
+class WorkflowDescriptorGroupNode(FewsModel):
+    """Root-level named-node entry (XSD GroupNodeComplexType) — same
+    body as TreeNode but with an ``id`` attr. Referenced by nodeId from
+    rootNode.node children to share sub-trees across descriptor files."""
+
+    id: str
+    name: str | None = None
     workflowId: list[WorkflowId] = Field(default_factory=list)
 
 
@@ -43,4 +55,5 @@ class WorkflowDescriptorRootNode(FewsModel):
 class WorkflowDescriptors(FewsModel):
     workflowDescriptor: list[WorkflowDescriptor] = Field(min_length=1)
     rootNode: WorkflowDescriptorRootNode | None = None
+    node: list[WorkflowDescriptorGroupNode] = Field(default_factory=list)
     version: str = "1.0"

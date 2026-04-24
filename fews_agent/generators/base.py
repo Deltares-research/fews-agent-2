@@ -100,7 +100,11 @@ def render(template_name: str, model: FewsModel) -> str:
     Decimal to a string via str() — losing fixed-point notation.
     """
     template = _env.get_template(template_name)
-    return template.render(**model.model_dump(mode="python", exclude_none=False))
+    data = model.model_dump(mode="python", exclude_none=False)
+    # Pass both splat fields (legacy) and `_root` (for partials that accept
+    # a single argument wrapping the whole model). `_root` can't collide
+    # with a FEWS XSD field name because of the leading underscore.
+    return template.render(_root=data, **data)
 
 
 _PARSER = etree.XMLParser(remove_blank_text=True, remove_comments=True)

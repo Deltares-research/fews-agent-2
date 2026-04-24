@@ -1,17 +1,19 @@
 """TaskRunDialog.xml — Task Run dialog configuration.
 
-Groups one or more tasks per workflow. Each task is either:
-  - a ``simpleTask`` (relativePeriod only), or
-  - an ``operatorTask`` (panels with scenario/value/time editors).
+Groups one or more tasks per workflow. Each task is one of:
+  - ``simpleTask`` (relativePeriod only)
+  - ``operatorTask`` (panels with scenario/value/time editors)
+  - ``archiveTask`` (wraps an ArchiveRun + optional queryServiceUrl)
 
-The deprecated ``archiveTask`` (gone since 2017.02) and Neva-barrier
-task variants are not modelled here; add them when a live config needs
-them.
+The XSD also defines ``TaskRunDialogNevaBarrierTaskComplexType`` but
+it's not wired into the TaskRunDialogTaskGroup choice — unreachable
+type, so not modelled here.
 """
 from __future__ import annotations
 
 from pydantic import Field, model_validator
 
+from .archive_run import ArchiveRun
 from .common import DataVariable, FewsModel, RelativeViewPeriod, TimeSeriesSet
 
 
@@ -135,21 +137,32 @@ class TaskRunDialogOperatorTask(TaskRunDialogTaskBase):
     panel: list[TaskRunDialogPanel] = Field(default_factory=list)
 
 
+class TaskRunDialogArchiveTask(TaskRunDialogTaskBase):
+    """Extends TaskComplexType with an ArchiveRun body + optional
+    queryServiceUrl attr. Marked ``No longer supported since 2017.02``
+    in the XSD but still allowed."""
+
+    archiveRun: ArchiveRun
+    queryServiceUrl: str | None = None
+
+
 class TaskRunDialogTaskGroup(FewsModel):
-    """XSD choice-unbounded over simpleTask / operatorTask — parallel
-    lists pattern."""
+    """XSD choice-unbounded over simpleTask / operatorTask / archiveTask
+    — parallel lists pattern."""
 
     name: str | None = None
     workflowId: str | None = None
     flowchart: TaskRunDialogFlowchart | None = None
     simpleTask: list[TaskRunDialogSimpleTask] = Field(default_factory=list)
     operatorTask: list[TaskRunDialogOperatorTask] = Field(default_factory=list)
+    archiveTask: list[TaskRunDialogArchiveTask] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def _at_least_one_task(self) -> TaskRunDialogTaskGroup:
-        if not self.simpleTask and not self.operatorTask:
+        if not (self.simpleTask or self.operatorTask or self.archiveTask):
             raise ValueError(
-                "taskGroup: supply at least one simpleTask or operatorTask"
+                "taskGroup: supply at least one simpleTask / operatorTask / "
+                "archiveTask"
             )
         return self
 

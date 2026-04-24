@@ -1,3 +1,13 @@
+{%- macro cold(cs) -%}
+<coldState>
+    <startDate unit="{{ cs.startDate.unit }}" multiplier="{{ cs.startDate.multiplier }}"/>
+  </coldState>
+{%- endmacro -%}
+{%- macro warm(ws) -%}
+<warmState>
+    <stateSearchPeriod start="{{ ws.stateSearchPeriod.start }}" end="{{ ws.stateSearchPeriod.end }}"{% if ws.stateSearchPeriod.startOverrulable is not none %} startOverrulable="{{ 'true' if ws.stateSearchPeriod.startOverrulable else 'false' }}"{% endif %}{% if ws.stateSearchPeriod.endOverrulable is not none %} endOverrulable="{{ 'true' if ws.stateSearchPeriod.endOverrulable else 'false' }}"{% endif %} unit="{{ ws.stateSearchPeriod.unit }}">{% if ws.stateSearchPeriod.description is not none %}<description>{{ ws.stateSearchPeriod.description }}</description>{% endif %}</stateSearchPeriod>
+  </warmState>
+{%- endmacro -%}
 <?xml version="1.0" encoding="UTF-8"?>
 <manualForecastDisplay xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/manualForecastDisplay.xsd">
   {% if runningPredefined is not none %}
@@ -6,5 +16,15 @@
     {% if runningPredefined.directory is not none %}<directory>{{ runningPredefined.directory }}</directory>{% endif %}
     {% if runningPredefined.buttonVisible is not none %}<buttonVisible>{{ 'true' if runningPredefined.buttonVisible else 'false' }}</buttonVisible>{% endif %}
   </runningPredefined>
+  {% endif %}
+  {% if coldState is not none %}{{ cold(coldState) }}{% endif %}
+  {% if warmState is not none %}{{ warm(warmState) }}{% endif %}
+  {% if forecastLength is not none %}<forecastLength unit="{{ forecastLength.unit }}" multiplier="{{ forecastLength.multiplier }}"/>{% endif %}
+  {% if task is not none %}
+  <task{% if task.workflowId is not none %} workflowId="{{ task.workflowId }}"{% endif %}{% if task.stateSelection is not none %} stateSelection="{{ task.stateSelection }}"{% endif %}{% if task.forecastLengthSelection is not none %} forecastLengthSelection="{{ task.forecastLengthSelection }}"{% endif %}>
+    {% if task.coldState is not none %}{{ cold(task.coldState) }}{% endif %}
+    {% if task.warmState is not none %}{{ warm(task.warmState) }}{% endif %}
+    {% if task.forecastLength is not none %}<forecastLength unit="{{ task.forecastLength.unit }}" multiplier="{{ task.forecastLength.multiplier }}"/>{% endif %}
+  </task>
   {% endif %}
 </manualForecastDisplay>

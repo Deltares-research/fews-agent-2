@@ -1,0 +1,12 @@
+{# Shared TimeStep emission — emits the full XSD attribute set. The
+   XSD allows five attribute combinations; all are optional from this
+   macro's point of view, so callers get whatever they supply.
+   `description` is the only child element (optional). #}
+{%- macro render(ts, tag="timeStep") -%}
+<{{ tag }}{% if ts.id is not none %} id="{{ ts.id }}"{% endif %}{% if ts.label is not none %} label="{{ ts.label }}"{% endif %}{% if ts.unit is not none %} unit="{{ ts.unit }}"{% endif %}{% if ts.divider is not none %} divider="{{ ts.divider }}"{% endif %}{% if ts.multiplier is not none %} multiplier="{{ ts.multiplier }}"{% endif %}{% if ts.times is not none %} times="{{ ts.times }}"{% endif %}{% if ts.minutes is not none %} minutes="{{ ts.minutes }}"{% endif %}{% if ts.daysOfMonth is not none %} daysOfMonth="{{ ts.daysOfMonth }}"{% endif %}{% if ts.monthDays is not none %} monthDays="{{ ts.monthDays }}"{% endif %}{% if ts.timeZone is not none %} timeZone="{{ ts.timeZone }}"{% endif %}
+{%- if ts.description is not none %}>
+    <description>{{ ts.description }}</description>
+  </{{ tag }}>
+{%- else %}/>
+{%- endif %}
+{%- endmacro -%}

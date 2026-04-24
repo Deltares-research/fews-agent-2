@@ -1,0 +1,65 @@
+{%- macro coefficient(c) -%}
+<coefficient{% if c.coefficientType is not none %} coefficientType="{{ c.coefficientType }}"{% endif %} value="{{ c.value | xmlstr }}"/>
+{%- endmacro -%}
+<?xml version="1.0" encoding="UTF-8"?>
+<ReservoirModel xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/reservoirModel.xsd">
+  <general>
+    <workDir>{{ general.workDir }}</workDir>
+    <importDir>{{ general.importDir }}</importDir>
+    <exportDir>{{ general.exportDir }}</exportDir>
+    {%- if general.stateDir is not none %}
+    <stateDir>{{ general.stateDir }}</stateDir>
+    {%- endif %}
+    {%- if general.diagnosticFile is not none %}
+    <diagnosticFile>{{ general.diagnosticFile }}</diagnosticFile>
+    {%- endif %}
+    <missingValue>{{ general.missingValue | xmlstr }}</missingValue>
+    {%- if general.columnSeperator is not none %}
+    <columnSeperator>{{ general.columnSeperator }}</columnSeperator>
+    {%- endif %}
+    {%- if general.timeZone is not none %}
+    <timeZone>
+      {%- if general.timeZone.timeZoneOffset is not none %}
+      <timeZoneOffset>{{ general.timeZone.timeZoneOffset }}</timeZoneOffset>
+      {%- endif %}
+      {%- if general.timeZone.timeZoneName is not none %}
+      <timeZoneName>{{ general.timeZone.timeZoneName }}</timeZoneName>
+      {%- endif %}
+    </timeZone>
+    {%- endif %}
+  </general>
+  <inflowFunctions>
+    {%- if inflowFunctions.inflowFunction is not none %}
+    <inflowFunction>{{ inflowFunctions.inflowFunction }}</inflowFunction>
+    {%- endif %}
+    {%- for c in inflowFunctions.coefficient %}
+    {{ coefficient(c) }}
+    {%- endfor %}
+  </inflowFunctions>
+  {%- for o in outflowFunctions %}
+  <outflowFunctions>
+    {%- if o.limitLower is not none %}
+    <limitLower>{{ o.limitLower | xmlstr }}</limitLower>
+    {%- endif %}
+    {%- if o.limitUpper is not none %}
+    <limitUpper>{{ o.limitUpper | xmlstr }}</limitUpper>
+    {%- endif %}
+    {%- if o.outflow is not none %}
+    <outflow>{{ o.outflow }}</outflow>
+    {%- endif %}
+    {%- if o.userDefinedFunction is not none %}
+    <userDefinedFunction>{{ o.userDefinedFunction }}</userDefinedFunction>
+    {%- endif %}
+    {%- for c in o.coefficient %}
+    {{ coefficient(c) }}
+    {%- endfor %}
+  </outflowFunctions>
+  {%- endfor %}
+  <reservoir>
+    <functionType>{{ reservoir.functionType }}</functionType>
+    {%- for r in reservoir.elevationStorageTable %}
+    <elevationStorageTable elevation="{{ r.elevation | xmlstr }}"{% if r.stage is not none %} stage="{{ r.stage | xmlstr }}"{% endif %} storage="{{ r.storage | xmlstr }}"{% if r.area is not none %} area="{{ r.area | xmlstr }}"{% endif %}{% if r.outflowDischarge is not none %} outflowDischarge="{{ r.outflowDischarge | xmlstr }}"{% endif %}/>
+    {%- endfor %}
+    <elevationInterval>{{ reservoir.elevationInterval | xmlstr }}</elevationInterval>
+  </reservoir>
+</ReservoirModel>

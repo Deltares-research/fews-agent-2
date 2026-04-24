@@ -1,12 +1,8 @@
 """StateEditor.xml — per-model state editor configuration.
 
-The optional ``<timeSeriesDisplay>`` sub-section embeds the full
-``TimeSeriesDisplayConfigComplexType``. Our existing TimeSeriesDisplay
-model is tied to its own root-element template; reusing it inside
-StateEditor would require a template refactor. We skip the inner
-``timeSeriesDisplay`` element for now — authors configure it via the
-standalone TimeSeriesDisplayConfig.xml file until the day a real
-config needs inline editor-embedded display config.
+The optional ``<timeSeriesDisplay>`` sub-section reuses the full
+``TimeSeriesDisplay`` model (same XSD complexType). Both rendering
+sites share ``_partials/time_series_display_body.xml.j2``.
 """
 from __future__ import annotations
 
@@ -16,6 +12,7 @@ from pydantic import Field, model_validator
 
 
 from .common import FewsModel
+from .time_series_display_config import TimeSeriesDisplay
 
 
 SeriesQualifier = Literal["min", "max", "mean"]
@@ -125,3 +122,4 @@ class StateEditor(FewsModel):
     stateParameterGroup: list[StateParameterGroup] = Field(min_length=1)
     stateParameter: list[StateParameter] = Field(min_length=1)
     seriesGroup: list[SeriesGroup] = Field(default_factory=list)
+    timeSeriesDisplay: TimeSeriesDisplay | None = None

@@ -1,0 +1,60 @@
+{%- import "_partials/task_properties.xml.j2" as tp -%}
+{%- macro input_product(p) -%}
+<inputProduct productId="{{ p.productId }}" forecastDate="{{ p.forecastDate }}" forecastTime="{{ p.forecastTime }}" productDate="{{ p.productDate }}" productTime="{{ p.productTime }}">
+      {%- for child in p.inputProduct %}
+      {{ input_product(child) | indent(2, false) }}
+      {%- endfor %}
+    </inputProduct>
+{%- endmacro -%}
+<?xml version="1.0" encoding="UTF-8"?>
+<taskRunProperties xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/taskRunProperties.xsd">
+  <taskProperties>
+{{ tp.render(taskProperties) }}
+  </taskProperties>
+  <taskRunId>{{ taskRunId }}</taskRunId>
+  <time0>{{ time0 }}</time0>
+  {%- for e in externalForecastTime %}
+  <externalForecastTime id="{{ e.id }}" date="{{ e.date }}" time="{{ e.time }}"/>
+  {%- endfor %}
+  {%- for p in inputProduct %}
+  {{ input_product(p) }}
+  {%- endfor %}
+  {%- if archiveTaskRun is not none %}
+  <archiveTaskRun>{{ archiveTaskRun | dict_to_xml | safe }}</archiveTaskRun>
+  {%- endif %}
+  {%- if usedConfFiles is not none %}
+  <usedConfFiles>{{ usedConfFiles | dict_to_xml | safe }}</usedConfFiles>
+  {%- endif %}
+  {%- for m in usedModuleInstanceRuns %}
+  <usedModuleInstanceRuns taskRunId="{{ m.taskRunId }}">
+    {%- for mid in m.moduleInstanceId %}
+    <moduleInstanceId>{{ mid }}</moduleInstanceId>
+    {%- endfor %}
+  </usedModuleInstanceRuns>
+  {%- endfor %}
+  {%- for m in usedModifiers %}
+  <usedModifiers modifierId="{{ m.modifierId }}" taskRunId="{{ m.taskRunId }}"/>
+  {%- endfor %}
+  {%- if expiryTime is not none %}
+  <expiryTime>{{ expiryTime }}</expiryTime>
+  {%- endif %}
+  {%- if earliestExportedStateTime is not none %}
+  <earliestExportedStateTime>{{ earliestExportedStateTime }}</earliestExportedStateTime>
+  {%- endif %}
+  {%- if latestExportedStateTime is not none %}
+  <latestExportedStateTime>{{ latestExportedStateTime }}</latestExportedStateTime>
+  {%- endif %}
+  {%- for u in unexpectedColdStateUsed %}
+  <unexpectedColdStateUsed>
+    <moduleInstanceId>{{ u.moduleInstanceId }}</moduleInstanceId>
+    <stateSearchRelativePeriod start="{{ u.stateSearchRelativePeriod.start }}" end="{{ u.stateSearchRelativePeriod.end }}"{% if u.stateSearchRelativePeriod.startOverrulable is not none %} startOverrulable="{{ 'true' if u.stateSearchRelativePeriod.startOverrulable else 'false' }}"{% endif %}{% if u.stateSearchRelativePeriod.endOverrulable is not none %} endOverrulable="{{ 'true' if u.stateSearchRelativePeriod.endOverrulable else 'false' }}"{% endif %} unit="{{ u.stateSearchRelativePeriod.unit }}">
+      {%- if u.stateSearchRelativePeriod.description is not none %}
+      <description>{{ u.stateSearchRelativePeriod.description }}</description>
+      {%- endif %}
+    </stateSearchRelativePeriod>
+  </unexpectedColdStateUsed>
+  {%- endfor %}
+  {%- if backupWarmStateUsed is not none %}
+  <backupWarmStateUsed>{{ 'true' if backupWarmStateUsed else 'false' }}</backupWarmStateUsed>
+  {%- endif %}
+</taskRunProperties>

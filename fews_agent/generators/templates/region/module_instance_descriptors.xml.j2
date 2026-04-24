@@ -1,8 +1,60 @@
+{%- macro emit_descriptor(m) -%}
+<moduleInstanceDescriptor id="{{ m.id }}"{% if m.name is not none %} name="{{ m.name }}"{% endif %}
+{%- set has_body = m.description is not none or m.updateModuleRunTimesOnCompletion is not none or m.moduleId is not none or m.simulatedHistoricalModuleInstanceId is not none or m.waterCoachExternalForecastDelay is not none -%}
+{%- if has_body %}>
+    {%- if m.description is not none %}
+    <description>{{ m.description }}</description>
+    {%- endif %}
+    {%- if m.updateModuleRunTimesOnCompletion is not none %}
+    <updateModuleRunTimesOnCompletion>{{ 'true' if m.updateModuleRunTimesOnCompletion else 'false' }}</updateModuleRunTimesOnCompletion>
+    {%- endif %}
+    {%- if m.moduleId is not none %}
+    <moduleId>{{ m.moduleId }}</moduleId>
+    {%- endif %}
+    {%- if m.simulatedHistoricalModuleInstanceId is not none %}
+    <simulatedHistoricalModuleInstanceId>{{ m.simulatedHistoricalModuleInstanceId }}</simulatedHistoricalModuleInstanceId>
+    {%- endif %}
+    {%- if m.waterCoachExternalForecastDelay is not none %}
+    <waterCoachExternalForecastDelay unit="{{ m.waterCoachExternalForecastDelay.unit }}"{% if m.waterCoachExternalForecastDelay.multiplier is not none %} multiplier="{{ m.waterCoachExternalForecastDelay.multiplier }}"{% endif %}{% if m.waterCoachExternalForecastDelay.divider is not none %} divider="{{ m.waterCoachExternalForecastDelay.divider }}"{% endif %}/>
+    {%- endif %}
+  </moduleInstanceDescriptor>
+{%- else %}/>
+{%- endif %}
+{%- endmacro -%}
 <?xml version="1.0" encoding="UTF-8"?>
 <moduleInstanceDescriptors xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/moduleInstanceDescriptors.xsd" version="{{ version }}">
 {% for m in moduleInstanceDescriptor %}
-  <moduleInstanceDescriptor id="{{ m.id }}">
-    {% if m.description is not none %}<description>{{ m.description }}</description>{% endif %}
-  </moduleInstanceDescriptor>
+  {{ emit_descriptor(m) }}
+{% endfor %}
+{% for g in moduleInstanceGroup %}
+  <moduleInstanceGroup id="{{ g.id }}"{% if g.name is not none %} name="{{ g.name }}"{% endif %}>
+    {% for m in g.moduleInstanceDescriptor %}
+    {{ emit_descriptor(m) }}
+    {% endfor %}
+  </moduleInstanceGroup>
+{% endfor %}
+{% for c in moduleInstanceDescriptorsCsvFile %}
+  <moduleInstanceDescriptorsCsvFile>
+    <file>{{ c.file }}</file>
+    {% if c.charset is not none %}<charset>{{ c.charset }}</charset>{% endif %}
+    <id>{{ c.id }}</id>
+    {% if c.name is not none %}<name>{{ c.name }}</name>{% endif %}
+    {% if c.description is not none %}<description>{{ c.description }}</description>{% endif %}
+    {% if c.group is not none %}<group>{{ c.group }}</group>{% endif %}
+    {% if c.groupName is not none %}<groupName>{{ c.groupName }}</groupName>{% endif %}
+    {% if c.updateModuleRunTimesOnCompletion is not none %}<updateModuleRunTimesOnCompletion>{{ c.updateModuleRunTimesOnCompletion }}</updateModuleRunTimesOnCompletion>{% endif %}
+    {% if c.simulatedHistoricalModuleInstanceId is not none %}<simulatedHistoricalModuleInstanceId>{{ c.simulatedHistoricalModuleInstanceId }}</simulatedHistoricalModuleInstanceId>{% endif %}
+    {% if c.waterCoachExternalForecastDelayHours is not none %}<waterCoachExternalForecastDelayHours>{{ c.waterCoachExternalForecastDelayHours }}</waterCoachExternalForecastDelayHours>{% endif %}
+    {% if c.timeZoneOffset is not none %}<timeZoneOffset>{{ c.timeZoneOffset }}</timeZoneOffset>{% endif %}
+    {% if c.dateTimePattern is not none %}<dateTimePattern>{{ c.dateTimePattern }}</dateTimePattern>{% endif %}
+    {% for a in c.attributeFile %}
+    <attributeFile>
+      {% if a.description is not none %}<description>{{ a.description }}</description>{% endif %}
+      <csvFile>{{ a.csvFile }}</csvFile>
+      {% if a.charset is not none %}<charset>{{ a.charset }}</charset>{% endif %}
+      <id>{{ a.id }}</id>
+    </attributeFile>
+    {% endfor %}
+  </moduleInstanceDescriptorsCsvFile>
 {% endfor %}
 </moduleInstanceDescriptors>

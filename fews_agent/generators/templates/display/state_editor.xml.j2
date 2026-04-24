@@ -1,3 +1,4 @@
+{%- import "_partials/time_series_display_body.xml.j2" as tsd -%}
 {%- macro series_attrs(s) -%}
  id="{{ s.id }}" locationId="{{ s.locationId }}" parameterId="{{ s.parameterId }}"{% if s.qualifier is not none %} qualifier="{{ s.qualifier }}"{% endif %}
 {%- endmacro -%}
@@ -72,4 +73,9 @@
     {%- endif %}
   </stateParameter>
   {%- endfor %}
+  {%- if timeSeriesDisplay is not none %}
+  <timeSeriesDisplay version="{{ timeSeriesDisplay.version }}">
+    {{ tsd.body(timeSeriesDisplay) }}
+  </timeSeriesDisplay>
+  {%- endif %}
 </stateEditor>

@@ -7,7 +7,7 @@
 #}
 {%- import "_partials/timeseries_set.xml.j2" as tss -%}
 {%- macro render(v, tag) -%}
-<{{ tag }}>
+<{{ tag }}{% if v.variableId is not none %} variableId="{{ v.variableId }}"{% endif %}{% if v.variableType is not none %} variableType="{{ v.variableType }}"{% endif %}{% if v.convertDatum is not none %} convertDatum="{{ 'true' if v.convertDatum else 'false' }}"{% endif %}>
   {% if v.timeSeriesSet is not none %}{{ tss.render(v.timeSeriesSet) }}
   {% elif v.data %}
     {% if v.timeStep is not none %}{% if v.timeStep.id is not none %}<timeStep id="{{ v.timeStep.id }}"/>

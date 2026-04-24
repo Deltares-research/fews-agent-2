@@ -46,9 +46,28 @@ class TopologyNodeGroup(FewsModel):
 
 
 class Topology(FewsModel):
-    """Root of Topology.xml."""
+    """Root of Topology.xml.
 
-    nodes: list[TopologyNodeGroup] = Field(min_length=1)
+    Final element is an XSD choice of ``groupId`` / ``nodes`` repeating
+    unbounded. ``groupId`` references a topology sub-group configured in
+    a separate topologyGroup.xml file, allowing the topology to be
+    split across files.
+    """
+
+    nodes: list[TopologyNodeGroup] = Field(default_factory=list)
+    groupId: list[str] = Field(default_factory=list)
+    forecasterHelperDirectories: str | None = None
+    enableOriginalButtons: bool | None = None
+    hideThresholdsButton: bool | None = None
+    hideNextSegmentButton: bool | None = None
+    hidePreviousSegmentButton: bool | None = None
     enableAutoRun: bool | None = None
-    enableAutoSelectParameters: bool | None = None
+    enableRunUpstreamServerNodes: bool | None = None
+    enableRunAllPreviousNodes: bool | None = None
     enableSelectNodesFromMap: bool | None = None
+    enableAutoClearParameters: bool | None = None
+    enableAutoSelectParameters: bool | None = None
+    enableAutoSaveOnRun: bool | None = None
+    enableCrossGroupNodeReferencing: bool | None = None
+    enableSelectLastNodeOnStartUp: bool | None = None
+    selectFirstPlotOnSelectionChange: bool | None = None
