@@ -1,0 +1,62 @@
+{%- import "_partials/variable.xml.j2" as var -%}
+{%- macro reltime(elem_name, r) -%}
+  <{{ elem_name }} value="{{ r.value }}" unit="{{ r.unit }}"{% if r.description is none %}/>{% else %}>
+        <description>{{ r.description }}</description>
+      </{{ elem_name }}>{% endif %}
+{%- endmacro -%}
+<?xml version="1.0" encoding="UTF-8"?>
+<objectiveAnalyzerDisplay xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/objectiveAnalyzerDisplay.xsd">
+{%- if description is not none %}
+  <description>{{ description }}</description>
+{%- endif %}
+  <general>
+    {%- if general.description is not none %}
+    <description>{{ general.description }}</description>
+    {%- endif %}
+    <displayName>{{ general.displayName }}</displayName>
+    <periodBegin>{{ general.periodBegin }}</periodBegin>
+    {{ reltime('periodLength', general.periodLength) }}
+    <observedMeansParameterId>{{ general.observedMeansParameterId }}</observedMeansParameterId>
+  </general>
+{%- for s in site %}
+  <site>
+    <name>{{ s.name }}</name>
+    <observedVariable>
+      <variableId>{{ s.observedVariable.variableId }}</variableId>
+    </observedVariable>
+    {%- if s.peakVariable is not none %}
+    <peakVariable>
+      <variableId>{{ s.peakVariable.variableId }}</variableId>
+      {%- if s.peakVariable.influencePeriodBefore is not none %}
+      {{ reltime('influencePeriodBefore', s.peakVariable.influencePeriodBefore) }}
+      {%- endif %}
+      {%- if s.peakVariable.influencePeriodAfter is not none %}
+      {{ reltime('influencePeriodAfter', s.peakVariable.influencePeriodAfter) }}
+      {%- endif %}
+    </peakVariable>
+    {%- endif %}
+    <runningMeans>
+      <allDataVariableId>{{ s.runningMeans.allDataVariableId }}</allDataVariableId>
+      <exTidalVariableId>{{ s.runningMeans.exTidalVariableId }}</exTidalVariableId>
+    </runningMeans>
+  </site>
+{%- endfor %}
+  <meansTable>
+    <variableId>{{ meansTable.variableId }}</variableId>
+  </meansTable>
+  <targetVariable>
+    <variableId>{{ targetVariable.variableId }}</variableId>
+    <defaultValue>{{ targetVariable.defaultValue }}</defaultValue>
+  </targetVariable>
+  <lowerTargetLimitVariable>
+    <variableId>{{ lowerTargetLimitVariable.variableId }}</variableId>
+    <defaultValue>{{ lowerTargetLimitVariable.defaultValue }}</defaultValue>
+  </lowerTargetLimitVariable>
+  <upperTargetLimitVariable>
+    <variableId>{{ upperTargetLimitVariable.variableId }}</variableId>
+    <defaultValue>{{ upperTargetLimitVariable.defaultValue }}</defaultValue>
+  </upperTargetLimitVariable>
+{%- for v in variable %}
+  {{ var.render(v, 'variable') }}
+{%- endfor %}
+</objectiveAnalyzerDisplay>

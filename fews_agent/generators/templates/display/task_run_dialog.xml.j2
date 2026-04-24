@@ -1,0 +1,93 @@
+{%- import "_partials/variable.xml.j2" as var -%}
+{%- import "_partials/timeseries_set.xml.j2" as tss -%}
+{%- macro task_base(t) -%}
+{%- if t.center is not none %}
+      <center{% if t.center.x is not none %} x="{{ t.center.x }}"{% endif %}{% if t.center.y is not none %} y="{{ t.center.y }}"{% endif %}/>
+      {%- endif %}
+      {%- for dep in t.dependency %}
+      <dependency taskName="{{ dep.taskName }}">
+        {%- for vx in dep.vertex %}
+        <vertex{% if vx.x is not none %} x="{{ vx.x }}"{% endif %}{% if vx.y is not none %} y="{{ vx.y }}"{% endif %}/>
+        {%- endfor %}
+      </dependency>
+      {%- endfor %}
+{%- endmacro -%}
+{%- macro task_attrs(t) -%}
+name="{{ t.name }}" workflowId="{{ t.workflowId }}"{% if t.iconName is not none %} iconName="{{ t.iconName }}"{% endif %}{% if t.disableRun is not none %} disableRun="{{ 'true' if t.disableRun else 'false' }}"{% endif %}{% if t.disableSchedule is not none %} disableSchedule="{{ 'true' if t.disableSchedule else 'false' }}"{% endif %}{% if t.explorerLocationId is not none %} explorerLocationId="{{ t.explorerLocationId }}"{% endif %}{% if t.runLocally is not none %} runLocally="{{ 'true' if t.runLocally else 'false' }}"{% endif %}
+{%- endmacro -%}
+<?xml version="1.0" encoding="UTF-8"?>
+<taskRunDialog xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/taskRunDialog.xsd"{% if title is not none %} title="{{ title }}"{% endif %}{% if showProperties is not none %} showProperties="{{ 'true' if showProperties else 'false' }}"{% endif %}>
+{%- for g in taskGroup %}
+  <taskGroup{% if g.name is not none %} name="{{ g.name }}"{% endif %}{% if g.workflowId is not none %} workflowId="{{ g.workflowId }}"{% endif %}>
+    {%- if g.flowchart is not none %}
+    <flowchart>
+      <scale>{{ g.flowchart.scale }}</scale>
+      <taskSize{% if g.flowchart.taskSize.width is not none %} width="{{ g.flowchart.taskSize.width }}"{% endif %}{% if g.flowchart.taskSize.height is not none %} height="{{ g.flowchart.taskSize.height }}"{% endif %}/>
+    </flowchart>
+    {%- endif %}
+    {%- for t in g.simpleTask %}
+    <simpleTask {{ task_attrs(t) }}>
+      {{ task_base(t) }}
+      <relativePeriod unit="{{ t.relativePeriod.unit }}"{% if t.relativePeriod.start is not none %} start="{{ t.relativePeriod.start }}"{% endif %}{% if t.relativePeriod.end is not none %} end="{{ t.relativePeriod.end }}"{% endif %}/>
+    </simpleTask>
+    {%- endfor %}
+    {%- for t in g.operatorTask %}
+    <operatorTask {{ task_attrs(t) }}>
+      {{ task_base(t) }}
+      {%- for p in t.panel %}
+      <panel{% if p.name is not none %} name="{{ p.name }}"{% endif %}{% if p.row is not none %} row="{{ p.row }}"{% endif %}{% if p.column is not none %} column="{{ p.column }}"{% endif %}>
+        {%- for ss in p.scenarioSelect %}
+        <scenarioSelect name="{{ ss.name }}"{% if ss.enabled is not none %} enabled="{{ 'true' if ss.enabled else 'false' }}"{% endif %}>
+          {%- if ss.selectedScenario is not none %}
+          <selectedScenario id="{{ ss.selectedScenario.id }}"/>
+          {%- endif %}
+          {%- for sc in ss.scenario %}
+          <scenario id="{{ sc.id }}"/>
+          {%- endfor %}
+        </scenarioSelect>
+        {%- endfor %}
+        {%- for ve in p.valueEdit %}
+        <valueEdit name="{{ ve.name }}"{% if ve.enabled is not none %} enabled="{{ 'true' if ve.enabled else 'false' }}"{% endif %}>
+          {%- if ve.unit is not none %}
+          <unit>{{ ve.unit }}</unit>
+          {%- endif %}
+          {%- if ve.defaultFloatValue is not none %}
+          <defaultFloatValue>{{ ve.defaultFloatValue | xmlstr }}</defaultFloatValue>
+          {%- else %}
+          {{ tss.render(ve.defaultTimeSeriesSet, 'defaultTimeSeriesSet') }}
+          {%- endif %}
+          {{ var.render(ve.outputVariable, 'outputVariable') }}
+        </valueEdit>
+        {%- endfor %}
+        {%- for te in p.timeEdit %}
+        <timeEdit name="{{ te.name }}"{% if te.enabled is not none %} enabled="{{ 'true' if te.enabled else 'false' }}"{% endif %}>
+          {%- if te.unit is not none %}
+          <unit>{{ te.unit }}</unit>
+          {%- endif %}
+          {%- if te.defaultTimeValue is not none %}
+          <defaultTimeValue>{{ te.defaultTimeValue }}</defaultTimeValue>
+          {%- else %}
+          {{ tss.render(te.defaultTimeSeriesSet, 'defaultTimeSeriesSet') }}
+          {%- endif %}
+          {{ var.render(te.outputVariable, 'outputVariable') }}
+        </timeEdit>
+        {%- endfor %}
+        {%- for vn in p.valueNonEditable %}
+        <valueNonEditable name="{{ vn.name }}">
+          {%- if vn.unit is not none %}
+          <unit>{{ vn.unit }}</unit>
+          {%- endif %}
+          {%- if vn.defaultFloatValue is not none %}
+          <defaultFloatValue>{{ vn.defaultFloatValue | xmlstr }}</defaultFloatValue>
+          {%- else %}
+          {{ tss.render(vn.defaultTimeSeriesSet, 'defaultTimeSeriesSet') }}
+          {%- endif %}
+        </valueNonEditable>
+        {%- endfor %}
+      </panel>
+      {%- endfor %}
+    </operatorTask>
+    {%- endfor %}
+  </taskGroup>
+{%- endfor %}
+</taskRunDialog>

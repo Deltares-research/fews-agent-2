@@ -1,0 +1,106 @@
+{%- import "_partials/variable.xml.j2" as var -%}
+{%- macro relp(name, p) -%}
+<{{ name }} unit="{{ p.unit }}"{% if p.start is not none %} start="{{ p.start }}"{% endif %}{% if p.end is not none %} end="{{ p.end }}"{% endif %}{% if p.startOverrulable is not none %} startOverrulable="{{ 'true' if p.startOverrulable else 'false' }}"{% endif %}{% if p.endOverrulable is not none %} endOverrulable="{{ 'true' if p.endOverrulable else 'false' }}"{% endif %}/>
+{%- endmacro -%}
+{%- macro crit(c) -%}
+<additionalCriteria criteria="{{ c.criteria }}" value="{{ c.value }}"{% if c.violationOfCriteriaFaggedAs is not none %} violationOfCriteriaFaggedAs="{{ c.violationOfCriteriaFaggedAs }}"{% endif %}{% if c.description is none %}/>{% else %}>
+        <description>{{ c.description }}</description>
+      </additionalCriteria>{% endif %}
+{%- endmacro -%}
+{%- macro mp_attrs(m) -%}
+ indicatorType="{{ m.indicatorType }}" calculatedVariableId="{{ m.calculatedVariableId }}" observedVariableId="{{ m.observedVariableId }}" outputVariableId="{{ m.outputVariableId }}"{% if m.sampleOutputVariableId is not none %} sampleOutputVariableId="{{ m.sampleOutputVariableId }}"{% endif %}{% if m.analysedCalculatedVariableId is not none %} analysedCalculatedVariableId="{{ m.analysedCalculatedVariableId }}"{% endif %}{% if m.analysedObservedVariableId is not none %} analysedObservedVariableId="{{ m.analysedObservedVariableId }}"{% endif %}
+{%- endmacro -%}
+{%- macro lta_attrs(m) -%}
+ indicatorType="{{ m.indicatorType }}" calculatedVariableId="{{ m.calculatedVariableId }}" observedVariableId="{{ m.observedVariableId }}"{% if m.outputVariableId is not none %} outputVariableId="{{ m.outputVariableId }}"{% endif %}{% if m.sampleOutputVariableId is not none %} sampleOutputVariableId="{{ m.sampleOutputVariableId }}"{% endif %}{% if m.intermediateValuesVariableId is not none %} intermediateValuesVariableId="{{ m.intermediateValuesVariableId }}"{% endif %}{% if m.analysedCalculatedVariableId is not none %} analysedCalculatedVariableId="{{ m.analysedCalculatedVariableId }}"{% endif %}{% if m.analysedObservedVariableId is not none %} analysedObservedVariableId="{{ m.analysedObservedVariableId }}"{% endif %}
+{%- endmacro -%}
+<?xml version="1.0" encoding="UTF-8"?>
+<performanceIndicatorSets xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/performanceIndicatorSets.xsd" version="{{ version }}"{% if debugLevel != 0 %} debugLevel="{{ debugLevel }}"{% endif %}>
+  {%- if logLevel is not none %}
+  <logLevel>{{ logLevel }}</logLevel>
+  {%- endif %}
+{%- for pis in performanceIndicatorSet %}
+  <performanceIndicatorSet{% if pis.performanceIndicatorId is not none %} performanceIndicatorId="{{ pis.performanceIndicatorId }}"{% endif %}>
+    {%- for iv in pis.inputVariable %}
+    {{ var.render(iv, 'inputVariable') }}
+    {%- endfor %}
+    {%- if pis.forecastSelectionPeriod is not none %}
+    {{ relp('forecastSelectionPeriod', pis.forecastSelectionPeriod) }}
+    {%- elif pis.observedSelectionPeriod is not none %}
+    {{ relp('observedSelectionPeriod', pis.observedSelectionPeriod) }}
+    {%- endif %}
+    {%- for m in pis.modulePerformanceIndicator %}
+    <modulePerformanceIndicator {{ mp_attrs(m) }}>
+      {%- for c in m.additionalCriteria %}
+      {{ crit(c) }}
+      {%- endfor %}
+    </modulePerformanceIndicator>
+    {%- endfor %}
+    {%- for l in pis.leadTimeAccuracyIndicator %}
+    <leadTimeAccuracyIndicator {{ lta_attrs(l) }}>
+      {%- for c in l.additionalCriteria %}
+      {{ crit(c) }}
+      {%- endfor %}
+      {%- if l.classBreaks is not none %}
+      <classBreaks>
+        {%- for tid in l.classBreaks.thresholdId %}
+        <thresholdId>{{ tid }}</thresholdId>
+        {%- endfor %}
+        {%- for cv in l.classBreaks.classValue %}
+        <classValue>{{ cv | xmlstr }}</classValue>
+        {%- endfor %}
+      </classBreaks>
+      {%- endif %}
+      {%- if l.leadTimes is not none %}
+      <leadTimes unit="{{ l.leadTimes.unit }}"{% if l.leadTimes.divider is not none %} divider="{{ l.leadTimes.divider }}"{% endif %}{% if l.leadTimes.multiplier is not none %} multiplier="{{ l.leadTimes.multiplier }}"{% endif %}>
+        {%- for lt in l.leadTimes.leadTime %}
+        <leadTime time="{{ lt.time }}"{% if lt.outputVariableId is not none %} outputVariableId="{{ lt.outputVariableId }}"{% endif %}/>
+        {%- endfor %}
+      </leadTimes>
+      {%- else %}
+      <leadTimePeriods unit="{{ l.leadTimePeriods.unit }}"{% if l.leadTimePeriods.divider is not none %} divider="{{ l.leadTimePeriods.divider }}"{% endif %}{% if l.leadTimePeriods.multiplier is not none %} multiplier="{{ l.leadTimePeriods.multiplier }}"{% endif %}>
+        {%- for ltp in l.leadTimePeriods.leadTimePeriod %}
+        <leadTimePeriod start="{{ ltp.start }}" end="{{ ltp.end }}"{% if ltp.outputVariableId is not none %} outputVariableId="{{ ltp.outputVariableId }}"{% endif %}{% if ltp.sampleOutputVariableId is not none %} sampleOutputVariableId="{{ ltp.sampleOutputVariableId }}"{% endif %}/>
+        {%- endfor %}
+      </leadTimePeriods>
+      {%- endif %}
+    </leadTimeAccuracyIndicator>
+    {%- endfor %}
+    {%- for t in pis.thresholdTimingIndicator %}
+    <thresholdTimingIndicator indicatorType="{{ t.indicatorType }}" calculatedVariableId="{{ t.calculatedVariableId }}" observedVariableId="{{ t.observedVariableId }}">
+      {%- for c in t.additionalCriteria %}
+      {{ crit(c) }}
+      {%- endfor %}
+      <thresholdIds>
+        {%- for tid in t.thresholdIds.thresholdId %}
+        <thresholdId intId="{{ tid.intId }}"{% if tid.outputVariableId is not none %} outputVariableId="{{ tid.outputVariableId }}"{% endif %}/>
+        {%- endfor %}
+      </thresholdIds>
+    </thresholdTimingIndicator>
+    {%- endfor %}
+    {%- for p in pis.precipitationPerformanceIndicator %}
+    <precipitationPerformanceIndicator indicatorType="{{ p.indicatorType }}" observedVariableId="{{ p.observedVariableId }}" forecastVariableId="{{ p.forecastVariableId }}" outputVariableId="{{ p.outputVariableId }}">
+      {%- for c in p.additionalCriteria %}
+      {{ crit(c) }}
+      {%- endfor %}
+      {{ relp('accumulationPeriod', p.accumulationPeriod) }}
+      <assessmentInterval unit="{{ p.assessmentInterval.unit }}"{% if p.assessmentInterval.multiplier is not none %} multiplier="{{ p.assessmentInterval.multiplier }}"{% endif %}{% if p.assessmentInterval.divider is not none %} divider="{{ p.assessmentInterval.divider }}"{% endif %}/>
+    </precipitationPerformanceIndicator>
+    {%- endfor %}
+    {%- for pk in pis.peaksAccuracyIndicator %}
+    <peaksAccuracyIndicator indicatorType="{{ pk.indicatorType }}" calculatedVariableId="{{ pk.calculatedVariableId }}" observedVariableId="{{ pk.observedVariableId }}" referenceVariableId="{{ pk.referenceVariableId }}"{% if pk.outputVariableId is not none %} outputVariableId="{{ pk.outputVariableId }}"{% endif %}>
+      {%- for c in pk.additionalCriteria %}
+      {{ crit(c) }}
+      {%- endfor %}
+      <selectPeaks>
+        {%- for sp in pk.selectPeaks.selectPeak %}
+        <selectPeak peak="{{ sp.peak }}"{% if sp.outputVariableId is not none %} outputVariableId="{{ sp.outputVariableId }}"{% endif %}/>
+        {%- endfor %}
+      </selectPeaks>
+    </peaksAccuracyIndicator>
+    {%- endfor %}
+    {%- for ov in pis.outputVariable %}
+    {{ var.render(ov, 'outputVariable') }}
+    {%- endfor %}
+  </performanceIndicatorSet>
+{%- endfor %}
+</performanceIndicatorSets>

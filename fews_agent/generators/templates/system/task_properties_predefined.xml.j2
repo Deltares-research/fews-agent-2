@@ -1,0 +1,38 @@
+{%- import "_partials/task_properties.xml.j2" as tp -%}
+<?xml version="1.0" encoding="UTF-8"?>
+<taskPropertiesPredefined xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/taskPropertiesPredefined.xsd">
+{%- for bt in batchTask %}
+  <batchTask>
+    <period>
+      <startDate>{{ bt.period.startDate }}</startDate>
+      <endDate>{{ bt.period.endDate }}</endDate>
+    </period>
+    {%- if bt.interval is not none %}
+    <interval unit="{{ bt.interval.unit }}" multiplier="{{ bt.interval.multiplier }}"/>
+    {%- else %}
+    {%- if bt.intervalTimeStep.id is not none %}
+    <intervalTimeStep id="{{ bt.intervalTimeStep.id }}"/>
+    {%- else %}
+    <intervalTimeStep unit="{{ bt.intervalTimeStep.unit }}"{% if bt.intervalTimeStep.multiplier is not none %} multiplier="{{ bt.intervalTimeStep.multiplier }}"{% endif %}/>
+    {%- endif %}
+    {%- endif %}
+    {%- for orun in bt.overrulingActiveModuleInstanceRuns %}
+    <overrulingActiveModuleInstanceRuns workflowId="{{ orun.workflowId }}">
+      {%- for mid in orun.moduleInstanceId %}
+      <moduleInstanceId>{{ mid }}</moduleInstanceId>
+      {%- endfor %}
+    </overrulingActiveModuleInstanceRuns>
+    {%- endfor %}
+    {%- for tpe in bt.taskProperties %}
+    <taskProperties>
+{{ tp.render(tpe) }}
+    </taskProperties>
+    {%- endfor %}
+  </batchTask>
+{%- endfor %}
+{%- for tpe in taskProperties %}
+  <taskProperties>
+{{ tp.render(tpe) }}
+  </taskProperties>
+{%- endfor %}
+</taskPropertiesPredefined>

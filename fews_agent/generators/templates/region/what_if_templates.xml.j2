@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<whatIfTemplates xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/whatIfTemplates.xsd">
+  {%- if valueTypes is not none %}
+  <valueTypes>
+    {%- for e in valueTypes.enumeration %}
+    <enumeration id="{{ e.id }}"{% if e.default is not none %} default="{{ e.default }}"{% endif %}>
+      {%- for v in e.value %}
+      <value code="{{ v.code }}"{% if v.label is not none %} label="{{ v.label }}"{% endif %}/>
+      {%- endfor %}
+    </enumeration>
+    {%- endfor %}
+    {%- for e in valueTypes.multiPropertyEnumeration %}
+    <multiPropertyEnumeration id="{{ e.id }}"{% if e.default is not none %} default="{{ e.default }}"{% endif %}>
+      {%- for v in e.value %}
+      <value code="{{ v.code }}"{% if v.label is not none %} label="{{ v.label }}"{% endif %}>
+        {%- for t in v.triggerProperty %}
+        <triggerProperty code="{{ t.code }}"{% if t.propertyId is not none %} propertyId="{{ t.propertyId }}"{% endif %}/>
+        {%- endfor %}
+      </value>
+      {%- endfor %}
+    </multiPropertyEnumeration>
+    {%- endfor %}
+    {%- for cf in valueTypes.configFile %}
+    <configFile id="{{ cf.id }}" type="{{ cf.type }}" pattern="{{ cf.pattern }}"{% if cf.hidePattern is not none %} hidePattern="{{ 'true' if cf.hidePattern else 'false' }}"{% endif %}{% if cf.default is not none %} default="{{ cf.default }}"{% endif %}/>
+    {%- endfor %}
+    {%- for v in valueTypes.string %}
+    <string id="{{ v.id }}"{% if v.default is not none %} default="{{ v.default }}"{% endif %}/>
+    {%- endfor %}
+    {%- for v in valueTypes.int_ %}
+    <int id="{{ v.id }}"{% if v.default is not none %} default="{{ v.default }}"{% endif %}{% if v.min is not none %} min="{{ v.min }}"{% endif %}{% if v.max is not none %} max="{{ v.max }}"{% endif %}/>
+    {%- endfor %}
+    {%- for v in valueTypes.double %}
+    <double id="{{ v.id }}"{% if v.default is not none %} default="{{ v.default | xmlstr }}"{% endif %}{% if v.min is not none %} min="{{ v.min | xmlstr }}"{% endif %}{% if v.max is not none %} max="{{ v.max | xmlstr }}"{% endif %}/>
+    {%- endfor %}
+    {%- for v in valueTypes.bool_ %}
+    <bool id="{{ v.id }}"{% if v.default is not none %} default="{{ 'true' if v.default else 'false' }}"{% endif %}/>
+    {%- endfor %}
+    {%- for v in valueTypes.dateTime %}
+    <dateTime id="{{ v.id }}"{% if v.defaultDate is not none %} defaultDate="{{ v.defaultDate }}"{% endif %}{% if v.defaultTime is not none %} defaultTime="{{ v.defaultTime }}"{% endif %}{% if v.dateTimeFormat is not none %} dateTimeFormat="{{ v.dateTimeFormat }}"{% endif %}{% if v.relativePeriod is none and v.cardinalTimeStep is none %}/>{% else %}>
+      {%- if v.relativePeriod is not none %}
+      <relativePeriod unit="{{ v.relativePeriod.unit }}"{% if v.relativePeriod.start is not none %} start="{{ v.relativePeriod.start }}"{% endif %}{% if v.relativePeriod.end is not none %} end="{{ v.relativePeriod.end }}"{% endif %}/>
+      {%- endif %}
+      {%- if v.cardinalTimeStep is not none %}
+      {%- if v.cardinalTimeStep.id is not none %}
+      <cardinalTimeStep id="{{ v.cardinalTimeStep.id }}"/>
+      {%- else %}
+      <cardinalTimeStep unit="{{ v.cardinalTimeStep.unit }}"{% if v.cardinalTimeStep.multiplier is not none %} multiplier="{{ v.cardinalTimeStep.multiplier }}"{% endif %}/>
+      {%- endif %}
+      {%- endif %}
+    </dateTime>{% endif %}
+    {%- endfor %}
+    {%- for t in valueTypes.whatIfTemplateId %}
+    <whatIfTemplateId id="{{ t.id }}" templateId="{{ t.templateId }}"/>
+    {%- endfor %}
+  </valueTypes>
+  {%- endif %}
+  {%- for t in whatIfTemplate %}
+  <whatIfTemplate id="{{ t.id }}" name="{{ t.name }}">
+    {%- if t.whatIfExpiryTime is not none %}
+    <whatIfExpiryTime unit="{{ t.whatIfExpiryTime.unit }}"{% if t.whatIfExpiryTime.multiplier is not none %} multiplier="{{ t.whatIfExpiryTime.multiplier }}"{% endif %}{% if t.whatIfExpiryTime.divider is not none %} divider="{{ t.whatIfExpiryTime.divider }}"{% endif %}/>
+    {%- endif %}
+    {%- if t.singleRunWhatIf is not none %}
+    <singleRunWhatIf>
+      <default>{{ 'true' if t.singleRunWhatIf.default else 'false' }}</default>
+      {%- if t.singleRunWhatIf.overRulable is not none %}
+      <overRulable>{{ 'true' if t.singleRunWhatIf.overRulable else 'false' }}</overRulable>
+      {%- endif %}
+    </singleRunWhatIf>
+    {%- endif %}
+    {%- if t.properties is not none %}
+    <properties>
+      {%- for p in t.properties.property %}
+      <property id="{{ p.id }}" valueTypeId="{{ p.valueTypeId }}"{% if p.name is not none %} name="{{ p.name }}"{% endif %}{% if p.triggerPropertyId is not none %} triggerPropertyId="{{ p.triggerPropertyId }}"{% endif %}{% if p.description is none %}/>{% else %}>
+        <description>{{ p.description }}</description>
+      </property>{% endif %}
+      {%- endfor %}
+    </properties>
+    {%- endif %}
+    {%- for mt in t.modifierType %}
+    <modifierType>{{ mt }}</modifierType>
+    {%- endfor %}
+    {%- if t.defaultModifierType is not none %}
+    <defaultModifierType>{{ t.defaultModifierType }}</defaultModifierType>
+    {%- endif %}
+    {%- for tid in t.whatIfTemplateId %}
+    <whatIfTemplateId>{{ tid }}</whatIfTemplateId>
+    {%- endfor %}
+  </whatIfTemplate>
+  {%- endfor %}
+</whatIfTemplates>

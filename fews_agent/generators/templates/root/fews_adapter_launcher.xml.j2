@@ -1,0 +1,15 @@
+{%- import "_partials/execute_activity.xml.j2" as act -%}
+<?xml version="1.0" encoding="UTF-8"?>
+<fewsAdapterLauncher xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/fewsAdapterLauncher.xsd">
+{%- if description is not none %}
+  <description>{{ description }}</description>
+{%- endif %}
+  <workingDir>{{ workingDir }}</workingDir>
+  <splashPictureFile>{{ splashPictureFile }}</splashPictureFile>
+{%- for exa in executeActivity %}
+  {{ act.render(exa, 'executeActivity') }}
+{%- endfor %}
+{%- if logConfigFile is not none %}
+  <logConfigFile>{{ logConfigFile }}</logConfigFile>
+{%- endif %}
+</fewsAdapterLauncher>

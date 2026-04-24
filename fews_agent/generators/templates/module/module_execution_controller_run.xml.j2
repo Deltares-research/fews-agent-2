@@ -1,0 +1,68 @@
+{%- import "_partials/execute_activity.xml.j2" as act -%}
+<?xml version="1.0" encoding="UTF-8"?>
+<ModuleExecutionControllerRun xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/moduleExecutionControllerRun.xsd">
+  {%- if mecGeneral is not none %}
+  <mecGeneral>
+    {%- if mecGeneral.description is not none %}
+    <description>{{ mecGeneral.description }}</description>
+    {%- endif %}
+    {%- if mecGeneral.rootDir is not none %}
+    <rootDir>{{ mecGeneral.rootDir }}</rootDir>
+    {%- endif %}
+    {%- if mecGeneral.workDir is not none %}
+    <workDir>{{ mecGeneral.workDir }}</workDir>
+    {%- endif %}
+  </mecGeneral>
+  {%- endif %}
+  {{ act.render(module, 'module') }}
+  <diagnosticDetails>
+    {{ act.render(diagnosticDetails.diagnosticModule, 'diagnosticModule') }}
+    <interval>{{ diagnosticDetails.interval }}</interval>
+    <piDiagnosticsScan>
+      <fileLocation>{{ diagnosticDetails.piDiagnosticsScan.fileLocation }}</fileLocation>
+      <timeStepAlias>{{ diagnosticDetails.piDiagnosticsScan.timeStepAlias }}</timeStepAlias>
+      {%- if diagnosticDetails.piDiagnosticsScan.searchStrings is not none %}
+      <searchStrings>
+        {%- for sc in diagnosticDetails.piDiagnosticsScan.searchStrings.searchCriteria %}
+        <searchCriteria>
+          <searchString>{{ sc.searchString }}</searchString>
+          <action>{{ sc.action }}</action>
+        </searchCriteria>
+        {%- endfor %}
+      </searchStrings>
+      {%- endif %}
+    </piDiagnosticsScan>
+    {%- if diagnosticDetails.timeSeriesChecks is not none %}
+    <timeSeriesChecks>
+      {%- for tsf in diagnosticDetails.timeSeriesChecks.timeSeriesFile %}
+      <timeSeriesFile>
+        <fileLocation>{{ tsf.fileLocation }}</fileLocation>
+        {%- if tsf.name is not none %}
+        <name>{{ tsf.name }}</name>
+        {%- endif %}
+        <softThreshold>
+          <upper>{{ tsf.softThreshold.upper | xmlstr }}</upper>
+          <lower>{{ tsf.softThreshold.lower | xmlstr }}</lower>
+        </softThreshold>
+        <hardThreshold>
+          <upper>{{ tsf.hardThreshold.upper | xmlstr }}</upper>
+          <lower>{{ tsf.hardThreshold.lower | xmlstr }}</lower>
+        </hardThreshold>
+      </timeSeriesFile>
+      {%- endfor %}
+    </timeSeriesChecks>
+    {%- endif %}
+  </diagnosticDetails>
+  {%- if jmsConnectionDetails is not none %}
+  <jmsConnectionDetails>
+    <queueconnection>
+      <factory{% if jmsConnectionDetails.queueconnection.factory.jndi is not none %} jndi="{{ jmsConnectionDetails.queueconnection.factory.jndi }}"{% endif %}/>
+    </queueconnection>
+    <jndicontext{% if jmsConnectionDetails.jndicontext.factory is not none %} factory="{{ jmsConnectionDetails.jndicontext.factory }}"{% endif %}{% if jmsConnectionDetails.jndicontext.provider is not none %} provider="{{ jmsConnectionDetails.jndicontext.provider }}"{% endif %}{% if jmsConnectionDetails.jndicontext.prefixes is not none %} prefixes="{{ jmsConnectionDetails.jndicontext.prefixes }}"{% endif %}/>
+    <queue>
+      <root{% if jmsConnectionDetails.queue.root.jndi is not none %} jndi="{{ jmsConnectionDetails.queue.root.jndi }}"{% endif %}/>
+      <mectomc{% if jmsConnectionDetails.queue.mectomc.jndi is not none %} jndi="{{ jmsConnectionDetails.queue.mectomc.jndi }}"{% endif %}{% if jmsConnectionDetails.queue.mectomc.timeout is not none %} timeout="{{ jmsConnectionDetails.queue.mectomc.timeout }}"{% endif %}/>
+    </queue>
+  </jmsConnectionDetails>
+  {%- endif %}
+</ModuleExecutionControllerRun>

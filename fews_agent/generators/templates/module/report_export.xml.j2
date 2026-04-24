@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<reportExport xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/reportExport.xsd" version="{{ version }}">
+  <reportExportRootDir>{{ reportExportRootDir }}</reportExportRootDir>
+  {%- if reportExportTelegramPhoto is not none %}
+  <reportExportTelegramPhoto>
+    <telegramBotToken>{{ reportExportTelegramPhoto.telegramBotToken }}</telegramBotToken>
+    <telegramChatId>{{ reportExportTelegramPhoto.telegramChatId }}</telegramChatId>
+    {%- for p in reportExportTelegramPhoto.telegramSendPhoto %}
+    <telegramSendPhoto>
+      <reportTelegramFile>{{ p.reportTelegramFile }}</reportTelegramFile>
+      {%- if p.reportTelegramCaption is not none %}
+      <reportTelegramCaption>{{ p.reportTelegramCaption }}</reportTelegramCaption>
+      {%- endif %}
+    </telegramSendPhoto>
+    {%- endfor %}
+  </reportExportTelegramPhoto>
+  {%- endif %}
+  {%- if currentForecastReports is not none %}
+  <currentForecastReports>
+    <currentForcastSubDir>{{ currentForecastReports.currentForcastSubDir }}</currentForcastSubDir>
+    {%- if currentForecastReports.zipReports is not none %}
+    <zipReports>{{ 'true' if currentForecastReports.zipReports else 'false' }}</zipReports>
+    {%- endif %}
+    {%- if currentForecastReports.dateTimeFormat is not none %}
+    <dateTimeFormat>{{ currentForecastReports.dateTimeFormat }}</dateTimeFormat>
+    {%- endif %}
+    {%- if currentForecastReports.exportTimeZone is not none %}
+    <exportTimeZone>{% if currentForecastReports.exportTimeZone.timeZoneName is not none %}<timeZoneName>{{ currentForecastReports.exportTimeZone.timeZoneName }}</timeZoneName>{% endif %}{% if currentForecastReports.exportTimeZone.timeZoneOffset is not none %}<timeZoneOffset>{{ currentForecastReports.exportTimeZone.timeZoneOffset }}</timeZoneOffset>{% endif %}</exportTimeZone>
+    {%- endif %}
+    {%- if currentForecastReports.prefix is not none %}
+    <prefix>{{ currentForecastReports.prefix }}</prefix>
+    {%- endif %}
+    {%- if currentForecastReports.numberCurrentForecasts is not none %}
+    <numberCurrentForecasts>{{ currentForecastReports.numberCurrentForecasts }}</numberCurrentForecasts>
+    {%- endif %}
+    {%- for mid in currentForecastReports.excludeModuleInstanceId %}
+    <excludeModuleInstanceId>{{ mid }}</excludeModuleInstanceId>
+    {%- endfor %}
+    {%- for mid in currentForecastReports.includeModuleInstanceId %}
+    <includeModuleInstanceId>{{ mid }}</includeModuleInstanceId>
+    {%- endfor %}
+    {%- if currentForecastReports.incremental is not none %}
+    <incremental>{{ 'true' if currentForecastReports.incremental else 'false' }}</incremental>
+    {%- endif %}
+    {%- if currentForecastReports.generatePdf is not none %}
+    <generatePdf>{{ 'true' if currentForecastReports.generatePdf else 'false' }}</generatePdf>
+    {%- endif %}
+    {%- if currentForecastReports.generateImage is not none %}
+    <generateImage>
+      {%- if currentForecastReports.generateImage.format is not none %}
+      <format>{{ currentForecastReports.generateImage.format }}</format>
+      {%- endif %}
+      {%- if currentForecastReports.generateImage.options is not none %}
+      <options>{{ currentForecastReports.generateImage.options }}</options>
+      {%- endif %}
+    </generateImage>
+    {%- endif %}
+  </currentForecastReports>
+  {%- endif %}
+  {%- if exportForecastReports is not none %}
+  <exportForecastReports>
+    <exportForcastSubDir>{{ exportForecastReports.exportForcastSubDir }}</exportForcastSubDir>
+    <numberForecastsToExport>{{ exportForecastReports.numberForecastsToExport }}</numberForecastsToExport>
+    {%- for mid in exportForecastReports.excludeModuleInstanceId %}
+    <excludeModuleInstanceId>{{ mid }}</excludeModuleInstanceId>
+    {%- endfor %}
+    {%- for mid in exportForecastReports.includeModuleInstanceId %}
+    <includeModuleInstanceId>{{ mid }}</includeModuleInstanceId>
+    {%- endfor %}
+  </exportForecastReports>
+  {%- endif %}
+  {%- if exportSystemStatusReports is not none %}
+  <exportSystemStatusReports>
+    {%- if exportSystemStatusReports.exportSystemStatusSubDir is not none %}
+    <exportSystemStatusSubDir>{{ exportSystemStatusReports.exportSystemStatusSubDir }}</exportSystemStatusSubDir>
+    {%- if exportSystemStatusReports.zipReports is not none %}
+    <zipReports>{{ 'true' if exportSystemStatusReports.zipReports else 'false' }}</zipReports>
+    {%- endif %}
+    {%- if exportSystemStatusReports.dateTimeFormat is not none %}
+    <dateTimeFormat>{{ exportSystemStatusReports.dateTimeFormat }}</dateTimeFormat>
+    {%- endif %}
+    {%- if exportSystemStatusReports.prefix is not none %}
+    <prefix>{{ exportSystemStatusReports.prefix }}</prefix>
+    {%- endif %}
+    {%- else %}
+    <exportSystemStatusZipFile>{{ exportSystemStatusReports.exportSystemStatusZipFile }}</exportSystemStatusZipFile>
+    {%- endif %}
+    {%- for mid in exportSystemStatusReports.includeModuleInstanceId %}
+    <includeModuleInstanceId>{{ mid }}</includeModuleInstanceId>
+    {%- endfor %}
+  </exportSystemStatusReports>
+  {%- endif %}
+  {%- if dataFeedId is not none %}
+  <dataFeedId>{{ dataFeedId }}</dataFeedId>
+  {%- endif %}
+</reportExport>

@@ -1,0 +1,79 @@
+{%- import "_partials/timeseries_set.xml.j2" as tss -%}
+{%- macro reltime(elem_name, r) -%}
+  <{{ elem_name }} value="{{ r.value }}" unit="{{ r.unit }}"{% if r.description is none %}/>{% else %}>
+        <description>{{ r.description }}</description>
+      </{{ elem_name }}>{% endif %}
+{%- endmacro -%}
+{%- macro attr(elem_name, a) -%}
+  <{{ elem_name }}>{% if a.color is not none %}<color>{{ a.color }}</color>{% else %}<attributeMapId>{{ a.attributeMapId }}</attributeMapId><attributeValue>{{ a.attributeValue | xmlstr }}</attributeValue>{% endif %}</{{ elem_name }}>
+{%- endmacro -%}
+<?xml version="1.0" encoding="UTF-8"?>
+<thresholdSkillScoreDisplay xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/thresholdSkillScoreDisplay.xsd">
+{%- if description is not none %}
+  <description>{{ description }}</description>
+{%- endif %}
+  <general>
+    {%- if general.description is not none %}
+    <description>{{ general.description }}</description>
+    {%- endif %}
+    <displayName>{{ general.displayName }}</displayName>
+    {%- for lid in general.levelThresholdId %}
+    <levelThresholdId>{{ lid }}</levelThresholdId>
+    {%- endfor %}
+    {%- for rid in general.rateThresholdId %}
+    <rateThresholdId>{{ rid }}</rateThresholdId>
+    {%- endfor %}
+    {%- for mid in general.maxThresholdId %}
+    <maxThresholdId>{{ mid }}</maxThresholdId>
+    {%- endfor %}
+    {%- if general.attributeMatching is not none %}
+    {{ attr('attributeMatching', general.attributeMatching) }}
+    {%- endif %}
+    {%- if general.attributeMissingObserved is not none %}
+    {{ attr('attributeMissingObserved', general.attributeMissingObserved) }}
+    {%- endif %}
+    {%- if general.attributeMissingForecast is not none %}
+    {{ attr('attributeMissingForecast', general.attributeMissingForecast) }}
+    {%- endif %}
+    {{ reltime('minTimeZeroDifference', general.minTimeZeroDifference) }}
+    {{ reltime('maxTimeZeroDifference', general.maxTimeZeroDifference) }}
+    {{ reltime('earlyDifference', general.earlyDifference) }}
+    {{ reltime('lateDifference', general.lateDifference) }}
+    {%- for pp in general.parameterPairs %}
+    <parameterPairs parameterIdObs="{{ pp.parameterIdObs }}" parameterIdFor="{{ pp.parameterIdFor }}"/>
+    {%- endfor %}
+  </general>
+{%- for g in group %}
+  <group id="{{ g.id }}"{% if g.name is not none %} name="{{ g.name }}"{% endif %}>
+    {%- if g.description is not none %}
+    <description>{{ g.description }}</description>
+    {%- endif %}
+    {%- if g.groupDefaultCriteria is not none %}
+    <groupDefaultCriteria>
+      {{ reltime('minTimeZeroDifference', g.groupDefaultCriteria.minTimeZeroDifference) }}
+      {{ reltime('maxTimeZeroDifference', g.groupDefaultCriteria.maxTimeZeroDifference) }}
+      {{ reltime('earlyDifference', g.groupDefaultCriteria.earlyDifference) }}
+      {{ reltime('lateDifference', g.groupDefaultCriteria.lateDifference) }}
+    </groupDefaultCriteria>
+    {%- endif %}
+    {%- if g.timeSeriesSet %}
+    {%- for ts in g.timeSeriesSet %}
+    {{ tss.render(ts) }}
+    {%- endfor %}
+    {%- for lc in g.locationDefaultCriteria %}
+    <locationDefaultCriteria>
+      <locationId>{{ lc.locationId }}</locationId>
+      {{ reltime('minTimeZeroDifference', lc.minTimeZeroDifference) }}
+      {{ reltime('maxTimeZeroDifference', lc.maxTimeZeroDifference) }}
+      {{ reltime('earlyDifference', lc.earlyDifference) }}
+      {{ reltime('lateDifference', lc.lateDifference) }}
+    </locationDefaultCriteria>
+    {%- endfor %}
+    {%- else %}
+    {%- for c in g.child %}
+    <child foreignKey="{{ c.foreignKey }}"/>
+    {%- endfor %}
+    {%- endif %}
+  </group>
+{%- endfor %}
+</thresholdSkillScoreDisplay>

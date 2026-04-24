@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<archiveMetaData xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/archiveMetaData.xsd">
+  <taskRunId>{{ taskRunId }}</taskRunId>
+  <dispatchTime date="{{ dispatchTime.date }}"{% if dispatchTime.time is not none %} time="{{ dispatchTime.time }}"{% endif %}/>
+  {%- if usedStates %}
+  <usedStates>
+    {%- for w in usedStates %}
+    <warmState taskRunId="{{ w.taskRunId }}">
+      {%- for sid in w.stateId %}
+      <stateId>{{ sid }}</stateId>
+      {%- endfor %}
+    </warmState>
+    {%- endfor %}
+  </usedStates>
+  {%- endif %}
+  {%- if usedTimeSeriesBlobs %}
+  <usedTimeSeriesBlobs>
+    {%- for b in usedTimeSeriesBlobs %}
+    <timeSeriesBlob locationId="{{ b.locationId }}" parameterId="{{ b.parameterId }}">
+      <period>
+        <startDate>{{ b.period.startDate }}</startDate>
+        <endDate>{{ b.period.endDate }}</endDate>
+      </period>
+    </timeSeriesBlob>
+    {%- endfor %}
+  </usedTimeSeriesBlobs>
+  {%- endif %}
+  {%- if usedTaskRuns %}
+  <usedTaskRuns>
+    {%- for t in usedTaskRuns %}
+    <taskRun taskRunId="{{ t.taskRunId }}"/>
+    {%- endfor %}
+  </usedTaskRuns>
+  {%- endif %}
+  {%- if usedTasks %}
+  <usedTasks>
+    {%- for t in usedTasks %}
+    <task taskId="{{ t.taskId }}"/>
+    {%- endfor %}
+  </usedTasks>
+  {%- endif %}
+  {%- if usedModuleInstanceRuns %}
+  <usedModuleInstanceRuns>
+    {%- for m in usedModuleInstanceRuns %}
+    <moduleInstanceRun taskRunId="{{ m.taskRunId }}">
+      {%- for mid in m.moduleInstanceId %}
+      <moduleInstanceId>{{ mid }}</moduleInstanceId>
+      {%- endfor %}
+    </moduleInstanceRun>
+    {%- endfor %}
+  </usedModuleInstanceRuns>
+  {%- endif %}
+  {%- if usedFewsSessions %}
+  <usedFewsSessions>
+    {%- for s in usedFewsSessions %}
+    <fewsSession taskRunId="{{ s.taskRunId }}"/>
+    {%- endfor %}
+  </usedFewsSessions>
+  {%- endif %}
+  {%- if usedWhatIfScenarios %}
+  <usedWhatIfScenarios>
+    {%- for w in usedWhatIfScenarios %}
+    <whatIfScenario whatIfId="{{ w.whatIfId }}"/>
+    {%- endfor %}
+  </usedWhatIfScenarios>
+  {%- endif %}
+  {%- if usedModifierDescriptors %}
+  <usedModifierDescriptors>
+    {%- for m in usedModifierDescriptors %}
+    <modifierDescriptor modifierId="{{ m.modifierId }}" taskRunId="{{ m.taskRunId }}"/>
+    {%- endfor %}
+  </usedModifierDescriptors>
+  {%- endif %}
+  {%- for l in latestAvailableData %}
+  <latestAvailableData name="{{ l.name }}">
+    <latestAvailableTime date="{{ l.latestAvailableTime.date }}"{% if l.latestAvailableTime.time is not none %} time="{{ l.latestAvailableTime.time }}"{% endif %}/>
+  </latestAvailableData>
+  {%- endfor %}
+  {%- if usedJre is not none %}
+  <usedJre>{{ usedJre }}</usedJre>
+  {%- endif %}
+  {%- if usedBuild is not none %}
+  <usedBuild>{{ usedBuild }}</usedBuild>
+  {%- endif %}
+  {%- if usedConfigurationVersion is not none %}
+  <usedConfigurationVersion>{{ usedConfigurationVersion }}</usedConfigurationVersion>
+  {%- endif %}
+</archiveMetaData>

@@ -1,0 +1,34 @@
+{%- import "_partials/execute_activity.xml.j2" as act -%}
+<?xml version="1.0" encoding="UTF-8"?>
+<piFileGenerator xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/piFileGenerator.xsd" version="{{ version }}">
+{%- if description is not none %}
+  <description>{{ description }}</description>
+{%- endif %}
+  <general>
+    <workDir>{{ general.workDir }}</workDir>
+    <diagnosticFile>{{ general.diagnosticFile }}</diagnosticFile>
+    {%- if general.dateFormat is not none %}
+    <dateFormat>{{ general.dateFormat }}</dateFormat>
+    {%- endif %}
+    {%- if general.geoDatum is not none %}
+    <geoDatum>{{ general.geoDatum }}</geoDatum>
+    {%- endif %}
+  </general>
+{%- if preActivity is not none %}
+  {{ act.render(preActivity, 'preActivity') }}
+{%- endif %}
+  <activity>
+    <relativePeriod unit="{{ activity.relativePeriod.unit }}"{% if activity.relativePeriod.start is not none %} start="{{ activity.relativePeriod.start }}"{% endif %}{% if activity.relativePeriod.end is not none %} end="{{ activity.relativePeriod.end }}"{% endif %}{% if activity.relativePeriod.startOverrulable is not none %} startOverrulable="{{ 'true' if activity.relativePeriod.startOverrulable else 'false' }}"{% endif %}{% if activity.relativePeriod.endOverrulable is not none %} endOverrulable="{{ 'true' if activity.relativePeriod.endOverrulable else 'false' }}"{% endif %}/>
+    {% if activity.timeStep.id is not none %}<timeStep id="{{ activity.timeStep.id }}"/>
+    {% else %}<timeStep unit="{{ activity.timeStep.unit }}"{% if activity.timeStep.multiplier is not none %} multiplier="{{ activity.timeStep.multiplier }}"{% endif %}/>{% endif %}
+    {%- if activity.moduleLogFile is not none %}
+    <moduleLogFile>{{ activity.moduleLogFile }}</moduleLogFile>
+    {%- endif %}
+    {%- for m in activity.mapStackFile %}
+    <mapStackFile mapStackXMLFile="{{ m.mapStackXMLFile }}" gridFilepattern="{{ m.gridFilepattern }}" gridFileType="{{ m.gridFileType }}" parameterID="{{ m.parameterID }}" locationID="{{ m.locationID }}"/>
+    {%- endfor %}
+  </activity>
+{%- if postActivity is not none %}
+  {{ act.render(postActivity, 'postActivity') }}
+{%- endif %}
+</piFileGenerator>

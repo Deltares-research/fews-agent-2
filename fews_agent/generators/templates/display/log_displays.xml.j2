@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<logDisplays xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/logDisplays.xsd">
+{%- for ld in logDisplay %}
+  <logDisplay id="{{ ld.id }}" name="{{ ld.name }}">
+    {%- if ld.relativeViewPeriod is not none %}
+    <relativeViewPeriod unit="{{ ld.relativeViewPeriod.unit }}"{% if ld.relativeViewPeriod.start is not none %} start="{{ ld.relativeViewPeriod.start }}"{% endif %}{% if ld.relativeViewPeriod.end is not none %} end="{{ ld.relativeViewPeriod.end }}"{% endif %}{% if ld.relativeViewPeriod.startOverrulable is not none %} startOverrulable="{{ 'true' if ld.relativeViewPeriod.startOverrulable else 'false' }}"{% endif %}{% if ld.relativeViewPeriod.endOverrulable is not none %} endOverrulable="{{ 'true' if ld.relativeViewPeriod.endOverrulable else 'false' }}"{% endif %}/>
+    {%- endif %}
+    {%- if ld.defaultLogRequestCount is not none %}
+    <defaultLogRequestCount>{{ ld.defaultLogRequestCount }}</defaultLogRequestCount>
+    {%- endif %}
+    {%- if ld.systemLog is not none %}
+    <systemLog{% if ld.systemLog.enabled is not none %} enabled="{{ 'true' if ld.systemLog.enabled else 'false' }}"{% endif %}>
+      {%- if ld.systemLog.logLevel is not none %}
+      <logLevel>{{ ld.systemLog.logLevel }}</logLevel>
+      {%- endif %}
+      {%- if ld.systemLog.eventCodes is not none %}
+      <eventCodes>
+        {%- for ec in ld.systemLog.eventCodes.eventCode %}
+        <eventCode>{{ ec }}</eventCode>
+        {%- endfor %}
+      </eventCodes>
+      {%- endif %}
+    </systemLog>
+    {%- endif %}
+    {%- if ld.manualLog is not none %}
+    <manualLog{% if ld.manualLog.enabled is not none %} enabled="{{ 'true' if ld.manualLog.enabled else 'false' }}"{% endif %}>
+      {%- if ld.manualLog.noteGroupId is not none %}
+      <noteGroupId>{{ ld.manualLog.noteGroupId }}</noteGroupId>
+      {%- endif %}
+      {%- if ld.manualLog.createPermission is not none %}
+      <createPermission>{{ ld.manualLog.createPermission }}</createPermission>
+      {%- endif %}
+    </manualLog>
+    {%- endif %}
+    {%- if ld.logDissemination is not none %}
+    <logDissemination{% if ld.logDissemination.enabled is not none %} enabled="{{ 'true' if ld.logDissemination.enabled else 'false' }}"{% endif %}>
+      {%- if ld.logDissemination.disseminationActions is not none %}
+      <disseminationActions>
+        {%- for a in ld.logDissemination.disseminationActions.action %}
+        <action id="{{ a.id }}">
+          <description>{{ a.description }}</description>
+          <iconId>{{ a.iconId }}</iconId>
+          <eventCode>{{ a.eventCode }}</eventCode>
+          {%- if a.manualLog is not none %}
+          <manualLog>{{ 'true' if a.manualLog else 'false' }}</manualLog>
+          {%- endif %}
+          {%- if a.systemLog is not none %}
+          <systemLog>{{ 'true' if a.systemLog else 'false' }}</systemLog>
+          {%- endif %}
+          {%- if a.maxLogCharacters is not none %}
+          <maxLogCharacters>{{ a.maxLogCharacters }}</maxLogCharacters>
+          {%- endif %}
+          {%- if a.permission is not none %}
+          <permission>{{ a.permission }}</permission>
+          {%- endif %}
+        </action>
+        {%- endfor %}
+        {%- if ld.logDissemination.disseminationActions.permission is not none %}
+        <permission>{{ ld.logDissemination.disseminationActions.permission }}</permission>
+        {%- endif %}
+      </disseminationActions>
+      {%- endif %}
+      {%- if ld.logDissemination.permission is not none %}
+      <permission>{{ ld.logDissemination.permission }}</permission>
+      {%- endif %}
+    </logDissemination>
+    {%- endif %}
+    {%- if ld.viewPermission is not none %}
+    <viewPermission>{{ ld.viewPermission }}</viewPermission>
+    {%- endif %}
+  </logDisplay>
+{%- endfor %}
+</logDisplays>

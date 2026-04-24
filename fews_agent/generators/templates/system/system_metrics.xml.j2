@@ -1,0 +1,115 @@
+{%- macro cts(name, t) -%}
+<{{ name }} unit="{{ t.unit }}"{% if t.multiplier is not none %} multiplier="{{ t.multiplier }}"{% endif %}{% if t.divider is not none %} divider="{{ t.divider }}"{% endif %}/>
+{%- endmacro -%}
+{%- macro opt(name, value) -%}
+{%- if value is not none -%}
+<{{ name }}>{{ value }}</{{ name }}>
+{%- endif -%}
+{%- endmacro -%}
+<?xml version="1.0" encoding="UTF-8"?>
+<systemMetrics xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/systemMetrics.xsd">
+  <general>
+    <locationId>{{ general.locationId }}</locationId>
+    {%- if general.synchLevel is not none %}
+    <synchLevel>{{ general.synchLevel }}</synchLevel>
+    {%- endif %}
+    {%- if general.expiryTime is not none %}
+    {{ cts('expiryTime', general.expiryTime) }}
+    {%- endif %}
+  </general>
+  {%- if database is not none %}
+  <database>
+    {%- if database.rowCountParameterId is not none %}
+    <rowCountParameterId>{{ database.rowCountParameterId }}</rowCountParameterId>
+    {%- endif %}
+    {%- if database.byteCountParameterId is not none %}
+    <byteCountParameterId>{{ database.byteCountParameterId }}</byteCountParameterId>
+    {%- endif %}
+  </database>
+  {%- endif %}
+  {%- for t in table %}
+  <table>
+    <tableName>{{ t.tableName }}</tableName>
+    {%- if t.rowCountParameterId is not none %}
+    <rowCountParameterId>{{ t.rowCountParameterId }}</rowCountParameterId>
+    {%- endif %}
+    {%- if t.byteCountParameterId is not none %}
+    <byteCountParameterId>{{ t.byteCountParameterId }}</byteCountParameterId>
+    {%- endif %}
+    {%- if t.maximalAge is not none %}
+    {{ cts('maximalAge', t.maximalAge) }}
+    {%- endif %}
+    {%- if t.minimalAge is not none %}
+    {{ cts('minimalAge', t.minimalAge) }}
+    {%- endif %}
+    {%- if t.lifeSpan is not none %}
+    {{ cts('lifeSpan', t.lifeSpan) }}
+    {%- endif %}
+  </table>
+  {%- endfor %}
+  {%- for le in logEntry %}
+  <logEntry>
+    <rowCountParameterId>{{ le.rowCountParameterId }}</rowCountParameterId>
+    {%- if le.logLevel is not none %}
+    <logLevel>{{ le.logLevel }}</logLevel>
+    {%- endif %}
+    {%- if le.eventCode is not none %}
+    <eventCode>{{ le.eventCode }}</eventCode>
+    {%- endif %}
+    {%- if le.maximalAge is not none %}
+    {{ cts('maximalAge', le.maximalAge) }}
+    {%- endif %}
+    {%- if le.minimalAge is not none %}
+    {{ cts('minimalAge', le.minimalAge) }}
+    {%- endif %}
+    {%- if le.lifeSpan is not none %}
+    {{ cts('lifeSpan', le.lifeSpan) }}
+    {%- endif %}
+  </logEntry>
+  {%- endfor %}
+  {%- if mcStatus is not none %}
+  <mcStatus>
+    {%- for fld in ['failedOverParameterId','aliveRemoteMcCountParameterId','taskQueueLengthParameterId','activeTasksCountParameterId','ocSessionsCountParameterId','liveComponentCountParameterId','oclListenerParameterId','fslListenerParameterId','synchListenerParameterId','synchRunnerParameterId','synchTaskListenerParameterId','tmLauncherParameterId','tmChaserParameterId','tmLogProcessorParameterId','sysMonListenerParameterId','sysMonMonitorParameterId','sysMonHeartbeatParameterId'] %}
+    {%- set v = mcStatus[fld] %}
+    {%- if v is not none %}
+    <{{ fld }}>{{ v }}</{{ fld }}>
+    {%- endif %}
+    {%- endfor %}
+  </mcStatus>
+  {%- endif %}
+  {%- if fssStatus is not none %}
+  <fssStatus>
+    {%- if fssStatus.buildVersionParameterId is not none %}
+    <buildVersionParameterId>{{ fssStatus.buildVersionParameterId }}</buildVersionParameterId>
+    {%- endif %}
+    {%- if fssStatus.queueLengthParameterId is not none %}
+    <queueLengthParameterId>{{ fssStatus.queueLengthParameterId }}</queueLengthParameterId>
+    {%- endif %}
+    {%- if fssStatus.downParameterId is not none %}
+    <downParameterId>{{ fssStatus.downParameterId }}</downParameterId>
+    {%- endif %}
+  </fssStatus>
+  {%- endif %}
+  {%- for w in workflow %}
+  <workflow>
+    {%- for wid in w.workflowId %}
+    <workflowId>{{ wid }}</workflowId>
+    {%- endfor %}
+    {%- if w.timeSeriesByteCountParameterId is not none %}
+    <timeSeriesByteCountParameterId>{{ w.timeSeriesByteCountParameterId }}</timeSeriesByteCountParameterId>
+    {%- endif %}
+    {%- if w.timeSeriesRowCountParameterId is not none %}
+    <timeSeriesRowCountParameterId>{{ w.timeSeriesRowCountParameterId }}</timeSeriesRowCountParameterId>
+    {%- endif %}
+    {%- if w.taskRunDurationParameterId is not none %}
+    <taskRunDurationParameterId>{{ w.taskRunDurationParameterId }}</taskRunDurationParameterId>
+    {%- endif %}
+    {%- if w.maximalAge is not none %}
+    {{ cts('maximalAge', w.maximalAge) }}
+    {%- endif %}
+    {%- if w.minimalAge is not none %}
+    {{ cts('minimalAge', w.minimalAge) }}
+    {%- endif %}
+  </workflow>
+  {%- endfor %}
+</systemMetrics>

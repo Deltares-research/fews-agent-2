@@ -1,0 +1,186 @@
+{%- import "_partials/variable.xml.j2" as var -%}
+{%- macro ts_elem(name, t) -%}
+<{{ name }}{% if t.id is not none %} id="{{ t.id }}"{% else %} unit="{{ t.unit }}"{% if t.multiplier is not none %} multiplier="{{ t.multiplier }}"{% endif %}{% endif %}/>
+{%- endmacro -%}
+{%- macro rp_elem(name, r) -%}
+<{{ name }} unit="{{ r.unit }}"{% if r.start is not none %} start="{{ r.start }}"{% endif %}{% if r.end is not none %} end="{{ r.end }}"{% endif %}/>
+{%- endmacro -%}
+{%- macro attr_elem(name, a) -%}
+<{{ name }}>
+        {%- if a.color is not none %}
+        <color>{{ a.color }}</color>
+        <text>{{ a.text }}</text>
+        {%- else %}
+        <attributeMapId>{{ a.attributeMapId }}</attributeMapId>
+        <attributeValue>{{ a.attributeValue | xmlstr }}</attributeValue>
+        {%- endif %}
+      </{{ name }}>
+{%- endmacro -%}
+{%- macro col_attrs(c) -%}
+ variableId="{{ c.variableId }}" columnName="{{ c.columnName }}"{% if c.columnWidth is not none %} columnWidth="{{ c.columnWidth }}"{% endif %}{% if c.attributeMapId is not none %} attributeMapId="{{ c.attributeMapId }}"{% endif %}{% if c.analyse is not none %} analyse="{{ 'true' if c.analyse else 'false' }}"{% endif %}{% if c.display is not none %} display="{{ 'true' if c.display else 'false' }}"{% endif %}{% if c.userUnit is not none %} userUnit="{{ c.userUnit }}"{% endif %}{% if c.multiplier is not none %} multiplier="{{ c.multiplier | xmlstr }}"{% endif %}{% if c.divider is not none %} divider="{{ c.divider | xmlstr }}"{% endif %}{% if c.incrementer is not none %} incrementer="{{ c.incrementer | xmlstr }}"{% endif %}
+{%- endmacro -%}
+{%- macro t3col(name, c) -%}
+<{{ name }}{% if c.visible is not none %} visible="{{ 'true' if c.visible else 'false' }}"{% endif %}{% if c.width is not none %} width="{{ c.width }}"{% endif %}/>
+{%- endmacro -%}
+<?xml version="1.0" encoding="UTF-8"?>
+<thresholdOverviewDisplay xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/thresholdOverviewDisplay.xsd">
+  <general>
+    {%- if general.description is not none %}
+    <description>{{ general.description }}</description>
+    {%- endif %}
+    <displayName>{{ general.displayName }}</displayName>
+    {%- if general.forecastFilter is not none %}
+    <forecastFilter>
+      {%- for wid in general.forecastFilter.workflowId %}
+      <workflowId>{{ wid }}</workflowId>
+      {%- endfor %}
+    </forecastFilter>
+    {%- endif %}
+  </general>
+  <displayDescriptor>
+    {%- if displayDescriptor.description is not none %}
+    <description>{{ displayDescriptor.description }}</description>
+    {%- endif %}
+    {%- if displayDescriptor.thresholdCrossingCountsTab %}
+    {%- for t in displayDescriptor.thresholdCrossingCountsTab %}
+    <thresholdCrossingCountsTab>
+      <tabName>{{ t.tabName }}</tabName>
+      <thresholdGroupId>{{ t.thresholdGroupId }}</thresholdGroupId>
+      {%- for rp in t.relativePeriod %}
+      {{ rp_elem('relativePeriod', rp) }}
+      {%- endfor %}
+      {%- if t.countAllActiveThresholds is not none %}
+      <countAllActiveThresholds>{{ 'true' if t.countAllActiveThresholds else 'false' }}</countAllActiveThresholds>
+      {%- endif %}
+      {%- if t.countWarningAreas is not none %}
+      <countWarningAreas>{{ 'true' if t.countWarningAreas else 'false' }}</countWarningAreas>
+      {%- endif %}
+      {%- if t.multipleTimeSeriesHandlingType is not none %}
+      <multipleTimeSeriesHandlingType>{{ t.multipleTimeSeriesHandlingType }}</multipleTimeSeriesHandlingType>
+      {%- endif %}
+      {%- if t.noThresholdsDefinedText is not none %}
+      <noThresholdsDefinedText>{{ t.noThresholdsDefinedText }}</noThresholdsDefinedText>
+      {%- endif %}
+      {%- if t.noDataAvailableText is not none %}
+      <noDataAvailableText>{{ t.noDataAvailableText }}</noDataAvailableText>
+      {%- endif %}
+      {%- if t.crossingCountZeroText is not none %}
+      <crossingCountZeroText>{{ t.crossingCountZeroText }}</crossingCountZeroText>
+      {%- endif %}
+    </thresholdCrossingCountsTab>
+    {%- endfor %}
+    {%- else %}
+    <forecastTime>
+      <columnName>{{ displayDescriptor.forecastTime.columnName }}</columnName>
+      {%- if displayDescriptor.forecastTime.offsetVariable is not none %}
+      <offsetVariable>{{ displayDescriptor.forecastTime.offsetVariable }}</offsetVariable>
+      {%- endif %}
+    </forecastTime>
+    {%- if displayDescriptor.attributeNoCrossing is not none %}
+    {{ attr_elem('attributeNoCrossing', displayDescriptor.attributeNoCrossing) }}
+    {%- endif %}
+    {%- if displayDescriptor.attributeMissingValues is not none %}
+    {{ attr_elem('attributeMissingValues', displayDescriptor.attributeMissingValues) }}
+    {%- endif %}
+    {%- if displayDescriptor.attributeMissingForecast is not none %}
+    {{ attr_elem('attributeMissingForecast', displayDescriptor.attributeMissingForecast) }}
+    {%- endif %}
+    <tab1>
+      {%- if displayDescriptor.tab1.description is not none %}
+      <description>{{ displayDescriptor.tab1.description }}</description>
+      {%- endif %}
+      <tabName>{{ displayDescriptor.tab1.tabName }}</tabName>
+      {%- if displayDescriptor.tab1.columnHeader is not none %}
+      <columnHeader>{{ displayDescriptor.tab1.columnHeader }}</columnHeader>
+      {%- else %}
+      <dateTimeFormattingString>{{ displayDescriptor.tab1.dateTimeFormattingString }}</dateTimeFormattingString>
+      {%- endif %}
+      <columnVariable>{{ displayDescriptor.tab1.columnVariable }}</columnVariable>
+      {{ ts_elem('aggregationTimeStep', displayDescriptor.tab1.aggregationTimeStep) }}
+      {%- if displayDescriptor.tab1.displayThresholdName is not none %}
+      <displayThresholdName>{{ 'true' if displayDescriptor.tab1.displayThresholdName else 'false' }}</displayThresholdName>
+      {%- elif displayDescriptor.tab1.displayLabel is not none %}
+      <displayLabel>{{ displayDescriptor.tab1.displayLabel }}</displayLabel>
+      {%- endif %}
+      {%- if displayDescriptor.tab1.columnHeaderToolTipText is not none %}
+      <columnHeaderToolTipText>{{ displayDescriptor.tab1.columnHeaderToolTipText }}</columnHeaderToolTipText>
+      {%- endif %}
+      {%- if displayDescriptor.tab1.columnWidth is not none %}
+      <columnWidth>{{ displayDescriptor.tab1.columnWidth }}</columnWidth>
+      {%- endif %}
+      {%- if displayDescriptor.tab1.siteColumnWidth is not none %}
+      <siteColumnWidth>{{ displayDescriptor.tab1.siteColumnWidth }}</siteColumnWidth>
+      {%- endif %}
+    </tab1>
+    <tab2>
+      <tabName>{{ displayDescriptor.tab2.tabName }}</tabName>
+      {{ ts_elem('aggregationTimeStep', displayDescriptor.tab2.aggregationTimeStep) }}
+      {%- if displayDescriptor.tab2.description is not none %}
+      <description>{{ displayDescriptor.tab2.description }}</description>
+      {%- endif %}
+      {%- if displayDescriptor.tab2.columnWidth is not none %}
+      <columnWidth>{{ displayDescriptor.tab2.columnWidth }}</columnWidth>
+      {%- endif %}
+      {%- if displayDescriptor.tab2.siteColumnWidth is not none %}
+      <siteColumnWidth>{{ displayDescriptor.tab2.siteColumnWidth }}</siteColumnWidth>
+      {%- endif %}
+    </tab2>
+    <tab3>
+      <tabName>{{ displayDescriptor.tab3.tabName }}</tabName>
+      {%- if displayDescriptor.tab3.description is not none %}
+      <description>{{ displayDescriptor.tab3.description }}</description>
+      {%- endif %}
+      {%- if displayDescriptor.tab3.invisibleColumn %}
+      {%- for n in displayDescriptor.tab3.invisibleColumn %}
+      <invisibleColumn>{{ n }}</invisibleColumn>
+      {%- endfor %}
+      {%- else %}
+      {%- if displayDescriptor.tab3.columnLocationId is not none %}
+      {{ t3col('columnLocationId', displayDescriptor.tab3.columnLocationId) }}
+      {%- endif %}
+      {%- if displayDescriptor.tab3.columnLocationName is not none %}
+      {{ t3col('columnLocationName', displayDescriptor.tab3.columnLocationName) }}
+      {%- endif %}
+      {%- if displayDescriptor.tab3.columnTime is not none %}
+      {{ t3col('columnTime', displayDescriptor.tab3.columnTime) }}
+      {%- endif %}
+      {%- if displayDescriptor.tab3.columnParameter is not none %}
+      {{ t3col('columnParameter', displayDescriptor.tab3.columnParameter) }}
+      {%- endif %}
+      {%- if displayDescriptor.tab3.columnValue is not none %}
+      {{ t3col('columnValue', displayDescriptor.tab3.columnValue) }}
+      {%- endif %}
+      {%- if displayDescriptor.tab3.columnThresholdValue is not none %}
+      {{ t3col('columnThresholdValue', displayDescriptor.tab3.columnThresholdValue) }}
+      {%- endif %}
+      {%- if displayDescriptor.tab3.columnThreshold is not none %}
+      {{ t3col('columnThreshold', displayDescriptor.tab3.columnThreshold) }}
+      {%- endif %}
+      {%- if displayDescriptor.tab3.columnAction is not none %}
+      {{ t3col('columnAction', displayDescriptor.tab3.columnAction) }}
+      {%- endif %}
+      {%- endif %}
+    </tab3>
+    {%- if displayDescriptor.tab4 is not none %}
+    <tab4>
+      <tabName>{{ displayDescriptor.tab4.tabName }}</tabName>
+      {%- if displayDescriptor.tab4.description is not none %}
+      <description>{{ displayDescriptor.tab4.description }}</description>
+      {%- endif %}
+      {%- if displayDescriptor.tab4.timeColumnWidth is not none %}
+      <timeColumnWidth>{{ displayDescriptor.tab4.timeColumnWidth }}</timeColumnWidth>
+      {%- endif %}
+    </tab4>
+    {%- endif %}
+    {%- endif %}
+  </displayDescriptor>
+  {%- for iv in inputVariable %}
+  {{ var.render(iv, 'inputVariable') }}
+  {%- endfor %}
+  {%- for ca in columnAttributes %}
+  <columnAttributes {{ col_attrs(ca) }}/>
+  {%- endfor %}
+  {%- if description is not none %}
+  <description>{{ description }}</description>
+  {%- endif %}
+</thresholdOverviewDisplay>

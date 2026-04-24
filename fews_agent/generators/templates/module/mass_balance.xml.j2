@@ -1,0 +1,68 @@
+{%- import "_partials/timeseries_set.xml.j2" as tss -%}
+<?xml version="1.0" encoding="UTF-8"?>
+<massBalance xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/massBalance.xsd">
+{%- for h in horizontalFlux %}
+  <horizontalFlux>
+    {%- if h.multiplyByCellSize is not none %}
+    <multiplyByCellSize>{{ 'true' if h.multiplyByCellSize else 'false' }}</multiplyByCellSize>
+    {%- endif %}
+    {%- if h.staggeredGrid is not none %}
+    <staggeredGrid>{{ 'true' if h.staggeredGrid else 'false' }}</staggeredGrid>
+    {%- endif %}
+    {%- if h.invertedYDirection is not none %}
+    <invertedYDirection>{{ 'true' if h.invertedYDirection else 'false' }}</invertedYDirection>
+    {%- endif %}
+    {{ tss.render(h.uFluxFieldTimeSeriesSet, 'uFluxFieldTimeSeriesSet') }}
+    {{ tss.render(h.vFluxFieldTimeSeriesSet, 'vFluxFieldTimeSeriesSet') }}
+    {{ tss.render(h.outputTimeSeriesSet, 'outputTimeSeriesSet') }}
+  </horizontalFlux>
+{%- endfor %}
+{%- for h in horizontalVelocity %}
+  <horizontalVelocity>
+    {%- if h.staggeredGrid is not none %}
+    <staggeredGrid>{{ 'true' if h.staggeredGrid else 'false' }}</staggeredGrid>
+    {%- endif %}
+    {%- if h.invertedYDirection is not none %}
+    <invertedYDirection>{{ 'true' if h.invertedYDirection else 'false' }}</invertedYDirection>
+    {%- endif %}
+    {{ tss.render(h.uVelocityFieldTimeSeriesSet, 'uVelocityFieldTimeSeriesSet') }}
+    {{ tss.render(h.vVelocityFieldTimeSeriesSet, 'vVelocityFieldTimeSeriesSet') }}
+    {{ tss.render(h.outputTimeSeriesSet, 'outputTimeSeriesSet') }}
+  </horizontalVelocity>
+{%- endfor %}
+{%- for v in verticalFlux %}
+  <verticalFlux>
+    {%- if v.netVertFluxFieldTimeSeriesSet is not none %}
+    {{ tss.render(v.netVertFluxFieldTimeSeriesSet, 'netVertFluxFieldTimeSeriesSet') }}
+    {%- else %}
+    {{ tss.render(v.upperFaceFluxFieldTimeSeriesSet, 'upperFaceFluxFieldTimeSeriesSet') }}
+    {{ tss.render(v.lowerFaceFluxFieldTimeSeriesSet, 'lowerFaceFluxFieldTimeSeriesSet') }}
+    {%- endif %}
+    {{ tss.render(v.outputTimeSeriesSet, 'outputTimeSeriesSet') }}
+  </verticalFlux>
+{%- endfor %}
+{%- for v in verticalVelocity %}
+  <verticalVelocity>
+    {%- if v.netVertVelocityFieldTimeSeriesSet is not none %}
+    {{ tss.render(v.netVertVelocityFieldTimeSeriesSet, 'netVertVelocityFieldTimeSeriesSet') }}
+    {%- else %}
+    {{ tss.render(v.upperFaceVelocityFieldTimeSeriesSet, 'upperFaceVelocityFieldTimeSeriesSet') }}
+    {{ tss.render(v.lowerFaceVelocityFieldTimeSeriesSet, 'lowerFaceVelocityFieldTimeSeriesSet') }}
+    {%- endif %}
+    {{ tss.render(v.outputTimeSeriesSet, 'outputTimeSeriesSet') }}
+  </verticalVelocity>
+{%- endfor %}
+{%- for s in storageChange %}
+  <storageChange>
+    {%- if s.multiplyByCellSize is not none %}
+    <multiplyByCellSize>{{ 'true' if s.multiplyByCellSize else 'false' }}</multiplyByCellSize>
+    {%- endif %}
+    {%- if s.waterTableChangeTimeSeriesSet is not none %}
+    {{ tss.render(s.waterTableChangeTimeSeriesSet, 'waterTableChangeTimeSeriesSet') }}
+    {%- else %}
+    {{ tss.render(s.storageChangeFluxFieldTimeSeriesSet, 'storageChangeFluxFieldTimeSeriesSet') }}
+    {%- endif %}
+    {{ tss.render(s.outputTimeSeriesSet, 'outputTimeSeriesSet') }}
+  </storageChange>
+{%- endfor %}
+</massBalance>

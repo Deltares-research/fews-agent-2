@@ -151,6 +151,103 @@ class SeasonCondition(FewsModel):
     endMonthDay: str
 
 
+class RelativeTime(FewsModel):
+    """XSD RelativeTimeComplexType — ``value`` + ``unit`` attributes.
+
+    Same shape as UnitMultiplier but uses ``value`` (XSD intStringType, so
+    negatives are allowed) instead of ``multiplier``. Used for period
+    lengths (objectiveAnalyzerDisplay) and peak influence periods.
+    """
+
+    value: int
+    unit: TimeUnit
+    description: str | None = None
+
+
+class Period(FewsModel):
+    """XSD PeriodComplexType — absolute window with startDate + endDate.
+
+    Both are XSD ``dateTime`` (ISO-8601 string). Passed through as raw
+    strings so the source digits round-trip byte for byte.
+    """
+
+    startDate: str
+    endDate: str
+
+
+class ValidPeriod(FewsModel):
+    """XSD ValidPeriodComplexType — same shape as ``Period`` but with
+    both ends optional, so a missing bound means 'open-ended'."""
+
+    startDate: str | None = None
+    endDate: str | None = None
+
+
+class GeoPoint(FewsModel):
+    """XSD GeoPointComplexType — (x, y, z?) numeric coordinates.
+
+    x/y are XSD ``double``; z optional. Stored as str so numeric
+    literals like ``"0"`` / ``"1.0"`` round-trip without
+    float-formatting surprises.
+    """
+
+    x: str
+    y: str
+    z: str | None = None
+
+
+class GridDefinition(FewsModel):
+    """XSD GridDefinitionComplexType — rectangular grid over a GeoPoint
+    upper-left corner with rows/columns/cellwidth/cellheight."""
+
+    geoDatum: str
+    upperLeftCorner: GeoPoint
+    rows: int
+    columns: int
+    cellwidth: str
+    cellheight: str
+
+
+class CalendarTimeSpan(FewsModel):
+    """XSD CalendarTimeSpanComplexType — attribute-only element.
+
+    Wider unit set than ``TimeSpanComplexType``: adds ``day`` / ``week``
+    / ``month`` / ``year`` on top of the base time units. Used for
+    expiry/search time spans that need human-calendar units.
+    """
+
+    unit: str  # second/minute/hour/day/week/month/year
+    multiplier: int | None = None
+    divider: int | None = None
+
+
+class Addition(FewsModel):
+    """XSD AdditionComplexType — prefix/suffix for a generated filename.
+
+    Choice between exactly one of simpleString / timeZeroFormattingString
+    / currentTimeFormattingString. The last two hold a Java date-format
+    pattern applied to the task's T0 / current time.
+    """
+
+    simpleString: str | None = None
+    timeZeroFormattingString: str | None = None
+    currentTimeFormattingString: str | None = None
+
+    @model_validator(mode="after")
+    def _one_branch(self) -> Addition:
+        branches = [
+            self.simpleString,
+            self.timeZeroFormattingString,
+            self.currentTimeFormattingString,
+        ]
+        if sum(b is not None for b in branches) != 1:
+            raise ValueError(
+                "Addition: exactly one of simpleString / "
+                "timeZeroFormattingString / currentTimeFormattingString"
+            )
+        return self
+
+
 class ExtremeValueLimit(FewsModel):
     """One extreme-value bound.
 

@@ -1,0 +1,21 @@
+{%- import "_partials/timeseries_set.xml.j2" as tss -%}
+<?xml version="1.0" encoding="UTF-8"?>
+<calibrationSet xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/calibration.xsd" version="{{ version }}"{% if id is not none %} id="{{ id }}"{% endif %} name="{{ name }}">
+  <calibrationMethod>{{ calibrationMethod }}</calibrationMethod>
+  {%- if description is not none %}
+  <description>{{ description }}</description>
+  {%- endif %}
+  <workflowDescriptorId>{{ workflowDescriptorId }}</workflowDescriptorId>
+  <moduleInstanceDescriptorId>{{ moduleInstanceDescriptorId }}</moduleInstanceDescriptorId>
+  <moduleParameterFileVersion>{{ moduleParameterFileVersion }}</moduleParameterFileVersion>
+  <calibrationPeriod>
+    <startDate>{{ calibrationPeriod.startDate }}</startDate>
+    <endDate>{{ calibrationPeriod.endDate }}</endDate>
+  </calibrationPeriod>
+  {{ tss.render(observedTimeSeriesSet, 'observedTimeSeriesSet') }}
+  {{ tss.render(simulatedTimeSeriesSet, 'simulatedTimeSeriesSet') }}
+  <performanceIndicator>{{ performanceIndicator }}</performanceIndicator>
+  {%- if stopCriteria is not none %}
+  <stopCriteria{% if stopCriteria.maxIterations is not none %} maxIterations="{{ stopCriteria.maxIterations }}"{% endif %}{% if stopCriteria.minChangeinPerformance is not none %} minChangeinPerformance="{{ stopCriteria.minChangeinPerformance }}"{% endif %}{% if stopCriteria.minChangeinParameterVector is not none %} minChangeinParameterVector="{{ stopCriteria.minChangeinParameterVector }}"{% endif %}/>
+  {%- endif %}
+</calibrationSet>

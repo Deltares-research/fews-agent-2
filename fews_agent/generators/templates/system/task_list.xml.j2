@@ -1,0 +1,22 @@
+{%- import "_partials/task_properties.xml.j2" as tp -%}
+<?xml version="1.0" encoding="UTF-8"?>
+<taskList xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/taskList.xsd">
+{%- for t in task %}
+  <task>
+    <taskStatus>{{ t.taskStatus }}</taskStatus>
+    {%- if t.taskTag is not none %}
+    <taskTag>{{ t.taskTag }}</taskTag>
+    {%- endif %}
+    <runOnFailOver>{{ 'true' if t.runOnFailOver else 'false' }}</runOnFailOver>
+    {%- if t.suspendDutyInFailOver is not none %}
+    <suspendDutyInFailOver>{{ 'true' if t.suspendDutyInFailOver else 'false' }}</suspendDutyInFailOver>
+    {%- endif %}
+    {%- if t.runOption is not none %}
+    <runOption>{{ t.runOption }}</runOption>
+    {%- endif %}
+    <taskProperties>
+{{ tp.render(t.taskProperties) }}
+    </taskProperties>
+  </task>
+{%- endfor %}
+</taskList>

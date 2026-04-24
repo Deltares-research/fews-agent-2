@@ -1,0 +1,55 @@
+{%- import "_partials/timeseries_set.xml.j2" as tss -%}
+<?xml version="1.0" encoding="UTF-8"?>
+<importRun xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/importRun.xsd">
+{%- for imp in import_ %}
+  <import>
+    <folder>{{ imp.folder }}</folder>
+    {%- if imp.failedFolder is not none %}
+    <failedFolder>{{ imp.failedFolder }}</failedFolder>
+    {%- endif %}
+    {%- if imp.backupFolder is not none %}
+    <backupFolder>{{ imp.backupFolder }}</backupFolder>
+    {%- endif %}
+    {%- if imp.validate_ is not none %}
+    <validate>{{ 'true' if imp.validate_ else 'false' }}</validate>
+    {%- endif %}
+    {%- if imp.idMapId is not none %}
+    <idMapId>{{ imp.idMapId }}</idMapId>
+    {%- endif %}
+    {%- if imp.unitConversionsId is not none %}
+    <unitConversionsId>{{ imp.unitConversionsId }}</unitConversionsId>
+    {%- endif %}
+    {%- if imp.flagConversionsId is not none %}
+    <flagConversionsId>{{ imp.flagConversionsId }}</flagConversionsId>
+    {%- endif %}
+    {%- for tol in imp.tolerance %}
+    <tolerance{% if tol.locationSetId is not none %} locationSetId="{{ tol.locationSetId }}"{% endif %}{% if tol.locationId is not none %} locationId="{{ tol.locationId }}"{% endif %} parameterId="{{ tol.parameterId }}" timeUnit="{{ tol.timeUnit }}" unitCount="{{ tol.unitCount }}"/>
+    {%- endfor %}
+    {%- for sts in imp.startTimeShift %}
+    <startTimeShift>
+      <locationId>{{ sts.locationId }}</locationId>
+      <parameterId>{{ sts.parameterId }}</parameterId>
+      <relativePeriod unit="{{ sts.relativePeriod.unit }}"{% if sts.relativePeriod.start is not none %} start="{{ sts.relativePeriod.start }}"{% endif %}{% if sts.relativePeriod.end is not none %} end="{{ sts.relativePeriod.end }}"{% endif %}{% if sts.relativePeriod.startOverrulable is not none %} startOverrulable="{{ 'true' if sts.relativePeriod.startOverrulable else 'false' }}"{% endif %}{% if sts.relativePeriod.endOverrulable is not none %} endOverrulable="{{ 'true' if sts.relativePeriod.endOverrulable else 'false' }}"{% endif %}/>
+    </startTimeShift>
+    {%- endfor %}
+    {%- for ts in imp.timeSeriesSet %}
+    {{ tss.render(ts) }}
+    {%- endfor %}
+    {%- if imp.importType is not none %}
+    <importType>{{ imp.importType }}</importType>
+    {%- endif %}
+    {%- if imp.importTimeZone is not none %}
+    <importTimeZone>{% if imp.importTimeZone.timeZoneName is not none %}<timeZoneName>{{ imp.importTimeZone.timeZoneName }}</timeZoneName>{% endif %}{% if imp.importTimeZone.timeZoneOffset is not none %}<timeZoneOffset>{{ imp.importTimeZone.timeZoneOffset }}</timeZoneOffset>{% endif %}</importTimeZone>
+    {%- endif %}
+    {%- if imp.dataFeedId is not none %}
+    <dataFeedId>{{ imp.dataFeedId }}</dataFeedId>
+    {%- endif %}
+    {%- for mv in imp.missingValue %}
+    <missingValue>{{ mv | xmlstr }}</missingValue>
+    {%- endfor %}
+    {%- for tv in imp.traceValue %}
+    <traceValue>{{ tv | xmlstr }}</traceValue>
+    {%- endfor %}
+  </import>
+{%- endfor %}
+</importRun>

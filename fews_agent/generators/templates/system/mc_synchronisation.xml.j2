@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<synchronisation xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/mcSynchronisation.xsd">
+  <synchparams>
+    <remotemcid name="{{ synchparams.remotemcid.name }}"/>
+    <synchid id="{{ synchparams.synchid.id }}"/>
+  </synchparams>
+{%- for rt in recordtype %}
+  <recordtype type="{{ rt.type }}">
+    {%- if rt.modifier is not none %}
+    <modifier>
+      {%- for lvl in rt.modifier.synchlevel %}
+      <synchlevel level="{{ lvl.level }}"/>
+      {%- endfor %}
+    </modifier>
+    {%- endif %}
+  </recordtype>
+{%- endfor %}
+</synchronisation>

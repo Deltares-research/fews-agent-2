@@ -1,0 +1,114 @@
+{%- macro tt(t) -%}
+<timeThreshold>
+        <periodLength value="{{ t.periodLength.value }}" unit="{{ t.periodLength.unit }}"/>
+        <color>{{ t.color }}</color>
+        {%- if t.eventCode is not none %}
+        <eventCode>{{ t.eventCode }}</eventCode>
+        <logLevel>{{ t.logLevel }}</logLevel>
+        {%- if t.graceTime is not none %}
+        <graceTime unit="{{ t.graceTime.unit }}"{% if t.graceTime.multiplier is not none %} multiplier="{{ t.graceTime.multiplier }}"{% endif %}{% if t.graceTime.divider is not none %} divider="{{ t.graceTime.divider }}"{% endif %}/>
+        {%- endif %}
+        {%- endif %}
+      </timeThreshold>
+{%- endmacro -%}
+{%- macro status(name, s) -%}
+<{{ name }}>
+      {%- if s.description is not none %}
+      <description>{{ s.description }}</description>
+      {%- endif %}
+      <tabName>{{ s.tabName }}</tabName>
+      {%- if s.tabMnemonic is not none %}
+      <tabMnemonic>{{ s.tabMnemonic }}</tabMnemonic>
+      {%- endif %}
+      {%- if s.visibleColumns is not none %}
+      <visibleColumns>
+        {%- if s.visibleColumns.workflow is not none %}
+        <workflow>{{ 'true' if s.visibleColumns.workflow else 'false' }}</workflow>
+        {%- endif %}
+        {%- if s.visibleColumns.taskRun is not none %}
+        <taskRun>{{ 'true' if s.visibleColumns.taskRun else 'false' }}</taskRun>
+        {%- endif %}
+        {%- if s.visibleColumns.suspended is not none %}
+        <suspended>{{ 'true' if s.visibleColumns.suspended else 'false' }}</suspended>
+        {%- endif %}
+      </visibleColumns>
+      {%- endif %}
+      <defaultTimeThreshold>
+        {%- for t in s.defaultTimeThreshold.timeThreshold %}
+        {{ tt(t) }}
+        {%- endfor %}
+      </defaultTimeThreshold>
+      {%- for df in s.dataFeed %}
+      <dataFeed id="{{ df.id }}"{% if df.name is not none %} name="{{ df.name }}"{% endif %}>
+        {%- if df.description is not none %}
+        <description>{{ df.description }}</description>
+        {%- endif %}
+        {%- for t in df.timeThreshold %}
+        {{ tt(t) }}
+        {%- endfor %}
+      </dataFeed>
+      {%- endfor %}
+      {%- for et in s.extraTimeThreshold %}
+      <extraTimeThreshold>
+        <dataFeedId>{{ et.dataFeedId }}</dataFeedId>
+        {%- for t in et.timeThreshold %}
+        {{ tt(t) }}
+        {%- endfor %}
+      </extraTimeThreshold>
+      {%- endfor %}
+    </{{ name }}>
+{%- endmacro -%}
+<?xml version="1.0" encoding="UTF-8"?>
+<systemMonitorDisplay xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/systemMonitorDisplay.xsd">
+  {%- if description is not none %}
+  <description>{{ description }}</description>
+  {%- endif %}
+  {%- if defaultSelectedTab is not none %}
+  <defaultSelectedTab>{{ defaultSelectedTab }}</defaultSelectedTab>
+  {%- endif %}
+  {%- if importStatus is not none %}
+  {{ status('importStatus', importStatus) }}
+  {%- endif %}
+  {%- if exportStatus is not none %}
+  {{ status('exportStatus', exportStatus) }}
+  {%- endif %}
+  {%- if bulletinBoard is not none %}
+  <bulletinBoard>
+    {%- if bulletinBoard.description is not none %}
+    <description>{{ bulletinBoard.description }}</description>
+    {%- endif %}
+    <tabName>{{ bulletinBoard.tabName }}</tabName>
+    {%- if bulletinBoard.tabMnemonic is not none %}
+    <tabMnemonic>{{ bulletinBoard.tabMnemonic }}</tabMnemonic>
+    {%- endif %}
+  </bulletinBoard>
+  {%- endif %}
+  {%- if bulletinBoardPlus is not none %}
+  <bulletinBoardPlus>
+    {%- if bulletinBoardPlus.description is not none %}
+    <description>{{ bulletinBoardPlus.description }}</description>
+    {%- endif %}
+    <tabName>{{ bulletinBoardPlus.tabName }}</tabName>
+    {%- if bulletinBoardPlus.tabMnemonic is not none %}
+    <tabMnemonic>{{ bulletinBoardPlus.tabMnemonic }}</tabMnemonic>
+    {%- endif %}
+    {%- if bulletinBoardPlus.notes.messageTemplate %}
+    {%- for mt in bulletinBoardPlus.notes.messageTemplate %}
+    <messageTemplate>{{ mt }}</messageTemplate>
+    {%- endfor %}
+    {%- else %}
+    {%- for mt in bulletinBoardPlus.notes.msgTemplate %}
+    <msgTemplate id="{{ mt.id }}">
+      <message>{{ mt.message }}</message>
+      {%- if mt.messageWidth is not none %}
+      <messageWidth>{{ mt.messageWidth }}</messageWidth>
+      {%- endif %}
+      {%- if mt.messageHeight is not none %}
+      <messageHeight>{{ mt.messageHeight }}</messageHeight>
+      {%- endif %}
+    </msgTemplate>
+    {%- endfor %}
+    {%- endif %}
+  </bulletinBoardPlus>
+  {%- endif %}
+</systemMonitorDisplay>

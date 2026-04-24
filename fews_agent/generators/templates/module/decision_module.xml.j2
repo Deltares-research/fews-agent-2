@@ -1,0 +1,151 @@
+{%- import "_partials/timeseries_set.xml.j2" as tss -%}
+{%- macro cond(c) -%}
+<rule variable="{{ c.variable }}" operator="{{ c.operator }}" value="{{ c.value }}"{% if c.logical is not none %} logical="{{ c.logical }}"{% endif %}/>
+{%- endmacro -%}
+{%- macro rc_item(rc) -%}
+{%- if rc.rule is not none %}
+            {{ cond(rc.rule) }}
+{%- else %}
+            <ruleGroup>
+              {%- for r in rc.ruleGroup.rule %}
+              {{ cond(r) }}
+              {%- endfor %}
+            </ruleGroup>
+{%- endif %}
+{%- endmacro -%}
+{%- macro rule_criterias(name, rcs) -%}
+<{{ name }} rule="{{ rcs.rule }}" ruleIndex="{{ rcs.ruleIndex }}"{% if rcs.rulePreferredColor is not none %} rulePreferredColor="{{ rcs.rulePreferredColor }}"{% endif %}{% if rcs.valuetype is not none %} valuetype="{{ rcs.valuetype }}"{% endif %}{% if rcs.indextype is not none %} indextype="{{ rcs.indextype }}"{% endif %}>
+          {%- for item in rcs.item %}
+          {%- if item.ruleCriteria is not none %}
+          <ruleCriteria>
+            {{ rc_item(item.ruleCriteria) }}
+          </ruleCriteria>
+          {%- else %}
+          <ruleCriteriaLogicalOperator>{{ item.ruleCriteriaLogicalOperator }}</ruleCriteriaLogicalOperator>
+          {%- endif %}
+          {%- endfor %}
+      </{{ name }}>
+{%- endmacro -%}
+{%- macro rule_constraint(rc) -%}
+{%- if rc.not_ is not none %}
+        <not>
+          {{ rule_constraint(rc.not_) }}
+        </not>
+{%- elif rc.anyValid is not none %}
+        <anyValid>
+          {%- for inner in rc.anyValid.ruleConstraint %}
+          {{ rule_constraint(inner) }}
+          {%- endfor %}
+        </anyValid>
+{%- elif rc.allValid is not none %}
+        <allValid>
+          {%- for inner in rc.allValid.ruleConstraint %}
+          {{ rule_constraint(inner) }}
+          {%- endfor %}
+        </allValid>
+{%- elif rc.alwaysTrue is not none %}
+        <alwaysTrue>{{ rc.alwaysTrue }}</alwaysTrue>
+{%- elif rc.alwaysFalse is not none %}
+        <alwaysFalse>{{ rc.alwaysFalse }}</alwaysFalse>
+{%- elif rc.isTrue is not none %}
+        <isTrue>{{ rc.isTrue }}</isTrue>
+{%- else %}
+        <isFalse>{{ rc.isFalse }}</isFalse>
+{%- endif %}
+{%- endmacro -%}
+{%- macro variable_block(v) -%}
+<variable>
+      <variableId>{{ v.variableId }}</variableId>
+      {{ tss.render(v.timeSeriesSet) }}
+    </variable>
+{%- endmacro -%}
+<?xml version="1.0" encoding="UTF-8"?>
+<decisionModule xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/decisionModule.xsd">
+  {%- for bc in barrierConfiguration %}
+  <barrierConfiguration>{{ bc }}</barrierConfiguration>
+  {%- endfor %}
+  {%- for v in variable %}
+  {{ variable_block(v) }}
+  {%- endfor %}
+  <rules>
+    {%- for v in rules.variable %}
+    {{ variable_block(v) }}
+    {%- endfor %}
+    <criticalConditions{% if rules.criticalConditions.id is not none %} id="{{ rules.criticalConditions.id }}"{% endif %}>
+      {%- for cc in rules.criticalConditions.criticalCondition %}
+      {{ rule_criterias('criticalCondition', cc) }}
+      {%- endfor %}
+    </criticalConditions>
+    <transitionRules>
+      {%- for tr in rules.transitionRules.transitionRule %}
+      <transitionRule id="{{ tr.id }}">
+        <ruleType>{{ tr.ruleType }}</ruleType>
+        {%- if tr.criticalConditionName is not none %}
+        <criticalConditionName>{{ tr.criticalConditionName }}</criticalConditionName>
+        {%- else %}
+        <transitionRuleId>{{ tr.transitionRuleId }}</transitionRuleId>
+        {%- endif %}
+        {%- if tr.transitionCondition is not none %}
+        {{ rule_criterias('transitionCondition', tr.transitionCondition) }}
+        {%- endif %}
+        {%- if tr.timeOffset is not none %}
+        <timeOffset unit="{{ tr.timeOffset.unit }}" value="{{ tr.timeOffset.value }}"/>
+        {%- endif %}
+      </transitionRule>
+      {%- endfor %}
+    </transitionRules>
+  </rules>
+  {%- for dt in decisionTree %}
+  <decisionTree>
+    <barrierId>{{ dt.barrierId }}</barrierId>
+    {%- for d in dt.decision %}
+    <decision id="{{ d.id }}">
+      {%- if d.evaluationType is not none %}
+      <evaluationType>{{ d.evaluationType }}</evaluationType>
+      {%- endif %}
+      <stateDefinitionId>{{ d.stateDefinitionId }}</stateDefinitionId>
+      <inputState>
+        <stateValueId>{{ d.inputState.stateValueId }}</stateValueId>
+      </inputState>
+      <conditionRules>
+        {%- for inner in d.conditionRules.ruleConstraint %}
+        {{ rule_constraint(inner) }}
+        {%- endfor %}
+      </conditionRules>
+      <transitionRules>
+        {%- for inner in d.transitionRules.ruleConstraint %}
+        {{ rule_constraint(inner) }}
+        {%- endfor %}
+      </transitionRules>
+      <outputState>
+        <stateValueId>{{ d.outputState.stateValueId }}</stateValueId>
+      </outputState>
+    </decision>
+    {%- endfor %}
+  </decisionTree>
+  {%- endfor %}
+  <decisionEvaluation>
+    <initialConditionalWorkflow>
+      {%- for vid in decisionEvaluation.initialConditionalWorkflow.variableId %}
+      <variableId>{{ vid }}</variableId>
+      {%- endfor %}
+      <workflowId>{{ decisionEvaluation.initialConditionalWorkflow.workflowId }}</workflowId>
+    </initialConditionalWorkflow>
+    <conditionalWorkflow>
+      {%- for vid in decisionEvaluation.conditionalWorkflow.variableId %}
+      <variableId>{{ vid }}</variableId>
+      {%- endfor %}
+      <stateChanges>
+        {%- if decisionEvaluation.conditionalWorkflow.stateChanges.evaluationType is not none %}
+        <evaluationType>{{ decisionEvaluation.conditionalWorkflow.stateChanges.evaluationType }}</evaluationType>
+        {%- endif %}
+        {%- for sc in decisionEvaluation.conditionalWorkflow.stateChanges.stateChange %}
+        <stateChange>
+          <decisionTreeId>{{ sc.decisionTreeId }}</decisionTreeId>
+        </stateChange>
+        {%- endfor %}
+      </stateChanges>
+      <workflowId>{{ decisionEvaluation.conditionalWorkflow.workflowId }}</workflowId>
+    </conditionalWorkflow>
+  </decisionEvaluation>
+</decisionModule>

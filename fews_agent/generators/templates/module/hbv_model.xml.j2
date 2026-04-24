@@ -1,0 +1,107 @@
+{%- macro props(p) -%}
+<propertiesFile>
+      <infoFile>{{ p.infoFile }}</infoFile>
+      <ptqwFile>{{ p.ptqwFile }}</ptqwFile>
+      <seqFile>{{ p.seqFile }}</seqFile>
+      {%- if p.damFile is not none %}
+      <damFile>{{ p.damFile }}</damFile>
+      {%- endif %}
+    </propertiesFile>
+{%- endmacro -%}
+<?xml version="1.0" encoding="UTF-8"?>
+<hbvModel xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/hbvModel.xsd" version="{{ version }}">
+  {%- if description is not none %}
+  <description>{{ description }}</description>
+  {%- endif %}
+  <directories>
+    <configDir>{{ directories.configDir }}</configDir>
+    <adapterDir>{{ directories.adapterDir }}</adapterDir>
+    {%- if directories.modelDirectories is not none %}
+    <modelDirectories>
+      {%- if directories.modelDirectories.rootDir is not none %}
+      <rootDir>{{ directories.modelDirectories.rootDir }}</rootDir>
+      {%- endif %}
+      {%- if directories.modelDirectories.keyDir is not none %}
+      <keyDir>{{ directories.modelDirectories.keyDir }}</keyDir>
+      {%- endif %}
+      {%- if directories.modelDirectories.districtDir is not none %}
+      <districtDir>{{ directories.modelDirectories.districtDir }}</districtDir>
+      {%- endif %}
+      {%- if directories.modelDirectories.stateDir is not none %}
+      <stateDir>{{ directories.modelDirectories.stateDir }}</stateDir>
+      {%- endif %}
+    </modelDirectories>
+    {%- endif %}
+    {%- if directories.importDir is not none %}
+    <importDir>{{ directories.importDir }}</importDir>
+    {%- endif %}
+    {%- if directories.exportDir is not none %}
+    <exportDir>{{ directories.exportDir }}</exportDir>
+    {%- endif %}
+    {%- if directories.workDir is not none %}
+    <workDir>{{ directories.workDir }}</workDir>
+    {%- endif %}
+  </directories>
+  <adapterfiles>
+    {%- if adapterfiles.stateFile is not none %}
+    <stateFile>{{ adapterfiles.stateFile }}</stateFile>
+    {%- endif %}
+    {%- if adapterfiles.inputFile is not none %}
+    <inputFile>{{ adapterfiles.inputFile }}</inputFile>
+    {%- endif %}
+    <outputFile>{{ adapterfiles.outputFile }}</outputFile>
+    {%- if adapterfiles.damFlowFile is not none %}
+    <damFlowFile>{{ adapterfiles.damFlowFile }}</damFlowFile>
+    {%- endif %}
+    {%- if adapterfiles.outputFileAsBinary is not none %}
+    <outputFileAsBinary>{{ 'true' if adapterfiles.outputFileAsBinary else 'false' }}</outputFileAsBinary>
+    {%- endif %}
+    {%- if adapterfiles.diagnosticFile is not none %}
+    <diagnosticFile>{{ adapterfiles.diagnosticFile }}</diagnosticFile>
+    {%- endif %}
+    {%- if adapterfiles.hbvInitializationFile is not none %}
+    <hbvInitializationFile>{{ adapterfiles.hbvInitializationFile }}</hbvInitializationFile>
+    {%- endif %}
+    {%- if adapterfiles.propertiesFile is not none %}
+    {{ props(adapterfiles.propertiesFile) }}
+    {%- endif %}
+  </adapterfiles>
+  <modelFiles>
+    {%- if modelFiles.hbvInitializationFile is not none %}
+    <hbvInitializationFile>{{ modelFiles.hbvInitializationFile }}</hbvInitializationFile>
+    {%- endif %}
+    {%- if modelFiles.ptqFile is not none %}
+    <ptqFile>{{ modelFiles.ptqFile }}</ptqFile>
+    {%- endif %}
+    {%- if modelFiles.damFlowFile is not none %}
+    <damFlowFile>{{ modelFiles.damFlowFile }}</damFlowFile>
+    {%- endif %}
+    <resFile>{{ modelFiles.resFile }}</resFile>
+    {%- if modelFiles.logFile is not none %}
+    <logFile>{{ modelFiles.logFile }}</logFile>
+    {%- endif %}
+    {%- if modelFiles.propertiesFile is not none %}
+    {{ props(modelFiles.propertiesFile) }}
+    {%- endif %}
+    {%- if modelFiles.deleteDosptqFile is not none %}
+    <deleteDosptqFile>{{ 'true' if modelFiles.deleteDosptqFile else 'false' }}</deleteDosptqFile>
+    {%- endif %}
+  </modelFiles>
+  {%- if variables is not none %}
+  <variables>
+    {%- if variables.damcheck is not none %}
+    <damcheck>{{ variables.damcheck }}</damcheck>
+    {%- endif %}
+    {%- if variables.automaticCorrection is not none %}
+    <automaticCorrection>{{ variables.automaticCorrection }}</automaticCorrection>
+    {%- endif %}
+  </variables>
+  {%- endif %}
+  {%- if actionSpec is not none %}
+  <actionSpec>
+    {%- for a in actionSpec.action %}
+    <action>{{ a }}</action>
+    {%- endfor %}
+  </actionSpec>
+  {%- endif %}
+</hbvModel>

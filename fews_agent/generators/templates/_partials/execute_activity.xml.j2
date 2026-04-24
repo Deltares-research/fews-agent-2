@@ -1,0 +1,24 @@
+{# Shared body for ExecuteActivityComplexType. Caller passes the
+   outer element name (e.g. "executeActivity", "preActivity",
+   "postActivity", "executeActivity" inside fewsAdapterLauncher).
+   Emits a subset of ExecuteActivityComplexType — the fields modelled
+   by fews_agent.schema.general_adapter_run.ExecuteActivity: description,
+   command/executable, arguments/argument*, timeOut, ignoreDiagnostics,
+   overrulingDiagnosticFile.
+#}
+{%- macro render(exa, tag) -%}
+<{{ tag }}>
+  {% if exa.description is not none %}<description>{{ exa.description }}</description>{% endif %}
+  <command>
+    <executable>{{ exa.command.executable }}</executable>
+  </command>
+  {% if exa.arguments is not none %}
+  <arguments>
+    {% for a in exa.arguments.argument %}<argument>{{ a }}</argument>{% endfor %}
+  </arguments>
+  {% endif %}
+  {% if exa.timeOut is not none %}<timeOut>{{ exa.timeOut }}</timeOut>{% endif %}
+  {% if exa.ignoreDiagnostics is not none %}<ignoreDiagnostics>{{ 'true' if exa.ignoreDiagnostics else 'false' }}</ignoreDiagnostics>{% endif %}
+  {% if exa.overrulingDiagnosticFile is not none %}<overrulingDiagnosticFile>{{ exa.overrulingDiagnosticFile }}</overrulingDiagnosticFile>{% endif %}
+</{{ tag }}>
+{%- endmacro %}

@@ -1,0 +1,91 @@
+{%- macro addition(elem_name, a) -%}
+<{{ elem_name }}>{%- if a.simpleString is not none %}<simpleString>{{ a.simpleString }}</simpleString>{%- elif a.timeZeroFormattingString is not none %}<timeZeroFormattingString>{{ a.timeZeroFormattingString }}</timeZeroFormattingString>{%- else %}<currentTimeFormattingString>{{ a.currentTimeFormattingString }}</currentTimeFormattingString>{%- endif %}</{{ elem_name }}>
+{%- endmacro -%}
+{%- macro cts(elem_name, t) -%}
+<{{ elem_name }} unit="{{ t.unit }}"{% if t.multiplier is not none %} multiplier="{{ t.multiplier }}"{% endif %}{% if t.divider is not none %} divider="{{ t.divider }}"{% endif %}/>
+{%- endmacro -%}
+<?xml version="1.0" encoding="UTF-8"?>
+<thresholdExport xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/thresholdExport.xsd">
+{%- for e in export %}
+  <export>
+    <exportTypeStandard>{{ e.exportTypeStandard }}</exportTypeStandard>
+    <folder>{{ e.folder }}</folder>
+    <exportFileName>
+      <name>{{ e.exportFileName.name }}</name>
+      {%- if e.exportFileName.prefix is not none %}
+      {{ addition('prefix', e.exportFileName.prefix) }}
+      {%- endif %}
+      {%- if e.exportFileName.suffix is not none %}
+      {{ addition('suffix', e.exportFileName.suffix) }}
+      {%- endif %}
+    </exportFileName>
+    {%- if e.serverUrl is not none %}
+    <serverUrl>{{ e.serverUrl }}</serverUrl>
+    {%- if e.connectionTimeOutMillis is not none %}
+    <connectionTimeOutMillis>{{ e.connectionTimeOutMillis }}</connectionTimeOutMillis>
+    {%- endif %}
+    {%- if e.pauseMillis is not none %}
+    <pauseMillis>{{ e.pauseMillis }}</pauseMillis>
+    {%- endif %}
+    <user>{{ e.user }}</user>
+    {%- if e.password is not none %}
+    <password>{{ e.password }}</password>
+    {%- else %}
+    <encryptedPassword>{{ e.encryptedPassword }}</encryptedPassword>
+    {%- endif %}
+    {%- endif %}
+    {%- if e.relativeViewPeriod is not none %}
+    <relativeViewPeriod unit="{{ e.relativeViewPeriod.unit }}"{% if e.relativeViewPeriod.start is not none %} start="{{ e.relativeViewPeriod.start }}"{% endif %}{% if e.relativeViewPeriod.end is not none %} end="{{ e.relativeViewPeriod.end }}"{% endif %}{% if e.relativeViewPeriod.startOverrulable is not none %} startOverrulable="{{ 'true' if e.relativeViewPeriod.startOverrulable else 'false' }}"{% endif %}{% if e.relativeViewPeriod.endOverrulable is not none %} endOverrulable="{{ 'true' if e.relativeViewPeriod.endOverrulable else 'false' }}"{% endif %}/>
+    {%- endif %}
+    {%- for ecp in e.eventCodePattern %}
+    <eventCodePattern>{{ ecp }}</eventCodePattern>
+    {%- endfor %}
+    <templateFile>{{ e.templateFile }}</templateFile>
+    {%- for df in e.dateFormat %}
+    <dateFormat id="{{ df.id }}">
+      {%- if df.timeZone is not none %}
+      <timeZone>{% if df.timeZone.timeZoneName is not none %}<timeZoneName>{{ df.timeZone.timeZoneName }}</timeZoneName>{% endif %}{% if df.timeZone.timeZoneOffset is not none %}<timeZoneOffset>{{ df.timeZone.timeZoneOffset }}</timeZoneOffset>{% endif %}</timeZone>
+      {%- endif %}
+      <dateTimePattern>{{ df.dateTimePattern }}</dateTimePattern>
+    </dateFormat>
+    {%- endfor %}
+    {%- for nf in e.numberFormat %}
+    <numberFormat id="{{ nf.id }}">
+      <pattern>{{ nf.pattern }}</pattern>
+    </numberFormat>
+    {%- endfor %}
+    {%- if e.filter is not none %}
+    <filter>
+      {%- for lsid in e.filter.locationSetId %}
+      <locationSetId>{{ lsid }}</locationSetId>
+      {%- endfor %}
+      {%- for pid in e.filter.parameterId %}
+      <parameterId>{{ pid }}</parameterId>
+      {%- endfor %}
+    </filter>
+    {%- endif %}
+    {{ cts('thresholdHistorySearchTimeSpan', e.thresholdHistorySearchTimeSpan) }}
+    {{ cts('eventExpiryTime', e.eventExpiryTime) }}
+    <identifier>{{ e.identifier }}</identifier>
+    <sender>{{ e.sender }}</sender>
+    {%- for m in e.mapThreshold %}
+    <mapThreshold thresholdId="{{ m.thresholdId }}" value="{{ m.value }}"/>
+    {%- endfor %}
+    {%- if e.matchingValueAttributeId is not none %}
+    <matchingValueAttributeId>{{ e.matchingValueAttributeId }}</matchingValueAttributeId>
+    {%- for mv in e.multiValuedAttributeTag %}
+    <multiValuedAttributeTag>
+      <tag>{{ mv.tag }}</tag>
+      <upCrossingAttributeId>{{ mv.upCrossingAttributeId }}</upCrossingAttributeId>
+      <downCrossingAttributeId>{{ mv.downCrossingAttributeId }}</downCrossingAttributeId>
+    </multiValuedAttributeTag>
+    {%- endfor %}
+    {%- endif %}
+    {%- if e.dataFeedId is not none %}
+    <dataFeedId>{{ e.dataFeedId }}</dataFeedId>
+    {%- elif e.disableDataFeedInfo %}
+    <disableDataFeedInfo/>
+    {%- endif %}
+  </export>
+{%- endfor %}
+</thresholdExport>

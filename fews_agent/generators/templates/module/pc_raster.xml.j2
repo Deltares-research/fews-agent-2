@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<pcRaster xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/pcRaster.xsd" version="{{ version }}">
+{%- if description is not none %}
+  <description>{{ description }}</description>
+{%- endif %}
+  <directories>
+    {%- if directories.workDir is not none %}
+    <workDir>{{ directories.workDir }}</workDir>
+    {%- endif %}
+    <inputDir>{{ directories.inputDir }}</inputDir>
+    <outputDir>{{ directories.outputDir }}</outputDir>
+    {%- if directories.stateDir is not none %}
+    <stateDir>{{ directories.stateDir }}</stateDir>
+    {%- endif %}
+    {%- if directories.longTermAverageInputDir is not none %}
+    <longTermAverageInputDir>{{ directories.longTermAverageInputDir }}</longTermAverageInputDir>
+    {%- endif %}
+  </directories>
+  <adapterfiles>
+    {%- if adapterfiles.stateFile is not none %}
+    <stateFile>{{ adapterfiles.stateFile }}</stateFile>
+    {%- endif %}
+    {%- if adapterfiles.parameterFile is not none %}
+    <parameterFile>{{ adapterfiles.parameterFile }}</parameterFile>
+    {%- endif %}
+    {%- for f in adapterfiles.inputFile %}
+    <inputFile fileType="{{ f.fileType }}" file="{{ f.file }}" xmlFile="{{ f.xmlFile }}"{% if f.conversionFile is not none %} conversionFile="{{ f.conversionFile }}"{% endif %}{% if f.parameterID is not none %} parameterID="{{ f.parameterID }}"{% endif %}{% if f.locationIdPrefix is not none %} locationIdPrefix="{{ f.locationIdPrefix }}"{% endif %}{% if f.locationID is not none %} locationID="{{ f.locationID }}"{% endif %}/>
+    {%- endfor %}
+    {%- for f in adapterfiles.outputFile %}
+    <outputFile fileType="{{ f.fileType }}" file="{{ f.file }}" xmlFile="{{ f.xmlFile }}"{% if f.conversionFile is not none %} conversionFile="{{ f.conversionFile }}"{% endif %}{% if f.parameterID is not none %} parameterID="{{ f.parameterID }}"{% endif %}{% if f.locationIdPrefix is not none %} locationIdPrefix="{{ f.locationIdPrefix }}"{% endif %}{% if f.locationID is not none %} locationID="{{ f.locationID }}"{% endif %}/>
+    {%- endfor %}
+    {%- if adapterfiles.diagnosticFile is not none %}
+    <diagnosticFile>{{ adapterfiles.diagnosticFile }}</diagnosticFile>
+    {%- endif %}
+    {%- for ms in adapterfiles.inputMapStackFile %}
+    <inputMapStackFile>{{ ms }}</inputMapStackFile>
+    {%- endfor %}
+    {%- for lta in adapterfiles.longTermAverageInputFile %}
+    <longTermAverageInputFile inputFile="{{ lta.inputFile }}" outputFile="{{ lta.outputFile }}"/>
+    {%- endfor %}
+  </adapterfiles>
+  <modelFiles>
+    {%- if modelFiles.pcrasterModFile is not none %}
+    <pcrasterModFile>{{ modelFiles.pcrasterModFile }}</pcrasterModFile>
+    {%- else %}
+    <pcrasterXMLFile>{{ modelFiles.pcrasterXMLFile }}</pcrasterXMLFile>
+    {%- endif %}
+    {%- if modelFiles.logFile is not none %}
+    <logFile>{{ modelFiles.logFile }}</logFile>
+    {%- endif %}
+    {%- if modelFiles.timeShiftFromMonthDay is not none %}
+    <timeShiftFromMonthDay>{{ modelFiles.timeShiftFromMonthDay }}</timeShiftFromMonthDay>
+    {%- endif %}
+  </modelFiles>
+</pcRaster>

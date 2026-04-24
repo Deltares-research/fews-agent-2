@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<archiveModuleDisplay xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/archiveModuleDisplay.xsd">
+  {%- if levelThresholds is not none %}
+  <levelThresholds>
+    {%- for lid in levelThresholds.levelThresholdId %}
+    <levelThresholdId>{{ lid }}</levelThresholdId>
+    {%- endfor %}
+  </levelThresholds>
+  {%- endif %}
+  {%- if defaultHistoricalEventTimeStep is not none %}
+  {%- if defaultHistoricalEventTimeStep.id is not none %}
+  <defaultHistoricalEventTimeStep id="{{ defaultHistoricalEventTimeStep.id }}"/>
+  {%- else %}
+  <defaultHistoricalEventTimeStep unit="{{ defaultHistoricalEventTimeStep.unit }}"{% if defaultHistoricalEventTimeStep.multiplier is not none %} multiplier="{{ defaultHistoricalEventTimeStep.multiplier }}"{% endif %}/>
+  {%- endif %}
+  {%- endif %}
+  <workFolder>{{ workFolder }}</workFolder>
+  {%- if createEventPermission is not none %}
+  <createEventPermission>{{ createEventPermission }}</createEventPermission>
+  {%- endif %}
+  {%- if deleteEventPermission is not none %}
+  <deleteEventPermission>{{ deleteEventPermission }}</deleteEventPermission>
+  {%- endif %}
+  {%- if uploadNewDataPermission is not none %}
+  <uploadNewDataPermission>{{ uploadNewDataPermission }}</uploadNewDataPermission>
+  {%- endif %}
+  {%- if disableDataDownloadAtOperatorClient is not none %}
+  <disableDataDownloadAtOperatorClient>{{ 'true' if disableDataDownloadAtOperatorClient else 'false' }}</disableDataDownloadAtOperatorClient>
+  {%- endif %}
+  <downloadFolders>
+    <downloadFolderObserved>{{ downloadFolders.downloadFolderObserved }}</downloadFolderObserved>
+    <downloadFolderSimulated>{{ downloadFolders.downloadFolderSimulated }}</downloadFolderSimulated>
+    {%- if downloadFolders.downloadFolderSimulatedHistorical is not none %}
+    <downloadFolderSimulatedHistorical>{{ downloadFolders.downloadFolderSimulatedHistorical }}</downloadFolderSimulatedHistorical>
+    {%- endif %}
+    <downloadFolderExternalForecasts>{{ downloadFolders.downloadFolderExternalForecasts }}</downloadFolderExternalForecasts>
+    <downloadFolderRatingCurves>{{ downloadFolders.downloadFolderRatingCurves }}</downloadFolderRatingCurves>
+    <downloadFolderHistoricalEvents>{{ downloadFolders.downloadFolderHistoricalEvents }}</downloadFolderHistoricalEvents>
+    <downloadFolderForecasterNotes>{{ downloadFolders.downloadFolderForecasterNotes }}</downloadFolderForecasterNotes>
+    <downloadFolderConfiguration>{{ downloadFolders.downloadFolderConfiguration }}</downloadFolderConfiguration>
+    <downloadFolderEventAttachments>{{ downloadFolders.downloadFolderEventAttachments }}</downloadFolderEventAttachments>
+    {%- if downloadFolders.downloadFolderSnapShots is not none %}
+    <downloadFolderSnapShots>{{ downloadFolders.downloadFolderSnapShots }}</downloadFolderSnapShots>
+    {%- endif %}
+    {%- if downloadFolders.downloadFolderProducts is not none %}
+    <downloadFolderProducts>{{ downloadFolders.downloadFolderProducts }}</downloadFolderProducts>
+    {%- endif %}
+  </downloadFolders>
+  {%- if archiveImportWorkflowId is not none %}
+  <archiveImportWorkflowId>{{ archiveImportWorkflowId }}</archiveImportWorkflowId>
+  {%- endif %}
+  {%- if fssImport is not none %}
+  <fssImport>{{ 'true' if fssImport else 'false' }}</fssImport>
+  {%- endif %}
+  {%- if searchDataTypes is not none %}
+  <searchDataTypes>
+    {%- for t in searchDataTypes.type %}
+    <type>{{ t }}</type>
+    {%- endfor %}
+  </searchDataTypes>
+  {%- endif %}
+  {%- if hideDownloadDataSetsTab is not none %}
+  <hideDownloadDataSetsTab>{{ 'true' if hideDownloadDataSetsTab else 'false' }}</hideDownloadDataSetsTab>
+  {%- endif %}
+  {%- if hideCreateEventTab is not none %}
+  <hideCreateEventTab>{{ 'true' if hideCreateEventTab else 'false' }}</hideCreateEventTab>
+  {%- endif %}
+  {%- if hideSearchEventTab is not none %}
+  <hideSearchEventTab>{{ 'true' if hideSearchEventTab else 'false' }}</hideSearchEventTab>
+  {%- endif %}
+  {%- if hideArchiveDatabaseTab is not none %}
+  <hideArchiveDatabaseTab>{{ 'true' if hideArchiveDatabaseTab else 'false' }}</hideArchiveDatabaseTab>
+  {%- endif %}
+  {%- if hideArchiveUploadTab is not none %}
+  <hideArchiveUploadTab>{{ 'true' if hideArchiveUploadTab else 'false' }}</hideArchiveUploadTab>
+  {%- endif %}
+  {%- if archiveUploadIdMapId is not none %}
+  <archiveUploadIdMapId>{{ archiveUploadIdMapId }}</archiveUploadIdMapId>
+  {%- endif %}
+  {%- if initialSearchTimePeriod is not none %}
+  <initialSearchTimePeriod unit="{{ initialSearchTimePeriod.unit }}"{% if initialSearchTimePeriod.start is not none %} start="{{ initialSearchTimePeriod.start }}"{% endif %}{% if initialSearchTimePeriod.end is not none %} end="{{ initialSearchTimePeriod.end }}"{% endif %}{% if initialSearchTimePeriod.startOverrulable is not none %} startOverrulable="{{ 'true' if initialSearchTimePeriod.startOverrulable else 'false' }}"{% endif %}{% if initialSearchTimePeriod.endOverrulable is not none %} endOverrulable="{{ 'true' if initialSearchTimePeriod.endOverrulable else 'false' }}"{% endif %}/>
+  {%- endif %}
+  {%- for dsp in dataSearchProperty %}
+  <dataSearchProperty>
+    <propertyId>{{ dsp.propertyId }}</propertyId>
+    {%- if dsp.displayName is not none %}
+    <displayName>{{ dsp.displayName }}</displayName>
+    {%- endif %}
+  </dataSearchProperty>
+  {%- endfor %}
+</archiveModuleDisplay>

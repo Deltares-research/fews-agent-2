@@ -1,0 +1,137 @@
+{#- Macros for repeated structural bodies -#}
+{%- macro broad(w) -%}
+      {%- if w.height is not none %}
+      <height>{{ w.height | xmlstr }}</height>
+      {%- endif %}
+      <width>{{ w.width | xmlstr }}</width>
+      <length>{{ w.length | xmlstr }}</length>
+{%- endmacro -%}
+{%- macro sharp(w) -%}
+      {%- if w.height is not none %}
+      <height>{{ w.height | xmlstr }}</height>
+      {%- endif %}
+      <width>{{ w.width | xmlstr }}</width>
+{%- endmacro -%}
+{%- macro tribroad(w) -%}
+      {{ broad(w) }}
+      <heightTriangle>{{ w.heightTriangle | xmlstr }}</heightTriangle>
+{%- endmacro -%}
+{%- macro trisharp(w) -%}
+      {{ sharp(w) }}
+      <heightTriangle>{{ w.heightTriangle | xmlstr }}</heightTriangle>
+{%- endmacro -%}
+{%- macro expr(elem, e) -%}
+<{{ elem }}>
+        <expression>{{ e.expression }}</expression>
+        {%- for c in e.coefficient %}
+        <coefficient>
+          <id>{{ c.id }}</id>
+          <value>{{ c.value | xmlstr }}</value>
+        </coefficient>
+        {%- endfor %}
+      </{{ elem }}>
+{%- endmacro -%}
+{%- macro attrs(o) -%}
+ id="{{ o.id }}"{% if o.name is not none %} name="{{ o.name }}"{% endif %}
+{%- endmacro -%}
+{%- macro weir_body(w) -%}
+    {%- if w.generalWeir is not none %}
+      <generalWeir {{ attrs(w.generalWeir) }}>
+        {%- if w.generalWeir.height is not none %}
+        <height>{{ w.generalWeir.height | xmlstr }}</height>
+        {%- endif %}
+        <width>{{ w.generalWeir.width | xmlstr }}</width>
+        <freeFlowLimitCoefficient>{{ w.generalWeir.freeFlowLimitCoefficient | xmlstr }}</freeFlowLimitCoefficient>
+        <freeDischargeCoefficient>{{ w.generalWeir.freeDischargeCoefficient | xmlstr }}</freeDischargeCoefficient>
+        <drownedDischargeCoefficient>{{ w.generalWeir.drownedDischargeCoefficient | xmlstr }}</drownedDischargeCoefficient>
+      </generalWeir>
+    {%- elif w.userDefinedWeir is not none %}
+      <userDefinedWeir {{ attrs(w.userDefinedWeir) }}>
+        <freeFlowLimitCoefficient>{{ w.userDefinedWeir.freeFlowLimitCoefficient | xmlstr }}</freeFlowLimitCoefficient>
+        {{ expr('freeFlowExpression', w.userDefinedWeir.freeFlowExpression) }}
+        {{ expr('drownedFlowExpression', w.userDefinedWeir.drownedFlowExpression) }}
+      </userDefinedWeir>
+    {%- elif w.rectangularProfileWeir is not none %}
+      <rectangularProfileWeir {{ attrs(w.rectangularProfileWeir) }}>{{ broad(w.rectangularProfileWeir) }}
+      </rectangularProfileWeir>
+    {%- elif w.roundNoseHorizontalCrestWeir is not none %}
+      <roundNoseHorizontalCrestWeir {{ attrs(w.roundNoseHorizontalCrestWeir) }}>{{ broad(w.roundNoseHorizontalCrestWeir) }}
+      </roundNoseHorizontalCrestWeir>
+    {%- elif w.romijnWeir is not none %}
+      <romijnWeir {{ attrs(w.romijnWeir) }}>{{ broad(w.romijnWeir) }}
+      </romijnWeir>
+    {%- elif w.triangularBroadCrestWeir is not none %}
+      <triangularBroadCrestWeir {{ attrs(w.triangularBroadCrestWeir) }}>{{ tribroad(w.triangularBroadCrestWeir) }}
+      </triangularBroadCrestWeir>
+    {%- elif w.faiyumWeir is not none %}
+      <faiyumWeir {{ attrs(w.faiyumWeir) }}>{{ broad(w.faiyumWeir) }}
+      </faiyumWeir>
+    {%- elif w.rectangularThinPlateWeir is not none %}
+      <rectangularThinPlateWeir {{ attrs(w.rectangularThinPlateWeir) }}>{{ sharp(w.rectangularThinPlateWeir) }}
+      </rectangularThinPlateWeir>
+    {%- elif w.triangularThinPlateWeir is not none %}
+      <triangularThinPlateWeir {{ attrs(w.triangularThinPlateWeir) }}>{{ trisharp(w.triangularThinPlateWeir) }}
+      </triangularThinPlateWeir>
+    {%- elif w.cipolettiWeir is not none %}
+      <cipolettiWeir {{ attrs(w.cipolettiWeir) }}>{{ sharp(w.cipolettiWeir) }}
+      </cipolettiWeir>
+    {%- elif w.crumpWeir is not none %}
+      <crumpWeir {{ attrs(w.crumpWeir) }}>{{ sharp(w.crumpWeir) }}
+      </crumpWeir>
+    {%- else %}
+      <flatVWeir {{ attrs(w.flatVWeir) }}>{{ trisharp(w.flatVWeir) }}
+      </flatVWeir>
+    {%- endif %}
+{%- endmacro -%}
+<?xml version="1.0" encoding="UTF-8"?>
+<structures xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/structures.xsd">
+{%- for p in pump %}
+  <pump {{ attrs(p) }}>
+    {%- if p.capacityConstant is not none %}
+    <capacityConstant>{{ p.capacityConstant | xmlstr }}</capacityConstant>
+    {%- elif p.capacityStateTable %}
+    {%- for cs in p.capacityStateTable %}
+    <capacityStateTable>
+      <pumpingState>{{ cs.pumpingState | xmlstr }}</pumpingState>
+      <capacity>{{ cs.capacity | xmlstr }}</capacity>
+    </capacityStateTable>
+    {%- endfor %}
+    {%- elif p.capacityHeadTable %}
+    {%- for ch in p.capacityHeadTable %}
+    <capacityHeadTable>
+      <head>{{ ch.head | xmlstr }}</head>
+      <capacity>{{ ch.capacity | xmlstr }}</capacity>
+    </capacityHeadTable>
+    {%- endfor %}
+    {%- else %}
+    {%- for cs in p.capacityStateHeadTable %}
+    <capacityStateHeadTable>
+      <pumpingState>{{ cs.pumpingState | xmlstr }}</pumpingState>
+      <head>{{ cs.head | xmlstr }}</head>
+      <capacity>{{ cs.capacity | xmlstr }}</capacity>
+    </capacityStateHeadTable>
+    {%- endfor %}
+    {%- endif %}
+  </pump>
+{%- endfor %}
+{%- for w in weir %}
+  <weir>
+    {{ weir_body(w) }}
+  </weir>
+{%- endfor %}
+{%- for o in orifice %}
+  <orifice {{ attrs(o) }}>
+    {%- if o.gateLevel is not none %}
+    <gateLevel>{{ o.gateLevel | xmlstr }}</gateLevel>
+    {%- endif %}
+    <freeDischargeCoefficient>{{ o.freeDischargeCoefficient | xmlstr }}</freeDischargeCoefficient>
+    <freeContractionCoefficient>{{ o.freeContractionCoefficient | xmlstr }}</freeContractionCoefficient>
+    <drownedDischargeCoefficient>{{ o.drownedDischargeCoefficient | xmlstr }}</drownedDischargeCoefficient>
+    <drownedContractionCoefficient>{{ o.drownedContractionCoefficient | xmlstr }}</drownedContractionCoefficient>
+    <freeFlowLimitCoefficient/>
+    <weir>
+      {{ weir_body(o.weir) }}
+    </weir>
+  </orifice>
+{%- endfor %}
+</structures>
