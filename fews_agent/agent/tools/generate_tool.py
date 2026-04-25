@@ -21,7 +21,11 @@ from ..providers.base import ToolSpec
 from .spec_tools import SLICE1_ALLOWED, _allow_all
 
 
-def generate(name: str, params: dict[str, Any], ctx: Any = None) -> dict[str, Any]:
+def generate(
+    name: str,
+    params: dict[str, Any] | None = None,
+    ctx: Any = None,
+) -> dict[str, Any]:
     if not _allow_all() and name not in SLICE1_ALLOWED:
         return {
             "error": (
@@ -32,6 +36,24 @@ def generate(name: str, params: dict[str, Any], ctx: Any = None) -> dict[str, An
     spec = next((s for s in SPECS if s.name == name), None)
     if spec is None:
         return {"error": f"unknown spec: {name!r}"}
+
+    # Fall back to project state when the model didn't supply params —
+    # this is the preferred path because it sidesteps re-transcription
+    # errors (small models tend to paraphrase strings or coerce string
+    # coords back into floats when they reconstruct the dict from
+    # conversation history).
+    if not params:
+        if ctx is None:
+            return {"error": "params is empty and no project state is available"}
+        params = ctx.project_data.get(spec.input_key) or {}
+        if not params:
+            return {
+                "error": (
+                    f"params is empty and project state has nothing under "
+                    f"'{spec.input_key}'. Populate state via the upsert/"
+                    f"set tools first, or pass params explicitly."
+                )
+            }
 
     try:
         model = spec.model_class.model_validate(params)
@@ -66,12 +88,15 @@ def generate(name: str, params: dict[str, Any], ctx: Any = None) -> dict[str, An
 GENERATE_TOOL = ToolSpec(
     name="generate",
     description=(
-        "Render a FEWS XML file from a params dict. Validates the dict "
-        "against the spec's Pydantic model and runs XSD validation on "
-        "the emitted XML. Returns {xml, xsd_ok, xsd_msg, output_relpath} "
-        "on success, or {validation_errors: [...]} if params don't "
-        "conform. Coordinate fields (x, y, z) should be strings to "
-        "preserve exact digits through JSON round-trip."
+        "Render a FEWS XML file. PREFERRED USAGE: call with just `name` "
+        "(omit `params`) after you've populated project state via the "
+        "upsert/set tools — the generator will read state directly, "
+        "which sidesteps name paraphrasing or coord-format drift. Pass "
+        "`params` explicitly only when you want to override or bypass "
+        "project state. Returns {xml, xsd_ok, xsd_msg, output_relpath} "
+        "on success, or {validation_errors: [...]} if the inputs don't "
+        "conform to the spec's Pydantic model. Coordinate fields "
+        "(x, y, z) should remain strings to preserve exact digits."
     ),
     input_schema={
         "type": "object",
@@ -80,13 +105,14 @@ GENERATE_TOOL = ToolSpec(
             "params": {
                 "type": "object",
                 "description": (
-                    "Input matching the spec's Pydantic model. Call "
-                    "`describe_spec` first to get the schema."
+                    "Optional. Full input matching the spec's Pydantic "
+                    "model. Omit to pull from project state — that is "
+                    "the preferred path."
                 ),
                 "additionalProperties": True,
             },
         },
-        "required": ["name", "params"],
+        "required": ["name"],
         "additionalProperties": False,
     },
 )

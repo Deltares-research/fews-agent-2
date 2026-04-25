@@ -28,6 +28,7 @@ import ollama
 from .base import (
     Message,
     ProviderResponse,
+    StructuredResponse,
     ToolCall,
     ToolSpec,
 )
@@ -37,6 +38,27 @@ _logger = logging.getLogger(__name__)
 # Models known to be unreliable with tool calling; auto-route to
 # structured-output fallback.
 _FALLBACK_MODELS = {"phi3.5", "phi3", "phi3.5:latest", "tinyllama", "tinyllama:latest"}
+
+
+def _ollama_usage(resp: Any) -> dict[str, int] | None:
+    """Extract token counts from an ollama.chat response.
+
+    Modern Ollama returns ``prompt_eval_count`` (input tokens) and
+    ``eval_count`` (output tokens) at the top level of the dict. Older
+    versions or some models may omit them — return None in that case.
+    """
+    try:
+        prompt = resp.get("prompt_eval_count")
+        completion = resp.get("eval_count")
+    except AttributeError:
+        return None
+    if prompt is None and completion is None:
+        return None
+    return {
+        "prompt_tokens": int(prompt or 0),
+        "completion_tokens": int(completion or 0),
+        "total_tokens": int((prompt or 0) + (completion or 0)),
+    }
 
 
 class OllamaProvider:
@@ -111,6 +133,7 @@ class OllamaProvider:
             text=msg.get("content") or None,
             tool_calls=calls,
             stop_reason="tool_use" if calls else "end_turn",
+            usage=_ollama_usage(resp),
         )
 
     # --- StructuredOutputProvider ------------------------------------
@@ -120,7 +143,7 @@ class OllamaProvider:
         system: str,
         user: str,
         schema: dict[str, Any],
-    ) -> dict[str, Any]:
+    ) -> StructuredResponse:
         prompt = (
             f"{user}\n\nReturn ONLY a single JSON object matching this JSON schema "
             f"(no prose, no fences, no keys outside the schema):\n"
@@ -135,7 +158,8 @@ class OllamaProvider:
             options={"temperature": 0.1},
         )
         content = (resp.get("message") or {}).get("content", "")
-        return self._extract_json(content)
+        data = self._extract_json(content, required=False)
+        return StructuredResponse(data=data, usage=_ollama_usage(resp))
 
     # --- helpers -----------------------------------------------------
 
@@ -176,6 +200,7 @@ class OllamaProvider:
         )
         content = (resp.get("message") or {}).get("content", "")
         obj = self._extract_json(content, required=False)
+        usage = _ollama_usage(resp)
         if isinstance(obj, dict) and "tool" in obj:
             return ProviderResponse(
                 text=None,
@@ -187,8 +212,11 @@ class OllamaProvider:
                     )
                 ],
                 stop_reason="tool_use",
+                usage=usage,
             )
-        return ProviderResponse(text=content, tool_calls=[], stop_reason="end_turn")
+        return ProviderResponse(
+            text=content, tool_calls=[], stop_reason="end_turn", usage=usage
+        )
 
     @staticmethod
     def _to_ollama_messages(system: str, messages: list[Message]) -> list[dict[str, Any]]:
@@ -225,7 +253,7 @@ class OllamaProvider:
         }
 
     @staticmethod
-    def _extract_json(text: str, required: bool = True) -> dict[str, Any]:
+    def _extract_json(text: str, required: bool = True) -> dict[str, Any]:  # noqa: D401
         """Find the first balanced `{...}` block and parse it.
 
         Small models often wrap JSON in ```json fences or prefix it with

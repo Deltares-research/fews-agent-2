@@ -62,6 +62,7 @@ class AnthropicProvider:
 
         calls: list[ToolCall] = []
         text_parts: list[str] = []
+        thinking_parts: list[str] = []
         for block in resp.content:
             btype = getattr(block, "type", None)
             if btype == "tool_use":
@@ -74,11 +75,29 @@ class AnthropicProvider:
                 )
             elif btype == "text":
                 text_parts.append(block.text)
+            elif btype == "thinking":
+                # Extended-thinking content; Claude only emits this when
+                # the request opted in via thinking={...}. Capture it for
+                # the replay log.
+                thinking_parts.append(getattr(block, "thinking", "") or "")
+
+        usage_obj = getattr(resp, "usage", None)
+        usage: dict[str, int] | None = None
+        if usage_obj is not None:
+            prompt_tokens = getattr(usage_obj, "input_tokens", 0) or 0
+            completion_tokens = getattr(usage_obj, "output_tokens", 0) or 0
+            usage = {
+                "prompt_tokens": int(prompt_tokens),
+                "completion_tokens": int(completion_tokens),
+                "total_tokens": int(prompt_tokens + completion_tokens),
+            }
 
         return ProviderResponse(
             text="\n".join(text_parts).strip() or None,
             tool_calls=calls,
             stop_reason=resp.stop_reason or ("tool_use" if calls else "end_turn"),
+            usage=usage,
+            thinking="\n\n".join(thinking_parts).strip() or None,
         )
 
     @staticmethod

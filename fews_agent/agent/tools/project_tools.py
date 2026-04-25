@@ -25,6 +25,16 @@ def _ensure_locations(ctx: Any) -> dict[str, Any]:
     return locations
 
 
+def set_geodatum(geoDatum: str, ctx: Any) -> dict[str, Any]:
+    """Set the file-level geoDatum for Locations. Persists immediately."""
+    if not isinstance(geoDatum, str) or not geoDatum.strip():
+        return {"error": "geoDatum must be a non-empty string"}
+    locations = _ensure_locations(ctx)
+    locations["geoDatum"] = geoDatum.strip()
+    ctx.store.save(ctx.project_name, ctx.project_data)
+    return {"action": "set", "field": "geoDatum", "value": locations["geoDatum"]}
+
+
 def upsert_location(location: dict[str, Any], ctx: Any) -> dict[str, Any]:
     """Insert or update a location entry (keyed by `id`). Persists."""
     if "id" not in location or not str(location["id"]).strip():
@@ -65,6 +75,26 @@ def save_project(ctx: Any) -> dict[str, Any]:
     """Explicit save (in practice a no-op since every mutation persists)."""
     ctx.store.save(ctx.project_name, ctx.project_data)
     return {"saved": ctx.project_name, "path": str(ctx.store.input_path(ctx.project_name))}
+
+
+SET_GEODATUM_TOOL = ToolSpec(
+    name="set_geodatum",
+    description=(
+        "Set the file-level geoDatum (geographic projection) for the "
+        "Locations spec. Required before generate; persists immediately."
+    ),
+    input_schema={
+        "type": "object",
+        "properties": {
+            "geoDatum": {
+                "type": "string",
+                "description": "Datum string, e.g. 'WGS 1984'.",
+            }
+        },
+        "required": ["geoDatum"],
+        "additionalProperties": False,
+    },
+)
 
 
 UPSERT_LOCATION_TOOL = ToolSpec(

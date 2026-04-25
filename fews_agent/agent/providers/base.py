@@ -80,11 +80,36 @@ class ProviderResponse:
     Exactly one of `text` or `tool_calls` carries the payload:
       - `stop_reason == "tool_use"` → `tool_calls` populated, `text` None.
       - `stop_reason in {"end_turn", "stop", "max_tokens"}` → `text` populated.
+
+    ``usage`` is a dict with at least `prompt_tokens` / `completion_tokens`
+    keys when the provider reports them (Anthropic always; Ollama when
+    the model returns ``prompt_eval_count``/``eval_count``).
+
+    ``thinking`` carries any chain-of-thought / extended-thinking text
+    the provider surfaces — Anthropic's ``thinking`` content blocks land
+    here. Ollama models that don't expose a thinking channel leave this
+    None.
     """
 
     text: str | None
     tool_calls: list[ToolCall]
     stop_reason: str
+    usage: dict[str, int] | None = None
+    thinking: str | None = None
+
+
+@dataclass
+class StructuredResponse:
+    """Return type for ``StructuredOutputProvider.generate_json``.
+
+    ``data`` is the parsed JSON object (the values the caller asked for).
+    ``usage`` carries token counts when the provider reports them. The
+    NL parser threads this onto ``ParseResult.usage`` so the replay
+    runner can sum tokens across many small parse calls.
+    """
+
+    data: dict[str, Any]
+    usage: dict[str, int] | None = None
 
 
 class Provider(Protocol):
@@ -103,12 +128,12 @@ class Provider(Protocol):
 
 
 class StructuredOutputProvider(Protocol):
-    """Fallback for models that can't reliably tool-call.
+    """Single-shot structured output.
 
-    The agent loop will construct a prompt like:
-      "Call the `upsert_location` tool with these arguments. Return
-      ONLY the JSON arguments matching this schema."
-    and `generate_json` coerces the completion to match.
+    Used by the wizard's NL parser (``parse_group``) and as a fallback
+    in the agent loop for models that can't reliably tool-call. Returns
+    a ``StructuredResponse`` so callers can attribute token usage to
+    each individual parse step.
     """
 
     model: str
@@ -118,5 +143,5 @@ class StructuredOutputProvider(Protocol):
         system: str,
         user: str,
         schema: dict[str, Any],
-    ) -> dict[str, Any]:
+    ) -> StructuredResponse:
         ...
