@@ -1,21 +1,58 @@
+{%- import "_partials/time_step.xml.j2" as tsmod -%}
+{%- macro emit_wd(w) -%}
+  <workflowDescriptor id="{{ w.id }}"
+    {%- if w.stateWorkflowId is not none %} stateWorkflowId="{{ w.stateWorkflowId }}"{% endif %}
+    {%- if w.name is not none %} name="{{ w.name }}"{% endif %}
+    {%- if w.visible is not none %} visible="{{ 'true' if w.visible else 'false' }}"{% endif %}
+    {%- if w.forecast is not none %} forecast="{{ 'true' if w.forecast else 'false' }}"{% endif %}
+    {%- if w.waitWhenAlreadyRunning is not none %} waitWhenAlreadyRunning="{{ 'true' if w.waitWhenAlreadyRunning else 'false' }}"{% endif %}
+    {%- if w.allowApprove is not none %} allowApprove="{{ 'true' if w.allowApprove else 'false' }}"{% endif %}
+    {%- if w.allowEnsembleMemberSelection is not none %} allowEnsembleMemberSelection="{{ 'true' if w.allowEnsembleMemberSelection else 'false' }}"{% endif %}
+    {%- if w.autoApprove is not none %} autoApprove="{{ 'true' if w.autoApprove else 'false' }}"{% endif %}
+    {%- if w.autoSetSystemTime is not none %} autoSetSystemTime="{{ 'true' if w.autoSetSystemTime else 'false' }}"{% endif %}
+    {%- if w.showWarningInLogCompletion is not none %} showWarningInLogCompletion="{{ 'true' if w.showWarningInLogCompletion else 'false' }}"{% endif %}
+    {%- if w.onlyCheckThresholdsOfChangedSeries is not none %} onlyCheckThresholdsOfChangedSeries="{{ 'true' if w.onlyCheckThresholdsOfChangedSeries else 'false' }}"{% endif -%}
+    {%- set has_body = w.description is not none or w.workflowFileName is not none or w.inputWorkflowId or w.timeZone is not none or w.allowSelection is not none or w.cardinalTimeStep is not none or w.minForecastLength is not none or w.maxForecastLength is not none or w.stateSelection is not none or w.shiftAllExportedStatesToTime0 is not none or w.runExpiryTime is not none or w.schedulingAllowed is not none or w.maxSchedulingPeriod is not none or w.defaultSchedulingPeriod is not none or w.minSchedulingInterval is not none or w.maxNumberRuns is not none or w.viewPermission is not none or w.runPermission is not none or w.approvePermission is not none or w.deletePermission is not none or w.deleteByCreatorAllowed is not none or w.properties is not none or w.editableProperty or w.moduleConfigProperties is not none or w.enabledModifierGroups is not none or w.maxEnsembleParts is not none or w.waterCoachDelay is not none or w.timeOut is not none or w.approvalEventCode is not none or w.whatIfTemplateId is not none or w.whatIfScenarioRequired is not none -%}
+    {%- if not has_body %}/>
+    {%- else %}>
+    {% if w.description is not none %}<description>{{ w.description }}</description>{% endif %}
+    {% if w.workflowFileName is not none %}<workflowFileName>{{ w.workflowFileName }}</workflowFileName>{% endif %}
+    {% for i in w.inputWorkflowId %}<inputWorkflowId>{{ i }}</inputWorkflowId>{% endfor %}
+    {% if w.timeZone is not none %}<timeZone>{{ w.timeZone }}</timeZone>{% endif %}
+    {% if w.allowSelection is not none %}<allowSelection>{{ 'true' if w.allowSelection else 'false' }}</allowSelection>{% endif %}
+    {% if w.cardinalTimeStep is not none %}{{ tsmod.render(w.cardinalTimeStep, tag='cardinalTimeStep') }}{% endif %}
+    {% if w.minForecastLength is not none %}{{ w.minForecastLength | dict_to_xml('minForecastLength') | safe }}{% endif %}
+    {% if w.maxForecastLength is not none %}{{ w.maxForecastLength | dict_to_xml('maxForecastLength') | safe }}{% endif %}
+    {% if w.stateSelection is not none %}{{ w.stateSelection | dict_to_xml('stateSelection') | safe }}{% endif %}
+    {% if w.shiftAllExportedStatesToTime0 is not none %}<shiftAllExportedStatesToTime0>{{ 'true' if w.shiftAllExportedStatesToTime0 else 'false' }}</shiftAllExportedStatesToTime0>{% endif %}
+    {% if w.runExpiryTime is not none %}{{ w.runExpiryTime | dict_to_xml('runExpiryTime') | safe }}{% endif %}
+    {% if w.schedulingAllowed is not none %}<schedulingAllowed>{{ 'true' if w.schedulingAllowed else 'false' }}</schedulingAllowed>{% endif %}
+    {% if w.maxSchedulingPeriod is not none %}{{ w.maxSchedulingPeriod | dict_to_xml('maxSchedulingPeriod') | safe }}{% endif %}
+    {% if w.defaultSchedulingPeriod is not none %}{{ w.defaultSchedulingPeriod | dict_to_xml('defaultSchedulingPeriod') | safe }}{% endif %}
+    {% if w.minSchedulingInterval is not none %}{{ w.minSchedulingInterval | dict_to_xml('minSchedulingInterval') | safe }}{% endif %}
+    {% if w.maxNumberRuns is not none %}<maxNumberRuns>{{ w.maxNumberRuns }}</maxNumberRuns>{% endif %}
+    {% if w.viewPermission is not none %}<viewPermission>{{ w.viewPermission }}</viewPermission>{% endif %}
+    {% if w.runPermission is not none %}<runPermission>{{ w.runPermission }}</runPermission>{% endif %}
+    {% if w.approvePermission is not none %}<approvePermission>{{ w.approvePermission }}</approvePermission>{% endif %}
+    {% if w.deletePermission is not none %}<deletePermission>{{ w.deletePermission }}</deletePermission>{% endif %}
+    {% if w.deleteByCreatorAllowed is not none %}<deleteByCreatorAllowed>{{ 'true' if w.deleteByCreatorAllowed else 'false' }}</deleteByCreatorAllowed>{% endif %}
+    {% if w.properties is not none %}{{ w.properties | dict_to_xml('properties') | safe }}{% endif %}
+    {% for ep in w.editableProperty %}<editableProperty>{{ ep }}</editableProperty>{% endfor %}
+    {% if w.moduleConfigProperties is not none %}{{ w.moduleConfigProperties | dict_to_xml('moduleConfigProperties') | safe }}{% endif %}
+    {% if w.enabledModifierGroups is not none %}{{ w.enabledModifierGroups | dict_to_xml('enabledModifierGroups') | safe }}{% endif %}
+    {% if w.maxEnsembleParts is not none %}<maxEnsembleParts>{{ w.maxEnsembleParts }}</maxEnsembleParts>{% endif %}
+    {% if w.waterCoachDelay is not none %}{{ w.waterCoachDelay | dict_to_xml('waterCoachDelay') | safe }}{% endif %}
+    {% if w.timeOut is not none %}{{ w.timeOut | dict_to_xml('timeOut') | safe }}{% endif %}
+    {% if w.approvalEventCode is not none %}<approvalEventCode>{{ w.approvalEventCode }}</approvalEventCode>{% endif %}
+    {% if w.whatIfTemplateId is not none %}<whatIfTemplateId>{{ w.whatIfTemplateId }}</whatIfTemplateId>{% endif %}
+    {% if w.whatIfScenarioRequired is not none %}<whatIfScenarioRequired>{{ 'true' if w.whatIfScenarioRequired else 'false' }}</whatIfScenarioRequired>{% endif %}
+  </workflowDescriptor>
+    {%- endif %}
+{%- endmacro -%}
 <?xml version="1.0" encoding="UTF-8"?>
 <workflowDescriptors xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/workflowDescriptors.xsd" version="{{ version }}">
-{% for w in workflowDescriptor -%}
-{%- set has_body = w.description is not none or w.cardinalTimeStep is not none -%}
-{%- if has_body %}
-  <workflowDescriptor id="{{ w.id }}"{% if w.name is not none %} name="{{ w.name }}"{% endif %}{% if w.visible is not none %} visible="{{ 'true' if w.visible else 'false' }}"{% endif %}{% if w.forecast is not none %} forecast="{{ 'true' if w.forecast else 'false' }}"{% endif %}{% if w.autoApprove is not none %} autoApprove="{{ 'true' if w.autoApprove else 'false' }}"{% endif %}{% if w.allowApprove is not none %} allowApprove="{{ 'true' if w.allowApprove else 'false' }}"{% endif %}>
-    {% if w.description is not none %}<description>{{ w.description }}</description>{% endif %}
-    {%- if w.cardinalTimeStep is not none %}
-    {%- if w.cardinalTimeStep.id is not none %}
-    <cardinalTimeStep id="{{ w.cardinalTimeStep.id }}"/>
-    {%- else %}
-    <cardinalTimeStep{% if w.cardinalTimeStep.unit is not none %} unit="{{ w.cardinalTimeStep.unit }}"{% endif %}{% if w.cardinalTimeStep.multiplier is not none %} multiplier="{{ w.cardinalTimeStep.multiplier }}"{% endif %}{% if w.cardinalTimeStep.timeZone is not none %} timeZone="{{ w.cardinalTimeStep.timeZone }}"{% endif %}/>
-    {%- endif %}
-    {%- endif %}
-  </workflowDescriptor>
-{%- else %}
-  <workflowDescriptor id="{{ w.id }}"{% if w.name is not none %} name="{{ w.name }}"{% endif %}{% if w.visible is not none %} visible="{{ 'true' if w.visible else 'false' }}"{% endif %}{% if w.forecast is not none %} forecast="{{ 'true' if w.forecast else 'false' }}"{% endif %}{% if w.autoApprove is not none %} autoApprove="{{ 'true' if w.autoApprove else 'false' }}"{% endif %}{% if w.allowApprove is not none %} allowApprove="{{ 'true' if w.allowApprove else 'false' }}"{% endif %}/>
-{%- endif %}
+{% for w in workflowDescriptor %}
+  {{ emit_wd(w) }}
 {% endfor %}
   {% if rootNode is not none %}
   <rootNode>
@@ -26,4 +63,9 @@
     {% endfor %}
   </rootNode>
   {% endif %}
+  {% for gn in node %}
+  <node id="{{ gn.id }}"{% if gn.name is not none %} name="{{ gn.name }}"{% endif %}>
+    {% for wid in gn.workflowId %}<workflowId>{{ wid }}</workflowId>{% endfor %}
+  </node>
+  {% endfor %}
 </workflowDescriptors>

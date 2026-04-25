@@ -198,6 +198,37 @@ from fews_agent.schema import (
     Workflow,
     WorkflowDescriptors,
     WorkflowTestRun,
+    # Promoted GenericXmlFile passthroughs
+    Archives,
+    ChartLayer,
+    ClientConfig,
+    ColorSchemes,
+    ExportArchiveModule,
+    GridDisplay,
+    GridPlotGroups,
+    Mc,
+    McInstall,
+    McSystemAlerter,
+    Reports,
+    ScadaDisplay,
+    SecondaryValidation,
+    TimeSeriesExportRun,
+    TopologyGroup,
+    TransformationCoefficientSets,
+    TransformationSets,
+    ValuePropertiesEntryDisplay,
+    WaterCoachScript,
+    WebOperatorClient,
+    WebServices,
+    WhatIfScenarioEditor,
+    # Track 1 typed wrappers
+    DisplayGroups,
+    Explorer,
+    Filters,
+    Grids,
+    LocationSets,
+    Products,
+    SpatialDisplay,
 )
 
 from . import (
@@ -387,6 +418,37 @@ from . import (
     what_if_scenario_filters,
     what_if_scenarios,
     midlands_models,
+    # Promoted GenericXmlFile passthroughs (typed)
+    archives,
+    chart_layer,
+    client_config,
+    color_schemes,
+    export_archive_module,
+    grid_display,
+    grid_plot_groups,
+    mc,
+    mc_install,
+    mc_system_alerter,
+    reports,
+    scada_display,
+    secondary_validation,
+    time_series_export_run,
+    topology_group,
+    transformation_coefficient_sets,
+    transformation_sets,
+    value_properties_entry_display,
+    water_coach_script,
+    web_operator_client,
+    web_services,
+    what_if_scenario_editor,
+    # Track 1 typed wrappers
+    display_groups,
+    explorer,
+    filters,
+    grids,
+    location_sets,
+    products,
+    spatial_display,
 )
 from .base import GeneratorSpec
 
@@ -2028,54 +2090,177 @@ SPECS: list[GeneratorSpec] = [
         generate=transformation_module.generate,
         output_relpath=Path("ModuleConfigFiles/Postprocess/Model/PostprocessModelOutputToStationTemplate.xml"),
     ),
-    # Generic-body file types — 7 registry/UI configs whose structure is
-    # too broad for field-by-field modelling. Each uses GenericXmlFile
-    # (just a `body` dict) with a tiny per-type template that wraps the
-    # FEWS root tag around the dict_to_xml output.
-    *[
-        GeneratorSpec(
-            name=key,
-            input_key=key,
-            model_class=GenericXmlFile,
-            template_name=template,
-            generate=(lambda t: lambda m: generic_xml_file.generate(m, t))(template),
-            output_relpath=Path(path),
-        )
-        for key, template, path in [
-            ("productsFile",       "region/products.xml.j2",        "RegionConfigFiles/Products.xml"),
-            ("gridsFile",          "region/grids.xml.j2",           "RegionConfigFiles/Grids.xml"),
-            ("locationSetsFile",   "region/location_sets.xml.j2",   "RegionConfigFiles/LocationSets.xml"),
-            ("filtersFile",        "region/filters.xml.j2",         "RegionConfigFiles/Filters.xml"),
-            ("displayGroupsFile",  "system/display_groups.xml.j2",  "SystemConfigFiles/DisplayGroups.xml"),
-            ("explorerFile",       "system/explorer.xml.j2",        "SystemConfigFiles/Explorer.xml"),
-            ("spatialDisplayFile", "display/spatial_display.xml.j2", "DisplayConfigFiles/SpatialDisplay.xml"),
-            # Large, UI-specific config types — passthrough via GenericXmlFile.
-            ("reportsFile",              "module/reports.xml.j2",                 "ModuleConfigFiles/Reports.xml"),
-            ("colorSchemesFile",         "system/color_schemes.xml.j2",           "SystemConfigFiles/ColorSchemes.xml"),
-            ("exportArchiveModuleFile",  "module/export_archive_module.xml.j2",   "ModuleConfigFiles/ExportArchiveModule.xml"),
-            ("scadaDisplayFile",         "display/scada_display.xml.j2",          "DisplayConfigFiles/ScadaDisplay.xml"),
-            ("clientConfigFile",         "system/client_config.xml.j2",           "SystemConfigFiles/ClientConfig.xml"),
-            ("secondaryValidationFile",  "region/secondary_validation.xml.j2",    "RegionConfigFiles/SecondaryValidation.xml"),
-            ("topologyGroupFile",        "region/topology_group.xml.j2",          "RegionConfigFiles/TopologyGroup.xml"),
-            ("mcFile",                   "system/mc.xml.j2",                      "SystemConfigFiles/Mc.xml"),
-            ("timeSeriesExportRunFile",  "module/time_series_export_run.xml.j2",  "ModuleConfigFiles/TimeSeriesExportRun.xml"),
-            ("archivesFile",             "system/archives.xml.j2",                "SystemConfigFiles/Archives.xml"),
-            # Batch 70 — 10 more UI / registry / big-tree files via passthrough.
-            ("webOperatorClientFile",          "system/web_operator_client.xml.j2",            "SystemConfigFiles/WebOperatorClient.xml"),
-            ("webServicesFile",                "system/web_services.xml.j2",                   "SystemConfigFiles/WebServices.xml"),
-            ("valuePropertiesEntryDisplayFile","display/value_properties_entry_display.xml.j2","DisplayConfigFiles/ValuePropertiesEntryDisplay.xml"),
-            ("whatIfScenarioEditorFile",       "region/what_if_scenario_editor.xml.j2",        "RegionConfigFiles/WhatIfScenarioEditor.xml"),
-            ("waterCoachScriptFile",           "system/water_coach_script.xml.j2",             "SystemConfigFiles/WaterCoachScript.xml"),
-            ("transformationSetsFile",         "region/transformation_sets.xml.j2",            "RegionConfigFiles/TransformationSets.xml"),
-            ("mcSystemAlerterFile",            "system/mc_system_alerter.xml.j2",              "SystemConfigFiles/McSystemAlerter.xml"),
-            ("gridDisplayFile",                "display/grid_display.xml.j2",                  "DisplayConfigFiles/GridDisplay.xml"),
-            ("chartLayerFile",                 "display/chart_layer.xml.j2",                   "DisplayConfigFiles/ChartLayer.xml"),
-            # Batch 71 — final 9 XSDs via passthrough (100% XSD coverage).
-            ("gridPlotGroupsFile",                "display/grid_plot_groups.xml.j2",                "DisplayConfigFiles/GridPlotGroups.xml"),
-            ("transformationCoefficientSetsFile", "region/transformation_coefficient_sets.xml.j2",  "RegionConfigFiles/TransformationCoefficientSets.xml"),
-            ("mcInstallFile",                     "system/mc_install.xml.j2",                       "SystemConfigFiles/McInstall.xml"),
-        ]
-    ],
+    # Track 1 typed-wrapper passthroughs — schema is a dedicated typed
+    # class (not GenericXmlFile) but the body still flows through
+    # dict_to_xml to preserve byte-equivalent tutorial regression.
+    GeneratorSpec(
+        name="productsFile", input_key="productsFile", model_class=Products,
+        template_name="region/products.xml.j2", generate=products.generate,
+        output_relpath=Path("RegionConfigFiles/Products.xml"),
+    ),
+    GeneratorSpec(
+        name="gridsFile", input_key="gridsFile", model_class=Grids,
+        template_name="region/grids.xml.j2", generate=grids.generate,
+        output_relpath=Path("RegionConfigFiles/Grids.xml"),
+    ),
+    GeneratorSpec(
+        name="locationSetsFile", input_key="locationSetsFile", model_class=LocationSets,
+        template_name="region/location_sets.xml.j2", generate=location_sets.generate,
+        output_relpath=Path("RegionConfigFiles/LocationSets.xml"),
+    ),
+    GeneratorSpec(
+        name="filtersFile", input_key="filtersFile", model_class=Filters,
+        template_name="region/filters.xml.j2", generate=filters.generate,
+        output_relpath=Path("RegionConfigFiles/Filters.xml"),
+    ),
+    GeneratorSpec(
+        name="displayGroupsFile", input_key="displayGroupsFile", model_class=DisplayGroups,
+        template_name="system/display_groups.xml.j2", generate=display_groups.generate,
+        output_relpath=Path("SystemConfigFiles/DisplayGroups.xml"),
+    ),
+    GeneratorSpec(
+        name="explorerFile", input_key="explorerFile", model_class=Explorer,
+        template_name="system/explorer.xml.j2", generate=explorer.generate,
+        output_relpath=Path("SystemConfigFiles/Explorer.xml"),
+    ),
+    GeneratorSpec(
+        name="spatialDisplayFile", input_key="spatialDisplayFile", model_class=SpatialDisplay,
+        template_name="display/spatial_display.xml.j2", generate=spatial_display.generate,
+        output_relpath=Path("DisplayConfigFiles/SpatialDisplay.xml"),
+    ),
+    # ---------------- Promoted typed passthroughs (22 specs) -----------
+    GeneratorSpec(
+        name="reportsFile", input_key="reportsFile", model_class=Reports,
+        template_name="module/reports.xml.j2", generate=reports.generate,
+        output_relpath=Path("ModuleConfigFiles/Reports.xml"),
+    ),
+    GeneratorSpec(
+        name="clientConfigFile", input_key="clientConfigFile", model_class=ClientConfig,
+        template_name="system/client_config.xml.j2", generate=client_config.generate,
+        output_relpath=Path("SystemConfigFiles/ClientConfig.xml"),
+    ),
+    GeneratorSpec(
+        name="valuePropertiesEntryDisplayFile", input_key="valuePropertiesEntryDisplayFile",
+        model_class=ValuePropertiesEntryDisplay,
+        template_name="display/value_properties_entry_display.xml.j2",
+        generate=value_properties_entry_display.generate,
+        output_relpath=Path("DisplayConfigFiles/ValuePropertiesEntryDisplay.xml"),
+    ),
+    GeneratorSpec(
+        name="whatIfScenarioEditorFile", input_key="whatIfScenarioEditorFile",
+        model_class=WhatIfScenarioEditor,
+        template_name="region/what_if_scenario_editor.xml.j2",
+        generate=what_if_scenario_editor.generate,
+        output_relpath=Path("RegionConfigFiles/WhatIfScenarioEditor.xml"),
+    ),
+    GeneratorSpec(
+        name="transformationSetsFile", input_key="transformationSetsFile",
+        model_class=TransformationSets,
+        template_name="region/transformation_sets.xml.j2",
+        generate=transformation_sets.generate,
+        output_relpath=Path("RegionConfigFiles/TransformationSets.xml"),
+    ),
+    GeneratorSpec(
+        name="transformationCoefficientSetsFile", input_key="transformationCoefficientSetsFile",
+        model_class=TransformationCoefficientSets,
+        template_name="region/transformation_coefficient_sets.xml.j2",
+        generate=transformation_coefficient_sets.generate,
+        output_relpath=Path("RegionConfigFiles/TransformationCoefficientSets.xml"),
+    ),
+    GeneratorSpec(
+        name="colorSchemesFile", input_key="colorSchemesFile", model_class=ColorSchemes,
+        template_name="system/color_schemes.xml.j2", generate=color_schemes.generate,
+        output_relpath=Path("SystemConfigFiles/ColorSchemes.xml"),
+    ),
+    GeneratorSpec(
+        name="scadaDisplayFile", input_key="scadaDisplayFile", model_class=ScadaDisplay,
+        template_name="display/scada_display.xml.j2", generate=scada_display.generate,
+        output_relpath=Path("DisplayConfigFiles/ScadaDisplay.xml"),
+    ),
+    GeneratorSpec(
+        name="mcSystemAlerterFile", input_key="mcSystemAlerterFile",
+        model_class=McSystemAlerter,
+        template_name="system/mc_system_alerter.xml.j2",
+        generate=mc_system_alerter.generate,
+        output_relpath=Path("SystemConfigFiles/McSystemAlerter.xml"),
+    ),
+    GeneratorSpec(
+        name="webOperatorClientFile", input_key="webOperatorClientFile",
+        model_class=WebOperatorClient,
+        template_name="system/web_operator_client.xml.j2",
+        generate=web_operator_client.generate,
+        output_relpath=Path("SystemConfigFiles/WebOperatorClient.xml"),
+    ),
+    GeneratorSpec(
+        name="mcFile", input_key="mcFile", model_class=Mc,
+        template_name="system/mc.xml.j2", generate=mc.generate,
+        output_relpath=Path("SystemConfigFiles/Mc.xml"),
+    ),
+    GeneratorSpec(
+        name="archivesFile", input_key="archivesFile", model_class=Archives,
+        template_name="system/archives.xml.j2", generate=archives.generate,
+        output_relpath=Path("SystemConfigFiles/Archives.xml"),
+    ),
+    GeneratorSpec(
+        name="gridDisplayFile", input_key="gridDisplayFile", model_class=GridDisplay,
+        template_name="display/grid_display.xml.j2", generate=grid_display.generate,
+        output_relpath=Path("DisplayConfigFiles/GridDisplay.xml"),
+    ),
+    GeneratorSpec(
+        name="gridPlotGroupsFile", input_key="gridPlotGroupsFile",
+        model_class=GridPlotGroups,
+        template_name="display/grid_plot_groups.xml.j2",
+        generate=grid_plot_groups.generate,
+        output_relpath=Path("DisplayConfigFiles/GridPlotGroups.xml"),
+    ),
+    GeneratorSpec(
+        name="exportArchiveModuleFile", input_key="exportArchiveModuleFile",
+        model_class=ExportArchiveModule,
+        template_name="module/export_archive_module.xml.j2",
+        generate=export_archive_module.generate,
+        output_relpath=Path("ModuleConfigFiles/ExportArchiveModule.xml"),
+    ),
+    GeneratorSpec(
+        name="topologyGroupFile", input_key="topologyGroupFile", model_class=TopologyGroup,
+        template_name="region/topology_group.xml.j2", generate=topology_group.generate,
+        output_relpath=Path("RegionConfigFiles/TopologyGroup.xml"),
+    ),
+    GeneratorSpec(
+        name="secondaryValidationFile", input_key="secondaryValidationFile",
+        model_class=SecondaryValidation,
+        template_name="region/secondary_validation.xml.j2",
+        generate=secondary_validation.generate,
+        output_relpath=Path("RegionConfigFiles/SecondaryValidation.xml"),
+    ),
+    GeneratorSpec(
+        name="timeSeriesExportRunFile", input_key="timeSeriesExportRunFile",
+        model_class=TimeSeriesExportRun,
+        template_name="module/time_series_export_run.xml.j2",
+        generate=time_series_export_run.generate,
+        output_relpath=Path("ModuleConfigFiles/TimeSeriesExportRun.xml"),
+    ),
+    GeneratorSpec(
+        name="waterCoachScriptFile", input_key="waterCoachScriptFile",
+        model_class=WaterCoachScript,
+        template_name="system/water_coach_script.xml.j2",
+        generate=water_coach_script.generate,
+        output_relpath=Path("SystemConfigFiles/WaterCoachScript.xml"),
+    ),
+    GeneratorSpec(
+        name="webServicesFile", input_key="webServicesFile", model_class=WebServices,
+        template_name="system/web_services.xml.j2", generate=web_services.generate,
+        output_relpath=Path("SystemConfigFiles/WebServices.xml"),
+    ),
+    GeneratorSpec(
+        name="mcInstallFile", input_key="mcInstallFile", model_class=McInstall,
+        template_name="system/mc_install.xml.j2", generate=mc_install.generate,
+        output_relpath=Path("SystemConfigFiles/McInstall.xml"),
+    ),
+    GeneratorSpec(
+        name="chartLayerFile", input_key="chartLayerFile", model_class=ChartLayer,
+        template_name="display/chart_layer.xml.j2", generate=chart_layer.generate,
+        output_relpath=Path("DisplayConfigFiles/ChartLayer.xml"),
+    ),
 ]
 
 __all__ = ["SPECS", "GeneratorSpec"]

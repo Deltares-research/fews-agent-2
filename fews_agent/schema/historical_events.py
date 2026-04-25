@@ -12,10 +12,11 @@ tutorial-style files are homogeneous, so this covers the common case.
 from __future__ import annotations
 
 from decimal import Decimal
+from typing import Any
 
 from pydantic import Field, model_validator
 
-from .common import FewsModel, RelativeViewPeriod, TimeStep, TimeZone
+from .common import FewsModel, RelativeViewPeriod, TimeSeriesSet, TimeStep, TimeZone
 from .ids import LocationId, ParameterId
 
 
@@ -35,13 +36,25 @@ class EventDataPoint(FewsModel):
 
 
 class EventData(FewsModel):
-    """Defined-data form of <eventData> — the VariableComplexType branch used
-    in all tutorial HistoricalEvents snippets."""
+    """XSD VariableComplexType — eventData can take three forms:
+      1. Defined-data (timeStep + relativeViewPeriod + data[] + timeZone)
+      2. External (timeSeriesSet reference)
+      3. Harmonic (component list)
+    Only the first is typed fully; the other two accept dict passthroughs.
+    Carries three optional attributes (variableId, variableType, convertDatum).
+    """
 
+    # Attributes
+    variableId: str | None = None
+    variableType: str | None = None
+    convertDatum: bool | None = None
+    # Elements (choice between three branches)
     timeStep: TimeStep | None = None
     relativeViewPeriod: RelativeViewPeriod | None = None
-    data: list[EventDataPoint] = Field(min_length=1)
+    data: list[EventDataPoint] = Field(default_factory=list)
     timeZone: TimeZone | None = None
+    timeSeriesSet: list[TimeSeriesSet] = Field(default_factory=list)
+    component: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class HistoricalEvent(FewsModel):

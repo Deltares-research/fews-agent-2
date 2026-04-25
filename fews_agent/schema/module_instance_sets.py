@@ -13,7 +13,9 @@ from .ids import ModuleInstanceId, ModuleInstanceSetId
 class ModuleInstanceSet(FewsModel):
     id: ModuleInstanceSetId
     name: str | None = None
-    moduleInstanceId: list[ModuleInstanceId] = Field(min_length=1)
+    description: str | None = None
+    moduleInstanceId: list[ModuleInstanceId] = Field(default_factory=list)
+    moduleInstanceIdPattern: list[str] = Field(default_factory=list)
 
 
 class ModuleInstanceSets(FewsModel):

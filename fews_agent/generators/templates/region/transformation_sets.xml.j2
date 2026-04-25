@@ -1,2 +1,14 @@
-{%- import "_partials/generic_root.xml.j2" as g -%}
-{{ g.render("transformationSets", "transformationSets.xsd", body) }}
+{%- import "_partials/variable.xml.j2" as var -%}
+<?xml version="1.0" encoding="UTF-8"?>
+<transformationSets xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/transformationSets.xsd" version="1.1">
+{% if logLevel is not none %}  <logLevel>{{ logLevel }}</logLevel>
+{% endif %}
+{% for ts in transformationSet %}  <transformationSet{% if ts.transformationId is not none %} transformationId="{{ ts.transformationId }}"{% endif %}>
+    {% for v in ts.inputVariable %}{{ var.render(v, "inputVariable") }}
+    {% endfor %}
+    {{ ts.algorithm | dict_to_xml | safe }}
+    {% for v in ts.outputVariable %}{{ var.render(v, "outputVariable") }}
+    {% endfor %}
+  </transformationSet>
+{% endfor %}
+</transformationSets>

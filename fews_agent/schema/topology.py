@@ -26,14 +26,29 @@ class TopologyNodeLeaf(FewsModel):
     this on forecast-run nodes to reveal NWP-specific modifiers.
     """
 
+    # Attrs
     id: TopologyNodeId
     name: str | None = None
+    # XSD sequence: previousNodeId[], nextNodeId, locationId/locationSetId choice,
+    # tabularLocationId[], runOptionsGroup (workflowId/url/graceTime/visibleModifierGroup),
+    # componentSettingsId, LocalRunOptionsChoice (localRun), showRunApprovedForecastButton,
+    # then the color fields.
+    previousNodeId: list[str] = Field(default_factory=list)
+    nextNodeId: str | None = None
+    locationId: list[str] = Field(default_factory=list)
+    locationSetId: str | None = None
+    tabularLocationId: list[str] = Field(default_factory=list)
     workflowId: WorkflowId | None = None
     url: str | None = None
     graceTime: UnitMultiplier | None = None
     visibleModifierGroup: list[ModifierId] = Field(default_factory=list)
+    componentSettingsId: str | None = None
     localRun: bool | None = None
     showRunApprovedForecastButton: bool | None = None
+    backgroundSelectionColor: str | None = None
+    backgroundNonSelectionColor: str | None = None
+    textSelectionColor: str | None = None
+    textNonSelectionColor: str | None = None
 
 
 class TopologyNodeGroup(FewsModel):
@@ -41,8 +56,15 @@ class TopologyNodeGroup(FewsModel):
 
     id: TopologyNodeId
     name: str | None = None
+    showModifiers: bool | None = None
+    showRunApprovedForecastButton: bool | None = None
     nodes: list[TopologyNodeGroup] = Field(default_factory=list)
     node: list[TopologyNodeLeaf] = Field(default_factory=list)
+    groupId: list[str] = Field(default_factory=list)
+    backgroundSelectionColor: str | None = None
+    backgroundNonSelectionColor: str | None = None
+    textSelectionColor: str | None = None
+    textNonSelectionColor: str | None = None
 
 
 class Topology(FewsModel):

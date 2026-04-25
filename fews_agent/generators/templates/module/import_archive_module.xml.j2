@@ -16,13 +16,27 @@
   {% endfor %}
   {% for i in importExternalForecast %}{{ basic(i, 'importExternalForecast') }}
   {% endfor %}
-  {% for i in importHistoricalEvents %}{{ basic(i, 'importHistoricalEvents') }}
+  {% for i in importHistoricalEvents %}<importHistoricalEvents>
+    <importFolder>{{ i.importFolder }}</importFolder>
+    {% if i.failedFolder is not none %}<failedFolder>{{ i.failedFolder }}</failedFolder>{% endif %}
+    {% if i.backupFolder is not none %}<backupFolder>{{ i.backupFolder }}</backupFolder>{% endif %}
+    <idMapId>{{ i.idMapId }}</idMapId>
+    {% if i.dataFeedId is not none %}<dataFeedId>{{ i.dataFeedId }}</dataFeedId>{% endif %}
+    {% if i.disableDataFeedInfo %}<disableDataFeedInfo/>{% endif %}
+  </importHistoricalEvents>
   {% endfor %}
-  {% for i in importRatingCurves %}{{ basic(i, 'importRatingCurves') }}
+  {% for i in importRatingCurves %}<importRatingCurves>
+    <importFolder>{{ i.importFolder }}</importFolder>
+  </importRatingCurves>
   {% endfor %}
-  {% for i in importEditedData %}{{ basic(i, 'importEditedData') }}
+  {% for i in importEditedData %}<importEditedData>
+    <importFolder>{{ i.importFolder }}</importFolder>
+  </importEditedData>
   {% endfor %}
-  {% for i in importRequestedDataSets %}{{ basic(i, 'importRequestedDataSets') }}
+  {% for i in importRequestedDataSets %}<importRequestedDataSets>
+    <importFolder>{{ i.importFolder }}</importFolder>
+    <dataFolderArchive>{{ i.dataFolderArchive }}</dataFolderArchive>
+  </importRequestedDataSets>
   {% endfor %}
   {% if logErrorsAsWarnings is not none %}<logErrorsAsWarnings>{{ 'true' if logErrorsAsWarnings else 'false' }}</logErrorsAsWarnings>{% endif %}
   {% if logErrorsAsWarningsToFileOnly is not none %}<logErrorsAsWarningsToFileOnly>{{ 'true' if logErrorsAsWarningsToFileOnly else 'false' }}</logErrorsAsWarningsToFileOnly>{% endif %}

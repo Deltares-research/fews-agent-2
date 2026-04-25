@@ -99,6 +99,7 @@ class RelativeViewPeriod(FewsModel):
     end: int | str | None = None
     startOverrulable: bool | None = None
     endOverrulable: bool | None = None
+    description: str | None = None
 
     @model_validator(mode="after")
     def _start_le_end(self) -> RelativeViewPeriod:
@@ -196,7 +197,8 @@ class UnitMultiplier(FewsModel):
     """
 
     unit: TimeUnit
-    multiplier: Annotated[int, Field(ge=0)]
+    multiplier: Annotated[int, Field(ge=0)] | None = None
+    divider: int | None = None
 
 
 class ExternUnit(FewsModel):
@@ -335,11 +337,12 @@ class Addition(FewsModel):
 
 
 class ExtremeValueLimit(FewsModel):
-    """One extreme-value bound.
+    """One extreme-value bound (ExtremeValuesValidationLimitComplexType).
 
     In XML each bound is an element with a `constantLimit` attribute:
-    `<hardMax constantLimit="500"/>`. The XSD also supports other forms
-    (referencing another series) which we can add as they appear.
+    `<hardMax constantLimit="500"/>`. Optional `label` and `comment`
+    attributes, and an optional list of 12 `<monthLimit>` children may
+    override the constant for specific months.
 
     `constantLimit` is stored as str to preserve the exact source text:
     tutorial values are integer-like ("500", "0"), which a Python float
@@ -347,11 +350,20 @@ class ExtremeValueLimit(FewsModel):
     """
 
     constantLimit: str
+    label: str | None = None
+    comment: str | None = None
+    monthLimit: list[dict] = Field(default_factory=list)
 
 
 class ExtremeValues(FewsModel):
-    """Validation extremes; all bounds optional."""
+    """Validation extremes; all bounds optional.
 
+    ``locationId`` (optional attribute) restricts the extreme-value rule
+    to a single location. When omitted, the rule applies to every
+    location reached by the validationRuleSet's timeSeriesSets.
+    """
+
+    locationId: str | None = None
     hardMax: ExtremeValueLimit | None = None
     hardMin: ExtremeValueLimit | None = None
     softMax: ExtremeValueLimit | None = None
@@ -375,11 +387,19 @@ class TimeSeriesSet(FewsModel):
     # `$TIMESERIESTYPE$` in these fields. Typing as plain str keeps FEWS
     # runtime substitution intact; enum validity is checked by the XSD /
     # FEWS itself at runtime.
-    moduleInstanceId: ModuleInstanceId
+    moduleInstanceId: ModuleInstanceId | None = None
+    moduleInstanceSetId: str | None = None
+    filterModuleInstanceSetId: str | None = None
     valueType: str
     parameterId: ParameterId
     locationId: LocationId | None = None
     locationSetId: LocationSetId | None = None
+    chainageLocationSetId: str | None = None
+    # Optional inner sequence — locationRelationId + optional
+    # skipLocationsWithoutRelation — wedged between qualifierId and the
+    # location choice in the XSD.
+    locationRelationId: str | None = None
+    skipLocationsWithoutRelation: bool | None = None
     timeSeriesType: str
     timeStep: TimeStep
     readWriteMode: str
@@ -416,11 +436,31 @@ class TimeSeriesSet(FewsModel):
 
     @model_validator(mode="after")
     def _location_xor_set(self) -> TimeSeriesSet:
-        has_loc = self.locationId is not None
-        has_set = self.locationSetId is not None
-        if has_loc == has_set:
+        # Location choice: exactly one of locationId / locationSetId /
+        # chainageLocationSetId. The XSD also has locationRelationId in
+        # an optional inner sequence BEFORE the location choice; it's
+        # not a location-form on its own.
+        loc_variants = [
+            self.locationId is not None,
+            self.locationSetId is not None,
+            self.chainageLocationSetId is not None,
+        ]
+        if sum(loc_variants) != 1:
             raise ValueError(
-                "timeSeriesSet: supply exactly one of locationId or locationSetId"
+                "timeSeriesSet: supply exactly one of locationId / "
+                "locationSetId / chainageLocationSetId"
+            )
+        # Module-instance choice: exactly one of moduleInstanceId /
+        # moduleInstanceSetId / filterModuleInstanceSetId.
+        mi_variants = [
+            self.moduleInstanceId is not None,
+            self.moduleInstanceSetId is not None,
+            self.filterModuleInstanceSetId is not None,
+        ]
+        if sum(mi_variants) != 1:
+            raise ValueError(
+                "timeSeriesSet: supply exactly one of moduleInstanceId / "
+                "moduleInstanceSetId / filterModuleInstanceSetId"
             )
         # Also enforce the ensemble-member choice: at most one of the three forms
         ens_variants = sum([

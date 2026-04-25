@@ -1,2 +1,9 @@
-{%- import "_partials/generic_root.xml.j2" as g -%}
-{{ g.render("gridDisplay", "gridDisplay.xsd", body) }}
+<?xml version="1.0" encoding="UTF-8"?>
+<gridDisplay xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/gridDisplay.xsd">
+  <title>{{ title }}</title>
+  {% if showPlotTreeHideAllToolWindows is not none %}<showPlotTreeHideAllToolWindows>{{ 'true' if showPlotTreeHideAllToolWindows else 'false' }}</showPlotTreeHideAllToolWindows>{% endif %}
+  {% if exportShapeIdFunction is not none %}<exportShapeIdFunction>{{ exportShapeIdFunction }}</exportShapeIdFunction>{% endif %}
+  {% for d in defaults %}<defaults>{{ d | dict_to_xml | safe }}</defaults>{% endfor %}
+  {% for g in gridPlotGroup %}<gridPlotGroup>{{ g | dict_to_xml | safe }}</gridPlotGroup>{% endfor %}
+  {% for gid in gridPlotGroupId %}<gridPlotGroupId>{{ gid }}</gridPlotGroupId>{% endfor %}
+</gridDisplay>

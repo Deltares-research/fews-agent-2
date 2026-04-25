@@ -4,13 +4,13 @@
 {% macro render(ts, tag="timeSeriesSet") -%}
 <{{ tag }}{% if ts.id is not none %} id="{{ ts.id }}"{% endif %}{% if ts.name is not none %} name="{{ ts.name }}"{% endif %}>
   {% if ts.description is not none %}<description>{{ ts.description }}</description>
-  {% endif %}<moduleInstanceId>{{ ts.moduleInstanceId }}</moduleInstanceId>
+  {% endif %}{% if ts.moduleInstanceId is not none %}<moduleInstanceId>{{ ts.moduleInstanceId }}</moduleInstanceId>{% elif ts.moduleInstanceSetId is not none %}<moduleInstanceSetId>{{ ts.moduleInstanceSetId }}</moduleInstanceSetId>{% else %}<filterModuleInstanceSetId>{{ ts.filterModuleInstanceSetId }}</filterModuleInstanceSetId>{% endif %}
   <valueType>{{ ts.valueType }}</valueType>
   <parameterId>{{ ts.parameterId }}</parameterId>
   {% for dp in ts.domainParameterId %}<domainParameterId>{{ dp }}</domainParameterId>
   {% endfor %}{% if ts.qualifierId is not none %}<qualifierId>{{ ts.qualifierId }}</qualifierId>{% endif %}
-  {% if ts.locationId is not none %}<locationId>{{ ts.locationId }}</locationId>{% endif %}
-  {% if ts.locationSetId is not none %}<locationSetId>{{ ts.locationSetId }}</locationSetId>{% endif %}
+  {% if ts.locationRelationId is not none %}<locationRelationId>{{ ts.locationRelationId }}</locationRelationId>{% if ts.skipLocationsWithoutRelation is not none %}<skipLocationsWithoutRelation>{{ 'true' if ts.skipLocationsWithoutRelation else 'false' }}</skipLocationsWithoutRelation>{% endif %}{% endif %}
+  {% if ts.locationId is not none %}<locationId>{{ ts.locationId }}</locationId>{% elif ts.locationSetId is not none %}<locationSetId>{{ ts.locationSetId }}</locationSetId>{% else %}<chainageLocationSetId>{{ ts.chainageLocationSetId }}</chainageLocationSetId>{% endif %}
   <timeSeriesType>{{ ts.timeSeriesType }}</timeSeriesType>
   {% if ts.timeStep.id is not none %}<timeStep id="{{ ts.timeStep.id }}"/>
   {% else %}<timeStep unit="{{ ts.timeStep.unit }}"{% if ts.timeStep.multiplier is not none %} multiplier="{{ ts.timeStep.multiplier }}"{% endif %}/>{% endif %}

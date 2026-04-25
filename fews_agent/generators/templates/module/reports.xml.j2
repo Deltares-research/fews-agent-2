@@ -1,2 +1,111 @@
-{%- import "_partials/generic_root.xml.j2" as g -%}
-{{ g.render("reports", "reports.xsd", body) }}
+{# Helper: emit a list of dict-bodied children under one tag name, in
+   order. Each list item becomes one <tag>...</tag> with its dict
+   contents rendered via dict_to_xml (handles @attr and child elems). #}
+{%- macro emit_list(tag, items) -%}
+{%- for it in items -%}
+<{{ tag }}{% for k, v in it.items() if k.startswith('@') %} {{ k[1:] }}="{{ v }}"{% endfor %}>{{ it | dict_to_xml | safe }}</{{ tag }}>
+{% endfor %}
+{%- endmacro -%}
+{%- macro emit_one(tag, item) -%}
+{%- if item is not none -%}
+<{{ tag }}{% for k, v in item.items() if k.startswith('@') %} {{ k[1:] }}="{{ v }}"{% endfor %}>{{ item | dict_to_xml | safe }}</{{ tag }}>
+{%- endif -%}
+{%- endmacro -%}
+<?xml version="1.0" encoding="UTF-8"?>
+<reports xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/reports.xsd" version="1.0">
+  <declarations>
+    {{ emit_list('defineGlobal', declarations.defineGlobal) }}
+    {{ emit_list('chartFormat', declarations.chartFormat) }}
+    {{ emit_list('summaryFormat', declarations.summaryFormat) }}
+    {{ emit_list('tableFormat', declarations.tableFormat) }}
+    {{ emit_list('htmlTableFormat', declarations.htmlTableFormat) }}
+    {{ emit_list('rowPerLocationHtmlTableFormat', declarations.rowPerLocationHtmlTableFormat) }}
+    {{ emit_list('rowPerLocationCsvTableFormat', declarations.rowPerLocationCsvTableFormat) }}
+    {{ emit_list('rowPerEventTimeHtmlTableFormat', declarations.rowPerEventTimeHtmlTableFormat) }}
+    {{ emit_list('thresholdsCrossingsTable', declarations.thresholdsCrossingsTable) }}
+    {{ emit_list('thresholdCrossingCountsTableFormat', declarations.thresholdCrossingCountsTableFormat) }}
+    {{ emit_list('flagCountsTableFormat', declarations.flagCountsTableFormat) }}
+    {{ emit_list('flagSourceCountsTableFormat', declarations.flagSourceCountsTableFormat) }}
+    {{ emit_list('ratingCurveTableFormat', declarations.ratingCurveTableFormat) }}
+    {{ emit_list('ensembleThresholdsTable', declarations.ensembleThresholdsTable) }}
+    {{ emit_list('maximumStatusTable', declarations.maximumStatusTable) }}
+    {{ emit_list('mergedPrecipitationTable', declarations.mergedPrecipitationTable) }}
+    {{ emit_list('modifierSummariesTableFormat', declarations.modifierSummariesTableFormat) }}
+    {{ emit_list('forecastPerformanceTableFormat', declarations.forecastPerformanceTableFormat) }}
+    {{ emit_list('forecastStatisticsTableFormat', declarations.forecastStatisticsTableFormat) }}
+    {{ emit_list('statusFormat', declarations.statusFormat) }}
+    {{ emit_list('systemStatusTable', declarations.systemStatusTable) }}
+    {{ emit_list('floodScenarioFormat', declarations.floodScenarioFormat) }}
+    {{ emit_list('dateFormat', declarations.dateFormat) }}
+    {{ emit_list('numberFormat', declarations.numberFormat) }}
+    {% if declarations.units is not none %}<units>{{ declarations.units }}</units>{% endif %}
+    {% if declarations.generatePdf is not none %}<generatePdf>{{ 'true' if declarations.generatePdf else 'false' }}</generatePdf>{% endif %}
+    {% if declarations.generatePdfCommandLineOptions is not none %}<generatePdfCommandLineOptions>{{ declarations.generatePdfCommandLineOptions }}</generatePdfCommandLineOptions>{% endif %}
+    {{ emit_one('generateImage', declarations.generateImage) }}
+    {% if declarations.templateDir is not none %}<templateDir>{{ declarations.templateDir }}</templateDir>{% endif %}
+    <reportsRootDir>{{ declarations.reportsRootDir }}</reportsRootDir>
+    {% if declarations.reportsRootSubDir is not none %}<reportsRootSubDir>{{ declarations.reportsRootSubDir }}</reportsRootSubDir>{% endif %}
+    {% if declarations.sendToLocalFileSystem is not none %}<sendToLocalFileSystem>{{ 'true' if declarations.sendToLocalFileSystem else 'false' }}</sendToLocalFileSystem>{% endif %}
+    {% if declarations.temporary is not none %}<temporary>{{ 'true' if declarations.temporary else 'false' }}</temporary>{% endif %}
+    {% if declarations.embedImagesInReport is not none %}<embedImagesInReport>{{ 'true' if declarations.embedImagesInReport else 'false' }}</embedImagesInReport>{% endif %}
+    {{ emit_one('timeZone', declarations.timeZone) }}
+    {{ emit_one('locale', declarations.locale) }}
+    {{ emit_list('inputVariable', declarations.inputVariable) }}
+    {% if declarations.dataFeedId is not none %}<dataFeedId>{{ declarations.dataFeedId }}</dataFeedId>{% endif %}
+    {% if declarations.disableDataFeedInfo %}<disableDataFeedInfo/>{% endif %}
+  </declarations>
+{% for r in report %}  <report{% if r.scrubFolder is not none %} scrubFolder="{{ 'true' if r.scrubFolder else 'false' }}"{% endif %}{% if r.sameAxesScale is not none %} sameAxesScale="{{ 'true' if r.sameAxesScale else 'false' }}"{% endif %}{% if r.singleLocation is not none %} singleLocation="{{ 'true' if r.singleLocation else 'false' }}"{% endif %}{% if r.omitLocationIdInOutputFileName is not none %} omitLocationIdInOutputFileName="{{ 'true' if r.omitLocationIdInOutputFileName else 'false' }}"{% endif %}>
+    {% for s in r.locationId %}<locationId>{{ s }}</locationId>{% endfor %}
+    {% for s in r.locationSetId %}<locationSetId>{{ s }}</locationSetId>{% endfor %}
+    {% for s in r.parentLocationId %}<parentLocationId>{{ s }}</parentLocationId>{% endfor %}
+    {% for s in r.parentLocationSetId %}<parentLocationSetId>{{ s }}</parentLocationSetId>{% endfor %}
+    {% for s in r.thresholdLocationId %}<thresholdLocationId>{{ s }}</thresholdLocationId>{% endfor %}
+    {% for s in r.thresholdLocationSetId %}<thresholdLocationSetId>{{ s }}</thresholdLocationSetId>{% endfor %}
+    {{ emit_list('inputVariable', r.inputVariable) }}
+    {{ emit_list('fileResource', r.fileResource) }}
+    {{ emit_list('chart', r.chart) }}
+    {{ emit_list('displayChart', r.displayChart) }}
+    {{ emit_list('ratingCurveChart', r.ratingCurveChart) }}
+    {{ emit_list('summary', r.summary) }}
+    {{ emit_list('table', r.table) }}
+    {{ emit_list('htmlTable', r.htmlTable) }}
+    {{ emit_list('thresholdLabelTable', r.thresholdLabelTable) }}
+    {{ emit_list('valuePropertiesTags', r.valuePropertiesTags) }}
+    {{ emit_list('hwLwHtmlTable', r.hwLwHtmlTable) }}
+    {{ emit_list('ratingCurveTable', r.ratingCurveTable) }}
+    {{ emit_list('rowPerLocationHtmlTable', r.rowPerLocationHtmlTable) }}
+    {{ emit_list('rowPerLocationCsvTable', r.rowPerLocationCsvTable) }}
+    {{ emit_list('rowPerEventTimeHtmlTable', r.rowPerEventTimeHtmlTable) }}
+    {{ emit_list('mp4', r.mp4) }}
+    {{ emit_list('avi', r.avi) }}
+    {{ emit_list('animatedGif', r.animatedGif) }}
+    {{ emit_list('spatialPlotSnapshots', r.spatialPlotSnapshots) }}
+    {{ emit_list('schematicStatusDisplayPanelMp4', r.schematicStatusDisplayPanelMp4) }}
+    {{ emit_list('schematicStatusDisplayPanelAvi', r.schematicStatusDisplayPanelAvi) }}
+    {{ emit_list('schematicStatusDisplayPanelAnimatedGif', r.schematicStatusDisplayPanelAnimatedGif) }}
+    {{ emit_list('schematicStatusDisplayPanelSnapshotsPng', r.schematicStatusDisplayPanelSnapshotsPng) }}
+    {{ emit_list('schematicStatusDisplayPanelSnapshotsSvg', r.schematicStatusDisplayPanelSnapshotsSvg) }}
+    {{ emit_list('thresholdsCrossingsTable', r.thresholdsCrossingsTable) }}
+    {{ emit_list('thresholdCrossingCountsTable', r.thresholdCrossingCountsTable) }}
+    {{ emit_list('flagCountsTable', r.flagCountsTable) }}
+    {{ emit_list('flagSourceCountsTable', r.flagSourceCountsTable) }}
+    {{ emit_list('ensembleThresholdsTable', r.ensembleThresholdsTable) }}
+    {{ emit_list('maximumStatusTable', r.maximumStatusTable) }}
+    {{ emit_list('mergedPrecipitationTable', r.mergedPrecipitationTable) }}
+    {{ emit_list('modifierSummariesTable', r.modifierSummariesTable) }}
+    {{ emit_list('forecastPerformanceTable', r.forecastPerformanceTable) }}
+    {{ emit_list('forecastStatisticsTable', r.forecastStatisticsTable) }}
+    {{ emit_list('status', r.status) }}
+    {{ emit_list('systemStatusTable', r.systemStatusTable) }}
+    {{ emit_list('statusShapeFile', r.statusShapeFile) }}
+    {{ emit_one('floodScenarioXml', r.floodScenarioXml) }}
+    {{ emit_one('forecastModelResultsXml', r.forecastModelResultsXml) }}
+    {{ emit_one('forecastThresholdCrossingXml', r.forecastThresholdCrossingXml) }}
+    <template>{{ r.template }}</template>
+    {% if r.outputSubDir is not none %}<outputSubDir>{{ r.outputSubDir }}</outputSubDir>{% endif %}
+    <outputFileName>{{ r.outputFileName }}</outputFileName>
+    {% if r.outputLineSeparator is not none %}<outputLineSeparator>{{ r.outputLineSeparator }}</outputLineSeparator>{% endif %}
+    {{ emit_list('defineLocal', r.defineLocal) }}
+  </report>
+{% endfor %}
+</reports>

@@ -6,7 +6,16 @@
   {% if autoExtendExpiryTime is not none %}<autoExtendExpiryTime>{{ 'true' if autoExtendExpiryTime else 'false' }}</autoExtendExpiryTime>{% endif %}
 {% for m in timeSeriesModifier %}
   <timeSeriesModifier id="{{ m.id }}"{% if m.name is not none %} name="{{ m.name }}"{% endif %}>
-    {% if m.applyToEnsemble is not none %}<applyToEnsemble>{{ m.applyToEnsemble }}</applyToEnsemble>{% endif %}
+    {% if m.modifierTypeDescription is not none %}<modifierTypeDescription>{{ m.modifierTypeDescription }}</modifierTypeDescription>{% endif %}
+    {% if m.expiryTime is not none %}<expiryTime unit="{{ m.expiryTime.unit }}"{% if m.expiryTime.multiplier is not none %} multiplier="{{ m.expiryTime.multiplier }}"{% endif %}/>{% endif %}
+    {% if m.expiryTimeDeletedModifiers is not none %}<expiryTimeDeletedModifiers unit="{{ m.expiryTimeDeletedModifiers.unit }}"{% if m.expiryTimeDeletedModifiers.multiplier is not none %} multiplier="{{ m.expiryTimeDeletedModifiers.multiplier }}"{% endif %}/>{% endif %}
+    {% if m.modifierCardinalTimeStep is not none %}{{ m.modifierCardinalTimeStep | dict_to_xml('modifierCardinalTimeStep') | safe }}{% endif %}
+    {% for u in m.userDefinedDescriptionField %}{{ u | dict_to_xml('userDefinedDescriptionField') | safe }}{% endfor %}
+    {% if m.whatIfModifierType is not none %}<whatIfModifierType>{{ m.whatIfModifierType }}</whatIfModifierType>{% endif %}
+    {% if m.createPermission is not none %}<createPermission>{{ m.createPermission }}</createPermission>{% endif %}
+    {% if m.useLocationLongName is not none %}<useLocationLongName>{{ 'true' if m.useLocationLongName else 'false' }}</useLocationLongName>{% endif %}
+    {% if m.applyToDeterministicRun is not none %}<applyToDeterministicRun>{{ 'true' if m.applyToDeterministicRun else 'false' }}</applyToDeterministicRun>{% endif %}
+    {% for a in m.applyToEnsemble %}<applyToEnsemble>{{ a }}</applyToEnsemble>{% endfor %}
     <timeSeries>
       <moduleInstanceId>{{ m.timeSeries.moduleInstanceId }}</moduleInstanceId>
       <valueType>{{ m.timeSeries.valueType }}</valueType>
@@ -14,17 +23,30 @@
       {% if m.timeSeries.locationId is not none %}<locationId>{{ m.timeSeries.locationId }}</locationId>{% endif %}
       {% if m.timeSeries.locationSetId is not none %}<locationSetId>{{ m.timeSeries.locationSetId }}</locationSetId>{% endif %}
     </timeSeries>
+    {% if m.onlyApplyLastModifier is not none %}<onlyApplyLastModifier>{{ 'true' if m.onlyApplyLastModifier else 'false' }}</onlyApplyLastModifier>{% endif %}
+    {% if m.mergeUnCommittedModifiers is not none %}<mergeUnCommittedModifiers>{{ 'true' if m.mergeUnCommittedModifiers else 'false' }}</mergeUnCommittedModifiers>{% endif %}
+    {% for r in m.referenceTimeSeries %}{{ r | dict_to_xml('referenceTimeSeries') | safe }}{% endfor %}
+    {% if m.softLimits is not none %}{{ m.softLimits | dict_to_xml('softLimits') | safe }}{% endif %}
+    {% if m.hardLimits is not none %}{{ m.hardLimits | dict_to_xml('hardLimits') | safe }}{% endif %}
     {% if m.defaultStartTime is not none %}<defaultStartTime>{{ m.defaultStartTime }}</defaultStartTime>{% endif %}
     {% if m.defaultEndTime is not none %}<defaultEndTime>{{ m.defaultEndTime }}</defaultEndTime>{% endif %}
     {% if m.defaultValidTime %}<defaultValidTime/>{% endif %}
     {% if m.resolveInWorkflow is not none %}<resolveInWorkflow>{{ 'true' if m.resolveInWorkflow else 'false' }}</resolveInWorkflow>{% endif %}
     {% if m.resolveInPlots is not none %}<resolveInPlots>{{ 'true' if m.resolveInPlots else 'false' }}</resolveInPlots>{% endif %}
-    {% if m.editInPlots is not none %}<editInPlots>{{ 'true' if m.editInPlots else 'false' }}</editInPlots>{% endif %}
+    {% if m.editInPlots is not none %}<editInPlots>{{ 'true' if m.editInPlots else 'false' }}</editInPlots>{% elif m.graphicalEditing is not none %}<graphicalEditing>{{ 'true' if m.graphicalEditing else 'false' }}</graphicalEditing>{% endif %}
+    {% if m.perEnsembleMember is not none %}<perEnsembleMember>{{ 'true' if m.perEnsembleMember else 'false' }}</perEnsembleMember>{% endif %}
+    {% if m.createContinuousModifiers is not none %}<createContinuousModifiers>{{ 'true' if m.createContinuousModifiers else 'false' }}</createContinuousModifiers>{% endif %}
   </timeSeriesModifier>
 {% endfor %}
 {% for m in spatialCopyModifier %}
   <spatialCopyModifier id="{{ m.id }}"{% if m.name is not none %} name="{{ m.name }}"{% endif %}>
+    {% if m.modifierTypeDescription is not none %}<modifierTypeDescription>{{ m.modifierTypeDescription }}</modifierTypeDescription>{% endif %}
     {% if m.expiryTime is not none %}<expiryTime unit="{{ m.expiryTime.unit }}" multiplier="{{ m.expiryTime.multiplier }}"/>{% endif %}
+    {% if m.expiryTimeDeletedModifiers is not none %}<expiryTimeDeletedModifiers unit="{{ m.expiryTimeDeletedModifiers.unit }}"{% if m.expiryTimeDeletedModifiers.multiplier is not none %} multiplier="{{ m.expiryTimeDeletedModifiers.multiplier }}"{% endif %}/>{% endif %}
+    {% if m.modifierCardinalTimeStep is not none %}{{ m.modifierCardinalTimeStep | dict_to_xml('modifierCardinalTimeStep') | safe }}{% endif %}
+    {% for u in m.userDefinedDescriptionField %}{{ u | dict_to_xml('userDefinedDescriptionField') | safe }}{% endfor %}
+    {% if m.whatIfModifierType is not none %}<whatIfModifierType>{{ m.whatIfModifierType }}</whatIfModifierType>{% endif %}
+    {% if m.createPermission is not none %}<createPermission>{{ m.createPermission }}</createPermission>{% endif %}
     {% for ts in m.timeSeries %}
     <timeSeries>
       <moduleInstanceId>{{ ts.moduleInstanceId }}</moduleInstanceId>
@@ -36,8 +58,13 @@
 {% endfor %}
 {% for m in spatialProfileModifier %}
   <spatialProfileModifier id="{{ m.id }}"{% if m.name is not none %} name="{{ m.name }}"{% endif %}>
+    {% if m.modifierTypeDescription is not none %}<modifierTypeDescription>{{ m.modifierTypeDescription }}</modifierTypeDescription>{% endif %}
     {% if m.expiryTime is not none %}<expiryTime unit="{{ m.expiryTime.unit }}" multiplier="{{ m.expiryTime.multiplier }}"/>{% endif %}
+    {% if m.expiryTimeDeletedModifiers is not none %}<expiryTimeDeletedModifiers unit="{{ m.expiryTimeDeletedModifiers.unit }}"{% if m.expiryTimeDeletedModifiers.multiplier is not none %} multiplier="{{ m.expiryTimeDeletedModifiers.multiplier }}"{% endif %}/>{% endif %}
+    {% if m.modifierCardinalTimeStep is not none %}{{ m.modifierCardinalTimeStep | dict_to_xml('modifierCardinalTimeStep') | safe }}{% endif %}
     {% if m.userDefinedDescriptionField is not none %}<userDefinedDescriptionField id="{{ m.userDefinedDescriptionField.id }}" descriptionField="{{ m.userDefinedDescriptionField.descriptionField }}"/>{% endif %}
+    {% if m.whatIfModifierType is not none %}<whatIfModifierType>{{ m.whatIfModifierType }}</whatIfModifierType>{% endif %}
+    {% if m.createPermission is not none %}<createPermission>{{ m.createPermission }}</createPermission>{% endif %}
     {% for ts in m.timeSeries %}
     <timeSeries>
       <moduleInstanceId>{{ ts.moduleInstanceId }}</moduleInstanceId>

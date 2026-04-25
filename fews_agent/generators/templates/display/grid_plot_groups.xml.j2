@@ -1,2 +1,11 @@
-{%- import "_partials/generic_root.xml.j2" as g -%}
-{{ g.render("gridPlotGroups", "gridPlotGroups.xsd", body) }}
+<?xml version="1.0" encoding="UTF-8"?>
+<gridPlotGroups xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/gridPlotGroups.xsd">
+{% for g in gridPlotGroup %}
+  <gridPlotGroup id="{{ g.id }}"{% if g.name is not none %} name="{{ g.name }}"{% endif %}>
+    {% if g.description is not none %}<description>{{ g.description }}</description>{% endif %}
+    {% if g.viewPermission is not none %}<viewPermission>{{ g.viewPermission }}</viewPermission>{% endif %}
+    {% if g.highlight is not none %}<highlight>{{ 'true' if g.highlight else 'false' }}</highlight>{% endif %}
+    {{ g.children | dict_to_xml | safe }}
+  </gridPlotGroup>
+{% endfor %}
+</gridPlotGroups>

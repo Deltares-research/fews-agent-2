@@ -152,12 +152,13 @@ class Orifice(FewsModel):
 
     id: str
     name: str | None = None
+    gateLevel: float | None = None
     freeDischargeCoefficient: float
     freeContractionCoefficient: float
     drownedDischargeCoefficient: float
     drownedContractionCoefficient: float
+    freeFlowLimitCoefficient: float
     weir: Weir
-    gateLevel: float | None = None
 
 
 class Structures(FewsModel):

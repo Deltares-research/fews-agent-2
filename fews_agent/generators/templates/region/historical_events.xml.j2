@@ -1,12 +1,15 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <historicalEvents version="{{ version }}" xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/historicalEvents.xsd">
+{%- import "_partials/timeseries_set.xml.j2" as tss -%}
 {%- macro emit_event_data(ed) %}
-    <eventData>
+    <eventData{% if ed.variableId is not none %} variableId="{{ ed.variableId }}"{% endif %}{% if ed.variableType is not none %} variableType="{{ ed.variableType }}"{% endif %}{% if ed.convertDatum is not none %} convertDatum="{{ 'true' if ed.convertDatum else 'false' }}"{% endif %}>
       {% if ed.timeStep is not none %}<timeStep{% if ed.timeStep.unit is not none %} unit="{{ ed.timeStep.unit }}"{% endif %}{% if ed.timeStep.multiplier is not none %} multiplier="{{ ed.timeStep.multiplier }}"{% endif %}{% if ed.timeStep.id is not none %} id="{{ ed.timeStep.id }}"{% endif %}/>{% endif %}
       {% if ed.relativeViewPeriod is not none %}<relativeViewPeriod unit="{{ ed.relativeViewPeriod.unit }}"{% if ed.relativeViewPeriod.start is not none %} start="{{ ed.relativeViewPeriod.start }}"{% endif %}{% if ed.relativeViewPeriod.end is not none %} end="{{ ed.relativeViewPeriod.end }}"{% endif %}{% if ed.relativeViewPeriod.startOverrulable is not none %} startOverrulable="{{ 'true' if ed.relativeViewPeriod.startOverrulable else 'false' }}"{% endif %}{% if ed.relativeViewPeriod.endOverrulable is not none %} endOverrulable="{{ 'true' if ed.relativeViewPeriod.endOverrulable else 'false' }}"{% endif %}/>{% endif %}
       {% for d in ed.data %}<data{% if d.dateTime is not none %} dateTime="{{ d.dateTime }}"{% endif %}{% if d.time is not none %} time="{{ d.time }}"{% endif %}{% if d.monthDay is not none %} monthDay="{{ d.monthDay }}"{% endif %}{% if d.dayofWeek is not none %} dayofWeek="{{ d.dayofWeek }}"{% endif %}{% if d.monthofYear is not none %} monthofYear="{{ d.monthofYear }}"{% endif %} value="{{ d.value | xmlstr }}"{% if d.comment is not none %} comment="{{ d.comment }}"{% endif %}/>
       {% endfor %}
       {% if ed.timeZone is not none %}<timeZone>{% if ed.timeZone.timeZoneName is not none %}<timeZoneName>{{ ed.timeZone.timeZoneName }}</timeZoneName>{% endif %}{% if ed.timeZone.timeZoneOffset is not none %}<timeZoneOffset>{{ ed.timeZone.timeZoneOffset }}</timeZoneOffset>{% endif %}</timeZone>{% endif %}
+      {% for ts in ed.timeSeriesSet %}{{ tss.render(ts) }}{% endfor %}
+      {% for c in ed.component %}{{ c | dict_to_xml('component') | safe }}{% endfor %}
     </eventData>
 {%- endmacro %}
 {% for e in historicalEvent %}

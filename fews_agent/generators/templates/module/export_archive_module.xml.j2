@@ -1,2 +1,4 @@
-{%- import "_partials/generic_root.xml.j2" as g -%}
-{{ g.render("exportArchiveModule", "exportArchiveModule.xsd", body) }}
+<?xml version="1.0" encoding="UTF-8"?>
+<exportArchiveModule xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/exportArchiveModule.xsd">
+{{ activities | dict_to_xml | safe }}
+</exportArchiveModule>

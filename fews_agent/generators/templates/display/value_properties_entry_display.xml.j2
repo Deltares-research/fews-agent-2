@@ -1,2 +1,95 @@
-{%- import "_partials/generic_root.xml.j2" as g -%}
-{{ g.render("valuePropertiesEntryDisplay", "valuePropertiesEntryDisplay.xsd", body) }}
+<?xml version="1.0" encoding="UTF-8"?>
+<valuePropertiesEntryDisplay xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/valuePropertiesEntryDisplay.xsd">
+{% for v in variable %}  <variable>
+    <variableId>{{ v.variableId }}</variableId>
+    <timeSeriesSet>{{ v.timeSeriesSet | dict_to_xml | safe }}</timeSeriesSet>
+  </variable>
+{% endfor %}
+{% if enableButtonsByPhase is not none %}  <enableButtonsByPhase>{{ 'true' if enableButtonsByPhase else 'false' }}</enableButtonsByPhase>
+{% endif %}
+{% for b in button %}  <button{% if b.name is not none %} name="{{ b.name }}"{% endif %}>
+    {% if b.icon is not none %}<icon>{{ b.icon }}</icon>{% endif %}
+    <type>{{ b.type }}</type>
+    {% if b.templateFile is not none %}<templateFile>{{ b.templateFile }}</templateFile>{% endif %}
+    {% if b.defaultFolder is not none %}<defaultFolder>{{ b.defaultFolder }}</defaultFolder>{% endif %}
+    {% if b.defaultFileName is not none %}<defaultFileName>{{ b.defaultFileName }}</defaultFileName>{% endif %}
+    {% if b.openFileAfterCreation is not none %}<openFileAfterCreation>{{ 'true' if b.openFileAfterCreation else 'false' }}</openFileAfterCreation>{% endif %}
+    {% if b.workflowId is not none %}<workflowId>{{ b.workflowId }}</workflowId>{% endif %}
+    {% if b.confirmationQuestion is not none %}<confirmationQuestion>{{ b.confirmationQuestion }}</confirmationQuestion>{% endif %}
+  </button>
+{% endfor %}
+  <valuePropertiesVariableId>{{ valuePropertiesVariableId }}</valuePropertiesVariableId>
+{% if externalIdAttributeFunction is not none %}  <externalIdAttributeFunction>{{ externalIdAttributeFunction }}</externalIdAttributeFunction>
+{% endif %}
+{% if externalNameAttributeFunction is not none %}  <externalNameAttributeFunction>{{ externalNameAttributeFunction }}</externalNameAttributeFunction>
+{% endif %}
+{% if timeZoneAttributeFunction is not none %}  <timeZoneAttributeFunction>{{ timeZoneAttributeFunction }}</timeZoneAttributeFunction>
+{% endif %}
+{% if convertDatumAttributeFunction is not none %}  <convertDatumAttributeFunction>{{ convertDatumAttributeFunction }}</convertDatumAttributeFunction>
+{% endif %}
+{% for s in subLocationsStructure %}  <subLocationsStructure{% if s.id is not none %} id="{{ s.id }}"{% endif %}>
+    <variableId>{{ s.variableId }}</variableId>
+    <matchingSubLocationAttributeId>{{ s.matchingSubLocationAttributeId }}</matchingSubLocationAttributeId>
+    {% if s.connectedSubLocationsStructureId is not none %}<connectedSubLocationsStructureId>{{ s.connectedSubLocationsStructureId }}</connectedSubLocationsStructureId>{% endif %}
+    {% if s.connectedSubLocationIdFunction is not none %}<connectedSubLocationIdFunction>{{ s.connectedSubLocationIdFunction }}</connectedSubLocationIdFunction>{% endif %}
+    {% if s.forecastLocationsStructureId is not none %}<forecastLocationsStructureId>{{ s.forecastLocationsStructureId }}</forecastLocationsStructureId>{% endif %}
+    {% if s.forecastLocationIdFunction is not none %}<forecastLocationIdFunction>{{ s.forecastLocationIdFunction }}</forecastLocationIdFunction>{% endif %}
+    {% if s.externalForecastLocationIdFunction is not none %}<externalForecastLocationIdFunction>{{ s.externalForecastLocationIdFunction }}</externalForecastLocationIdFunction>{% endif %}
+    {% if s.observationVariableId is not none %}<observationVariableId>{{ s.observationVariableId }}</observationVariableId>{% endif %}
+    {% if s.observationTendencyVariableId is not none %}<observationTendencyVariableId>{{ s.observationTendencyVariableId }}</observationTendencyVariableId>{% endif %}
+    {% if s.observationPeakVariableId is not none %}<observationPeakVariableId>{{ s.observationPeakVariableId }}</observationPeakVariableId>{% endif %}
+    {% if s.observationLocationIdFunction is not none %}<observationLocationIdFunction>{{ s.observationLocationIdFunction }}</observationLocationIdFunction>{% endif %}
+    {% if s.externalObservationLocationIdFunction is not none %}<externalObservationLocationIdFunction>{{ s.externalObservationLocationIdFunction }}</externalObservationLocationIdFunction>{% endif %}
+    {% if s.draftTemplateFile is not none %}<draftTemplateFile>{{ s.draftTemplateFile }}</draftTemplateFile>{% endif %}
+    {% if s.templateFile is not none %}<templateFile>{{ s.templateFile }}</templateFile>{% endif %}
+  </subLocationsStructure>
+{% endfor %}
+{% if forecastLocationsStructure is not none %}  <forecastLocationsStructure{% if forecastLocationsStructure.id is not none %} id="{{ forecastLocationsStructure.id }}"{% endif %}{% if forecastLocationsStructure.convertDatum is not none %} convertDatum="{{ 'true' if forecastLocationsStructure.convertDatum else 'false' }}"{% endif %}>
+    <variableId>{{ forecastLocationsStructure.variableId }}</variableId>
+    {% if forecastLocationsStructure.datumAttributeFunction is not none %}<datumAttributeFunction>{{ forecastLocationsStructure.datumAttributeFunction }}</datumAttributeFunction>{% endif %}
+    {% if forecastLocationsStructure.locationTypeAttributeFunction is not none %}<locationTypeAttributeFunction>{{ forecastLocationsStructure.locationTypeAttributeFunction }}</locationTypeAttributeFunction>{% endif %}
+    {% if forecastLocationsStructure.minorSeverityAttributeFunction is not none %}<minorSeverityAttributeFunction>{{ forecastLocationsStructure.minorSeverityAttributeFunction }}</minorSeverityAttributeFunction>{% endif %}
+    {% if forecastLocationsStructure.moderateSeverityAttributeFunction is not none %}<moderateSeverityAttributeFunction>{{ forecastLocationsStructure.moderateSeverityAttributeFunction }}</moderateSeverityAttributeFunction>{% endif %}
+    {% if forecastLocationsStructure.majorSeverityAttributeFunction is not none %}<majorSeverityAttributeFunction>{{ forecastLocationsStructure.majorSeverityAttributeFunction }}</majorSeverityAttributeFunction>{% endif %}
+  </forecastLocationsStructure>
+{% endif %}
+{% for df in dateFormat %}  <dateFormat id="{{ df.id }}">
+    {% if df.timeZone is not none %}<timeZone>{{ df.timeZone | dict_to_xml | safe }}</timeZone>{% endif %}
+    {% if df.timeZoneNameLocationAttributeId is not none %}<timeZoneNameLocationAttributeId>{{ df.timeZoneNameLocationAttributeId }}</timeZoneNameLocationAttributeId>{% endif %}
+    <dateTimePattern>{{ df.dateTimePattern }}</dateTimePattern>
+  </dateFormat>
+{% endfor %}
+{% for nf in numberFormat %}  <numberFormat id="{{ nf.id }}">
+    <pattern>{{ nf.pattern }}</pattern>
+  </numberFormat>
+{% endfor %}
+{% macro emit_value_property(vp) -%}
+<valueProperty id="{{ vp.id }}" propertyType="{{ vp.propertyType }}"{% if vp.name is not none %} name="{{ vp.name }}"{% endif %}{% if vp.enabled is not none %} enabled="{{ 'true' if vp.enabled else 'false' }}"{% endif %}{% if vp.numberOfLines is not none %} numberOfLines="{{ vp.numberOfLines }}"{% endif %}{% if vp.width is not none %} width="{{ vp.width }}"{% endif %}{% if vp.forceUpperCase is not none %} forceUpperCase="{{ 'true' if vp.forceUpperCase else 'false' }}"{% endif %}{% if vp.formatId is not none %} formatId="{{ vp.formatId }}"{% endif %}{% if vp.convertDatum is not none %} convertDatum="{{ 'true' if vp.convertDatum else 'false' }}"{% endif %}>
+  {% for ev in vp.enumerationValue %}<enumerationValue code="{{ ev.code }}" label="{{ ev.label }}"/>
+  {% endfor %}
+  {% if vp.defaultValue is not none %}<defaultValue>{{ vp.defaultValue }}</defaultValue>{% endif %}
+  {% if vp.defaultValueAttributeFunction is not none %}<defaultValueAttributeFunction>{{ vp.defaultValueAttributeFunction }}</defaultValueAttributeFunction>{% endif %}
+  {% if vp.templateValueAttributeFunction is not none %}<templateValueAttributeFunction>{{ vp.templateValueAttributeFunction }}</templateValueAttributeFunction>{% endif %}
+  {% if vp.special is not none %}<special{% if vp.special.type is not none %} type="{{ vp.special.type }}"{% endif %}>{% if vp.special.variableId is not none %}<variableId>{{ vp.special.variableId }}</variableId><valueType>{{ vp.special.valueType }}</valueType>{% endif %}</special>{% endif %}
+</valueProperty>
+{%- endmacro %}
+{% for vpn in valuePropertyOrNewLine %}  {% if vpn.valueProperty is not none %}{{ emit_value_property(vpn.valueProperty) }}
+  {% elif vpn.newLine %}<newLine/>
+  {% endif %}
+{% endfor %}
+{% for slt in subLocationsTable %}  <subLocationsTable id="{{ slt.id }}">
+    {% if slt.title is not none %}<title>{{ slt.title }}</title>{% endif %}
+    {% if slt.maxVisibleRows is not none %}<maxVisibleRows>{{ slt.maxVisibleRows }}</maxVisibleRows>{% endif %}
+    {% if slt.subLocationsStructureId is not none %}<subLocationsStructureId>{{ slt.subLocationsStructureId }}</subLocationsStructureId>{% endif %}
+    {{ slt.columns | dict_to_xml | safe }}
+  </subLocationsTable>
+{% endfor %}
+{% if forecastCreationPanel is not none %}  <forecastCreationPanel>
+    {% if forecastCreationPanel.title is not none %}<title>{{ forecastCreationPanel.title }}</title>{% endif %}
+    <forecastLocationsVariableId>{{ forecastCreationPanel.forecastLocationsVariableId }}</forecastLocationsVariableId>
+    {% for vpn in forecastCreationPanel.valuePropertyOrNewLine %}{% if vpn.valueProperty is not none %}{{ emit_value_property(vpn.valueProperty) }}{% elif vpn.newLine %}<newLine/>{% endif %}
+    {% endfor %}
+    <forecastCreationTable>{{ forecastCreationPanel.forecastCreationTable | dict_to_xml | safe }}</forecastCreationTable>
+  </forecastCreationPanel>
+{% endif %}
+</valuePropertiesEntryDisplay>

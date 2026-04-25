@@ -21,9 +21,11 @@ This is the biggest display config. Major blocks:
 """
 from __future__ import annotations
 
+from typing import Any
+
 from pydantic import Field, model_validator
 
-from .common import FewsModel
+from .common import FewsModel, RelativePeriod
 from .enums import TimeUnit
 from .ids import ClassBreaksId
 from .modifier_types import DescriptiveFunctionGroups
@@ -33,13 +35,37 @@ class GeneralDisplayConfig(FewsModel):
     """Top-level UI defaults. legendTextFunction uses FEWS tokens
     like `%PARAMETER_NAME%`, passed through verbatim."""
 
+    legendFontSize: int | None = None
     legendTextFunction: str | None = None
+    showLocationInLegendWithSingleLocation: bool | None = None
+    axisTitleFontSize: int | None = None
+    tickLabelFontSize: int | None = None
+    thresholdLabelFontSize: int | None = None
+    barMarginPercentage: int | None = None
+    toolTipMargin: int | None = None
+    valueColumnWidth: int | None = None
+    convertDatum: bool | None = None
+    autoScaleForAllThresholds: bool | None = None
+    onlyShowThresholdsSharedByAllSeries: bool | None = None
+    unreliablesVisibleInChart: bool | None = None
+    maximumInterpolationGap: int | None = None
+    valueEditorPermission: str | None = None
+    labelEditorPermission: str | None = None
+    commentEditorPermission: str | None = None
+    chainageUnit: str | None = None
+    headerLine: list[str] = Field(default_factory=list)
 
 
 class DefaultViewPeriod(FewsModel):
+    """XSD RelativePeriodComplexType — start/end/unit, optional description
+    and startOverrulable/endOverrulable attrs."""
+
     unit: TimeUnit
     start: int
     end: int
+    startOverrulable: bool | None = None
+    endOverrulable: bool | None = None
+    description: str | None = None
 
 
 class DiscreteColor(FewsModel):
@@ -105,9 +131,11 @@ class TimeMarkerDisplayOptions(FewsModel):
     marker: str
     color: str
     lineStyle: str
+    label: str | None = None
 
 
 class TimeMarkersDisplayConfig(FewsModel):
+    description: str | None = None
     timeMarkerDisplayOptions: list[TimeMarkerDisplayOptions] = Field(default_factory=list)
 
 
@@ -116,7 +144,14 @@ class TimeMarkersDisplayConfig(FewsModel):
 # ---------------------------------------------------------------------------
 
 class ParameterDisplayOptions(FewsModel):
+    # Attrs
     id: str
+    name: str | None = None
+    equidistant: bool | None = None
+    # Elements
+    qualifierId: list[str] = Field(default_factory=list)
+    ensembleId: list[str] = Field(default_factory=list)
+    ensembleMemberIndex: list[str] = Field(default_factory=list)
     preferredColor: str | None = None
     lineStyle: str | None = None
     markerStyle: str | None = None
@@ -128,6 +163,8 @@ class ParameterDisplayOptions(FewsModel):
 
 
 class ParametersDisplayConfig(FewsModel):
+    description: str | None = None
+    defaults: dict[str, Any] | None = None
     parameterDisplayOptions: list[ParameterDisplayOptions] = Field(default_factory=list)
 
 
@@ -136,22 +173,52 @@ class ParametersDisplayConfig(FewsModel):
 # ---------------------------------------------------------------------------
 
 class StatisticalFunctionTimeStep(FewsModel):
-    id: str
+    """TimeStepComplexType — full XSD coverage."""
+
+    id: str | None = None
+    unit: str | None = None
+    multiplier: int | str | None = None
+    divider: int | str | None = None
+    label: str | None = None
+    times: str | None = None
+    minutes: str | None = None
+    daysOfMonth: str | None = None
+    monthDays: str | None = None
+    timeZone: str | None = None
+    description: str | None = None
 
 
 class StatisticalFunctionTimeSpan(FewsModel):
     unit: TimeUnit
-    multiplier: int
+    multiplier: int | None = None
+    divider: int | None = None
 
 
 class StatisticalFunction(FewsModel):
+    # Attrs
+    id: str | None = None
     function: str
+    label: str | None = None
     ignoreMissings: bool | None = None
-    lineStyle: str | None = None
+    aggregateByParameterType: str | None = None
+    # Elements in XSD sequence order
     timeStep: list[StatisticalFunctionTimeStep] = Field(default_factory=list)
     movingAccumulationTimeSpan: list[StatisticalFunctionTimeSpan] = Field(
         default_factory=list
     )
+    annotationTimeSpan: dict[str, Any] | None = None
+    parameterId: str | None = None
+    simulatedParameterId: str | None = None
+    observedParameterId: str | None = None
+    allowedInputParameterId: list[str] = Field(default_factory=list)
+    lineStyle: str | None = None
+    historicalPeriods: dict[str, Any] | None = None
+    maxEstimatedValue: str | None = None
+    samples: dict[str, Any] | None = None
+    season: list[dict[str, Any]] = Field(default_factory=list)
+    statisticType: str | None = None
+    areaFunction: dict[str, Any] | None = None
+    dateFormat: str | None = None
 
 
 class StatisticalFunctions(FewsModel):
@@ -163,10 +230,36 @@ class StatisticalFunctions(FewsModel):
 # ---------------------------------------------------------------------------
 
 class ButtonFlag(FewsModel):
-    """Button-enable flag. Element presence means the button is enabled;
-    optional `visible` attribute hides/shows it in the UI."""
+    """Button-enable flag (XSD ButtonSettingComplexType).
+
+    Element presence means the button is enabled. Optional attributes:
+
+      - ``visible`` — hide/show the button in the UI (default true).
+      - ``permission`` — restrict visibility to users with the named
+        permission (default: empty, i.e. visible to all).
+      - ``selected`` — pre-select the button at startup (default false;
+        only meaningful for `showThresholdWarningLevels` and
+        `switchReferenceLevel`).
+    """
 
     visible: bool | None = None
+    permission: str | None = None
+    selected: bool | None = None
+
+
+class ThresholdGroupSelectionButton(FewsModel):
+    """ThresholdGroupSelectionButtonComplexType — visible attr (required)
+    + optional defaultThresholdGroupId child element."""
+
+    visible: bool
+    defaultThresholdGroupId: str | None = None
+
+
+class SearchAndSelectForecastButton(ButtonFlag):
+    """SearchAndSelectForecastButtonSettingComplexType — extends
+    ButtonSettingComplexType with the relative search period."""
+
+    forecastSearchPeriod: RelativePeriod | None = None
 
 
 class ButtonSettings(FewsModel):
@@ -203,9 +296,72 @@ class ButtonSettings(FewsModel):
     printChart: ButtonFlag | None = None
     saveChartAsPicture: ButtonFlag | None = None
     showLongTermScroller: ButtonFlag | None = None
-    searchAndSelectForecasts: ButtonFlag | None = None
+    searchAndSelectForecasts: SearchAndSelectForecastButton | None = None
     setTimeSeriesVisibility: ButtonFlag | None = None
     showValidationRules: ButtonFlag | None = None
+    # --- XSD-complete tail (added in gap-close pass) ---
+    showValidationColumn: ButtonFlag | None = None
+    showValidationStepsColumn: ButtonFlag | None = None
+    showUsersColumn: ButtonFlag | None = None
+    showCommentsColumn: ButtonFlag | None = None
+    showUnitsColumn: ButtonFlag | None = None
+    showLocationNamesInTableHeader: ButtonFlag | None = None
+    showLocationIdsInTableHeader: ButtonFlag | None = None
+    showModuleInstanceInTableHeader: ButtonFlag | None = None
+    showForecastTimesInTableHeader: ButtonFlag | None = None
+    showColumnStatistics: ButtonFlag | None = None
+    showThresholdCrossings: ButtonFlag | None = None
+    twentyFourHourOptions: ButtonFlag | None = None
+    groupTableByTimeSeries: ButtonFlag | None = None
+    reverseTimeSeriesOrder: ButtonFlag | None = None
+    toggleGraphSplitting: ButtonFlag | None = None
+    toggleGraphEqualScale: ButtonFlag | None = None
+    scaleToShowUnreliableData: ButtonFlag | None = None
+    showDataLabels: ButtonFlag | None = None
+    switchFilterAndShortcuts: ButtonFlag | None = None
+    hideUnreliableData: ButtonFlag | None = None
+    stackPlot: ButtonFlag | None = None
+    legendDisplayOptions: ButtonFlag | None = None
+    hideFooter: ButtonFlag | None = None
+    thresholdDisplayOptions: ButtonFlag | None = None
+    useColorMap: ButtonFlag | None = None
+    toggleValidationInChart: ButtonFlag | None = None
+    toggleUsersInChart: ButtonFlag | None = None
+    toggleCommentsInChart: ButtonFlag | None = None
+    toggleProductInfoInChart: ButtonFlag | None = None
+    toggleLongitudinalProfileMarkers: ButtonFlag | None = None
+    showInteractionScatterPlot: ButtonFlag | None = None
+    showLookupTable: ButtonFlag | None = None
+    moveToFirstDataPoint: ButtonFlag | None = None
+    moveToLastDataPoint: ButtonFlag | None = None
+    activateModify: ButtonFlag | None = None
+    useGraphicalEditorMovePointMode: ButtonFlag | None = None
+    useSetToMissingBetweenSelectedPointsMode: ButtonFlag | None = None
+    useInterpolateBetweenSelectedPointsMode: ButtonFlag | None = None
+    useGraphicalEditorQuadraticInterpolationMode: ButtonFlag | None = None
+    useGraphicalEditorVerticalMoveMode: ButtonFlag | None = None
+    useNoGraphicalEditMode: ButtonFlag | None = None
+    selectPoints: ButtonFlag | None = None
+    deselectPoints: ButtonFlag | None = None
+    selectOrDeselectPoint: ButtonFlag | None = None
+    selectPointsByDrawingRectangle: ButtonFlag | None = None
+    moveSelectedPointsVerticallyByDragging: ButtonFlag | None = None
+    markPeriod: ButtonFlag | None = None
+    unmarkPeriod: ButtonFlag | None = None
+    openManualEditor: ButtonFlag | None = None
+    moveHighLightedTimeStepToLeft: ButtonFlag | None = None
+    moveHighLightedTimeStepToRight: ButtonFlag | None = None
+    moveTimeCursorToLeft: ButtonFlag | None = None
+    moveTimeCursorToRight: ButtonFlag | None = None
+    increaseValue: ButtonFlag | None = None
+    decreaseValue: ButtonFlag | None = None
+    undoEdit: ButtonFlag | None = None
+    cancelEdit: ButtonFlag | None = None
+    thresholdGroupSelectionButton: ThresholdGroupSelectionButton | None = None
+    setTimeSeriesResampling: ButtonFlag | None = None
+    hideEmptyTimeSeries: ButtonFlag | None = None
+    showTimeSeriesLister: ButtonFlag | None = None
+    showHistoricalAnalysis: ButtonFlag | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -213,15 +369,53 @@ class ButtonSettings(FewsModel):
 # ---------------------------------------------------------------------------
 
 class TimeSeriesDisplay(FewsModel):
-    """Root of TimeSeriesDisplayConfig.xml."""
+    """Root of TimeSeriesDisplayConfig.xml.
 
+    Many optional sub-blocks are accepted as ``dict[str, Any]``
+    passthroughs rendered via ``dict_to_xml`` — display configuration
+    tends to have deep, rarely-authored sub-trees (ToolTipsConfig,
+    LegendDisplayOptions, ThresholdDisplayConfig, etc.). Common blocks
+    stay fully typed.
+    """
+
+    description: str | None = None
     generalDisplayConfig: GeneralDisplayConfig | None = None
     defaultViewPeriod: DefaultViewPeriod | None = None
+    globalDatumLocationSetId: str | None = None
+    scrollerDefaultViewPeriod: RelativePeriod | None = None
+    showAllScrollerData: bool | None = None
+    showAllSubPlotInScroller: bool | None = None
+    readOnlyPeriod: list[dict[str, Any]] = Field(default_factory=list)
+    timeOfValidityDefaultViewPeriod: RelativePeriod | None = None
+    timeOfValiditySearchPeriod: RelativePeriod | None = None
+    thresholdDisplayConfig: dict[str, Any] | None = None
+    toolTipsConfig: dict[str, Any] | None = None
+    legend: dict[str, Any] | None = None
+    showValueInLegend: bool | None = None
+    showTimeStepInLegend: bool | None = None
+    hideFooter: bool | None = None
     classBreaks: ClassBreaks | None = None
     timeMarkersDisplayConfig: TimeMarkersDisplayConfig | None = None
+    defaultColorList: dict[str, Any] | None = None
+    tableBackgroundColors: dict[str, Any] | None = None
+    highlightedDateTickColor: str | None = None
+    ratingCurveDisplayConfig: dict[str, Any] | None = None
     parametersDisplayConfig: ParametersDisplayConfig | None = None
+    moduleInstanceIdMappings: dict[str, Any] | None = None
+    sampleFunctions: dict[str, Any] | None = None
     statisticalFunctions: StatisticalFunctions | None = None
+    quickViewStatisticalFunction: dict[str, Any] | None = None
+    combinedTimeSeriesStatisticalFunctions: dict[str, Any] | None = None
     descriptiveFunctionGroups: DescriptiveFunctionGroups | None = None
+    tickUnitsConfig: dict[str, Any] | None = None
     defaultGraphicalEditMode: str | None = None
+    graphicalEditingConfig: dict[str, Any] | None = None
+    thresholdGroupSelectionButton: dict[str, Any] | None = None
     buttonSettings: ButtonSettings | None = None
+    predefinedViewPeriods: dict[str, Any] | None = None
+    invertTableOrder: bool | None = None
+    showDisplayGroupsHideAllToolWindows: dict[str, Any] | None = None
+    resampling: dict[str, Any] | None = None
+    infoAttribute: dict[str, Any] | None = None
+    documentViewer: dict[str, Any] | None = None
     version: str = "1.0"

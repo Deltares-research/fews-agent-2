@@ -1,2 +1,10 @@
-{%- import "_partials/generic_root.xml.j2" as g -%}
-{{ g.render("topologyGroup", "topologyGroup.xsd", body) }}
+<?xml version="1.0" encoding="UTF-8"?>
+<topologyGroup xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/topologyGroup.xsd">
+{%- for g in group %}
+  <group id="{{ g.id }}">
+  {%- for n in g.nodes %}
+    <nodes{% for k, v in n.items() if k.startswith('@') %} {{ k[1:] }}="{{ v }}"{% endfor %}>{{ n | dict_to_xml | safe }}</nodes>
+  {%- endfor %}
+  </group>
+{%- endfor %}
+</topologyGroup>

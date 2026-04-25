@@ -15,9 +15,11 @@ class ThresholdWarningLevel(FewsModel):
     # id is a numeric-looking string ("0", "1", "2"). Treated as a plain
     # ID — validation (non-empty, trimmed) is handled by WarningLevelId.
     id: WarningLevelId
-    color: str
     name: str | None = None
+    color: str
+    opaquenessPercentage: int | None = Field(default=None, ge=0, le=100)
     iconName: str | None = None
+    symbolId: str | None = None
     historicOverlayIconName: str | None = None
     forecastOverlayIconName: str | None = None
 

@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <permissions xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/permissions.xsd">
 {% for p in permission %}
-  <permission id="{{ p.id }}">
+  <permission id="{{ p.id }}"{% if p.enabled is not none %} enabled="{{ 'true' if p.enabled else 'false' }}"{% endif %}>
     {% for ug in p.userGroup %}<userGroup id="{{ ug.id }}"/>{% endfor %}
   </permission>
 {% endfor %}

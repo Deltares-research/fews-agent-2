@@ -26,7 +26,10 @@
     {% if timeSeriesModifiersDisplayConfig.showTimeShiftModifierButtons is not none %}<showTimeShiftModifierButtons>{{ 'true' if timeSeriesModifiersDisplayConfig.showTimeShiftModifierButtons else 'false' }}</showTimeShiftModifierButtons>{% endif %}
     {% if timeSeriesModifiersDisplayConfig.showTablePanel is not none %}<showTablePanel>{{ 'true' if timeSeriesModifiersDisplayConfig.showTablePanel else 'false' }}</showTablePanel>{% endif %}
     {% if timeSeriesModifiersDisplayConfig.showChartPanel is not none %}<showChartPanel>{{ 'true' if timeSeriesModifiersDisplayConfig.showChartPanel else 'false' }}</showChartPanel>{% endif %}
+    {% if timeSeriesModifiersDisplayConfig.showChartLegend is not none %}<showChartLegend>{{ 'true' if timeSeriesModifiersDisplayConfig.showChartLegend else 'false' }}</showChartLegend>{% endif %}
     {% if timeSeriesModifiersDisplayConfig.defaultOperationType is not none %}<defaultOperationType>{{ timeSeriesModifiersDisplayConfig.defaultOperationType }}</defaultOperationType>{% endif %}
+    {% if timeSeriesModifiersDisplayConfig.incrementOperationTypeAdd is not none %}<incrementOperationTypeAdd>{{ timeSeriesModifiersDisplayConfig.incrementOperationTypeAdd | xmlstr }}</incrementOperationTypeAdd>{% endif %}
+    {% if timeSeriesModifiersDisplayConfig.viewPeriodExtension is not none %}<viewPeriodExtension>{{ timeSeriesModifiersDisplayConfig.viewPeriodExtension }}</viewPeriodExtension>{% endif %}
   </timeSeriesModifiersDisplayConfig>
   {% endif %}
 </modifierDisplay>

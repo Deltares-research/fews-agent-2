@@ -4,6 +4,7 @@ from __future__ import annotations
 from pydantic import Field
 
 from .common import FewsModel
+from .modifier_types import TimeSpan
 from .trend_display import RelativeTime
 
 
@@ -14,12 +15,16 @@ class TimeThreshold(FewsModel):
     with minOccurs=0 in the XSD). We don't enforce pairing at the model
     level since it's not expressible via Pydantic without a validator;
     the XSD will catch mismatches.
+
+    ``graceTime`` (since 2025.02) deduplicates repeated log messages for
+    a missing data feed within the configured span.
     """
 
     periodLength: RelativeTime
     color: str
     eventCode: str | None = None
     logLevel: str | None = None
+    graceTime: TimeSpan | None = None
 
 
 class DefaultTimeThreshold(FewsModel):

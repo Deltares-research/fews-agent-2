@@ -16,11 +16,21 @@ from .enums import TimeUnit
 
 
 class NamedTimeStep(FewsModel):
+    """Full TimeStepComplexType coverage — see common.TimeStep for the
+    same shape when id is optional. Here ``id`` is required since a
+    registry entry without an id isn't referenceable."""
+
     id: str
     unit: TimeUnit | None = None
     multiplier: int | str | None = None
+    divider: int | str | None = None
+    label: str | None = None
     times: str | None = None  # space-separated "HH:MM" list
+    minutes: str | None = None  # "05 25" for 0:05, 0:25, 1:05, ...
+    daysOfMonth: str | None = None  # e.g. "01 11 21"
+    monthDays: str | None = None  # e.g. "--03-01 --06-01"
     timeZone: str | None = None
+    description: str | None = None
 
 
 class TimesOfWeekDay(FewsModel):

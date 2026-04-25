@@ -7,6 +7,8 @@ qualifier list.
 """
 from __future__ import annotations
 
+from typing import Any
+
 from pydantic import Field
 
 from .common import FewsModel
@@ -38,11 +40,19 @@ class QualifiersCsvFile(FewsModel):
 
 class QualifierNode(FewsModel):
     """XSD QualifierNodeComplexType — root of the optional qualifier
-    tree hierarchy (UI grouping)."""
+    tree hierarchy (UI grouping). Recursive: can contain child
+    qualifierNode entries under the same complex type, plus qualifierId
+    references and attribute-driven constraints."""
 
     id: str
     name: str | None = None
     description: str | None = None
+    qualifierId: list[str] = Field(default_factory=list)
+    qualifierNode: "list[QualifierNode]" = Field(default_factory=list)
+    constraints: list[dict[str, Any]] = Field(default_factory=list)
+
+
+QualifierNode.model_rebuild()
 
 
 class Qualifiers(FewsModel):

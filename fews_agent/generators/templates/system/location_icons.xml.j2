@@ -5,7 +5,8 @@
   <locationIcon>
     {% if li.description is not none %}<description>{{ li.description }}</description>{% endif %}
     <iconId>{{ li.iconId }}</iconId>
-    <locationSetId>{{ li.locationSetId }}</locationSetId>
+    {% if li.locationSetId is not none %}<locationSetId>{{ li.locationSetId }}</locationSetId>{% endif %}
+    {% for lid in li.locationId %}<locationId>{{ lid }}</locationId>{% endfor %}
   </locationIcon>
 {% endfor %}
 </locationIcons>

@@ -36,7 +36,10 @@ class TimeSeriesModifiersDisplayConfig(FewsModel):
     showTimeShiftModifierButtons: bool | None = None
     showTablePanel: bool | None = None
     showChartPanel: bool | None = None
+    showChartLegend: bool | None = None
     defaultOperationType: str | None = None
+    incrementOperationTypeAdd: float | None = None
+    viewPeriodExtension: int | None = None
 
 
 class ModifierDisplay(FewsModel):

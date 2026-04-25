@@ -136,8 +136,11 @@ from .event_actions import (
 )
 from .import_archive_module import (
     ArchiveImportBasic,
+    ArchiveImportFolderOnly,
     ArchiveImportMessages,
     ImportArchiveModule,
+    ImportHistoricalEvents,
+    ImportRequestedDataSets,
 )
 from .overtopping_module import (
     OvertoppingDataCoefficient,
@@ -1262,8 +1265,8 @@ from .time_steps import (
     YearlyTimeStep,
 )
 from .workflow_descriptors import (
-    CardinalTimeStepRef,
     WorkflowDescriptor,
+    WorkflowDescriptorGroupNode,
     WorkflowDescriptorNode,
     WorkflowDescriptorRootNode,
     WorkflowDescriptors,
@@ -1365,6 +1368,40 @@ from .general_adapter_run import (
     WarmStateSelection,
 )
 from .unit_conversions import UnitConversion, UnitConversions
+# --- Promoted GenericXmlFile passthroughs (typed schemas) ---
+from .archives import Archives
+from .chart_layer import ChartLayer
+from .client_config import ClientConfig
+from .color_schemes import ColorSchemes
+from .export_archive_module import ExportArchiveModule
+from .grid_display import GridDisplay
+from .grid_plot_groups import GridPlotGroup, GridPlotGroups
+from .mc import Mc
+from .mc_install import McInstall
+from .mc_system_alerter import McSystemAlerter
+from .reports import Report, Reports
+from .scada_display import ScadaDisplay
+from .secondary_validation import SecondaryValidation
+from .time_series_export_run import TimeSeriesExportRun
+from .topology_group import TopologyGroup
+from .transformation_coefficient_sets import (
+    TransformationCoefficientSet,
+    TransformationCoefficientSets,
+)
+from .transformation_sets import TransformationSet, TransformationSets
+from .value_properties_entry_display import ValuePropertiesEntryDisplay, ValueProperty
+from .water_coach_script import WaterCoachScript
+from .web_operator_client import WebOperatorClient
+from .web_services import WebServices
+from .what_if_scenario_editor import WhatIfScenarioEditor
+# --- Track 1 typed wrappers (preserve byte-equivalent passthrough) ---
+from .display_groups import DisplayGroups
+from .explorer import Explorer
+from .filters import Filters
+from .grids import Grids
+from .location_sets import LocationSets
+from .products import Products
+from .spatial_display import SpatialDisplay
 
 __all__ = [
     # base + common
@@ -1722,7 +1759,10 @@ __all__ = [
     # ImportArchiveModule
     "ImportArchiveModule",
     "ArchiveImportBasic",
+    "ArchiveImportFolderOnly",
     "ArchiveImportMessages",
+    "ImportHistoricalEvents",
+    "ImportRequestedDataSets",
     # OvertoppingModule
     "OvertoppingModule",
     "OvertoppingGeneral",
@@ -1893,7 +1933,7 @@ __all__ = [
     "WorkflowDescriptor",
     "WorkflowDescriptorNode",
     "WorkflowDescriptorRootNode",
-    "CardinalTimeStepRef",
+    "WorkflowDescriptorGroupNode",
     # ForecasterNotesDisplay
     "EventCode",
     "ForecasterNotesDisplay",
@@ -2644,4 +2684,40 @@ __all__ = [
     "WftrTimeSeriesSets",
     "WftrWorkflowActivity",
     "WorkflowTestRun",
+    # Promoted GenericXmlFile passthroughs
+    "Archives",
+    "ChartLayer",
+    "ClientConfig",
+    "ColorSchemes",
+    "ExportArchiveModule",
+    "GridDisplay",
+    "GridPlotGroup",
+    "GridPlotGroups",
+    "Mc",
+    "McInstall",
+    "McSystemAlerter",
+    "Report",
+    "Reports",
+    "ScadaDisplay",
+    "SecondaryValidation",
+    "TimeSeriesExportRun",
+    "TopologyGroup",
+    "TransformationCoefficientSet",
+    "TransformationCoefficientSets",
+    "TransformationSet",
+    "TransformationSets",
+    "ValuePropertiesEntryDisplay",
+    "ValueProperty",
+    "WaterCoachScript",
+    "WebOperatorClient",
+    "WebServices",
+    "WhatIfScenarioEditor",
+    # Track 1 typed wrappers
+    "DisplayGroups",
+    "Explorer",
+    "Filters",
+    "Grids",
+    "LocationSets",
+    "Products",
+    "SpatialDisplay",
 ]

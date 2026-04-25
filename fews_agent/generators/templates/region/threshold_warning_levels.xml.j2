@@ -1,7 +1,9 @@
 {%- macro emit_level(lvl, tag) -%}
 <{{ tag }} id="{{ lvl.id }}"{% if lvl.name is not none %} name="{{ lvl.name }}"{% endif %}>
     <color>{{ lvl.color }}</color>
+    {% if lvl.opaquenessPercentage is not none %}<opaquenessPercentage>{{ lvl.opaquenessPercentage }}</opaquenessPercentage>{% endif %}
     {% if lvl.iconName is not none %}<iconName>{{ lvl.iconName }}</iconName>{% endif %}
+    {% if lvl.symbolId is not none %}<symbolId>{{ lvl.symbolId }}</symbolId>{% endif %}
     {% if lvl.historicOverlayIconName is not none %}<historicOverlayIconName>{{ lvl.historicOverlayIconName }}</historicOverlayIconName>{% endif %}
     {% if lvl.forecastOverlayIconName is not none %}<forecastOverlayIconName>{{ lvl.forecastOverlayIconName }}</forecastOverlayIconName>{% endif %}
   </{{ tag }}>

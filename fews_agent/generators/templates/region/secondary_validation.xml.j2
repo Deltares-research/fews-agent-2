@@ -1,2 +1,7 @@
-{%- import "_partials/generic_root.xml.j2" as g -%}
-{{ g.render("secondaryValidation", "secondaryValidation.xsd", body) }}
+<?xml version="1.0" encoding="UTF-8"?>
+<secondaryValidation xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/secondaryValidation.xsd">
+{%- for vd in variableDefinition %}
+  <variableDefinition>{{ vd | dict_to_xml | safe }}</variableDefinition>
+{%- endfor %}
+{{ checks | dict_to_xml | safe }}
+</secondaryValidation>

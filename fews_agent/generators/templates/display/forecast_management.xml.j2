@@ -5,6 +5,7 @@
       <color>{{ t.color }}</color>
       {% if t.eventCode is not none %}<eventCode>{{ t.eventCode }}</eventCode>{% endif %}
       {% if t.logLevel is not none %}<logLevel>{{ t.logLevel }}</logLevel>{% endif %}
+      {% if t.graceTime is not none %}<graceTime unit="{{ t.graceTime.unit }}"{% if t.graceTime.multiplier is not none %} multiplier="{{ t.graceTime.multiplier }}"{% endif %}{% if t.graceTime.divider is not none %} divider="{{ t.graceTime.divider }}"{% endif %}/>{% endif %}
     </timeThreshold>{%- endmacro %}
   <defaultDispatchTimeThreshold>
     {% for t in defaultDispatchTimeThreshold.timeThreshold %}{{ threshold(t) }}

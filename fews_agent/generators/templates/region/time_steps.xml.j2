@@ -4,7 +4,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <timeSteps xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/timeSteps.xsd">
 {% for t in timeStep %}
-  <timeStep id="{{ t.id }}"{% if t.unit is not none %} unit="{{ t.unit }}"{% endif %}{% if t.multiplier is not none %} multiplier="{{ t.multiplier }}"{% endif %}{% if t.times is not none %} times="{{ t.times }}"{% endif %}{% if t.timeZone is not none %} timeZone="{{ t.timeZone }}"{% endif %}/>
+  <timeStep id="{{ t.id }}"{% if t.label is not none %} label="{{ t.label }}"{% endif %}{% if t.unit is not none %} unit="{{ t.unit }}"{% endif %}{% if t.divider is not none %} divider="{{ t.divider }}"{% endif %}{% if t.multiplier is not none %} multiplier="{{ t.multiplier }}"{% endif %}{% if t.times is not none %} times="{{ t.times }}"{% endif %}{% if t.minutes is not none %} minutes="{{ t.minutes }}"{% endif %}{% if t.daysOfMonth is not none %} daysOfMonth="{{ t.daysOfMonth }}"{% endif %}{% if t.monthDays is not none %} monthDays="{{ t.monthDays }}"{% endif %}{% if t.timeZone is not none %} timeZone="{{ t.timeZone }}"{% endif %}
+  {%- if t.description is not none %}>
+    <description>{{ t.description }}</description>
+  </timeStep>
+  {%- else %}/>
+  {%- endif %}
 {% endfor %}
 {% for w in weeklyTimeStep %}
   <weeklyTimeStep id="{{ w.id }}"{% if w.label is not none %} label="{{ w.label }}"{% endif %}>

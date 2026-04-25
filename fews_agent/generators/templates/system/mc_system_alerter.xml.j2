@@ -1,2 +1,9 @@
-{%- import "_partials/generic_root.xml.j2" as g -%}
-{{ g.render("mc-system-alerter", "mcSystemAlerter.xsd", body) }}
+<?xml version="1.0" encoding="UTF-8"?>
+<mc-system-alerter xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/mcSystemAlerter.xsd">
+  <alerts>
+    {% for a in alerts.emailalert %}<emailalert>{{ a | dict_to_xml | safe }}</emailalert>{% endfor %}
+    {% for a in alerts.alarmModuleAlert %}<alarmModuleAlert>{{ a | dict_to_xml | safe }}</alarmModuleAlert>{% endfor %}
+    {% for a in alerts.azureServiceBusAlert %}<azureServiceBusAlert>{{ a | dict_to_xml | safe }}</azureServiceBusAlert>{% endfor %}
+    {% for a in alerts.awsSimpleNotificationServiceAlert %}<awsSimpleNotificationServiceAlert>{{ a | dict_to_xml | safe }}</awsSimpleNotificationServiceAlert>{% endfor %}
+  </alerts>
+</mc-system-alerter>
