@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<timeUnits xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/environmentAgencyTimeUnits.xsd">
+{% for u in timeUnit %}
+  <timeUnit>
+    <unit>{{ u.unit }}</unit>
+    <milliseconds>{{ u.milliseconds }}</milliseconds>
+    {% if u.description is not none %}<description>{{ u.description }}</description>{% endif %}
+  </timeUnit>
+{% endfor %}
+</timeUnits>

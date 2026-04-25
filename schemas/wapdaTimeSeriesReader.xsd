@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- edited with XMLSPY v2004 rel. 3 U (http://www.xmlspy.com) by tacoma (WL | Delft Hydraulics) -->
+<!--Delft FEWS (Copyright 2003 WL | Delft Hydraulics) -->
+<schema targetNamespace="http://www.wldelft.nl/fews" xmlns="http://www.w3.org/2001/XMLSchema" xmlns:fews="http://www.wldelft.nl/fews" elementFormDefault="qualified" attributeFormDefault="unqualified" version="1.0">
+	<include schemaLocation="sharedTypes.xsd"/>
+	<element name="wapdaTimeSeriesReader" type="fews:WapdaTimeSeriesReaderComplexType"/>
+	<complexType name="WapdaTimeSeriesReaderComplexType">
+		<sequence>
+			<element name="columnDefinition" maxOccurs="unbounded">
+				<complexType>
+					<attribute name="locationId" type="fews:idStringType" use="required"/>
+					<attribute name="parameterId" type="fews:idStringType" use="required"/>
+					<attribute name="column" type="int" use="required"/>
+				</complexType>
+			</element>
+		</sequence>
+	</complexType>
+</schema>

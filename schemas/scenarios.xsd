@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--Delft FEWS (Copyright 2003 WL | Delft Hydraulics) -->
+<schema targetNamespace="http://www.wldelft.nl/fews" xmlns="http://www.w3.org/2001/XMLSchema" xmlns:fews="http://www.wldelft.nl/fews" elementFormDefault="qualified" attributeFormDefault="unqualified" version="1.0">
+	<include schemaLocation="sharedTypes.xsd"/>
+	<element name="scenarios" type="fews:ScenariosComplexType"/>
+	<complexType name="ScenariosComplexType">
+		<sequence>
+			<element name="description" type="string" minOccurs="0"/>
+			<element name="scenario" type="fews:ScenarioComplexType" maxOccurs="unbounded"/>
+		</sequence>
+		<attribute name="version" type="fews:versionStringType" use="required" fixed="1.1"/>
+	</complexType>
+	<complexType name="ScenarioComplexType">
+		<sequence>
+			<element name="description" type="string" minOccurs="0"/>
+			<element name="scenarioVariable" type="fews:ScenarioVariableComplexType" maxOccurs="unbounded"/>
+		</sequence>
+		<attribute name="id" type="fews:idStringType" use="optional"/>
+		<attribute name="name" type="fews:nameStringType" use="required"/>
+	</complexType>
+	<complexType name="ScenarioVariableComplexType">
+		<sequence>
+			<element name="variable" type="fews:VariableComplexType"/>
+			<element name="transformationType" type="fews:TransformationTypeEnumStringType"/>
+			<element name="defaultValue" type="float" maxOccurs="unbounded"/>
+		</sequence>
+	</complexType>
+	<simpleType name="TransformationTypeEnumStringType">
+		<restriction base="string">
+			<enumeration value="equal"/>
+			<enumeration value="linearwithstartvalueandendvalue"/>
+			<enumeration value="linearwithstartvalueandincrement"/>
+		</restriction>
+	</simpleType>
+</schema>

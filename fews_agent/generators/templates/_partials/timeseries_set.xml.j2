@@ -2,22 +2,38 @@
    `tag` lets the caller override the wrapper element name (default
    `timeSeriesSet`; SetForecastLength uses `externalForecastTimeSeries`). #}
 {% macro render(ts, tag="timeSeriesSet") -%}
-<{{ tag }}>
-  <moduleInstanceId>{{ ts.moduleInstanceId }}</moduleInstanceId>
+<{{ tag }}{% if ts.id is not none %} id="{{ ts.id }}"{% endif %}{% if ts.name is not none %} name="{{ ts.name }}"{% endif %}>
+  {% if ts.description is not none %}<description>{{ ts.description }}</description>
+  {% endif %}{% if ts.moduleInstanceId is not none %}<moduleInstanceId>{{ ts.moduleInstanceId }}</moduleInstanceId>{% elif ts.moduleInstanceSetId is not none %}<moduleInstanceSetId>{{ ts.moduleInstanceSetId }}</moduleInstanceSetId>{% else %}<filterModuleInstanceSetId>{{ ts.filterModuleInstanceSetId }}</filterModuleInstanceSetId>{% endif %}
   <valueType>{{ ts.valueType }}</valueType>
   <parameterId>{{ ts.parameterId }}</parameterId>
-  {% if ts.qualifierId is not none %}<qualifierId>{{ ts.qualifierId }}</qualifierId>{% endif %}
-  {% if ts.locationId is not none %}<locationId>{{ ts.locationId }}</locationId>{% endif %}
-  {% if ts.locationSetId is not none %}<locationSetId>{{ ts.locationSetId }}</locationSetId>{% endif %}
+  {% for dp in ts.domainParameterId %}<domainParameterId>{{ dp }}</domainParameterId>
+  {% endfor %}{% if ts.qualifierId is not none %}<qualifierId>{{ ts.qualifierId }}</qualifierId>{% endif %}
+  {% if ts.locationRelationId is not none %}<locationRelationId>{{ ts.locationRelationId }}</locationRelationId>{% if ts.skipLocationsWithoutRelation is not none %}<skipLocationsWithoutRelation>{{ 'true' if ts.skipLocationsWithoutRelation else 'false' }}</skipLocationsWithoutRelation>{% endif %}{% endif %}
+  {% if ts.locationId is not none %}<locationId>{{ ts.locationId }}</locationId>{% elif ts.locationSetId is not none %}<locationSetId>{{ ts.locationSetId }}</locationSetId>{% else %}<chainageLocationSetId>{{ ts.chainageLocationSetId }}</chainageLocationSetId>{% endif %}
   <timeSeriesType>{{ ts.timeSeriesType }}</timeSeriesType>
   {% if ts.timeStep.id is not none %}<timeStep id="{{ ts.timeStep.id }}"/>
   {% else %}<timeStep unit="{{ ts.timeStep.unit }}"{% if ts.timeStep.multiplier is not none %} multiplier="{{ ts.timeStep.multiplier }}"{% endif %}/>{% endif %}
+  {% if ts.aggregationPeriod is not none %}<aggregationPeriod start="{{ ts.aggregationPeriod.start }}" end="{{ ts.aggregationPeriod.end }}"{% if ts.aggregationPeriod.startOverrulable is not none %} startOverrulable="{{ 'true' if ts.aggregationPeriod.startOverrulable else 'false' }}"{% endif %}{% if ts.aggregationPeriod.endOverrulable is not none %} endOverrulable="{{ 'true' if ts.aggregationPeriod.endOverrulable else 'false' }}"{% endif %} unit="{{ ts.aggregationPeriod.unit }}"/>{% endif %}
+  {% if ts.cycle is not none %}<cycle unit="{{ ts.cycle.unit }}"{% if ts.cycle.multiplier is not none %} multiplier="{{ ts.cycle.multiplier }}"{% endif %}{% if ts.cycle.divider is not none %} divider="{{ ts.cycle.divider }}"{% endif %}/>{% endif %}
   {% if ts.relativeViewPeriod is not none %}<relativeViewPeriod unit="{{ ts.relativeViewPeriod.unit }}"{% if ts.relativeViewPeriod.start is not none %} start="{{ ts.relativeViewPeriod.start }}"{% endif %}{% if ts.relativeViewPeriod.end is not none %} end="{{ ts.relativeViewPeriod.end }}"{% endif %}{% if ts.relativeViewPeriod.startOverrulable is not none %} startOverrulable="{{ 'true' if ts.relativeViewPeriod.startOverrulable else 'false' }}"{% endif %}{% if ts.relativeViewPeriod.endOverrulable is not none %} endOverrulable="{{ 'true' if ts.relativeViewPeriod.endOverrulable else 'false' }}"{% endif %}/>{% endif %}
+  {% if ts.relativeForecastPeriod is not none %}<relativeForecastPeriod unit="{{ ts.relativeForecastPeriod.unit }}"{% if ts.relativeForecastPeriod.start is not none %} start="{{ ts.relativeForecastPeriod.start }}"{% endif %}{% if ts.relativeForecastPeriod.end is not none %} end="{{ ts.relativeForecastPeriod.end }}"{% endif %}{% if ts.relativeForecastPeriod.startOverrulable is not none %} startOverrulable="{{ 'true' if ts.relativeForecastPeriod.startOverrulable else 'false' }}"{% endif %}{% if ts.relativeForecastPeriod.endOverrulable is not none %} endOverrulable="{{ 'true' if ts.relativeForecastPeriod.endOverrulable else 'false' }}"{% endif %}/>{% endif %}
+  {% if ts.externalForecastSearchTimeStep is not none %}<externalForecastSearchTimeStep unit="{{ ts.externalForecastSearchTimeStep.unit }}"{% if ts.externalForecastSearchTimeStep.multiplier is not none %} multiplier="{{ ts.externalForecastSearchTimeStep.multiplier }}"{% endif %}/>{% endif %}
+  {% if ts.externalForecastTimeCardinalTimeStep is not none %}<externalForecastTimeCardinalTimeStep unit="{{ ts.externalForecastTimeCardinalTimeStep.unit }}"{% if ts.externalForecastTimeCardinalTimeStep.multiplier is not none %} multiplier="{{ ts.externalForecastTimeCardinalTimeStep.multiplier }}"{% endif %}/>{% endif %}
+  {% if ts.qualifierAggregation is not none %}<qualifierAggregation>{{ ts.qualifierAggregation }}</qualifierAggregation>{% endif %}
   <readWriteMode>{{ ts.readWriteMode }}</readWriteMode>
   {% if ts.synchLevel is not none %}<synchLevel>{{ ts.synchLevel }}</synchLevel>{% endif %}
   {% if ts.expiryTime is not none %}{% if ts.expiryTime.id is not none %}<expiryTime id="{{ ts.expiryTime.id }}"/>
   {% else %}<expiryTime unit="{{ ts.expiryTime.unit }}"{% if ts.expiryTime.multiplier is not none %} multiplier="{{ ts.expiryTime.multiplier }}"{% endif %}/>{% endif %}{% endif %}
-  {% if ts.ensembleId is not none %}<ensembleId>{{ ts.ensembleId }}</ensembleId>{% endif %}
+  {% if ts.delay is not none %}<delay unit="{{ ts.delay.unit }}"{% if ts.delay.multiplier is not none %} multiplier="{{ ts.delay.multiplier }}"{% endif %}{% if ts.delay.divider is not none %} divider="{{ ts.delay.divider }}"{% endif %}/>{% endif %}
   {% if ts.multiplier is not none %}<multiplier>{{ ts.multiplier | xmlstr }}</multiplier>{% endif %}
+  {% if ts.divider is not none %}<divider>{{ ts.divider | xmlstr }}</divider>{% endif %}
+  {% if ts.incrementer is not none %}<incrementer>{{ ts.incrementer | xmlstr }}</incrementer>{% endif %}
+  {% if ts.ensembleId is not none %}<ensembleId>{{ ts.ensembleId }}</ensembleId>{% endif %}
+  {% for em in ts.ensembleMemberId %}<ensembleMemberId>{{ em }}</ensembleMemberId>
+  {% endfor %}{% if ts.ensembleMemberIndex is not none %}<ensembleMemberIndex>{{ ts.ensembleMemberIndex }}</ensembleMemberIndex>{% endif %}
+  {% for r in ts.ensembleMemberIndexRange %}<ensembleMemberIndexRange start="{{ r.start }}"{% if r.end is not none %} end="{{ r.end }}"{% endif %}/>
+  {% endfor %}{% if ts.visibilityControllingFlagSourceColumnId is not none %}<visibilityControllingFlagSourceColumnId>{{ ts.visibilityControllingFlagSourceColumnId }}</visibilityControllingFlagSourceColumnId>{% endif %}
+  {% if ts.onlyReliableFlagSourceColumnId is not none %}<onlyReliableFlagSourceColumnId>{{ ts.onlyReliableFlagSourceColumnId }}</onlyReliableFlagSourceColumnId>{% endif %}
 </{{ tag }}>
 {%- endmacro %}

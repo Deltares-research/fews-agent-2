@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<importAmalgamate xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/importAmalgamate.xsd">
+  {% for w in workflowId %}<workflowId>{{ w }}</workflowId>
+  {% endfor %}
+  {% for p in workflowIdPattern %}<workflowIdPattern>{{ p }}</workflowIdPattern>
+  {% endfor %}
+  {% if importRunMinimalAge is not none %}<importRunMinimalAge unit="{{ importRunMinimalAge.unit }}"{% if importRunMinimalAge.multiplier is not none %} multiplier="{{ importRunMinimalAge.multiplier }}"{% endif %}/>{% endif %}
+  {% if afterAmalgamateImportRunMetaDataExpiryTime is not none %}<afterAmalgamateImportRunMetaDataExpiryTime unit="{{ afterAmalgamateImportRunMetaDataExpiryTime.unit }}"{% if afterAmalgamateImportRunMetaDataExpiryTime.multiplier is not none %} multiplier="{{ afterAmalgamateImportRunMetaDataExpiryTime.multiplier }}"{% endif %}/>{% endif %}
+  {% if amalgamateClosedServiceSessions is not none %}<amalgamateClosedServiceSessions>{{ 'true' if amalgamateClosedServiceSessions else 'false' }}</amalgamateClosedServiceSessions>{% endif %}
+  {% if amalgamateOrphans is not none %}<amalgamateOrphans>{{ 'true' if amalgamateOrphans else 'false' }}</amalgamateOrphans>{% endif %}
+  {% if removeIdsNoLongerInConfig is not none %}<removeIdsNoLongerInConfig>{{ 'true' if removeIdsNoLongerInConfig else 'false' }}</removeIdsNoLongerInConfig>{% endif %}
+</importAmalgamate>

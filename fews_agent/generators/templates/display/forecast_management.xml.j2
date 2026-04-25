@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<forecastManagement xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/forecastManagement.xsd">
+{%- macro threshold(t) %}<timeThreshold>
+      <periodLength unit="{{ t.periodLength.unit }}" value="{{ t.periodLength.value }}">{% if t.periodLength.description is not none %}<description>{{ t.periodLength.description }}</description>{% endif %}</periodLength>
+      <color>{{ t.color }}</color>
+      {% if t.eventCode is not none %}<eventCode>{{ t.eventCode }}</eventCode>{% endif %}
+      {% if t.logLevel is not none %}<logLevel>{{ t.logLevel }}</logLevel>{% endif %}
+      {% if t.graceTime is not none %}<graceTime unit="{{ t.graceTime.unit }}"{% if t.graceTime.multiplier is not none %} multiplier="{{ t.graceTime.multiplier }}"{% endif %}{% if t.graceTime.divider is not none %} divider="{{ t.graceTime.divider }}"{% endif %}/>{% endif %}
+    </timeThreshold>{%- endmacro %}
+  <defaultDispatchTimeThreshold>
+    {% for t in defaultDispatchTimeThreshold.timeThreshold %}{{ threshold(t) }}
+    {% endfor %}
+  </defaultDispatchTimeThreshold>
+  {% for x in extraDispatchTimeThreshold %}<extraDispatchTimeThreshold>
+    {% for w in x.workflowId %}<workflowId>{{ w }}</workflowId>
+    {% endfor %}
+    {% for p in x.workflowIdPattern %}<workflowIdPattern>{{ p }}</workflowIdPattern>
+    {% endfor %}
+    {% for t in x.timeThreshold %}{{ threshold(t) }}
+    {% endfor %}
+  </extraDispatchTimeThreshold>
+  {% endfor %}
+</forecastManagement>

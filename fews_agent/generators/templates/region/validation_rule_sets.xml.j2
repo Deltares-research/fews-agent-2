@@ -1,0 +1,31 @@
+{%- import "_partials/timeseries_set.xml.j2" as tss -%}
+<?xml version="1.0" encoding="UTF-8"?>
+<validationRuleSets xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/validationRuleSets.xsd" version="{{ version }}">
+{% for vrs in validationRuleSet %}
+  <validationRuleSet validationRuleSetId="{{ vrs.validationRuleSetId }}"{% if vrs.timeZone is not none %} timeZone="{{ vrs.timeZone }}"{% endif %}>
+    {% if vrs.logLevel is not none %}<logLevel>{{ vrs.logLevel }}</logLevel>{% endif %}
+    {% if vrs.unit is not none %}<unit>{{ vrs.unit }}</unit>{% endif %}
+    {% if vrs.considerQualifiers is not none %}<considerQualifiers>{{ 'true' if vrs.considerQualifiers else 'false' }}</considerQualifiers>{% endif %}
+    {% if vrs.extremeValues is not none %}
+    <extremeValues{% if vrs.extremeValues.locationId is not none %} locationId="{{ vrs.extremeValues.locationId }}"{% endif %}>
+      {% if vrs.extremeValues.hardMax is not none %}<hardMax constantLimit="{{ vrs.extremeValues.hardMax.constantLimit }}"/>{% endif %}
+      {% if vrs.extremeValues.hardMin is not none %}<hardMin constantLimit="{{ vrs.extremeValues.hardMin.constantLimit }}"/>{% endif %}
+      {% if vrs.extremeValues.softMax is not none %}<softMax constantLimit="{{ vrs.extremeValues.softMax.constantLimit }}"/>{% endif %}
+      {% if vrs.extremeValues.softMin is not none %}<softMin constantLimit="{{ vrs.extremeValues.softMin.constantLimit }}"/>{% endif %}
+    </extremeValues>
+    {% elif vrs.extremeValuesFunctions is not none %}{{ vrs.extremeValuesFunctions | dict_to_xml('extremeValuesFunctions') | safe }}{% endif %}
+    {% for r in vrs.rateOfChange %}{{ r | dict_to_xml('rateOfChange') | safe }}{% endfor %}
+    {% for r in vrs.rateOfChangeFunctions %}{{ r | dict_to_xml('rateOfChangeFunctions') | safe }}{% endfor %}
+    {% for r in vrs.rateOfChangeTimeSpan %}{{ r | dict_to_xml('rateOfChangeTimeSpan') | safe }}{% endfor %}
+    {% for r in vrs.rateOfChangeFunctionsTimeSpan %}{{ r | dict_to_xml('rateOfChangeFunctionsTimeSpan') | safe }}{% endfor %}
+    {% for s in vrs.sameReading %}{{ s | dict_to_xml('sameReading') | safe }}{% endfor %}
+    {% for s in vrs.sameReadingFunctions %}{{ s | dict_to_xml('sameReadingFunctions') | safe }}{% endfor %}
+    {% for t in vrs.temporaryShift %}{{ t | dict_to_xml('temporaryShift') | safe }}{% endfor %}
+    {% for t in vrs.temporaryShiftFunctions %}{{ t | dict_to_xml('temporaryShiftFunctions') | safe }}{% endfor %}
+    {% for o in vrs.oscillation %}{{ o | dict_to_xml('oscillation') | safe }}{% endfor %}
+    {% for o in vrs.oscillationFunctions %}{{ o | dict_to_xml('oscillationFunctions') | safe }}{% endfor %}
+    {% for t in vrs.timeSeries %}{{ t | dict_to_xml('timeSeries') | safe }}{% endfor %}
+    {% for ts in vrs.timeSeriesSet %}{{ tss.render(ts) }}{% endfor %}
+  </validationRuleSet>
+{% endfor %}
+</validationRuleSets>

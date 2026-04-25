@@ -1,0 +1,27 @@
+{%- macro body(group) -%}
+{%- if group.description is not none %}
+    <description>{{ group.description }}</description>
+{%- endif %}
+{%- endmacro -%}
+{%- macro season_body(group) -%}
+{%- if group.description is not none %}
+    <description>{{ group.description }}</description>
+{%- endif %}
+    <season>
+      <startMonthDay>{{ group.season.startMonthDay }}</startMonthDay>
+      <endMonthDay>{{ group.season.endMonthDay }}</endMonthDay>
+    </season>
+{%- endmacro -%}
+<?xml version="1.0" encoding="UTF-8"?>
+<coldModuleInstanceStateGroups xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/coldModuleInstanceStateGroups.xsd" version="{{ version }}">
+  <defaultGroup id="{{ defaultGroup.id }}"{% if defaultGroup.name is not none %} name="{{ defaultGroup.name }}"{% endif %}>{{ body(defaultGroup) }}
+  </defaultGroup>
+{%- for g in seasonalGroup %}
+  <seasonalGroup id="{{ g.id }}"{% if g.name is not none %} name="{{ g.name }}"{% endif %}>{{ season_body(g) }}
+  </seasonalGroup>
+{%- endfor %}
+{%- for g in additionalGroup %}
+  <additionalGroup id="{{ g.id }}"{% if g.name is not none %} name="{{ g.name }}"{% endif %}>{{ body(g) }}
+  </additionalGroup>
+{%- endfor %}
+</coldModuleInstanceStateGroups>

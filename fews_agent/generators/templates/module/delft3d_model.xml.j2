@@ -1,0 +1,98 @@
+{%- macro grid_def(g) -%}
+<gridDefinition>
+      <geoDatum>{{ g.geoDatum }}</geoDatum>
+      <upperLeftCorner>
+        <x>{{ g.upperLeftCorner.x }}</x>
+        <y>{{ g.upperLeftCorner.y }}</y>
+        {%- if g.upperLeftCorner.z is not none %}
+        <z>{{ g.upperLeftCorner.z }}</z>
+        {%- endif %}
+      </upperLeftCorner>
+      <rows>{{ g.rows }}</rows>
+      <columns>{{ g.columns }}</columns>
+      <cellwidth>{{ g.cellwidth }}</cellwidth>
+      <cellheight>{{ g.cellheight }}</cellheight>
+    </gridDefinition>
+{%- endmacro -%}
+<?xml version="1.0" encoding="UTF-8"?>
+<delft3dModel xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/delft3dModel.xsd">
+  {%- if description is not none %}
+  <description>{{ description }}</description>
+  {%- endif %}
+  <general>
+    <module>{{ general.module }}</module>
+    <runId>{{ general.runId }}</runId>
+    {%- if general.stateFileId is not none %}
+    <stateFileId>{{ general.stateFileId }}</stateFileId>
+    {%- endif %}
+    <workDir>{{ general.workDir }}</workDir>
+    <modelDir>{{ general.modelDir }}</modelDir>
+    {%- if general.auxiliaryGridFile is not none %}
+    <auxiliaryGridFile>{{ general.auxiliaryGridFile }}</auxiliaryGridFile>
+    {%- endif %}
+    {%- if general.fieldFileFormat is not none %}
+    <fieldFileFormat>{{ general.fieldFileFormat }}</fieldFileFormat>
+    {%- endif %}
+    {%- if general.outputTimeSeriesInOneFile is not none %}
+    <outputTimeSeriesInOneFile>{{ 'true' if general.outputTimeSeriesInOneFile else 'false' }}</outputTimeSeriesInOneFile>
+    {%- endif %}
+    {%- if general.geoDatum is not none %}
+    <geoDatum>{{ general.geoDatum }}</geoDatum>
+    {%- elif general.gridDefinition is not none %}
+    {{ grid_def(general.gridDefinition) }}
+    {%- endif %}
+    {%- if general.timeZone is not none %}
+    <timeZone>{% if general.timeZone.timeZoneName is not none %}<timeZoneName>{{ general.timeZone.timeZoneName }}</timeZoneName>{% endif %}{% if general.timeZone.timeZoneOffset is not none %}<timeZoneOffset>{{ general.timeZone.timeZoneOffset }}</timeZoneOffset>{% endif %}</timeZone>
+    {%- endif %}
+    {%- if general.online is not none %}
+    <online>{{ general.online }}</online>
+    {%- endif %}
+    {%- if general.rstNcFileSubcript is not none %}
+    <rstNcFileSubcript>{{ general.rstNcFileSubcript }}</rstNcFileSubcript>
+    {%- endif %}
+    {%- if general.warnAboutUnusedSeries is not none %}
+    <warnAboutUnusedSeries>{{ 'true' if general.warnAboutUnusedSeries else 'false' }}</warnAboutUnusedSeries>
+    {%- endif %}
+  </general>
+  {%- if preAdapter is not none %}
+  <preAdapter>
+    <steeringTimeSeriesName>{{ preAdapter.steeringTimeSeriesName }}</steeringTimeSeriesName>
+    {%- if preAdapter.initialConditionsId is not none %}
+    <initialConditionsId>{{ preAdapter.initialConditionsId }}</initialConditionsId>
+    {%- endif %}
+    {%- if preAdapter.useWaqMapFilesForInitialConditions is not none %}
+    <useWaqMapFilesForInitialConditions>{{ 'true' if preAdapter.useWaqMapFilesForInitialConditions else 'false' }}</useWaqMapFilesForInitialConditions>
+    {%- endif %}
+    {%- for rc in preAdapter.runCommand %}
+    <runCommand>{{ rc }}</runCommand>
+    {%- endfor %}
+  </preAdapter>
+  {%- endif %}
+  {%- if postAdapter is not none %}
+  <postAdapter>
+    {%- if postAdapter.timeSeriesOutput is not none %}
+    <timeSeriesOutput>
+      {%- for ts in postAdapter.timeSeriesOutput.timeSeries %}
+      <timeSeries parameter="{{ ts.parameter }}" location="{{ ts.location }}" layer="{{ ts.layer }}" fewsParameter="{{ ts.fewsParameter }}" fewsLocation="{{ ts.fewsLocation }}"/>
+      {%- endfor %}
+    </timeSeriesOutput>
+    {%- endif %}
+    {%- if postAdapter.mapOutput is not none %}
+    <mapOutput>
+      {%- if postAdapter.mapOutput.formatForPart is not none %}
+      <formatForPart>{{ postAdapter.mapOutput.formatForPart }}</formatForPart>
+      {%- endif %}
+      {%- for m in postAdapter.mapOutput.map %}
+      <map parameter="{{ m.parameter }}" layer="{{ m.layer }}" fewsParameter="{{ m.fewsParameter }}" fewsLocation="{{ m.fewsLocation }}"/>
+      {%- endfor %}
+    </mapOutput>
+    {%- endif %}
+    {%- for rc in postAdapter.runCommand %}
+    <runCommand>{{ rc }}</runCommand>
+    {%- endfor %}
+    {%- if postAdapter.invertTimeStamp is not none %}
+    <invertTimeStamp>{{ 'true' if postAdapter.invertTimeStamp else 'false' }}</invertTimeStamp>
+    {%- endif %}
+  </postAdapter>
+  {%- endif %}
+</delft3dModel>

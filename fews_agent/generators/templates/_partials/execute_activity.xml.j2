@@ -1,0 +1,38 @@
+{# Shared body for ExecuteActivityComplexType. Caller passes the
+   outer element name (e.g. "executeActivity", "preActivity",
+   "postActivity", "executeActivity" inside fewsAdapterLauncher).
+   Full XSD coverage: description, command (executable | Java form),
+   arguments, environmentVariables, console, logFile[],
+   activityDurationWeight, timeOut, choice(maxNumberOfSimultaneousRuns
+   | waitForOtherRun), ignoreDiagnostics, ignoreExitCode,
+   overrulingDiagnosticFile, plus executeOnPreviousError attr.
+#}
+{%- macro render(exa, tag) -%}
+<{{ tag }}{% if exa.executeOnPreviousError is not none %} executeOnPreviousError="{{ 'true' if exa.executeOnPreviousError else 'false' }}"{% endif %}>
+  {% if exa.description is not none %}<description>{{ exa.description }}</description>{% endif %}
+  <command>
+    {% if exa.command.executable is not none %}<executable>{{ exa.command.executable }}</executable>
+    {%- else %}
+    <className>{{ exa.command.className }}</className>
+    {% if exa.command.binDir is not none %}<binDir>{{ exa.command.binDir }}</binDir>{% endif %}
+    {% if exa.command.moduleDataSetName is not none %}<moduleDataSetName>{{ exa.command.moduleDataSetName }}</moduleDataSetName>{% endif %}
+    {% if exa.command.customJreDir is not none %}<customJreDir>{{ exa.command.customJreDir }}</customJreDir>{% endif %}
+    {% for j in exa.command.jvmArg %}<jvmArg>{{ j }}</jvmArg>{% endfor %}
+    {%- endif %}
+  </command>
+  {% if exa.arguments is not none %}
+  <arguments>
+    {% for a in exa.arguments.argument %}<argument>{{ a }}</argument>{% endfor %}
+  </arguments>
+  {% endif %}
+  {% if exa.environmentVariables is not none %}{{ exa.environmentVariables | dict_to_xml('environmentVariables') | safe }}{% endif %}
+  {% if exa.console is not none %}{{ exa.console | dict_to_xml('console') | safe }}{% endif %}
+  {% for l in exa.logFile %}{{ l | dict_to_xml('logFile') | safe }}{% endfor %}
+  {% if exa.activityDurationWeight is not none %}<activityDurationWeight>{{ exa.activityDurationWeight }}</activityDurationWeight>{% endif %}
+  {% if exa.timeOut is not none %}<timeOut>{{ exa.timeOut }}</timeOut>{% endif %}
+  {% if exa.maxNumberOfSimultaneousRuns is not none %}<maxNumberOfSimultaneousRuns>{{ exa.maxNumberOfSimultaneousRuns }}</maxNumberOfSimultaneousRuns>{% elif exa.waitForOtherRun is not none %}<waitForOtherRun>{{ 'true' if exa.waitForOtherRun else 'false' }}</waitForOtherRun>{% endif %}
+  {% if exa.ignoreDiagnostics is not none %}<ignoreDiagnostics>{{ 'true' if exa.ignoreDiagnostics else 'false' }}</ignoreDiagnostics>{% endif %}
+  {% if exa.ignoreExitCode is not none %}<ignoreExitCode>{{ 'true' if exa.ignoreExitCode else 'false' }}</ignoreExitCode>{% endif %}
+  {% if exa.overrulingDiagnosticFile is not none %}<overrulingDiagnosticFile>{{ exa.overrulingDiagnosticFile }}</overrulingDiagnosticFile>{% endif %}
+</{{ tag }}>
+{%- endmacro %}

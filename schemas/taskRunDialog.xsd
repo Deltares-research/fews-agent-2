@@ -1,0 +1,248 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- edited with XMLSpy v2009 sp1 (http://www.altova.com) by ICT (Stichting Deltares) -->
+<!-- edited with XMLSPY v2004 rel. 3 U (http://www.xmlspy.com) by tacoma (WL | Delft Hydraulics) -->
+<!--Delft FEWS (Copyright 2003 WL | Delft Hydraulics) -->
+<schema xmlns="http://www.w3.org/2001/XMLSchema" xmlns:fews="http://www.wldelft.nl/fews" targetNamespace="http://www.wldelft.nl/fews" elementFormDefault="qualified" attributeFormDefault="unqualified" version="1.0">
+	<include schemaLocation="archiveRun.xsd"/>
+	<include schemaLocation="sharedTypes.xsd"/>
+	<element name="taskRunDialog">
+		<complexType>
+			<sequence maxOccurs="unbounded">
+				<element name="taskGroup" type="fews:TaskRunDialogTaskGroupComplexType"/>
+			</sequence>
+			<attribute name="title" type="string"/>
+			<attribute name="showProperties" type="boolean" default="false"/>
+		</complexType>
+	</element>
+	<complexType name="TaskRunDialogTaskComplexType" abstract="true">
+		<annotation>
+			<documentation>Abstract task type</documentation>
+		</annotation>
+		<sequence>
+			<element name="center" type="fews:PixelPosition" minOccurs="0">
+				<annotation>
+					<documentation>When specified the task is also displayed in the flow chart</documentation>
+				</annotation>
+			</element>
+			<element name="dependency" type="fews:TaskRunDialogTaskDependencyComplexType" minOccurs="0" maxOccurs="unbounded"/>
+		</sequence>
+		<attribute name="name" type="string" use="required"/>
+		<attribute name="workflowId" type="string" use="required"/>
+		<attribute name="iconName" type="string"/>
+		<attribute name="disableRun" type="boolean"/>
+		<attribute name="disableSchedule" type="boolean"/>
+		<attribute name="explorerLocationId" type="fews:idStringType"/>
+		<attribute name="runLocally" type="boolean"/>
+	</complexType>
+	<complexType name="TaskRunDialogFlowchartComplexType">
+		<sequence>
+			<element name="scale" type="int" default="1">
+				<annotation>
+					<documentation>The default scale is one. The complete flow chart diagram is magnified with the specified scale.
+                    </documentation>
+				</annotation>
+			</element>
+			<element name="taskSize" type="fews:PixelDimension">
+				<annotation>
+					<documentation>
+                        Width and height of of every task in the flow chart diagram. Width and height multiplied with the scale gives the size in screen pixels.
+                    </documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="TaskRunDialogTaskDependencyComplexType">
+		<sequence>
+			<element name="vertex" type="fews:PixelPosition" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>By default the dependency arrow is straight line between two tasks. By adding vertices you can add bounding points to the line.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+		<attribute name="taskName" type="string" use="required">
+			<annotation>
+				<documentation>The name of the task that produces output used by this task </documentation>
+			</annotation>
+		</attribute>
+	</complexType>
+	<complexType name="TaskRunDialogSimpleTaskComplexType">
+		<annotation>
+			<documentation>Simple task, empty page with minimum options</documentation>
+		</annotation>
+		<complexContent>
+			<extension base="fews:TaskRunDialogTaskComplexType">
+				<sequence>
+					<element name="relativePeriod" type="fews:RelativePeriodComplexType"/>
+				</sequence>
+			</extension>
+		</complexContent>
+	</complexType>
+	<complexType name="TaskRunDialogOperatorTaskComplexType">
+		<annotation>
+			<documentation>Custom task types used by operators, provide editing of additional input.</documentation>
+		</annotation>
+		<complexContent>
+			<extension base="fews:TaskRunDialogTaskComplexType">
+				<sequence minOccurs="0" maxOccurs="unbounded">
+					<element name="panel">
+						<annotation>
+							<documentation>Attributes row and column specifie panel position in the OperatorTask page. If not specified, the OperatorTask panel has 1 column. Number of rows depends on the number of panels. NOTE: once specified for one of the panels, both row and column must be specified for all panels !</documentation>
+						</annotation>
+						<complexType>
+							<sequence>
+								<choice minOccurs="0" maxOccurs="unbounded">
+									<element name="scenarioSelect" type="fews:TaskRunDialogScenarioSelectorComplexType">
+										<annotation>
+											<documentation>Combo box containing pre-defined scenarios</documentation>
+										</annotation>
+									</element>
+									<element name="valueEdit" type="fews:TaskRunDialogValueEditorComplexType">
+										<annotation>
+											<documentation>Scalar (floating-point) value editor</documentation>
+										</annotation>
+									</element>
+									<element name="timeEdit" type="fews:TaskRunDialogTimeEditorComplexType">
+										<annotation>
+											<documentation>Date and time editor</documentation>
+										</annotation>
+									</element>
+									<element name="valueNonEditable" type="fews:TaskRunDialogValueNonEditableComplexType">
+										<annotation>
+											<documentation>Since 2016.01  Use this element to show a value in a non editable field. If the defaultTimeSeriesSet is configured, the first time series value is shown.</documentation>
+										</annotation>
+									</element>
+								</choice>
+							</sequence>
+							<attribute name="name" type="string">
+								<annotation>
+									<documentation>Panel title</documentation>
+								</annotation>
+							</attribute>
+							<attribute name="row" type="fews:positiveInteger"/>
+							<attribute name="column" type="fews:positiveInteger"/>
+						</complexType>
+					</element>
+				</sequence>
+			</extension>
+		</complexContent>
+	</complexType>
+	<complexType name="TaskRunDialogEditorComplexType">
+		<attribute name="name" type="string" use="required"/>
+	</complexType>
+	<complexType name="TaskRunDialogScenarioSelectorComplexType">
+		<complexContent>
+			<extension base="fews:TaskRunDialogEditorComplexType">
+				<sequence>
+					<element name="selectedScenario" minOccurs="0">
+						<complexType>
+							<attribute name="id" type="string" use="required"/>
+						</complexType>
+					</element>
+					<element name="scenario" maxOccurs="unbounded">
+						<complexType>
+							<attribute name="id" type="string" use="required"/>
+						</complexType>
+					</element>
+				</sequence>
+				<attribute name="enabled" type="boolean" default="true"/>
+			</extension>
+		</complexContent>
+	</complexType>
+	<complexType name="TaskRunDialogValueEditorComplexType">
+		<complexContent>
+			<extension base="fews:TaskRunDialogEditorComplexType">
+				<sequence>
+					<element name="unit" type="string" minOccurs="0"/>
+					<choice>
+						<element name="defaultFloatValue" type="float"/>
+						<element name="defaultTimeSeriesSet" type="fews:TimeSeriesSetComplexType"/>
+					</choice>
+					<element name="outputVariable" type="fews:VariableComplexType">
+						<annotation>
+							<documentation>Defines time series set where output from the dialog data will be stored, will be used as a template for the output what if scenario</documentation>
+						</annotation>
+					</element>
+				</sequence>
+				<attribute name="enabled" type="boolean" default="true"/>
+			</extension>
+		</complexContent>
+	</complexType>
+	<complexType name="TaskRunDialogValueNonEditableComplexType">
+		<complexContent>
+			<extension base="fews:TaskRunDialogEditorComplexType">
+				<sequence>
+					<element name="unit" type="string" minOccurs="0"/>
+					<choice>
+						<element name="defaultFloatValue" type="float"/>
+						<element name="defaultTimeSeriesSet" type="fews:TimeSeriesSetComplexType"/>
+					</choice>
+				</sequence>
+			</extension>
+		</complexContent>
+	</complexType>
+	<complexType name="TaskRunDialogTimeEditorComplexType">
+		<complexContent>
+			<extension base="fews:TaskRunDialogEditorComplexType">
+				<sequence>
+					<element name="unit" type="string" minOccurs="0"/>
+					<choice>
+						<element name="defaultTimeValue" type="dateTime"/>
+						<element name="defaultTimeSeriesSet" type="fews:TimeSeriesSetComplexType"/>
+					</choice>
+					<element name="outputVariable" type="fews:VariableComplexType">
+						<annotation>
+							<documentation>Defines time series set where output from the dialog data will be stored, will be used as a template for the output what if scenario</documentation>
+						</annotation>
+					</element>
+				</sequence>
+				<attribute name="enabled" type="boolean" default="true"/>
+			</extension>
+		</complexContent>
+	</complexType>
+	<complexType name="TaskRunDialogTaskGroupComplexType">
+		<sequence>
+			<element name="flowchart" type="fews:TaskRunDialogFlowchartComplexType" minOccurs="0">
+				<annotation>
+					<documentation>When specified a flow chart of the tasks is shown when task group is selected.
+                        The centers and dependencies should be configures</documentation>
+				</annotation>
+			</element>
+			<choice maxOccurs="unbounded">
+				<element name="simpleTask" type="fews:TaskRunDialogSimpleTaskComplexType"/>
+				<element name="operatorTask" type="fews:TaskRunDialogOperatorTaskComplexType"/>
+				<element name="archiveTask" type="fews:TaskRunDialogArchiveTaskComplexType">
+					<annotation>
+						<documentation>Contains archive properties. No longer supported since 2017.02</documentation>
+					</annotation>
+				</element>
+			</choice>
+		</sequence>
+		<attribute name="name" type="string">
+			<annotation>
+				<documentation>Readable task group name</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="workflowId" type="string">
+			<annotation>
+				<documentation>Id of a workflow associated with the task group</documentation>
+			</annotation>
+		</attribute>
+	</complexType>
+	<complexType name="TaskRunDialogArchiveTaskComplexType">
+		<complexContent>
+			<extension base="fews:TaskRunDialogTaskComplexType">
+				<sequence>
+					<element name="archiveRun" type="fews:ArchiveRunComplexType"/>
+				</sequence>
+				<attribute name="queryServiceUrl" type="fews:nonEmptyStringType"/>
+			</extension>
+		</complexContent>
+	</complexType>
+	<complexType name="TaskRunDialogNevaBarrierTaskComplexType">
+		<complexContent>
+			<extension base="fews:TaskRunDialogTaskComplexType">
+				<attribute name="dssModuleInstanceId" type="fews:idStringType" use="required"/>
+			</extension>
+		</complexContent>
+	</complexType>
+</schema>

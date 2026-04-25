@@ -1,0 +1,99 @@
+{%- macro column(name, c) -%}
+{%- if c is not none %}<{{ name }} visible="{{ 'true' if c.visible else 'false' }}"/>{% endif -%}
+{%- endmacro -%}
+{%- macro note_body(n) -%}
+<eventCodeId>{{ n.eventCodeId }}</eventCodeId>
+      <messageTemplateId>{{ n.messageTemplateId }}</messageTemplateId>
+{%- endmacro -%}
+{%- macro text_note(n) -%}
+<note{% if n.name is not none %} name="{{ n.name }}"{% endif %}>
+      {{ note_body(n) }}
+      {%- if n.keepText is not none %}
+      <keepText>{{ 'true' if n.keepText else 'false' }}</keepText>
+      {%- endif %}
+      {%- if n.maxNumberOfLines is not none %}
+      <maxNumberOfLines>{{ n.maxNumberOfLines }}</maxNumberOfLines>
+      {%- endif %}
+      {%- if n.maxNumberOfCharactersInLine is not none %}
+      <maxNumberOfCharactersInLine>{{ n.maxNumberOfCharactersInLine }}</maxNumberOfCharactersInLine>
+      {%- endif %}
+    </note>
+{%- endmacro -%}
+{%- macro body(m) -%}
+{%- if m.columns is not none %}
+  <columns>
+    {{ column('logLevel', m.columns.logLevel) }}
+    {{ column('logCreationTime', m.columns.logCreationTime) }}
+    {{ column('expiryTime', m.columns.expiryTime) }}
+    {{ column('eventCode', m.columns.eventCode) }}
+    {{ column('eventTime', m.columns.eventTime) }}
+    {{ column('userId', m.columns.userId) }}
+    {{ column('template', m.columns.template) }}
+    {{ column('segment', m.columns.segment) }}
+    {{ column('logMessage', m.columns.logMessage) }}
+    {{ column('taskRunId', m.columns.taskRunId) }}
+  </columns>
+{%- endif %}
+{%- if m.maxNumberOfLinesInTableRow is not none %}
+  <maxNumberOfLinesInTableRow>{{ m.maxNumberOfLinesInTableRow }}</maxNumberOfLinesInTableRow>
+{%- endif %}
+{%- if m.defaultTopologyNodeId is not none %}
+  <defaultTopologyNodeId>{{ m.defaultTopologyNodeId }}</defaultTopologyNodeId>
+{%- endif %}
+{%- if m.defaultAreaId is not none %}
+  <defaultAreaId>{{ m.defaultAreaId }}</defaultAreaId>
+{%- endif %}
+{%- if m.messageTemplate %}
+{%- for mt in m.messageTemplate %}
+  <messageTemplate>{{ mt }}</messageTemplate>
+{%- endfor %}
+{%- else %}
+{%- for mt in m.msgTemplate %}
+  <msgTemplate id="{{ mt.id }}">
+    <message>{{ mt.message }}</message>
+    {%- if mt.messageWidth is not none %}
+    <messageWidth>{{ mt.messageWidth }}</messageWidth>
+    {%- endif %}
+    {%- if mt.messageHeight is not none %}
+    <messageHeight>{{ mt.messageHeight }}</messageHeight>
+    {%- endif %}
+  </msgTemplate>
+{%- endfor %}
+{%- endif %}
+{%- for ec in m.eventCode %}
+  <eventCode id="{{ ec.id }}"/>
+{%- endfor %}
+{%- for ut in m.userTemplate %}
+  <userTemplate>{{ ut }}</userTemplate>
+{%- endfor %}
+{%- if m.multipleForecasterNotesMaker is not none %}
+  <multipleForecasterNotesMaker>
+    {%- for ng in m.multipleForecasterNotesMaker.noteGroup %}
+    <noteGroup name="{{ ng.name }}"{% if ng.id is not none %} id="{{ ng.id }}"{% endif %}>
+      {%- for n in ng.note %}
+      {{ text_note(n) }}
+      {%- endfor %}
+      {%- for ncg in ng.noteChoiceGroup %}
+      <noteChoiceGroup{% if ncg.name is not none %} name="{{ ncg.name }}"{% endif %}>
+        {%- for nc in ncg.noteChoice %}
+        <noteChoice name="{{ nc.name }}">
+          {%- for n in nc.note %}
+          <note{% if n.name is not none %} name="{{ n.name }}"{% endif %}>
+            {{ note_body(n) }}
+          </note>
+          {%- endfor %}
+        </noteChoice>
+        {%- endfor %}
+      </noteChoiceGroup>
+      {%- endfor %}
+      {%- if ng.viewPermission is not none %}
+      <viewPermission>{{ ng.viewPermission }}</viewPermission>
+      {%- endif %}
+      {%- if ng.createPermission is not none %}
+      <createPermission>{{ ng.createPermission }}</createPermission>
+      {%- endif %}
+    </noteGroup>
+    {%- endfor %}
+  </multipleForecasterNotesMaker>
+{%- endif %}
+{%- endmacro -%}

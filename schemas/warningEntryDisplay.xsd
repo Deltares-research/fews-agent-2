@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- edited with XMLSpy v2009 sp1 (http://www.altova.com) by ICT (Stichting Deltares) -->
+<!-- edited with XMLSPY v2004 rel. 3 U (http://www.xmlspy.com) by tacoma (WL | Delft Hydraulics) -->
+<!--Delft FEWS (Copyright 2003 WL | Delft Hydraulics) -->
+<schema xmlns="http://www.w3.org/2001/XMLSchema" xmlns:fews="http://www.wldelft.nl/fews" targetNamespace="http://www.wldelft.nl/fews" elementFormDefault="qualified" attributeFormDefault="unqualified"
+		version="1.0">
+	<include schemaLocation="sharedTypes.xsd"/>
+	<element name="warningEntryDisplay" type="fews:WarningEntryDisplayComplexType"/>
+	<complexType name="WarningEntryDisplayComplexType">
+		<sequence>
+			<element name="timeSeriesSet" type="fews:TimeSeriesSetComplexType"/>
+			<element name="valueProperty" type="fews:WETValuePropertyComplexType" maxOccurs="unbounded"/>
+		</sequence>
+	</complexType>
+	<complexType name="WETValuePropertyComplexType">
+		<sequence>
+			<element name="enumerationValue" type="string" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Different possible values for this property, when 1 or more enumeration values are defined the column will become editable through a dropdown.</documentation>
+				</annotation>
+			</element>
+			<element name="defaultValueAttributeId" type="fews:nonEmptyStringType" minOccurs="0">
+				<annotation>
+					<documentation>Default value taken from an attribute</documentation>
+				</annotation>
+			</element>
+		</sequence>
+		<attribute name="id" type="fews:nonEmptyStringType" use="required"/>
+		<attribute name="propertyType" type="fews:propertyTypeEnumStringType" use="required"/>
+		<attribute name="name" type="string"/>
+	</complexType>
+</schema>

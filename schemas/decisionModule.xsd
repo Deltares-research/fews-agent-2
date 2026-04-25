@@ -1,0 +1,290 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- edited with XMLSpy v2009 sp1 (http://www.altova.com) by ICT (Stichting Deltares) -->
+<schema xmlns="http://www.w3.org/2001/XMLSchema" xmlns:fews="http://www.wldelft.nl/fews" targetNamespace="http://www.wldelft.nl/fews" elementFormDefault="qualified" attributeFormDefault="unqualified" version="1.0">
+	<include schemaLocation="sharedTypes.xsd"/>
+	<!-- necessary for fews:logicalOperatorEnumStringType -->
+	<include schemaLocation="lookupSets.xsd"/>
+	<!-- -->
+	<!-- Top-level element Declaration -->
+	<!-- -->
+	<element name="decisionModule" type="fews:DecisionModuleComplexType"/>
+	<!-- -->
+	<!--complexType Definitions -->
+	<!-- -->
+	<complexType name="RulesComplexType">
+		<sequence>
+			<element name="variable" type="fews:DecisionVariableDefinitionComplexType" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Definitions of variables that can be used as variables in the rules. A variable is always a time series. </documentation>
+				</annotation>
+			</element>
+			<element name="criticalConditions" type="fews:CriticalConditionLookUpComplexType">
+				<annotation>
+					<documentation>The criticalConditions determine if further activity should be realised. The evaluation period for the criticalCondions is determined by the definition in the decisionModule (evaluation = lastKnownState).</documentation>
+				</annotation>
+			</element>
+			<element name="transitionRules" type="fews:TransitionRulesComplexType">
+				<annotation>
+					<documentation>If certain criticalConditions are met, at a certain moment the state transition should be activated. The moment at which this occurs will be determined by the transitionRules.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="TransitionRulesComplexType">
+		<sequence>
+			<element name="transitionRule" type="fews:TransitionRuleComplexType" maxOccurs="unbounded"/>
+		</sequence>
+	</complexType>
+	<complexType name="TransitionRuleComplexType">
+		<sequence>
+			<element name="ruleType" type="fews:RuleTypeEnumStringType"/>
+			<choice>
+				<element name="criticalConditionName" type="fews:idStringType">
+					<annotation>
+						<documentation>Name of the criticalCondition.</documentation>
+					</annotation>
+				</element>
+				<element name="transitionRuleId" type="fews:idStringType"/>
+			</choice>
+			<!--			<element name="rule" type="fews:ConditionComplexType" minOccurs="0"/>-->
+			<element name="transitionCondition" type="fews:RuleCriteriasComplexType" minOccurs="0"/>
+			<element name="timeOffset" minOccurs="0">
+				<complexType>
+					<attribute name="unit" type="fews:timeUnitEnumStringType" use="required"/>
+					<attribute name="value" type="int" use="required"/>
+				</complexType>
+			</element>
+		</sequence>
+		<attribute name="id" type="fews:idStringType" use="required"/>
+	</complexType>
+	<simpleType name="RuleTypeEnumStringType">
+		<restriction base="string">
+			<enumeration value="RelativeToCriticalCondition"/>
+			<enumeration value="OnCriticalCondition"/>
+		</restriction>
+	</simpleType>
+	<complexType name="DecisionModuleComplexType">
+		<sequence>
+			<element name="barrierConfiguration" type="string" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Name of the barrier config files associated with this decisionModule.</documentation>
+				</annotation>
+			</element>
+			<element name="variable" type="fews:DecisionVariableDefinitionComplexType" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Definitions of variables that can be used as variables in the rules. A variable is always a time series. </documentation>
+				</annotation>
+			</element>
+			<element name="rules" type="fews:RulesComplexType"/>
+			<element name="decisionTree" type="fews:DecisionTreeComplexType" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Definition of decisionTree elements to be used by the decisionEvaluation.</documentation>
+				</annotation>
+			</element>
+			<element name="decisionEvaluation" type="fews:DecisionEvaluationComplexType">
+				<annotation>
+					<documentation>Definition of the conditionalWorkflows for this decisionModule.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="DecisionVariableDefinitionComplexType">
+		<sequence>
+			<element name="variableId" type="fews:idStringType">
+				<annotation>
+					<documentation>Identifier for this variable. Use this identifier to reference to this variable in a component in the DecisionModule configuration.</documentation>
+				</annotation>
+			</element>
+			<element name="timeSeriesSet" type="fews:TimeSeriesSetComplexType">
+				<annotation>
+					<documentation>A time series set that can be used as input and/or output for the DecisionModule.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="RuleConstraintComplexType">
+		<sequence>
+			<group ref="fews:RuleConstraintChoice"/>
+		</sequence>
+	</complexType>
+	<complexType name="RuleConstraintsComplexType">
+		<sequence>
+			<group ref="fews:RuleConstraintChoice" maxOccurs="unbounded"/>
+		</sequence>
+	</complexType>
+	<group name="RuleConstraintChoice">
+		<choice>
+			<element name="not" type="fews:RuleConstraintComplexType">
+				<annotation>
+					<documentation>
+						Returns true if underlying ruleConstraints are NOT true.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="anyValid" type="fews:RuleConstraintsComplexType">
+				<annotation>
+					<documentation>
+						Returns true if at least one underlying ruleConstraint returns true.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="allValid" type="fews:RuleConstraintsComplexType">
+				<annotation>
+					<documentation>
+						Returns true if all underlying ruleConstraints return true.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="alwaysTrue" type="fews:idStringType">
+				<annotation>
+					<documentation>
+						Returns true if all items for this RuleId are true.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="alwaysFalse" type="fews:idStringType">
+				<annotation>
+					<documentation>
+						Returns true if all items for this RuleId are false.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="isTrue" type="fews:idStringType">
+				<annotation>
+					<documentation>Only returns true if the result for this RuleId returns true.</documentation>
+				</annotation>
+			</element>
+			<element name="isFalse" type="fews:idStringType">
+				<annotation>
+					<documentation>Only returns true if the result of this RuleId returns false.</documentation>
+				</annotation>
+			</element>
+		</choice>
+	</group>
+	<complexType name="DecisionTreeComplexType">
+		<sequence>
+			<element name="barrierId" type="fews:idStringType">
+				<annotation>
+					<documentation>Identifier of the Barrier associated with this decisionTree</documentation>
+				</annotation>
+			</element>
+			<element name="decision" type="fews:DecisionComplexType" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Definition of one decision to be evaluated for the barrier identified by the barrierId.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="DecisionEvaluationComplexType">
+		<sequence>
+			<element name="initialConditionalWorkflow" type="fews:DecisionInitialConditionalWorkflowComplexType">
+				<annotation>
+					<documentation>Definition of initial conditional Workflow to be run.</documentation>
+				</annotation>
+			</element>
+			<!--			<element name="variableId" type="fews:idStringType" maxOccurs="unbounded"/>
+-->
+			<element name="conditionalWorkflow" type="fews:DecisionConditionalWorkflowComplexType">
+				<annotation>
+					<documentation>Definition of conditional Workflow to be run after initialConditionalWorkflow.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="DecisionComplexType">
+		<sequence>
+			<element name="evaluationType" type="fews:decisionEvaluationTypeEnumStringType" default="lastKnownState" minOccurs="0"/>
+			<element name="stateDefinitionId" type="fews:idStringType">
+				<annotation>
+					<documentation>stateDefinitionId on the basis of which the evaluation period will be determined</documentation>
+				</annotation>
+			</element>
+			<element name="inputState" type="fews:DecisionStatesComplexType">
+				<annotation>
+					<documentation>Value of the barrier states at the start of the evaluation period.</documentation>
+				</annotation>
+			</element>
+			<element name="conditionRules" type="fews:RuleConstraintsComplexType">
+				<annotation>
+					<documentation>Conditional rules which must evaluate to true in order to continue with the transitionRules</documentation>
+				</annotation>
+			</element>
+			<element name="transitionRules" type="fews:RuleConstraintsComplexType">
+				<annotation>
+					<documentation>Transitional rules which must evaluate to true in order for the barrier states to change from the inputStates to the outputStates</documentation>
+				</annotation>
+			</element>
+			<element name="outputState" type="fews:DecisionStatesComplexType">
+				<annotation>
+					<documentation>Value of the barrier states at the end of the evaluation period.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+		<attribute name="id" type="fews:idStringType" use="required"/>
+	</complexType>
+	<group name="InputStatesSequenceGroup">
+		<sequence/>
+	</group>
+	<group name="OutputStatesSequenceGroup">
+		<sequence/>
+	</group>
+	<complexType name="DecisionInitialConditionalWorkflowComplexType">
+		<sequence>
+			<element name="variableId" type="fews:idStringType" maxOccurs="unbounded"/>
+			<element name="workflowId" type="fews:idStringType">
+				<annotation>
+					<documentation>The identifier of the workflow to run for the initial evaluation.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="DecisionConditionalWorkflowComplexType">
+		<sequence>
+			<element name="variableId" type="fews:idStringType" maxOccurs="unbounded"/>
+			<element name="stateChanges">
+				<annotation>
+					<documentation>Definition of decicionTree items to be evaluated for state changes.</documentation>
+				</annotation>
+				<complexType>
+					<sequence>
+						<element name="evaluationType" type="fews:stateChangeEvaluationTypeEnumStringType" default="FirstInTime" minOccurs="0"/>
+						<element name="stateChange" type="fews:DecisionStateChangeComplexType" maxOccurs="unbounded"/>
+					</sequence>
+				</complexType>
+			</element>
+			<element name="workflowId" type="fews:idStringType">
+				<annotation>
+					<documentation>The identifier of the workflow to run after the stateChanges have been evaluated.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="DecisionStateChangeComplexType">
+		<sequence>
+			<element name="decisionTreeId" type="fews:idStringType"/>
+		</sequence>
+	</complexType>
+	<complexType name="DecisionRulesComplexType">
+		<attribute name="ruleId" type="fews:idStringType" use="required"/>
+	</complexType>
+	<complexType name="DecisionStatesComplexType">
+		<sequence>
+			<element name="stateValueId" type="fews:idStringType">
+				<annotation>
+					<documentation>Identifier of the stateValue which applies to this stateDefinition</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<simpleType name="stateChangeEvaluationTypeEnumStringType">
+		<restriction base="string">
+			<enumeration value="FirstInTime"/>
+			<enumeration value="All"/>
+		</restriction>
+	</simpleType>
+	<simpleType name="decisionEvaluationTypeEnumStringType">
+		<restriction base="string">
+			<enumeration value="lastKnownState"/>
+		</restriction>
+	</simpleType>
+</schema>

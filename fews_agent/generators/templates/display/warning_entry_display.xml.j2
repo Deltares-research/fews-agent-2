@@ -1,0 +1,11 @@
+{%- import "_partials/timeseries_set.xml.j2" as tss -%}
+<?xml version="1.0" encoding="UTF-8"?>
+<warningEntryDisplay xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/warningEntryDisplay.xsd">
+  {{ tss.render(timeSeriesSet) }}
+  {% for vp in valueProperty %}<valueProperty id="{{ vp.id }}" propertyType="{{ vp.propertyType }}"{% if vp.name is not none %} name="{{ vp.name }}"{% endif %}>
+    {% for ev in vp.enumerationValue %}<enumerationValue>{{ ev }}</enumerationValue>
+    {% endfor %}
+    {% if vp.defaultValueAttributeId is not none %}<defaultValueAttributeId>{{ vp.defaultValueAttributeId }}</defaultValueAttributeId>{% endif %}
+  </valueProperty>
+  {% endfor %}
+</warningEntryDisplay>

@@ -1,0 +1,82 @@
+{%- import "_partials/spatial_interpolation.xml.j2" as si -%}
+{%- import "_partials/timeseries_set.xml.j2" as tss -%}
+{%- macro serial(a) -%}
+<serialInterpolation>
+      <serialInterpolationOption>{{ a.serialInterpolationOption }}</serialInterpolationOption>
+      {%- if a.gapLength is not none %}
+      <gapLength>{{ a.gapLength }}</gapLength>
+      {%- endif %}
+      {%- if a.defaultValue is not none %}
+      <defaultValue>{{ a.defaultValue | xmlstr }}</defaultValue>
+      {%- endif %}
+      {%- if a.window is not none %}
+      <window unit="{{ a.window.unit }}" multiplier="{{ a.window.multiplier }}"/>
+      {%- endif %}
+      {%- if a.baseValue is not none %}
+      <baseValue>{{ a.baseValue | xmlstr }}</baseValue>
+      {%- endif %}
+      {%- if a.extrapolateDirection is not none %}
+      <extrapolateDirection>{{ a.extrapolateDirection }}</extrapolateDirection>
+      {%- endif %}
+    </serialInterpolation>
+{%- endmacro -%}
+{%- macro grid_def(g) -%}
+<geoDatum>{{ g.geoDatum }}</geoDatum>
+      <upperLeftCorner>
+        <x>{{ g.upperLeftCorner.x | xmlstr }}</x>
+        <y>{{ g.upperLeftCorner.y | xmlstr }}</y>
+      </upperLeftCorner>
+      <rows>{{ g.rows }}</rows>
+      <columns>{{ g.columns }}</columns>
+      <cellwidth>{{ g.cellwidth | xmlstr }}</cellwidth>
+      <cellheight>{{ g.cellheight | xmlstr }}</cellheight>
+{%- endmacro -%}
+<?xml version="1.0" encoding="UTF-8"?>
+<interpolationSets xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/interpolationSets.xsd" version="{{ version }}">
+  {%- for s in interpolationSet %}
+  <interpolationSet interpolationId="{{ s.interpolationId }}">
+    {%- for a in s.serialInterpolation %}
+    {{ serial(a) }}
+    {%- endfor %}
+    {%- for a in s.spatialInterpolation %}
+    <spatialInterpolation>
+    {{ si.body(a) }}
+    </spatialInterpolation>
+    {%- endfor %}
+    {%- if s.timeSeriesSet %}
+    {%- for ts in s.timeSeriesSet %}
+    {{ tss.render(ts) }}
+    {%- endfor %}
+    {%- else %}
+    {%- for ts in s.timeSeriesInputSet %}
+    {{ tss.render(ts, tag="timeSeriesInputSet") }}
+    {%- endfor %}
+    {%- if s.timeSeriesOutputSet %}
+    {%- for ts in s.timeSeriesOutputSet %}
+    {{ tss.render(ts, tag="timeSeriesOutputSet") }}
+    {%- endfor %}
+    {%- elif s.outputSet is not none %}
+    <outputSet>
+      {{ tss.render(s.outputSet.timeSeriesOutputSet, tag="timeSeriesOutputSet") }}
+      {%- if s.outputSet.gridDefinition is not none %}
+      <gridDefinition>
+      {{ grid_def(s.outputSet.gridDefinition) }}
+      </gridDefinition>
+      {%- endif %}
+    </outputSet>
+    {%- endif %}
+    {%- endif %}
+  </interpolationSet>
+  {%- endfor %}
+  {%- for bg in basinGroup %}
+  <basinGroup gridLocationId="{{ bg.gridLocationId }}"{% if bg.description is not none %} description="{{ bg.description }}"{% endif %}>
+    {%- for b in bg.basin %}
+    <basin locationId="{{ b.locationId }}"{% if b.name is not none %} name="{{ b.name }}"{% endif %}>
+      {%- for p in b.cellPoints %}
+      <cellPoints col="{{ p.col }}" row="{{ p.row }}"/>
+      {%- endfor %}
+    </basin>
+    {%- endfor %}
+  </basinGroup>
+  {%- endfor %}
+</interpolationSets>

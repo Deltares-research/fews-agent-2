@@ -1,0 +1,17 @@
+{%- import "_partials/time_series_filter.xml.j2" as tsf -%}
+<?xml version="1.0" encoding="UTF-8"?>
+<forecastMixer xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/forecastMixer.xsd">
+  {%- for m in mixing %}
+  <mixing id="{{ m.id }}">
+    {%- for f in m.inputTimeSeries %}
+    <inputTimeSeries>
+    {{ tsf.body(f) }}
+    </inputTimeSeries>
+    {%- endfor %}
+    <outputTimeSeries>
+    {{ tsf.body(m.outputTimeSeries) }}
+    </outputTimeSeries>
+    <weightingMethod>{{ m.weightingMethod }}</weightingMethod>
+  </mixing>
+  {%- endfor %}
+</forecastMixer>

@@ -1,0 +1,159 @@
+{%- import "_partials/task_properties.xml.j2" as tp -%}
+{%- import "_partials/timeseries_set.xml.j2" as tss -%}
+{%- macro dt(name, d) -%}
+<{{ name }} date="{{ d.date }}"{% if d.time is not none %} time="{{ d.time }}"{% endif %}/>
+{%- endmacro -%}
+{%- macro opt(name, v) -%}
+{%- if v is not none %}
+<{{ name }}>{{ v }}</{{ name }}>
+{%- endif %}
+{%- endmacro -%}
+{%- macro text_match(name, a) -%}
+<{{ name }}>
+    {%- if a.description is not none %}
+    <description>{{ a.description }}</description>
+    {%- endif %}
+    {%- if a.emptyFile %}
+    <emptyFile/>
+    {%- else %}
+    {%- for ss in a.searchString %}
+    <searchString>{{ ss }}</searchString>
+    {%- endfor %}
+    {%- endif %}
+    <searchFile>{{ a.searchFile }}</searchFile>
+  </{{ name }}>
+{%- endmacro -%}
+<?xml version="1.0" encoding="UTF-8"?>
+<workflowTestRun xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/workflowTestRun.xsd">
+  <general>
+    {%- if general.description is not none %}
+    <description>{{ general.description }}</description>
+    {%- endif %}
+    {%- for dd in general.dirDefinition %}
+    <dirDefinition{% if dd.refName is not none %} refName="{{ dd.refName }}"{% endif %}{% if dd.dir is not none %} dir="{{ dd.dir }}"{% endif %}/>
+    {%- endfor %}
+    {%- if general.systemTime is not none %}
+    {{ dt('systemTime', general.systemTime) }}
+    {%- endif %}
+    {%- if general.testReport is not none %}
+    <testReport{% if general.testReport.dir is not none %} dir="{{ general.testReport.dir }}"{% endif %}>
+      <reportType>{{ general.testReport.reportType }}</reportType>
+    </testReport>
+    {%- endif %}
+  </general>
+  <activities>
+    {%- for a in activities.purgeActivity %}
+    <purgeActivity>
+      {%- if a.description is not none %}
+      <description>{{ a.description }}</description>
+      {%- endif %}
+      <filter>{{ a.filter }}</filter>
+      {%- if a.maxAge is not none %}
+      <maxAge unit="{{ a.maxAge.unit }}" multiplier="{{ a.maxAge.multiplier }}"/>
+      {%- endif %}
+    </purgeActivity>
+    {%- endfor %}
+    {%- for a in activities.copyActivity %}
+    <copyActivity>
+      {%- if a.description is not none %}
+      <description>{{ a.description }}</description>
+      {%- endif %}
+      <src>{{ a.src }}</src>
+      <dest>{{ a.dest }}</dest>
+    </copyActivity>
+    {%- endfor %}
+    {%- for a in activities.workflowActivity %}
+    <workflowActivity>
+      {%- if a.workflowId is not none %}
+      <workflowId>{{ a.workflowId }}</workflowId>
+      {%- if a.systemTime is not none %}
+      {{ dt('systemTime', a.systemTime) }}
+      {%- endif %}
+      {%- if a.warmStateSearchPeriod is not none %}
+      <warmStateSearchPeriod>
+        <startDate>{{ a.warmStateSearchPeriod.startDate }}</startDate>
+        <endDate>{{ a.warmStateSearchPeriod.endDate }}</endDate>
+      </warmStateSearchPeriod>
+      {%- endif %}
+      {%- else %}
+      <taskProperties>
+{{ tp.render(a.taskProperties) }}
+      </taskProperties>
+      {%- endif %}
+    </workflowActivity>
+    {%- endfor %}
+    {%- for a in activities.checkPerformanceActivity %}
+    <checkPerformanceActivity>
+      <workflowId>{{ a.workflowId }}</workflowId>
+      {%- if a.systemTime is not none %}
+      {{ dt('systemTime', a.systemTime) }}
+      {%- endif %}
+      <maximumRuntime unit="{{ a.maximumRuntime.unit }}" multiplier="{{ a.maximumRuntime.multiplier }}"/>
+    </checkPerformanceActivity>
+    {%- endfor %}
+    {%- for a in activities.exportTimeSeriesActivity %}
+    <exportTimeSeriesActivity>
+      {%- if a.description is not none %}
+      <description>{{ a.description }}</description>
+      {%- endif %}
+      <exportFile>{{ a.exportFile }}</exportFile>
+      {%- if a.exportBinFile is not none %}
+      <exportBinFile>{{ 'true' if a.exportBinFile else 'false' }}</exportBinFile>
+      {%- endif %}
+      <timeSeriesSets>
+        {%- for ts in a.timeSeriesSets.timeSeriesSet %}
+        {{ tss.render(ts) }}
+        {%- endfor %}
+      </timeSeriesSets>
+      {%- if a.omitMissingValues is not none %}
+      <omitMissingValues>{{ 'true' if a.omitMissingValues else 'false' }}</omitMissingValues>
+      {%- endif %}
+      {{ opt('piVersion', a.piVersion) }}
+    </exportTimeSeriesActivity>
+    {%- endfor %}
+    {%- for a in activities.exportLogsActivity %}
+    <exportLogsActivity>
+      {%- if a.description is not none %}
+      <description>{{ a.description }}</description>
+      {%- endif %}
+      <exportFile>{{ a.exportFile }}</exportFile>
+      {{ opt('logLevel', a.logLevel) }}
+      {{ opt('moduleInstanceId', a.moduleInstanceId) }}
+    </exportLogsActivity>
+    {%- endfor %}
+    {%- for a in activities.setSystemTimeActivity %}
+    <setSystemTimeActivity>
+      {%- if a.description is not none %}
+      <description>{{ a.description }}</description>
+      {%- endif %}
+      {{ dt('systemTime', a.systemTime) }}
+    </setSystemTimeActivity>
+    {%- endfor %}
+    {%- for a in activities.compareActivity %}
+    <compareActivity>
+      {%- if a.description is not none %}
+      <description>{{ a.description }}</description>
+      {%- endif %}
+      <exportFile>{{ a.exportFile }}</exportFile>
+      <compareFile>{{ a.compareFile }}</compareFile>
+    </compareActivity>
+    {%- endfor %}
+    {%- for _ in range(activities.refreshActivity) %}
+    <refreshActivity/>
+    {%- endfor %}
+    {%- for a in activities.containsActivity %}
+    {{ text_match('containsActivity', a) }}
+    {%- endfor %}
+    {%- for a in activities.notContainsActivity %}
+    {{ text_match('notContainsActivity', a) }}
+    {%- endfor %}
+    {%- for a in activities.sleepActivity %}
+    <sleepActivity>
+      {%- if a.description is not none %}
+      <description>{{ a.description }}</description>
+      {%- endif %}
+      <sleepTimeMillis>{{ a.sleepTimeMillis }}</sleepTimeMillis>
+    </sleepActivity>
+    {%- endfor %}
+  </activities>
+</workflowTestRun>

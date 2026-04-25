@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<priorities xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/priorityList.xsd">
+{% for pl in priorityList %}
+  <priorityList id="{{ pl.id }}">
+    {% for p in pl.priority %}<priority>
+      <structureId>{{ p.structureId }}</structureId>
+      <stateId>{{ p.stateId }}</stateId>
+      <priorityIndex>{{ p.priorityIndex }}</priorityIndex>
+      {% if p.priorityStatus is not none %}<priorityStatus>{{ p.priorityStatus }}</priorityStatus>{% endif %}
+    </priority>
+    {% endfor %}
+  </priorityList>
+{% endfor %}
+</priorities>

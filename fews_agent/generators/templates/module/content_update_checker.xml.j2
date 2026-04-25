@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<contentUpdateChecker xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/contentUpdateChecker.xsd">
+  {% if file is not none %}<file>{{ file }}</file>{% endif %}
+  {% if url is not none %}<url>{{ url }}</url>
+  {% if user is not none %}<user>{{ user }}</user>{% endif %}
+  {% if password is not none %}<password>{{ password }}</password>{% endif %}
+  {% endif %}
+  <eventCode>{{ eventCode }}</eventCode>
+  <messagePrefix>{{ messagePrefix }}</messagePrefix>
+  {% if interval is not none %}{% if interval.id is not none %}<interval id="{{ interval.id }}"/>
+  {% else %}<interval unit="{{ interval.unit }}"{% if interval.multiplier is not none %} multiplier="{{ interval.multiplier }}"{% endif %}/>{% endif %}{% endif %}
+  {% if timeout is not none %}{% if timeout.id is not none %}<timeout id="{{ timeout.id }}"/>
+  {% else %}<timeout unit="{{ timeout.unit }}"{% if timeout.multiplier is not none %} multiplier="{{ timeout.multiplier }}"{% endif %}/>{% endif %}{% endif %}
+  {% if stopAfterNewContent is not none %}<stopAfterNewContent>{{ 'true' if stopAfterNewContent else 'false' }}</stopAfterNewContent>{% endif %}
+  {% for p in contentIgnorePattern %}<contentIgnorePattern>{{ p }}</contentIgnorePattern>
+  {% endfor %}
+</contentUpdateChecker>

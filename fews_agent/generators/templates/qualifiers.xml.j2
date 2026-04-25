@@ -1,7 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<qualifiers xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/qualifiers.xsd">
-  <allowReferencingUndefinedQualifiers>{{ 'true' if allowReferencingUndefinedQualifiers else 'false' }}</allowReferencingUndefinedQualifiers>
-{% for q in qualifier %}
-  <qualifier id="{{ q.id }}"{% if q.name is not none %} name="{{ q.name }}"{% endif %}{% if q.shortName is not none %} shortName="{{ q.shortName }}"{% endif %}{% if q.group is not none %} group="{{ q.group }}"{% endif %}/>
-{% endfor %}
-</qualifiers>

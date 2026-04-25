@@ -1,0 +1,163 @@
+{%- macro rel_period(tag, p) -%}
+<{{ tag }} unit="{{ p.unit }}"{% if p.start is not none %} start="{{ p.start }}"{% endif %}{% if p.end is not none %} end="{{ p.end }}"{% endif %}{% if p.startOverrulable is not none %} startOverrulable="{{ 'true' if p.startOverrulable else 'false' }}"{% endif %}{% if p.endOverrulable is not none %} endOverrulable="{{ 'true' if p.endOverrulable else 'false' }}"{% endif %}{% if p.description is not none %}><description>{{ p.description }}</description></{{ tag }}>{% else %}/>{% endif %}
+{%- endmacro -%}
+{%- macro body(m) -%}
+{% if m.description is not none %}<description>{{ m.description }}</description>{% endif %}
+{% if m.generalDisplayConfig is not none %}
+  {%- set g = m.generalDisplayConfig %}
+  <generalDisplayConfig>
+    {% if g.legendFontSize is not none %}<legendFontSize>{{ g.legendFontSize }}</legendFontSize>{% endif %}
+    {% if g.legendTextFunction is not none %}<legendTextFunction>{{ g.legendTextFunction }}</legendTextFunction>{% endif %}
+    {% if g.showLocationInLegendWithSingleLocation is not none %}<showLocationInLegendWithSingleLocation>{{ 'true' if g.showLocationInLegendWithSingleLocation else 'false' }}</showLocationInLegendWithSingleLocation>{% endif %}
+    {% if g.axisTitleFontSize is not none %}<axisTitleFontSize>{{ g.axisTitleFontSize }}</axisTitleFontSize>{% endif %}
+    {% if g.tickLabelFontSize is not none %}<tickLabelFontSize>{{ g.tickLabelFontSize }}</tickLabelFontSize>{% endif %}
+    {% if g.thresholdLabelFontSize is not none %}<thresholdLabelFontSize>{{ g.thresholdLabelFontSize }}</thresholdLabelFontSize>{% endif %}
+    {% if g.barMarginPercentage is not none %}<barMarginPercentage>{{ g.barMarginPercentage }}</barMarginPercentage>{% endif %}
+    {% if g.toolTipMargin is not none %}<toolTipMargin>{{ g.toolTipMargin }}</toolTipMargin>{% endif %}
+    {% if g.valueColumnWidth is not none %}<valueColumnWidth>{{ g.valueColumnWidth }}</valueColumnWidth>{% endif %}
+    {% if g.convertDatum is not none %}<convertDatum>{{ 'true' if g.convertDatum else 'false' }}</convertDatum>{% endif %}
+    {% if g.autoScaleForAllThresholds is not none %}<autoScaleForAllThresholds>{{ 'true' if g.autoScaleForAllThresholds else 'false' }}</autoScaleForAllThresholds>{% endif %}
+    {% if g.onlyShowThresholdsSharedByAllSeries is not none %}<onlyShowThresholdsSharedByAllSeries>{{ 'true' if g.onlyShowThresholdsSharedByAllSeries else 'false' }}</onlyShowThresholdsSharedByAllSeries>{% endif %}
+    {% if g.unreliablesVisibleInChart is not none %}<unreliablesVisibleInChart>{{ 'true' if g.unreliablesVisibleInChart else 'false' }}</unreliablesVisibleInChart>{% endif %}
+    {% if g.maximumInterpolationGap is not none %}<maximumInterpolationGap>{{ g.maximumInterpolationGap }}</maximumInterpolationGap>{% endif %}
+    {% if g.valueEditorPermission is not none %}<valueEditorPermission>{{ g.valueEditorPermission }}</valueEditorPermission>{% endif %}
+    {% if g.labelEditorPermission is not none %}<labelEditorPermission>{{ g.labelEditorPermission }}</labelEditorPermission>{% endif %}
+    {% if g.commentEditorPermission is not none %}<commentEditorPermission>{{ g.commentEditorPermission }}</commentEditorPermission>{% endif %}
+    {% if g.chainageUnit is not none %}<chainageUnit>{{ g.chainageUnit }}</chainageUnit>{% endif %}
+    {% for h in g.headerLine %}<headerLine>{{ h }}</headerLine>{% endfor %}
+  </generalDisplayConfig>
+  {% endif %}
+  {% if m.defaultViewPeriod is not none %}{{ rel_period('defaultViewPeriod', m.defaultViewPeriod) }}{% endif %}
+  {% if m.globalDatumLocationSetId is not none %}<globalDatumLocationSetId>{{ m.globalDatumLocationSetId }}</globalDatumLocationSetId>{% endif %}
+  {% if m.scrollerDefaultViewPeriod is not none %}{{ rel_period('scrollerDefaultViewPeriod', m.scrollerDefaultViewPeriod) }}{% elif m.showAllScrollerData is not none %}<showAllScrollerData>{{ 'true' if m.showAllScrollerData else 'false' }}</showAllScrollerData>{% endif %}
+  {% if m.showAllSubPlotInScroller is not none %}<showAllSubPlotInScroller>{{ 'true' if m.showAllSubPlotInScroller else 'false' }}</showAllSubPlotInScroller>{% endif %}
+  {% for rop in m.readOnlyPeriod %}<readOnlyPeriod>{{ rop | dict_to_xml | safe }}</readOnlyPeriod>{% endfor %}
+  {% if m.timeOfValidityDefaultViewPeriod is not none %}{{ rel_period('timeOfValidityDefaultViewPeriod', m.timeOfValidityDefaultViewPeriod) }}{% endif %}
+  {% if m.timeOfValiditySearchPeriod is not none %}{{ rel_period('timeOfValiditySearchPeriod', m.timeOfValiditySearchPeriod) }}{% endif %}
+  {% if m.thresholdDisplayConfig is not none %}<thresholdDisplayConfig>{{ m.thresholdDisplayConfig | dict_to_xml | safe }}</thresholdDisplayConfig>{% endif %}
+  {% if m.toolTipsConfig is not none %}<toolTipsConfig>{{ m.toolTipsConfig | dict_to_xml | safe }}</toolTipsConfig>{% endif %}
+  {% if m.legend is not none %}<legend>{{ m.legend | dict_to_xml | safe }}</legend>{% endif %}
+  {% if m.showValueInLegend is not none %}<showValueInLegend>{{ 'true' if m.showValueInLegend else 'false' }}</showValueInLegend>{% endif %}
+  {% if m.showTimeStepInLegend is not none %}<showTimeStepInLegend>{{ 'true' if m.showTimeStepInLegend else 'false' }}</showTimeStepInLegend>{% endif %}
+  {% if m.hideFooter is not none %}<hideFooter>{{ 'true' if m.hideFooter else 'false' }}</hideFooter>{% endif %}
+  {% if m.classBreaks is not none %}
+  <classBreaks>
+    {% for cb in m.classBreaks.classBreaks %}
+    <classBreaks id="{{ cb.id }}">
+      {% for c in cb.color %}<color color="{{ c.color }}"{% if c.opaquenessPercentage is not none %} opaquenessPercentage="{{ c.opaquenessPercentage }}"{% endif %} lowerValue="{{ c.lowerValue }}"{% if c.label is not none %} label="{{ c.label }}"{% endif %}/>{% endfor %}
+      {% for seg in cb.segment %}
+        <lowerColor>{{ seg.lowerColor }}</lowerColor>
+        <upperColor>{{ seg.upperColor }}</upperColor>
+        {% if seg.lowerOpaquenessPercentage is not none %}<lowerOpaquenessPercentage>{{ seg.lowerOpaquenessPercentage }}</lowerOpaquenessPercentage>{% endif %}
+        {% if seg.upperOpaquenessPercentage is not none %}<upperOpaquenessPercentage>{{ seg.upperOpaquenessPercentage }}</upperOpaquenessPercentage>{% endif %}
+        {% if seg.lowerSymbolSize is not none %}<lowerSymbolSize>{{ seg.lowerSymbolSize }}</lowerSymbolSize>{% endif %}
+        {% if seg.upperSymbolSize is not none %}<upperSymbolSize>{{ seg.upperSymbolSize }}</upperSymbolSize>{% endif %}
+        {% for lv in seg.lowerValue %}<lowerValue>{{ lv }}</lowerValue>{% endfor %}
+      {% endfor %}
+    </classBreaks>
+    {% endfor %}
+  </classBreaks>
+  {% endif %}
+  {% if m.timeMarkersDisplayConfig is not none %}
+  <timeMarkersDisplayConfig>
+    {% if m.timeMarkersDisplayConfig.description is not none %}<description>{{ m.timeMarkersDisplayConfig.description }}</description>{% endif %}
+    {% for tm in m.timeMarkersDisplayConfig.timeMarkerDisplayOptions %}
+    <timeMarkerDisplayOptions marker="{{ tm.marker }}">
+      <color>{{ tm.color }}</color>
+      <lineStyle>{{ tm.lineStyle }}</lineStyle>
+      {% if tm.label is not none %}<label>{{ tm.label }}</label>{% endif %}
+    </timeMarkerDisplayOptions>
+    {% endfor %}
+  </timeMarkersDisplayConfig>
+  {% endif %}
+  {% if m.defaultColorList is not none %}<defaultColorList>{{ m.defaultColorList | dict_to_xml | safe }}</defaultColorList>{% endif %}
+  {% if m.tableBackgroundColors is not none %}<tableBackgroundColors>{{ m.tableBackgroundColors | dict_to_xml | safe }}</tableBackgroundColors>{% endif %}
+  {% if m.highlightedDateTickColor is not none %}<highlightedDateTickColor>{{ m.highlightedDateTickColor }}</highlightedDateTickColor>{% endif %}
+  {% if m.ratingCurveDisplayConfig is not none %}<ratingCurveDisplayConfig>{{ m.ratingCurveDisplayConfig | dict_to_xml | safe }}</ratingCurveDisplayConfig>{% endif %}
+  {% if m.parametersDisplayConfig is not none %}
+  <parametersDisplayConfig>
+    {% if m.parametersDisplayConfig.description is not none %}<description>{{ m.parametersDisplayConfig.description }}</description>{% endif %}
+    {% if m.parametersDisplayConfig.defaults is not none %}{{ m.parametersDisplayConfig.defaults | dict_to_xml('defaults') | safe }}{% endif %}
+    {% for p in m.parametersDisplayConfig.parameterDisplayOptions %}
+    <parameterDisplayOptions id="{{ p.id }}"{% if p.name is not none %} name="{{ p.name }}"{% endif %}{% if p.equidistant is not none %} equidistant="{{ 'true' if p.equidistant else 'false' }}"{% endif %}>
+      {% for q in p.qualifierId %}<qualifierId>{{ q }}</qualifierId>{% endfor %}
+      {% for e in p.ensembleId %}<ensembleId>{{ e }}</ensembleId>{% endfor %}
+      {% for e in p.ensembleMemberIndex %}<ensembleMemberIndex>{{ e }}</ensembleMemberIndex>{% endfor %}
+      {% if p.preferredColor is not none %}<preferredColor>{{ p.preferredColor }}</preferredColor>{% endif %}
+      {% if p.lineStyle is not none %}<lineStyle>{{ p.lineStyle }}</lineStyle>{% endif %}
+      {% if p.markerStyle is not none %}<markerStyle>{{ p.markerStyle }}</markerStyle>{% endif %}
+      {% if p.markerSize is not none %}<markerSize>{{ p.markerSize }}</markerSize>{% endif %}
+      {% if p.min is not none %}<min>{{ p.min }}</min>{% endif %}
+      {% if p.max is not none %}<max>{{ p.max }}</max>{% endif %}
+      {% if p.inverted is not none %}<inverted>{{ 'true' if p.inverted else 'false' }}</inverted>{% endif %}
+    </parameterDisplayOptions>
+    {% endfor %}
+  </parametersDisplayConfig>
+  {% endif %}
+  {% if m.moduleInstanceIdMappings is not none %}<moduleInstanceIdMappings>{{ m.moduleInstanceIdMappings | dict_to_xml | safe }}</moduleInstanceIdMappings>{% endif %}
+  {% if m.sampleFunctions is not none %}<sampleFunctions>{{ m.sampleFunctions | dict_to_xml | safe }}</sampleFunctions>{% endif %}
+  {% if m.statisticalFunctions is not none %}
+  <statisticalFunctions>
+    {% for sf in m.statisticalFunctions.statisticalFunction -%}
+    {%- set has_body = sf.timeStep or sf.movingAccumulationTimeSpan or sf.annotationTimeSpan is not none or sf.parameterId is not none or sf.simulatedParameterId is not none or sf.observedParameterId is not none or sf.allowedInputParameterId or sf.lineStyle is not none or sf.historicalPeriods is not none or sf.maxEstimatedValue is not none or sf.samples is not none or sf.season or sf.statisticType is not none or sf.areaFunction is not none or sf.dateFormat is not none -%}
+    <statisticalFunction{% if sf.id is not none %} id="{{ sf.id }}"{% endif %} function="{{ sf.function }}"{% if sf.label is not none %} label="{{ sf.label }}"{% endif %}{% if sf.ignoreMissings is not none %} ignoreMissings="{{ 'true' if sf.ignoreMissings else 'false' }}"{% endif %}{% if sf.aggregateByParameterType is not none %} aggregateByParameterType="{{ sf.aggregateByParameterType }}"{% endif -%}
+    {%- if not has_body %}/>
+    {%- else %}>
+      {% for ts in sf.timeStep %}<timeStep{% if ts.id is not none %} id="{{ ts.id }}"{% endif %}{% if ts.label is not none %} label="{{ ts.label }}"{% endif %}{% if ts.unit is not none %} unit="{{ ts.unit }}"{% endif %}{% if ts.divider is not none %} divider="{{ ts.divider }}"{% endif %}{% if ts.multiplier is not none %} multiplier="{{ ts.multiplier }}"{% endif %}{% if ts.times is not none %} times="{{ ts.times }}"{% endif %}{% if ts.minutes is not none %} minutes="{{ ts.minutes }}"{% endif %}{% if ts.daysOfMonth is not none %} daysOfMonth="{{ ts.daysOfMonth }}"{% endif %}{% if ts.monthDays is not none %} monthDays="{{ ts.monthDays }}"{% endif %}{% if ts.timeZone is not none %} timeZone="{{ ts.timeZone }}"{% endif %}{% if ts.description is not none %}><description>{{ ts.description }}</description></timeStep>{% else %}/>{% endif %}{% endfor %}
+      {% for span in sf.movingAccumulationTimeSpan %}<movingAccumulationTimeSpan unit="{{ span.unit }}"{% if span.multiplier is not none %} multiplier="{{ span.multiplier }}"{% endif %}{% if span.divider is not none %} divider="{{ span.divider }}"{% endif %}/>{% endfor %}
+      {% if sf.annotationTimeSpan is not none %}{{ sf.annotationTimeSpan | dict_to_xml('annotationTimeSpan') | safe }}{% endif %}
+      {% if sf.parameterId is not none %}<parameterId>{{ sf.parameterId }}</parameterId>{% endif %}
+      {% if sf.simulatedParameterId is not none %}<simulatedParameterId>{{ sf.simulatedParameterId }}</simulatedParameterId>{% endif %}
+      {% if sf.observedParameterId is not none %}<observedParameterId>{{ sf.observedParameterId }}</observedParameterId>{% endif %}
+      {% for p in sf.allowedInputParameterId %}<allowedInputParameterId>{{ p }}</allowedInputParameterId>{% endfor %}
+      {% if sf.lineStyle is not none %}<lineStyle>{{ sf.lineStyle }}</lineStyle>{% endif %}
+      {% if sf.historicalPeriods is not none %}{{ sf.historicalPeriods | dict_to_xml('historicalPeriods') | safe }}{% endif %}
+      {% if sf.maxEstimatedValue is not none %}<maxEstimatedValue>{{ sf.maxEstimatedValue }}</maxEstimatedValue>{% endif %}
+      {% if sf.samples is not none %}{{ sf.samples | dict_to_xml('samples') | safe }}{% endif %}
+      {% for s in sf.season %}{{ s | dict_to_xml('season') | safe }}{% endfor %}
+      {% if sf.statisticType is not none %}<statisticType>{{ sf.statisticType }}</statisticType>{% endif %}
+      {% if sf.areaFunction is not none %}{{ sf.areaFunction | dict_to_xml('areaFunction') | safe }}{% endif %}
+      {% if sf.dateFormat is not none %}<dateFormat>{{ sf.dateFormat }}</dateFormat>{% endif %}
+    </statisticalFunction>
+    {%- endif %}
+    {% endfor %}
+  </statisticalFunctions>
+  {% endif %}
+  {% if m.quickViewStatisticalFunction is not none %}<quickViewStatisticalFunction>{{ m.quickViewStatisticalFunction | dict_to_xml | safe }}</quickViewStatisticalFunction>{% endif %}
+  {% if m.combinedTimeSeriesStatisticalFunctions is not none %}<combinedTimeSeriesStatisticalFunctions>{{ m.combinedTimeSeriesStatisticalFunctions | dict_to_xml | safe }}</combinedTimeSeriesStatisticalFunctions>{% endif %}
+  {% if m.descriptiveFunctionGroups is not none %}
+  <descriptiveFunctionGroups>
+    {% if m.descriptiveFunctionGroups.displayedcolumns is not none %}<displayedcolumns>{{ m.descriptiveFunctionGroups.displayedcolumns }}</displayedcolumns>{% endif %}
+    {% for g in m.descriptiveFunctionGroups.descriptiveFunctionGroup %}
+    <descriptiveFunctionGroup name="{{ g.name }}">
+      {% for df in g.descriptiveFunction %}
+      {% if df.timeSpan %}<descriptiveFunction function="{{ df.function }}"{% if df.ignoreMissings is not none %} ignoreMissings="{{ 'true' if df.ignoreMissings else 'false' }}"{% endif %}>
+        {% for sp in df.timeSpan %}<timeSpan unit="{{ sp.unit }}" multiplier="{{ sp.multiplier }}"/>{% endfor %}
+      </descriptiveFunction>
+      {% else %}<descriptiveFunction function="{{ df.function }}"{% if df.ignoreMissings is not none %} ignoreMissings="{{ 'true' if df.ignoreMissings else 'false' }}"{% endif %}/>{% endif %}
+      {% endfor %}
+    </descriptiveFunctionGroup>
+    {% endfor %}
+  </descriptiveFunctionGroups>
+  {% endif %}
+  {% if m.tickUnitsConfig is not none %}<tickUnitsConfig>{{ m.tickUnitsConfig | dict_to_xml | safe }}</tickUnitsConfig>{% endif %}
+  {% if m.defaultGraphicalEditMode is not none %}<defaultGraphicalEditMode>{{ m.defaultGraphicalEditMode }}</defaultGraphicalEditMode>{% endif %}
+  {% if m.graphicalEditingConfig is not none %}<graphicalEditingConfig>{{ m.graphicalEditingConfig | dict_to_xml | safe }}</graphicalEditingConfig>{% endif %}
+  {% if m.thresholdGroupSelectionButton is not none %}<thresholdGroupSelectionButton>{{ m.thresholdGroupSelectionButton | dict_to_xml | safe }}</thresholdGroupSelectionButton>{% endif %}
+  {% if m.buttonSettings is not none %}
+  <buttonSettings>
+    {% for fname, flag in m.buttonSettings.items() %}{% if flag is not none %}{% if fname == 'searchAndSelectForecasts' and flag.forecastSearchPeriod is not none %}<{{ fname }}{% if flag.visible is not none %} visible="{{ 'true' if flag.visible else 'false' }}"{% endif %}{% if flag.permission is not none %} permission="{{ flag.permission }}"{% endif %}{% if flag.selected is not none %} selected="{{ 'true' if flag.selected else 'false' }}"{% endif %}>
+      <forecastSearchPeriod{% if flag.forecastSearchPeriod.unit is not none %} unit="{{ flag.forecastSearchPeriod.unit }}"{% endif %}{% if flag.forecastSearchPeriod.start is not none %} start="{{ flag.forecastSearchPeriod.start | xmlstr }}"{% endif %}{% if flag.forecastSearchPeriod.end is not none %} end="{{ flag.forecastSearchPeriod.end | xmlstr }}"{% endif %}/>
+    </{{ fname }}>{% elif fname == 'thresholdGroupSelectionButton' %}<{{ fname }} visible="{{ 'true' if flag.visible else 'false' }}"{% if flag.defaultThresholdGroupId is not none %}>
+      <defaultThresholdGroupId>{{ flag.defaultThresholdGroupId }}</defaultThresholdGroupId>
+    </{{ fname }}>{% else %}/>{% endif %}{% else %}<{{ fname }}{% if flag.visible is not none %} visible="{{ 'true' if flag.visible else 'false' }}"{% endif %}{% if flag.permission is not none %} permission="{{ flag.permission }}"{% endif %}{% if flag.selected is not none %} selected="{{ 'true' if flag.selected else 'false' }}"{% endif %}/>{% endif %}{% endif %}
+    {% endfor %}
+  </buttonSettings>
+  {% endif %}
+  {% if m.predefinedViewPeriods is not none %}<predefinedViewPeriods>{{ m.predefinedViewPeriods | dict_to_xml | safe }}</predefinedViewPeriods>{% endif %}
+  {% if m.invertTableOrder is not none %}<invertTableOrder>{{ 'true' if m.invertTableOrder else 'false' }}</invertTableOrder>{% endif %}
+  {% if m.showDisplayGroupsHideAllToolWindows is not none %}<showDisplayGroupsHideAllToolWindows>{{ m.showDisplayGroupsHideAllToolWindows | dict_to_xml | safe }}</showDisplayGroupsHideAllToolWindows>{% endif %}
+  {% if m.resampling is not none %}<resampling>{{ m.resampling | dict_to_xml | safe }}</resampling>{% endif %}
+  {% if m.infoAttribute is not none %}<infoAttribute>{{ m.infoAttribute | dict_to_xml | safe }}</infoAttribute>{% endif %}
+  {% if m.documentViewer is not none %}<documentViewer>{{ m.documentViewer | dict_to_xml | safe }}</documentViewer>{% endif %}
+{%- endmacro -%}

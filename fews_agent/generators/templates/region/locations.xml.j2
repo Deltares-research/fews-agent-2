@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<locations version="{{ version }}" xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/locations.xsd">
+  {% if timeZone is not none %}<timeZone>{{ timeZone }}</timeZone>{% endif %}
+  <geoDatum>{{ geoDatum }}</geoDatum>
+{% for loc in location %}
+  <location id="{{ loc.id }}" name="{{ loc.name }}">
+    {% if loc.description is not none %}<description>{{ loc.description }}</description>{% endif %}
+    {% if loc.shortName is not none %}<shortName>{{ loc.shortName }}</shortName>{% endif %}
+    {% if loc.label is not none %}<label>{{ loc.label }}</label>{% endif %}
+    {% if loc.toolTip is not none %}<toolTip>{{ loc.toolTip }}</toolTip>{% endif %}
+    {% if loc.parentLocationId is not none %}<parentLocationId>{{ loc.parentLocationId }}</parentLocationId>{% endif %}
+    {% if loc.visibilityPeriod is not none %}
+    <visibilityPeriod>
+      {% if loc.visibilityPeriod.startDateTime is not none %}<startDateTime date="{{ loc.visibilityPeriod.startDateTime.date }}"{% if loc.visibilityPeriod.startDateTime.time is not none %} time="{{ loc.visibilityPeriod.startDateTime.time }}"{% endif %}/>{% endif %}
+      {% if loc.visibilityPeriod.endDateTime is not none %}<endDateTime date="{{ loc.visibilityPeriod.endDateTime.date }}"{% if loc.visibilityPeriod.endDateTime.time is not none %} time="{{ loc.visibilityPeriod.endDateTime.time }}"{% endif %}/>{% endif %}
+    </visibilityPeriod>
+    {% endif %}
+    <x>{{ loc.x | xmlstr }}</x>
+    <y>{{ loc.y | xmlstr }}</y>
+    {% if loc.z is not none %}<z>{{ loc.z | xmlstr }}</z>{% endif %}
+    {% if loc.bedLevel is not none %}<bedLevel>{{ loc.bedLevel | xmlstr }}</bedLevel>{% endif %}
+    {% if loc.layerSigmaCoordinate is not none %}<layerSigmaCoordinate>{{ loc.layerSigmaCoordinate | xmlstr }}</layerSigmaCoordinate>{% endif %}
+  </location>
+{% endfor %}
+</locations>

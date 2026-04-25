@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--Delft FEWS (Copyright 2003 WL | Delft Hydraulics) -->
+<schema targetNamespace="http://www.wldelft.nl/fews" xmlns:fews="http://www.wldelft.nl/fews" xmlns="http://www.w3.org/2001/XMLSchema"  elementFormDefault="qualified" attributeFormDefault="unqualified" version="1.0">
+	<include schemaLocation="sharedTypes.xsd"/>
+	<element name="webBrowserDisplay" type="fews:webBrowserDisplayComplexType"/>
+	<complexType name="webBrowserDisplayComplexType">
+		<sequence>
+			<element name="defaultBrowser" type="boolean" minOccurs="0">
+				<annotation>
+					<documentation>
+						Make the browser display the default browser for the FEWS UI. By default (false) the WebBrowser Display will only open URL's that are linked to a selected node in the topology tree (IFD).
+						Note: any web site to be opened needs to match a domain which is listed in the domain "whitelist" or it will by default be opened in an external web browser.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="bringToFront" type="boolean" minOccurs="0">
+				<annotation>
+					<documentation>
+						When this option is set to true, the browser display will bring itself to the front any time a new web page is loaded so that it will appear in front of other (docked) windows in the FEWS UI. Default is false.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="lazyLoading" type="boolean" minOccurs="0">
+				<annotation>
+					<documentation>
+						Pospone the loading of the web browser display until it is actually needed as a URL is selected by the user. Default is true for Windows, false for Linux.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="disablePrinting" type="boolean" minOccurs="0" default="false" />
+			<element name="chromiumSwitch" type="string" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>
+						Specify command line switches to be passed to the Chromium browser instance. For more information see: https://www.chromium.org/developers/how-tos/run-chromium-with-flags/
+					</documentation>
+				</annotation>
+			</element>
+			<element name="domainWhiteList" type="fews:domainWhiteListComplexType">
+				<annotation>
+					<documentation>
+						White list of domains / subdomain the web browser display is allowed to navigate to, can include wildcards (?,*)
+					</documentation>
+				</annotation>
+			</element>
+			<element name="downloadDir" type="fews:directoryStringType" minOccurs="0">
+				<annotation>
+					<documentation>
+						Path to the directory where the webbrowser display will by default put any files that are downloaded from the web.
+						If this is not set, downloads will not be allowed
+					</documentation>
+				</annotation>
+			</element>
+			<element name="jcefBinDir" type="fews:directoryStringType" minOccurs="0">
+				<annotation>
+					<documentation>
+						Path to the JCEF library for the current platform (windows/linux).
+						By default the JCEF package required to use the Chromium based webBrowserDisplay is located in the "Modules/jcef" directory under the current region home folder.
+						Using this configuration setting you can change this to a folder of your choice, allowing you to share the JCEF package between multiple configurations.
+					</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="domainWhiteListComplexType">
+		<sequence>
+			<element name="access" type="fews:domainAccessComplexType" minOccurs="1" maxOccurs="unbounded"/>
+		</sequence>
+	</complexType>
+	<complexType name="domainAccessComplexType">
+		<attribute name="origin" type="string"/>
+	</complexType>
+</schema>

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mc xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/mc.xsd">
+  {% if mcId is not none %}<mcId>{{ mcId }}</mcId>{% endif %}
+  {% if name is not none %}<name>{{ name }}</name>{% endif %}
+  {% if databaseIntId is not none %}<databaseIntId>{{ databaseIntId }}</databaseIntId>{% endif %}
+  {% if logging is not none %}<logging>{{ logging | dict_to_xml | safe }}</logging>{% endif %}
+  {% for j in jvmOption %}<jvmOption>{{ j }}</jvmOption>{% endfor %}
+  {% if adminInterface is not none %}<adminInterface>{{ adminInterface | dict_to_xml | safe }}</adminInterface>{% endif %}
+  {% if taskRunDispatcher is not none %}<taskRunDispatcher>{{ taskRunDispatcher | dict_to_xml | safe }}</taskRunDispatcher>{% endif %}
+  {% if synch is not none %}<synch>{{ synch | dict_to_xml | safe }}</synch>{% endif %}
+  {% for a in azure %}<azure>{{ a | dict_to_xml | safe }}</azure>{% endfor %}
+  {% if fssGroups is not none %}<fssGroups>{{ fssGroups | dict_to_xml | safe }}</fssGroups>{% endif %}
+  {% if workflowMappings is not none %}<workflowMappings>{{ workflowMappings | dict_to_xml | safe }}</workflowMappings>{% endif %}
+  {% if whatIfScenarios is not none %}<whatIfScenarios>{{ whatIfScenarios | dict_to_xml | safe }}</whatIfScenarios>{% endif %}
+  {% if tasks is not none %}<tasks>{{ tasks | dict_to_xml | safe }}</tasks>{% endif %}
+  {% if eventActions is not none %}<eventActions>{{ eventActions | dict_to_xml | safe }}</eventActions>{% endif %}
+  {% if eventActionMappings is not none %}<eventActionMappings>{{ eventActionMappings | dict_to_xml | safe }}</eventActionMappings>{% endif %}
+</mc>

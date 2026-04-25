@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<moduleInstanceSets xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/moduleInstanceSets.xsd" version="{{ version }}">
-{% for s in moduleInstanceSet %}
-  <moduleInstanceSet id="{{ s.id }}"{% if s.name is not none %} name="{{ s.name }}"{% endif %}>
-    {% for mid in s.moduleInstanceId %}<moduleInstanceId>{{ mid }}</moduleInstanceId>{% endfor %}
-  </moduleInstanceSet>
-{% endfor %}
-</moduleInstanceSets>

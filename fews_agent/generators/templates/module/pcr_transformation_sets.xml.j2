@@ -1,0 +1,66 @@
+{%- import "_partials/timeseries_set.xml.j2" as tss -%}
+{%- macro grid(g) -%}
+<gridDefinition>
+        <geoDatum>{{ g.geoDatum }}</geoDatum>
+        <upperLeftCorner>
+          <x>{{ g.upperLeftCorner.x }}</x>
+          <y>{{ g.upperLeftCorner.y }}</y>
+          {%- if g.upperLeftCorner.z is not none %}
+          <z>{{ g.upperLeftCorner.z }}</z>
+          {%- endif %}
+        </upperLeftCorner>
+        <rows>{{ g.rows }}</rows>
+        <columns>{{ g.columns }}</columns>
+        <cellwidth>{{ g.cellwidth }}</cellwidth>
+        <cellheight>{{ g.cellheight }}</cellheight>
+      </gridDefinition>
+{%- endmacro -%}
+{%- macro iv_attrs(v) -%}
+ variableId="{{ v.variableId }}"{% if v.dataType is not none %} dataType="{{ v.dataType }}"{% endif %}{% if v.scalarType is not none %} scalarType="{{ v.scalarType }}"{% endif %}{% if v.convertDatum is not none %} convertDatum="{{ 'true' if v.convertDatum else 'false' }}"{% endif %}{% if v.referenceDate is not none %} referenceDate="{{ v.referenceDate }}"{% endif %}{% if v.spatialType is not none %} spatialType="{{ v.spatialType }}"{% endif %}
+{%- endmacro -%}
+<?xml version="1.0" encoding="UTF-8"?>
+<pcrTransformationSets xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/pcrTransformationSets.xsd" version="{{ version }}">
+  {%- if logLevel is not none %}
+  <logLevel>{{ logLevel }}</logLevel>
+  {%- endif %}
+{%- for s in pcrTransformationSet %}
+  <pcrTransformationSet{% if s.id is not none %} id="{{ s.id }}"{% endif %}>
+    <areaMap>
+      {%- if s.areaMap.gridDefinition is not none %}
+      {{ grid(s.areaMap.gridDefinition) }}
+      {%- elif s.areaMap.locationId is not none %}
+      <locationId>{{ s.areaMap.locationId }}</locationId>
+      {%- else %}
+      {{ tss.render(s.areaMap.timeSeriesSet) }}
+      {%- endif %}
+    </areaMap>
+    <definitions>
+      {%- if s.definitions.dataExchange is not none %}
+      <dataExchange>{{ s.definitions.dataExchange }}</dataExchange>
+      {%- endif %}
+      {%- for iv in s.definitions.internalVariable %}
+      <internalVariable variableId="{{ iv.variableId }}"{% if iv.dataType is not none %} dataType="{{ iv.dataType }}"{% endif %}/>
+      {%- endfor %}
+      {%- for iv in s.definitions.inputVariable %}
+      <inputVariable {{ iv_attrs(iv) }}>
+        {%- if iv.timeSeriesSet is not none %}
+        {{ tss.render(iv.timeSeriesSet) }}
+        {%- elif iv.value is not none %}
+        <value>{{ iv.value | xmlstr }}</value>
+        {%- else %}
+        <external>{{ iv.external }}</external>
+        {%- endif %}
+      </inputVariable>
+      {%- endfor %}
+      {%- for ov in s.definitions.outputVariable %}
+      <outputVariable variableId="{{ ov.variableId }}"{% if ov.dataType is not none %} dataType="{{ ov.dataType }}"{% endif %}{% if ov.convertDatum is not none %} convertDatum="{{ 'true' if ov.convertDatum else 'false' }}"{% endif %}>
+        {{ tss.render(ov.timeSeriesSet) }}
+      </outputVariable>
+      {%- endfor %}
+    </definitions>
+    <pcrModel{% if s.pcrModel.id is not none %} id="{{ s.pcrModel.id }}"{% endif %}>
+      <text>{{ s.pcrModel.text | e }}</text>
+    </pcrModel>
+  </pcrTransformationSet>
+{%- endfor %}
+</pcrTransformationSets>

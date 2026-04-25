@@ -1,6 +1,6 @@
 """ModifierTypes.xml — registry of manual forecaster modifiers.
 
-Tutorial covers four modifier shapes:
+Four modifier shapes are fully typed (tutorial uses these):
   - timeSeriesModifier: the common shape — writes into a single
     (moduleInstance, parameter, location) target
   - spatialCopyModifier: copies a source grid onto a target; carries
@@ -8,6 +8,19 @@ Tutorial covers four modifier shapes:
   - spatialProfileModifier: like spatialCopy but adds
     userDefinedDescriptionField + descriptiveFunctionGroups
   - modifiersGroup: UI grouping — a list of modifierIds under one label
+
+The remaining 22 modifier variants (adjustQModifiers, attributeModifiers,
+compoundModifier, constantValueModifier, copyModifiers, enumerationModifier,
+highLowSurgeSelectionModifier, markUnreliableModifier, mergeSimpleModifiers,
+mergeWeightedModifiers, missingValueModifier, moduleParameterModifier,
+multipleModuleParameterModifier, optionModifier, priorityModifier,
+ratingCurveModifiers, sampleHistoricalModifiers, singleValueModifier,
+switchOptionModifier, timeShiftConstantModifiers, typicalProfileModifier,
+unitHydrographModifiers) are accepted as ``list[dict]`` and rendered via
+the shared ``dict_to_xml`` filter. Agents can author them by hand when
+needed; each modifier kind has its own 50-200 line sub-tree in the XSD
+so full typing is out of scope. The list field names match the XSD
+element names directly.
 
 The embedded <timeSeries> blocks across modifier kinds have different
 shapes (see ModifierTimeSeries/SpatialCopyTimeSeries/
@@ -19,6 +32,8 @@ tutorial emits the bare element `<defaultValidTime/>` to indicate its
 presence (value is implicit); None / False omits it.
 """
 from __future__ import annotations
+
+from typing import Any
 
 from pydantic import Field, model_validator
 
@@ -51,16 +66,45 @@ class ModifierTimeSeries(FewsModel):
 
 
 class TimeSeriesModifier(FewsModel):
+    # Attrs
     id: ModifierId
-    timeSeries: ModifierTimeSeries
     name: str | None = None
-    applyToEnsemble: str | None = None
+    # ModifierBase elements (XSD sequence, inherited)
+    modifierTypeDescription: str | None = None
+    expiryTime: UnitMultiplier | None = None
+    expiryTimeDeletedModifiers: UnitMultiplier | None = None
+    modifierCardinalTimeStep: dict[str, Any] | None = None
+    userDefinedDescriptionField: list[dict[str, Any]] = Field(default_factory=list)
+    whatIfModifierType: str | None = None
+    createPermission: str | None = None
+    # TimeSeriesModifierBase extension
+    useLocationLongName: bool | None = None
+    applyToDeterministicRun: bool | None = None
+    applyToEnsemble: list[str] = Field(default_factory=list)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _coerce_apply_to_ensemble(cls, data):
+        """Accept a bare string for backwards compat with single-ensemble inputs."""
+        if isinstance(data, dict) and isinstance(data.get("applyToEnsemble"), str):
+            data["applyToEnsemble"] = [data["applyToEnsemble"]]
+        return data
+    # TimeSeriesModifier extension
+    timeSeries: ModifierTimeSeries
+    onlyApplyLastModifier: bool | None = None
+    mergeUnCommittedModifiers: bool | None = None
+    referenceTimeSeries: list[dict[str, Any]] = Field(default_factory=list)
+    softLimits: dict[str, Any] | None = None
+    hardLimits: dict[str, Any] | None = None
     defaultStartTime: DefaultTimeAnchor | None = None
     defaultEndTime: DefaultTimeAnchor | None = None
     defaultValidTime: bool = False
     resolveInWorkflow: bool | None = None
     resolveInPlots: bool | None = None
     editInPlots: bool | None = None
+    graphicalEditing: bool | None = None
+    perEnsembleMember: bool | None = None
+    createContinuousModifiers: bool | None = None
 
 
 class SpatialCopyTimeSeries(FewsModel):
@@ -72,9 +116,18 @@ class SpatialCopyTimeSeries(FewsModel):
 
 
 class SpatialCopyModifier(FewsModel):
+    # Attrs
     id: ModifierId
     name: str | None = None
+    # ModifierBase inherited elements (XSD sequence)
+    modifierTypeDescription: str | None = None
     expiryTime: UnitMultiplier | None = None
+    expiryTimeDeletedModifiers: UnitMultiplier | None = None
+    modifierCardinalTimeStep: dict[str, Any] | None = None
+    userDefinedDescriptionField: list[dict[str, Any]] = Field(default_factory=list)
+    whatIfModifierType: str | None = None
+    createPermission: str | None = None
+    # SpatialModifier extension
     timeSeries: list[SpatialCopyTimeSeries] = Field(min_length=1)
 
 
@@ -93,10 +146,18 @@ class UserDefinedDescriptionField(FewsModel):
 
 
 class TimeSpan(FewsModel):
-    """Simple {unit, multiplier} used inside descriptiveFunction."""
+    """XSD TimeSpanComplexType — used inside descriptiveFunction and as
+    the ``graceTime`` element in forecast-management TimeThresholds.
+
+    XSD requires ``unit`` (timeUnitStringType). ``multiplier`` and
+    ``divider`` are optional; supply at least one when the span is
+    non-trivial. Tutorial usage always carries ``multiplier``, so it
+    stays as the conventional default.
+    """
 
     unit: TimeUnit
-    multiplier: int = Field(ge=1)
+    multiplier: int | None = Field(default=None, ge=1)
+    divider: int | None = Field(default=None, ge=1)
 
 
 class DescriptiveFunction(FewsModel):
@@ -115,16 +176,30 @@ class DescriptiveFunctionGroup(FewsModel):
 
 
 class DescriptiveFunctionGroups(FewsModel):
-    """Wrapper around zero-or-more <descriptiveFunctionGroup>."""
+    """Wrapper around zero-or-more <descriptiveFunctionGroup>.
 
+    ``displayedcolumns`` selects which statistic columns appear in the
+    display table — XSD enum (``statistics entire timeseries`` or the
+    longer pre/post time-zero variant).
+    """
+
+    displayedcolumns: str | None = None
     descriptiveFunctionGroup: list[DescriptiveFunctionGroup] = Field(default_factory=list)
 
 
 class SpatialProfileModifier(FewsModel):
+    # Attrs
     id: ModifierId
     name: str | None = None
+    # ModifierBase inherited elements (XSD sequence)
+    modifierTypeDescription: str | None = None
     expiryTime: UnitMultiplier | None = None
+    expiryTimeDeletedModifiers: UnitMultiplier | None = None
+    modifierCardinalTimeStep: dict[str, Any] | None = None
     userDefinedDescriptionField: UserDefinedDescriptionField | None = None
+    whatIfModifierType: str | None = None
+    createPermission: str | None = None
+    # Spatial profile extension
     timeSeries: list[SpatialProfileTimeSeries] = Field(min_length=1)
     descriptiveFunctionGroups: DescriptiveFunctionGroups | None = None
 
@@ -141,13 +216,51 @@ class ModifiersGroup(FewsModel):
 
 
 class ModifierTypes(FewsModel):
-    """Root of ModifierTypes.xml. At least one modifier of any kind."""
+    """Root of ModifierTypes.xml. At least one modifier of any kind.
 
+    Root-level bool flags (all optional) from the XSD sequence:
+    restoreModifiersWhenApprovingForecastRun, rollbackOverlappingModifiers,
+    autoCommit, autoExtendExpiryTime.
+
+    Four modifier kinds are typed (timeSeriesModifier, spatialCopyModifier,
+    spatialProfileModifier, modifiersGroup); the other 22 variants are
+    accepted as ``list[dict]`` passthroughs — see module docstring.
+    """
+
+    # Root-level flags
+    restoreModifiersWhenApprovingForecastRun: bool | None = None
+    rollbackOverlappingModifiers: bool | None = None
+    autoCommit: bool | None = None
+    autoExtendExpiryTime: bool | None = None
+    # Typed modifier variants
     timeSeriesModifier: list[TimeSeriesModifier] = Field(default_factory=list)
     spatialCopyModifier: list[SpatialCopyModifier] = Field(default_factory=list)
     spatialProfileModifier: list[SpatialProfileModifier] = Field(default_factory=list)
     modifiersGroup: list[ModifiersGroup] = Field(default_factory=list)
-    rollbackOverlappingModifiers: bool | None = None
+    # Passthrough modifier variants (each element is a nested dict body
+    # rendered via the dict_to_xml filter; XSD element names preserved).
+    missingValueModifier: list[dict[str, Any]] = Field(default_factory=list)
+    typicalProfileModifier: list[dict[str, Any]] = Field(default_factory=list)
+    constantValueModifier: list[dict[str, Any]] = Field(default_factory=list)
+    singleValueModifier: list[dict[str, Any]] = Field(default_factory=list)
+    enumerationModifier: list[dict[str, Any]] = Field(default_factory=list)
+    markUnreliableModifier: list[dict[str, Any]] = Field(default_factory=list)
+    adjustQModifiers: list[dict[str, Any]] = Field(default_factory=list)
+    timeShiftConstantModifiers: list[dict[str, Any]] = Field(default_factory=list)
+    sampleHistoricalModifiers: list[dict[str, Any]] = Field(default_factory=list)
+    mergeSimpleModifiers: list[dict[str, Any]] = Field(default_factory=list)
+    compoundModifier: list[dict[str, Any]] = Field(default_factory=list)
+    highLowSurgeSelectionModifier: list[dict[str, Any]] = Field(default_factory=list)
+    switchOptionModifier: list[dict[str, Any]] = Field(default_factory=list)
+    optionModifier: list[dict[str, Any]] = Field(default_factory=list)
+    moduleParameterModifier: list[dict[str, Any]] = Field(default_factory=list)
+    priorityModifier: list[dict[str, Any]] = Field(default_factory=list)
+    multipleModuleParameterModifier: list[dict[str, Any]] = Field(default_factory=list)
+    unitHydrographModifiers: list[dict[str, Any]] = Field(default_factory=list)
+    mergeWeightedModifiers: list[dict[str, Any]] = Field(default_factory=list)
+    ratingCurveModifiers: list[dict[str, Any]] = Field(default_factory=list)
+    attributeModifiers: list[dict[str, Any]] = Field(default_factory=list)
+    copyModifiers: list[dict[str, Any]] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def _at_least_one_modifier(self) -> ModifierTypes:
@@ -156,9 +269,30 @@ class ModifierTypes(FewsModel):
             or self.spatialCopyModifier
             or self.spatialProfileModifier
             or self.modifiersGroup
+            or self.missingValueModifier
+            or self.typicalProfileModifier
+            or self.constantValueModifier
+            or self.singleValueModifier
+            or self.enumerationModifier
+            or self.markUnreliableModifier
+            or self.adjustQModifiers
+            or self.timeShiftConstantModifiers
+            or self.sampleHistoricalModifiers
+            or self.mergeSimpleModifiers
+            or self.compoundModifier
+            or self.highLowSurgeSelectionModifier
+            or self.switchOptionModifier
+            or self.optionModifier
+            or self.moduleParameterModifier
+            or self.priorityModifier
+            or self.multipleModuleParameterModifier
+            or self.unitHydrographModifiers
+            or self.mergeWeightedModifiers
+            or self.ratingCurveModifiers
+            or self.attributeModifiers
+            or self.copyModifiers
         ):
             raise ValueError(
-                "modifierTypes: supply at least one of timeSeriesModifier, "
-                "spatialCopyModifier, spatialProfileModifier, modifiersGroup"
+                "modifierTypes: supply at least one modifier of any kind"
             )
         return self

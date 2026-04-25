@@ -1,0 +1,81 @@
+{%- import "_partials/time_series_display_body.xml.j2" as tsd -%}
+{%- macro series_attrs(s) -%}
+ id="{{ s.id }}" locationId="{{ s.locationId }}" parameterId="{{ s.parameterId }}"{% if s.qualifier is not none %} qualifier="{{ s.qualifier }}"{% endif %}
+{%- endmacro -%}
+<?xml version="1.0" encoding="UTF-8"?>
+<stateEditor xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/stateEditor.xsd">
+  <general>
+    <displayName>{{ general.displayName }}</displayName>
+    {%- if general.timeZone is not none %}
+    <timeZone>{{ general.timeZone | xmlstr }}</timeZone>
+    {%- endif %}
+  </general>
+  <modelGroups>
+    {%- for mg in modelGroups.modelGroup %}
+    <modelGroup id="{{ mg.id }}"{% if mg.name is not none %} name="{{ mg.name }}"{% endif %}>
+      {%- if mg.description is not none %}
+      <description>{{ mg.description }}</description>
+      {%- endif %}
+      {%- if mg.modelId %}
+      {%- for mid in mg.modelId %}
+      <modelId>{{ mid }}</modelId>
+      {%- endfor %}
+      {%- else %}
+      {%- for mgid in mg.modelGroupId %}
+      <modelGroupId>{{ mgid }}</modelGroupId>
+      {%- endfor %}
+      {%- endif %}
+    </modelGroup>
+    {%- endfor %}
+  </modelGroups>
+  {%- for m in model %}
+  <model id="{{ m.id }}"{% if m.name is not none %} name="{{ m.name }}"{% endif %}>
+    {%- if m.locationId is not none %}
+    <locationId>{{ m.locationId }}</locationId>
+    {%- endif %}
+    {%- for spgid in m.stateParameterGroupId %}
+    <stateParameterGroupId>{{ spgid }}</stateParameterGroupId>
+    {%- endfor %}
+    {%- for rsg in m.resultSeriesGroupId %}
+    <resultSeriesGroupId>{{ rsg }}</resultSeriesGroupId>
+    {%- endfor %}
+  </model>
+  {%- endfor %}
+  {%- for spg in stateParameterGroup %}
+  <stateParameterGroup id="{{ spg.id }}">
+    {%- for spid in spg.stateParameterId %}
+    <stateParameterId>{{ spid }}</stateParameterId>
+    {%- endfor %}
+  </stateParameterGroup>
+  {%- endfor %}
+  {%- for sg in seriesGroup %}
+  <seriesGroup id="{{ sg.id }}">
+    {%- for s in sg.series %}
+    <series {{ series_attrs(s) }}/>
+    {%- endfor %}
+  </seriesGroup>
+  {%- endfor %}
+  {%- for sp in stateParameter %}
+  <stateParameter id="{{ sp.id }}"{% if sp.name is not none %} name="{{ sp.name }}"{% endif %}>
+    <range min="{{ sp.range.min | xmlstr }}" max="{{ sp.range.max | xmlstr }}"/>
+    <inputSeries {{ series_attrs(sp.inputSeries) }}/>
+    <outputSeries {{ series_attrs(sp.outputSeries) }}/>
+    {%- if sp.climatology is not none %}
+    <climatology>
+      {%- for ev in sp.climatology.event %}
+      <event date="{{ ev.date }}" time="{{ ev.time }}"{% if ev.mean is not none %} mean="{{ ev.mean | xmlstr }}"{% endif %}{% if ev.min is not none %} min="{{ ev.min | xmlstr }}"{% endif %}{% if ev.max is not none %} max="{{ ev.max | xmlstr }}"{% endif %}/>
+      {%- endfor %}
+    </climatology>
+    {%- elif sp.climatologySeries %}
+    {%- for cs in sp.climatologySeries %}
+    <climatologySeries {{ series_attrs(cs) }}/>
+    {%- endfor %}
+    {%- endif %}
+  </stateParameter>
+  {%- endfor %}
+  {%- if timeSeriesDisplay is not none %}
+  <timeSeriesDisplay version="{{ timeSeriesDisplay.version }}">
+    {{ tsd.body(timeSeriesDisplay) }}
+  </timeSeriesDisplay>
+  {%- endif %}
+</stateEditor>

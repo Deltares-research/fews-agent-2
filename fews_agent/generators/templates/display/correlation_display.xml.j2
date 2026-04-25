@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<correlationDisplay version="{{ version }}" xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/correlationDisplay.xsd">
+{%- macro ts_info(t, tag) %}<{{ tag }}>
+    {% if t.moduleInstanceId is not none %}<moduleInstanceId>{{ t.moduleInstanceId }}</moduleInstanceId>{% endif %}
+    <parameterId>{{ t.parameterId }}</parameterId>
+    {% for q in t.qualifierId %}<qualifierId>{{ q }}</qualifierId>
+    {% endfor %}
+    {% if t.timeSeriesType is not none %}<timeSeriesType>{{ t.timeSeriesType }}</timeSeriesType>{% endif %}
+    {% if t.timeStep is not none %}{% if t.timeStep.id is not none %}<timeStep id="{{ t.timeStep.id }}"/>
+    {% else %}<timeStep unit="{{ t.timeStep.unit }}"{% if t.timeStep.multiplier is not none %} multiplier="{{ t.timeStep.multiplier }}"{% endif %}/>{% endif %}{% endif %}
+    {% if t.relativeViewPeriod is not none %}<relativeViewPeriod unit="{{ t.relativeViewPeriod.unit }}"{% if t.relativeViewPeriod.start is not none %} start="{{ t.relativeViewPeriod.start }}"{% endif %}{% if t.relativeViewPeriod.end is not none %} end="{{ t.relativeViewPeriod.end }}"{% endif %}/>{% endif %}
+    {% if t.readWriteMode is not none %}<readWriteMode>{{ t.readWriteMode }}</readWriteMode>{% endif %}
+  </{{ tag }}>{%- endmacro %}
+{%- macro disp_options(d) %}
+    {% if d.preferredColor is not none %}<preferredColor>{{ d.preferredColor }}</preferredColor>{% endif %}
+    {% if d.lineStyle is not none %}<lineStyle>{{ d.lineStyle }}</lineStyle>{% endif %}
+    {% if d.markerStyle is not none %}<markerStyle>{{ d.markerStyle }}</markerStyle>{% endif %}
+    {% if d.markerSize is not none %}<markerSize>{{ d.markerSize }}</markerSize>{% endif %}
+    {% if d.markerFilled is not none %}<markerFilled>{{ 'true' if d.markerFilled else 'false' }}</markerFilled>{% endif %}
+{%- endmacro %}
+  {{ ts_info(inputTimeSerieInfo, 'inputTimeSerieInfo') }}
+  <eventSetsDescriptorId>{{ eventSetsDescriptorId }}</eventSetsDescriptorId>
+  <travelTimesDescriptorId>{{ travelTimesDescriptorId }}</travelTimesDescriptorId>
+  <eventSelectionType>{{ eventSelectionType }}</eventSelectionType>
+  {% if outputTimeSerieInfo is not none %}{{ ts_info(outputTimeSerieInfo, 'outputTimeSerieInfo') }}{% endif %}
+  {% if correlationDisplayOptions is not none %}<correlationDisplayOptions>
+    <scatterplotOptions{% if correlationDisplayOptions.scatterplotOptions.key is not none %} key="{{ correlationDisplayOptions.scatterplotOptions.key }}"{% endif %}>
+      {{ disp_options(correlationDisplayOptions.scatterplotOptions) }}
+      {% if correlationDisplayOptions.scatterplotOptions.thresholds is not none %}<thresholds visible="{{ 'true' if correlationDisplayOptions.scatterplotOptions.thresholds.visible else 'false' }}"/>{% endif %}
+    </scatterplotOptions>
+    <equationOptions{% if correlationDisplayOptions.equationOptions.key is not none %} key="{{ correlationDisplayOptions.equationOptions.key }}"{% endif %}>
+      {{ disp_options(correlationDisplayOptions.equationOptions) }}
+    </equationOptions>
+    {% for d in correlationDisplayOptions.displayOptions %}<displayOptions{% if d.key is not none %} key="{{ d.key }}"{% endif %}>
+      {{ disp_options(d) }}
+    </displayOptions>
+    {% endfor %}
+  </correlationDisplayOptions>{% endif %}
+  {% if defaultEquation is not none %}<defaultEquation equationType="{{ defaultEquation.equationType }}"{% if defaultEquation.polynomialOrder is not none %} polynomialOrder="{{ defaultEquation.polynomialOrder }}"{% endif %}/>{% endif %}
+  {% for u in userDefinedRelation %}<userDefinedRelation id="{{ u.id }}"{% if u.name is not none %} name="{{ u.name }}"{% endif %}>
+    <referencePoints>
+      {% if u.referencePoints.point %}{% for p in u.referencePoints.point %}<point>
+        <x>{{ p.x }}</x>
+        <y>{{ p.y }}</y>
+      </point>
+      {% endfor %}
+      {% else %}<xAttributeId>{{ u.referencePoints.xAttributeId }}</xAttributeId>
+      <yAttributeId>{{ u.referencePoints.yAttributeId }}</yAttributeId>{% endif %}
+    </referencePoints>
+    {% if u.displayOptionKey is not none %}<displayOptionKey>{{ u.displayOptionKey }}</displayOptionKey>{% endif %}
+    {% if u.comment is not none %}<comment>{{ u.comment }}</comment>{% endif %}
+  </userDefinedRelation>
+  {% endfor %}
+</correlationDisplay>

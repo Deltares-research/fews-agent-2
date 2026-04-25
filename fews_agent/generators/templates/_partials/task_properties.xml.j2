@@ -1,0 +1,163 @@
+{#- Shared TaskProperties body emission. The caller is responsible
+    for the outer ``<taskProperties>`` wrapper (taskList / whatIfScenario
+    embed a single <taskProperties>; taskPropertiesPredefined has both
+    standalone and batch-task usage).
+-#}
+{%- macro render(tp) -%}
+    {%- if tp.description is not none %}
+    <description>{{ tp.description }}</description>
+    {%- endif %}
+    {%- if tp.userId is not none %}
+    <userId>{{ tp.userId }}</userId>
+    {%- endif %}
+    <workflowId>{{ tp.workflowId }}</workflowId>
+    <taskSelection>
+      {%- if tp.taskSelection.singleTask is not none %}
+      <singleTask>
+        <time0>{{ tp.taskSelection.singleTask.time0 }}</time0>
+      </singleTask>
+      {%- else %}
+      <scheduledTask>
+        <schedulingPeriod>
+          <startDate>{{ tp.taskSelection.scheduledTask.schedulingPeriod.startDate }}</startDate>
+          <endDate>{{ tp.taskSelection.scheduledTask.schedulingPeriod.endDate }}</endDate>
+        </schedulingPeriod>
+        {%- if tp.taskSelection.scheduledTask.schedulingInterval is not none %}
+        <schedulingInterval unit="{{ tp.taskSelection.scheduledTask.schedulingInterval.unit }}" multiplier="{{ tp.taskSelection.scheduledTask.schedulingInterval.multiplier }}"/>
+        {%- elif tp.taskSelection.scheduledTask.scheduling is not none %}
+        <scheduling>
+          <daysOfMonth>{{ tp.taskSelection.scheduledTask.scheduling.daysOfMonth }}</daysOfMonth>
+          <times>{{ tp.taskSelection.scheduledTask.scheduling.times }}</times>
+          {%- if tp.taskSelection.scheduledTask.scheduling.timeZone is not none %}
+          <timeZone>{{ tp.taskSelection.scheduledTask.scheduling.timeZone }}</timeZone>
+          {%- endif %}
+        </scheduling>
+        {%- else %}
+        <yearlyScheduling>
+          <daysOfYear>{{ tp.taskSelection.scheduledTask.yearlyScheduling.daysOfYear }}</daysOfYear>
+        </yearlyScheduling>
+        {%- endif %}
+        {%- if tp.taskSelection.scheduledTask.schedulingTime0Shift is not none %}
+        <schedulingTime0Shift unit="{{ tp.taskSelection.scheduledTask.schedulingTime0Shift.unit }}" multiplier="{{ tp.taskSelection.scheduledTask.schedulingTime0Shift.multiplier }}"/>
+        {%- endif %}
+        {%- if tp.taskSelection.scheduledTask.cancelAllowed is not none %}
+        <cancelAllowed>{{ 'true' if tp.taskSelection.scheduledTask.cancelAllowed else 'false' }}</cancelAllowed>
+        {%- endif %}
+        {%- if tp.taskSelection.scheduledTask.suspendAllowed is not none %}
+        <suspendAllowed>{{ 'true' if tp.taskSelection.scheduledTask.suspendAllowed else 'false' }}</suspendAllowed>
+        {%- endif %}
+      </scheduledTask>
+      {%- endif %}
+    </taskSelection>
+    <forecastPriority>{{ tp.forecastPriority }}</forecastPriority>
+    {%- if tp.forecastLength is not none %}
+    <forecastLength unit="{{ tp.forecastLength.unit }}" multiplier="{{ tp.forecastLength.multiplier }}"/>
+    {%- endif %}
+    {%- if tp.makeForcastCurrent is not none %}
+    <makeForcastCurrent>{{ 'true' if tp.makeForcastCurrent else 'false' }}</makeForcastCurrent>
+    {%- endif %}
+    {%- if tp.whatIfScenarioId is not none %}
+    <whatIfScenarioId>{{ tp.whatIfScenarioId }}</whatIfScenarioId>
+    {%- endif %}
+    {%- if tp.stateSelection is not none %}
+    <stateSelection>{{ tp.stateSelection | dict_to_xml | safe }}</stateSelection>
+    {%- elif tp.stateSelectionXml is not none %}
+    {{ tp.stateSelectionXml }}
+    {%- endif %}
+    {%- if tp.areaSelectionShapeFileBase64 is not none %}
+    <areaSelectionShapeFileBase64>{{ tp.areaSelectionShapeFileBase64 }}</areaSelectionShapeFileBase64>
+    {%- endif %}
+    {%- for lid in tp.selectedLocationId %}
+    <selectedLocationId>{{ lid }}</selectedLocationId>
+    {%- endfor %}
+    {%- if tp.makeStateCurrent is not none %}
+    <makeStateCurrent>{{ 'true' if tp.makeStateCurrent else 'false' }}</makeStateCurrent>
+    {%- endif %}
+    {%- if tp.runExpiryTime is not none %}
+    <runExpiryTime unit="{{ tp.runExpiryTime.unit }}"{% if tp.runExpiryTime.multiplier is not none %} multiplier="{{ tp.runExpiryTime.multiplier }}"{% endif %}{% if tp.runExpiryTime.divider is not none %} divider="{{ tp.runExpiryTime.divider }}"{% endif %}/>
+    {%- endif %}
+    {%- if tp.configFiles is not none %}
+    <configFiles>{{ tp.configFiles | dict_to_xml | safe }}</configFiles>
+    {%- endif %}
+    {%- if tp.archiveTask is not none %}
+    <archiveTask>{{ tp.archiveTask | dict_to_xml | safe }}</archiveTask>
+    {%- endif %}
+    {%- if tp.taskRunType is not none %}
+    <taskRunType>{{ tp.taskRunType }}</taskRunType>
+    {%- endif %}
+    {%- if tp.properties is not none %}
+    <properties>
+      {%- if tp.properties.description is not none %}
+      <description>{{ tp.properties.description }}</description>
+      {%- endif %}
+      {%- for p in tp.properties.string %}
+      <string key="{{ p.key }}" value="{{ p.value }}"{% if p.description is none %}/>{% else %}>
+        <description>{{ p.description }}</description>
+      </string>{% endif %}
+      {%- endfor %}
+      {%- for p in tp.properties.int_ %}
+      <int key="{{ p.key }}" value="{{ p.value }}"{% if p.description is none %}/>{% else %}>
+        <description>{{ p.description }}</description>
+      </int>{% endif %}
+      {%- endfor %}
+      {%- for p in tp.properties.float_ %}
+      <float key="{{ p.key }}" value="{{ p.value | xmlstr }}"{% if p.description is none %}/>{% else %}>
+        <description>{{ p.description }}</description>
+      </float>{% endif %}
+      {%- endfor %}
+      {%- for p in tp.properties.double %}
+      <double key="{{ p.key }}" value="{{ p.value | xmlstr }}"{% if p.description is none %}/>{% else %}>
+        <description>{{ p.description }}</description>
+      </double>{% endif %}
+      {%- endfor %}
+      {%- for p in tp.properties.bool_ %}
+      <bool key="{{ p.key }}" value="{{ 'true' if p.value else 'false' }}"{% if p.description is none %}/>{% else %}>
+        <description>{{ p.description }}</description>
+      </bool>{% endif %}
+      {%- endfor %}
+      {%- for p in tp.properties.dateTime %}
+      <dateTime key="{{ p.key }}" date="{{ p.date }}" time="{{ p.time }}"{% if p.description is none %}/>{% else %}>
+        <description>{{ p.description }}</description>
+      </dateTime>{% endif %}
+      {%- endfor %}
+    </properties>
+    {%- endif %}
+    {%- for mir in tp.activeModuleInstanceRuns %}
+    <activeModuleInstanceRuns taskRunId="{{ mir.taskRunId }}">
+      {%- for mid in mir.moduleInstanceId %}
+      <moduleInstanceId>{{ mid }}</moduleInstanceId>
+      {%- endfor %}
+    </activeModuleInstanceRuns>
+    {%- endfor %}
+    {%- if tp.mcSynchronisation is not none %}
+    <mcSynchronisation>
+      <synchparams>
+        <remotemcid name="{{ tp.mcSynchronisation.synchparams.remotemcid.name }}"/>
+        <synchid id="{{ tp.mcSynchronisation.synchparams.synchid.id }}"/>
+      </synchparams>
+      {%- for rt in tp.mcSynchronisation.recordtype %}
+      <recordtype type="{{ rt.type }}">
+        {%- if rt.modifier is not none %}
+        <modifier>
+          {%- for lvl in rt.modifier.synchlevel %}
+          <synchlevel level="{{ lvl.level }}"/>
+          {%- endfor %}
+        </modifier>
+        {%- endif %}
+      </recordtype>
+      {%- endfor %}
+    </mcSynchronisation>
+    {%- endif %}
+    {%- if tp.mcSystemAlerter is not none %}
+    <mcSystemAlerter>{{ tp.mcSystemAlerter | dict_to_xml | safe }}</mcSystemAlerter>
+    {%- endif %}
+    {%- if tp.ensembleParts is not none %}
+    <ensembleParts>{{ tp.ensembleParts }}</ensembleParts>
+    {%- endif %}
+    {%- for emir in tp.ensembleMemberIndexRange %}
+    <ensembleMemberIndexRange start="{{ emir.start }}"{% if emir.end is not none %} end="{{ emir.end }}"{% endif %}/>
+    {%- endfor %}
+    {%- for mii in tp.moduleInstanceIndices %}
+    <moduleInstanceIndices>{{ mii }}</moduleInstanceIndices>
+    {%- endfor %}
+{%- endmacro %}

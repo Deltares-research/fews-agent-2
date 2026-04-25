@@ -1,0 +1,2 @@
+{%- import "_partials/web_oc_template_display.xml.j2" as tpl -%}
+{{ tpl.render({'timeSeriesSet': timeSeriesSet, 'timeSeriesSets': timeSeriesSets, 'display': display}, 'dynamicReportDisplays', 'dynamicReportDisplays.xsd') }}

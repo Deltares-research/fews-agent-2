@@ -1,0 +1,163 @@
+{#- Canonical XSD-sequence order of every named PredefinedColorKey
+    element (mirrors PREDEFINED_COLOR_KEY_ORDER in
+    fews_agent/schema/color_schemes.py). Emitted in this order regardless
+    of dict iteration order, because XSD <xs:sequence> is positional. -#}
+{%- set predefined_order = [
+  "alertYellow","alternateRow","base","blankIcon","blueGray","border",
+  "borderActive","borderButton","borderDragging","borderHighlight",
+  "borderInactive","buttonPressed","buttonRollover","caret",
+  "cellCheckboxBackground","chartBackground","chartPanelValueMarker",
+  "classBreakDefaultGrad1","classBreakDefaultGrad2",
+  "colorChooser","control","correlationItem","correlationItemLabel",
+  "defaultArrow","defaultLine","defaultMapBackground","desktop",
+  "desktopBackground","doubleMassCurveValueMarker","dropLine","dummy",
+  "errorMessageForeground","etchedBorderHighlight","etchedBorderShadow",
+  "etchedSelectionBorderHighlight","etchedSelectionBorderShadow",
+  "flagBarBackground","floatingForeground","flowDomainMarker",
+  "forecastListBoxTitle","generalBackground","generalBackgroundActive",
+  "generalBackgroundDisabled","generalBackgroundInactive",
+  "generalBackgroundSelected","generalDisabled","generalDragging",
+  "generalFocus","generalForeground","generalForegroundDisabled",
+  "generalForegroundDocking","generalForegroundInactive",
+  "generalHighlight","generalLight","generalShadow","generalShadowDark",
+  "generalShadowDisabled","green","gridContour",
+  "gridDisplayCompassRoseBorder","gridDisplayCompassRoseLeftHalf",
+  "gridDisplayCompassRoseRightHalf","gridDisplayComponentBorder",
+  "gridDisplayDefaultCircleBorder","gridDisplayEmptyImage",
+  "gridDisplayScaleBarSegmentEven","gridDisplayScaleBarSegmentOdd",
+  "gridDisplaySelectionForeground","gridDisplaySelectionRectangle",
+  "gridDisplaySketchPoint","gridDisplayXorAlternation",
+  "gridExcluded1","gridExcluded2","gridExcluded3","gridLines","hash",
+  "highlightedDateTick","highlightedDateTickMarker","iconLine","info",
+  "infoBlue","labelBackground","labelForeground","locationResultsBorder",
+  "longitudinalValueMarker","lookupRuleDefault","mapLabelBackground",
+  "mapLabelCurrentTime","mapSelectionHighlight",
+  "mapSelectionHighlightAlternate","mapTrackCurrentTime","mapTrackLine",
+  "menu","modelStatusFailedBackground","modelStatusRunningBackground",
+  "modelStatusSuccessfulBackground","modelUserProfileBackground",
+  "modelValueSetBackground","modelValueTunedBackground","modifierLocked",
+  "modifierPartlyActive","orange","originalValueMarker","panelBackground",
+  "pcaValueMarker","percentageDomainMarker","plotAnnotationForeground",
+  "plotAxisLabel","plotBackground","plotGridLine","plotLabel",
+  "plotLegendLabel","plotLegendLabelSelected","plotLongitudinalMaximum",
+  "plotLongitudinalMinimum","plotLongitudinalRiverBed",
+  "plotLongitudinalValue","plotLongitudinalValueMarker",
+  "plotSlideBackground","plotTickLabel","plotTickMark","plotUnitInside",
+  "plotUnitOutside","plotWhatIfAxisLabel","plotWhatIfTickLabel",
+  "plotWhatIfTickMark","polygon","polygonSelected","rainDomainMarker",
+  "red","scalarPlotMarker","scatterPlotSelectionBackground",
+  "scenarioEditorDialogBackground","scenarioEditorTitleBackground",
+  "scrollbar","selectionBackground","selectionBorder",
+  "selectionBorderBackground","selectionForeground","separatorForeground",
+  "shapeDefaultBackground","shapeFillColor","shapeIconFill",
+  "shapeIconLine","sliderPanelBackgroundChanged","sliderThumb","sortIcon",
+  "statisticsXyEditable","statisticsXyNonEditable","statusBarCapacity",
+  "statusBarCapacityWarning","statusBarConnecting","statusBarFailover",
+  "statusBarForeground","statusBarIndexingBackground",
+  "statusBarLabelHoverColor","statusBarLoggedOff","statusBarLoggedOn",
+  "statusBarOkForeground","statusBarProgress","statusBarFinished",
+  "statusBarProgressOc","statusBarRollingBarrel","statusBarSynchronising",
+  "statusBarTimePausedBackground","tableBackground","tableCellBackground",
+  "tableCellBoxWhiskerCategoryBackground",
+  "tableCellBoxWhiskerValuesBackground","tableCellCalibrationBackground",
+  "tableCellCalibrationBackgroundChanged",
+  "tableCellCalibrationForeground","tableCellCalibrationForegroundSelected",
+  "tableCellChangedAndCommitted","tableCellChangedAndUncommitted",
+  "tableCellChangedBackground","tableCellChangedForeground",
+  "tableCellColorPendingBackground","tableCellColorUnknownBackground",
+  "tableCellColumnHeaderBackground","tableCellColumnHeaderForeground",
+  "tableCellColumnHeaderIdForeground","tableCellConfigActiveBackground",
+  "tableCellConfigActiveForeground","tableCellConfigInactiveBackground",
+  "tableCellConfigInactiveForeground","tableCellDashedBorder",
+  "tableCellDateBackground","tableCellDateBeforeTzeroBackground",
+  "tableCellDateMidnightBackground","tableCellDateText",
+  "tableCellDateTextInvalidDate","tableCellDisabledBackground",
+  "tableCellEditableBackground","tableCellEditableMissingBackground",
+  "tableCellFilteredBackground","tableCellForecastExpiredForeground",
+  "tableCellForeground","tableCellHeaderBackground",
+  "tableCellLineBorder","tableCellNeverImportedBackground",
+  "tableCellNotEditableBackground","tableCellRunInfoRowSelectedBackground",
+  "tableCellRunningBackground","tableCellSavedForeground",
+  "tableCellSelectedBackground","tableCellSelectedForeground",
+  "tableCellSelectionBorder","tableCellTimeSeriesBorder",
+  "tableRowTabBackground","text","textBackground","textBorder",
+  "textDisabled","textForeground","textForegroundDisabled","textHighlight",
+  "textSelected","thresholdAttributeMissingValue",
+  "thresholdAttributeNoCrossing","thresholdDefaultClassBreak",
+  "thresholdSkillScoreMatching","thresholdSkillScoreMissingForecast",
+  "thresholdSkillScoreMissingObserved",
+  "thresholdSkillScoreMissingObservedNoFalseAlarm","thumb",
+  "thumbnailDialogLineBorder","tick","timeNavigationStartDay",
+  "timeSeriesCalibrationLabelForeground","timeSeriesCompare1",
+  "timeSeriesCompare2","timeSeriesDefault",
+  "timeSeriesDialogColumnHeaderColor","timeSeriesFilteredBackground",
+  "timeSeriesGroupBasisStatistics","timeSeriesGroupCompletedDoubtful",
+  "timeSeriesGroupCompletedReliable","timeSeriesGroupCompletedUnreliable",
+  "timeSeriesGroupCorrectedDoubtful","timeSeriesGroupCorrectedReliable",
+  "timeSeriesGroupCorrectedUnreliable","timeSeriesGroupFlagComparison",
+  "timeSeriesGroupGeneral","timeSeriesGroupHardMax",
+  "timeSeriesGroupHardMin","timeSeriesGroupMissing",
+  "timeSeriesGroupOriginalDoubtful","timeSeriesGroupOriginalReliable",
+  "timeSeriesGroupOriginalUnreliable","timeSeriesGroupOscillation",
+  "timeSeriesGroupRateOfChange","timeSeriesGroupSameReading",
+  "timeSeriesGroupSeriesComparison","timeSeriesGroupSoftMax",
+  "timeSeriesGroupSoftMin","timeSeriesGroupSpatialHomogeneity",
+  "timeSeriesGroupTemporaryShift","timeSeriesHydrograph",
+  "timeSeriesHydrographModified","timeSeriesListerConstantBackground",
+  "timeSeriesListerWarningForeground","timeSeriesSelectedBackground",
+  "title","titleBorderDisabled","toolScrollBarUiBackEnd",
+  "toolScrollBarUiBackStart","toolTipBackground","track","trackForeground",
+  "trackHighlight","trackHighlightForeground",
+  "valueAboveDetectionRangeBackground",
+  "valueAutomaticallyCompletedBackground",
+  "valueAutomaticallyCompletedForeground",
+  "valueAutomaticallyCorrectedBackground",
+  "valueAutomaticallyCorrectedForeground",
+  "valueBelowDetectionRangeBackground","valueDoubtfulBackground",
+  "valueDriedBackground","valueHasCommentMarkerBackground",
+  "valueIceBackground","valueInundatedBackground",
+  "valueManualCompletedBackground","valueManualCompletedForeground",
+  "valueManualCorrectedBackground","valueManualCorrectedForeground",
+  "valueMissingBackground","valueModifiedBackground",
+  "valueNormalBackground","valuePersistentUnreliableBackground",
+  "valueAccumulationResetBackground","valueSourceCyclicForeground",
+  "valueUnmodifiedBackground","valueUnreliableBackground",
+  "waterCoachBorder","window","windowButtonBackgroundActiveEnd",
+  "windowButtonBackgroundActiveStart","windowButtonBackgroundInactive",
+  "windowButtonForeground","windowButtonForegroundUnavailable",
+  "windowButtonMouseInBorder","windowButtonMouseOutBorder",
+  "windowTitleBarBackgroundActiveEnd","windowTitleBarBackgroundActiveStart",
+  "windowTitleBarBackgroundInactiveEnd",
+  "windowTitleBarBackgroundInactiveStart","windowTitleBarIdBackgroundActive",
+  "windowTitleBarIdBackgroundAnimating",
+  "windowTitleBarIdBackgroundFlashingOne",
+  "windowTitleBarIdBackgroundFlashingZero",
+  "windowTitleBarIdBackgroundGradientTop",
+  "windowTitleBarIdBackgroundInactive","windowTitleBarIdForegroundActive",
+  "windowTitleBarIdForegroundInactive","windowTitleBarTabForegroundSelected",
+  "windowTitleBarTabForegroundUnselected","zoomSelectionBackground"
+] -%}
+<?xml version="1.0" encoding="UTF-8"?>
+<schemes xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/colorSchemes.xsd"{% if version is not none %} version="{{ version }}"{% endif %}>
+{% for s in scheme %}
+  <scheme name="{{ s.name }}">
+    <predefinedColorKeys>
+      {%- for key in predefined_order %}
+        {%- if key in s.predefinedColorKeys %}
+          {%- set color = s.predefinedColorKeys[key] %}
+          {%- if color is none %}
+      <{{ key }}/>
+          {%- else %}
+      <{{ key }} color="{{ color }}"/>
+          {%- endif %}
+        {%- endif %}
+      {%- endfor %}
+    </predefinedColorKeys>
+    {% if s.customColorKeys %}
+    <customColorKeys>
+      {% for k in s.customColorKeys %}<key key="{{ k.key }}"{% if k.color is not none %} color="{{ k.color }}"{% endif %}/>{% endfor %}
+    </customColorKeys>
+    {% endif %}
+  </scheme>
+{% endfor %}
+</schemes>

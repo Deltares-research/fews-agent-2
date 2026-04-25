@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<flagConversionsDescriptors version="{{ version }}" xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/flagConversionsDescriptors.xsd">
+{% for d in flagConversionsDescriptor %}
+  <flagConversionsDescriptor id="{{ d.id }}"{% if d.name is not none %} name="{{ d.name }}"{% endif %}>
+    {% if d.description is not none %}<description>{{ d.description }}</description>{% endif %}
+  </flagConversionsDescriptor>
+{% endfor %}
+</flagConversionsDescriptors>

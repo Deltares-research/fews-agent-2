@@ -1,0 +1,98 @@
+{%- import "_partials/variable.xml.j2" as var -%}
+<?xml version="1.0" encoding="UTF-8"?>
+<errorModelSets xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/errorModelSets.xsd" version="{{ version }}">
+{%- for es in errorModelSet %}
+  <errorModelSet>
+    {%- for iv in es.inputVariable %}
+    {{ var.render(iv, 'inputVariable') }}
+    {%- endfor %}
+    {%- if es.autoOrderMethod is not none %}
+    <autoOrderMethod>
+      <orderSelection>{{ es.autoOrderMethod.orderSelection }}</orderSelection>
+      {%- if es.autoOrderMethod.order_ar is not none %}
+      <order_ar>{{ es.autoOrderMethod.order_ar }}</order_ar>
+      {%- endif %}
+      {%- if es.autoOrderMethod.order_ma is not none %}
+      <order_ma>{{ es.autoOrderMethod.order_ma }}</order_ma>
+      {%- endif %}
+      {%- if es.autoOrderMethod.parameters is not none %}
+      <parameters>
+        {%- for p in es.autoOrderMethod.parameters.parameter %}
+        <parameter type="{{ p.type }}" order="{{ p.order }}">{{ p.value }}</parameter>
+        {%- endfor %}
+      </parameters>
+      {%- endif %}
+      <subtractMean>{{ es.autoOrderMethod.subtractMean }}</subtractMean>
+      <boxcoxTransformation>{{ es.autoOrderMethod.boxcoxTransformation }}</boxcoxTransformation>
+      {%- if es.autoOrderMethod.lambda_ is not none %}
+      <lambda>{{ es.autoOrderMethod.lambda_ }}</lambda>
+      {%- endif %}
+      {%- if es.autoOrderMethod.analysisWindow is not none %}
+      <analysisWindow unit="{{ es.autoOrderMethod.analysisWindow.unit }}"{% if es.autoOrderMethod.analysisWindow.start is not none %} start="{{ es.autoOrderMethod.analysisWindow.start }}"{% endif %}{% if es.autoOrderMethod.analysisWindow.end is not none %} end="{{ es.autoOrderMethod.analysisWindow.end }}"{% endif %}/>
+      {%- endif %}
+      <observedTimeSeriesId>{{ es.autoOrderMethod.observedTimeSeriesId }}</observedTimeSeriesId>
+      {%- for sid in es.autoOrderMethod.simulatedTimeSeriesId %}
+      <simulatedTimeSeriesId>{{ sid }}</simulatedTimeSeriesId>
+      {%- endfor %}
+      <outputTimeSeriesId>{{ es.autoOrderMethod.outputTimeSeriesId }}</outputTimeSeriesId>
+    </autoOrderMethod>
+    {%- else %}
+    <fixedOrderMethod>
+      <correctionModel>{{ es.fixedOrderMethod.correctionModel }}</correctionModel>
+      {%- if es.fixedOrderMethod.order_ar is not none %}
+      <order_ar>{{ es.fixedOrderMethod.order_ar }}</order_ar>
+      {%- endif %}
+      {%- if es.fixedOrderMethod.order_ma is not none %}
+      <order_ma>{{ es.fixedOrderMethod.order_ma }}</order_ma>
+      {%- endif %}
+      <observedTimeSeriesId>{{ es.fixedOrderMethod.observedTimeSeriesId }}</observedTimeSeriesId>
+      {%- for sid in es.fixedOrderMethod.simulatedTimeSeriesId %}
+      <simulatedTimeSeriesId>{{ sid }}</simulatedTimeSeriesId>
+      {%- endfor %}
+      {%- if es.fixedOrderMethod.outputTimeSeriesId is not none %}
+      <outputTimeSeriesId>{{ es.fixedOrderMethod.outputTimeSeriesId }}</outputTimeSeriesId>
+      {%- endif %}
+    </fixedOrderMethod>
+    {%- endif %}
+    {%- if es.interpolationOptions is not none %}
+    <interpolationOptions>
+      <interpolationType>{{ es.interpolationOptions.interpolationType }}</interpolationType>
+      {%- if es.interpolationOptions.gapLength is not none %}
+      <gapLength>{{ es.interpolationOptions.gapLength }}</gapLength>
+      {%- endif %}
+      {%- if es.interpolationOptions.defaultValue is not none %}
+      <defaultValue>{{ es.interpolationOptions.defaultValue | xmlstr }}</defaultValue>
+      {%- endif %}
+    </interpolationOptions>
+    {%- endif %}
+    {%- if es.maxObserved is not none %}
+    <maxObserved>{{ es.maxObserved | xmlstr }}</maxObserved>
+    {%- endif %}
+    {%- if es.minObserved is not none %}
+    <minObserved>{{ es.minObserved | xmlstr }}</minObserved>
+    {%- endif %}
+    {%- if es.maxResult is not none %}
+    <maxResult>{{ es.maxResult | xmlstr }}</maxResult>
+    {%- endif %}
+    {%- if es.minResult is not none %}
+    <minResult>{{ es.minResult | xmlstr }}</minResult>
+    {%- endif %}
+    {%- if es.ignoreDoubtful is not none %}
+    <ignoreDoubtful>{{ 'true' if es.ignoreDoubtful else 'false' }}</ignoreDoubtful>
+    {%- endif %}
+    {%- if es.ignoreTrailingMissingsInSimulatedTimeSeries is not none %}
+    <ignoreTrailingMissingsInSimulatedTimeSeries>{{ 'true' if es.ignoreTrailingMissingsInSimulatedTimeSeries else 'false' }}</ignoreTrailingMissingsInSimulatedTimeSeries>
+    {%- endif %}
+    {%- if es.loopOverMultipleTimeSeries is not none %}
+    <loopOverMultipleTimeSeries>{{ 'true' if es.loopOverMultipleTimeSeries else 'false' }}</loopOverMultipleTimeSeries>
+    {%- endif %}
+    {%- if es.logLevelNoObservedValues is not none %}
+    <logLevelNoObservedValues>{{ es.logLevelNoObservedValues }}</logLevelNoObservedValues>
+    {%- endif %}
+    {{ var.render(es.outputVariable, 'outputVariable') }}
+  </errorModelSet>
+{%- endfor %}
+  {%- if logLevelCoefficientsInfo is not none %}
+  <logLevelCoefficientsInfo>{{ logLevelCoefficientsInfo }}</logLevelCoefficientsInfo>
+  {%- endif %}
+</errorModelSets>

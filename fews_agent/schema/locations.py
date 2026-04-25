@@ -1,17 +1,32 @@
-"""Locations.xml — declares locationId used across the config."""
+"""Locations.xml — declares locationId used across the config.
+
+Full LocationComplexType coverage: description, shortName, label,
+toolTip, parentLocationId, visibilityPeriod (DateTime pair),
+x/y/z/bedLevel, layerSigmaCoordinate, plus the id/name attributes.
+
+XSD's ``AttributeChoice`` group is NOT modelled here — it uses
+namespace-any with three runtime namespaces (numberAttribute /
+textAttribute / booleanAttribute), which doesn't map to typed
+Pydantic fields. Callers who need custom attributes declare them at
+the LocationSet / Parameter / Qualifier level instead, or use the
+GenericXmlFile passthrough for an edge case.
+"""
 from __future__ import annotations
 
 from decimal import Decimal
 
 from pydantic import Field
 
+from .archive_metadata import DateTimePair
 from .common import FewsModel
 from .ids import LocationId
 
 
-class LocationAttribute(FewsModel):
-    key: str
-    value: str
+class LocationVisibilityPeriod(FewsModel):
+    """Optional visibility window using DateTime (date + optional time)."""
+
+    startDateTime: DateTimePair | None = None
+    endDateTime: DateTimePair | None = None
 
 
 class Location(FewsModel):
@@ -23,17 +38,26 @@ class Location(FewsModel):
     name: str
     x: Decimal
     y: Decimal
-    shortName: str | None = None
     description: str | None = None
-    z: Decimal | None = None
+    shortName: str | None = None
+    label: str | None = None
+    toolTip: str | None = None
     parentLocationId: LocationId | None = None
-    relation: str | None = None
-    attribute: list[LocationAttribute] = Field(default_factory=list)
+    visibilityPeriod: LocationVisibilityPeriod | None = None
+    z: Decimal | None = None
+    bedLevel: Decimal | None = None
+    # sigmaCoordinateDouble is a restricted double (0..1); left as Decimal
+    # for the same source-preservation reason.
+    layerSigmaCoordinate: Decimal | None = None
 
 
 class Locations(FewsModel):
-    """Root of Locations.xml."""
+    """Root of Locations.xml.
+
+    ``timeZone`` is optional — if absent, FEWS defaults to GMT.
+    """
 
     geoDatum: str
     location: list[Location] = Field(min_length=1)
+    timeZone: str | None = None
     version: str = "1.1"

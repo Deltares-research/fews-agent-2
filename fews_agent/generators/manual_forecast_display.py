@@ -7,4 +7,4 @@ from .base import render
 
 
 def generate(model: ManualForecastDisplay) -> str:
-    return render("manual_forecast_display.xml.j2", model)
+    return render("display/manual_forecast_display.xml.j2", model)

@@ -1,0 +1,5 @@
+{%- import "_partials/time_series_display_body.xml.j2" as tsd -%}
+<?xml version="1.0" encoding="UTF-8"?>
+<timeSeriesDisplay xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/timeSeriesDisplay.xsd" version="{{ version }}">
+  {{ tsd.body(_root) }}
+</timeSeriesDisplay>

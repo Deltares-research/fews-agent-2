@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schema xmlns="http://www.w3.org/2001/XMLSchema" xmlns:fews="http://www.wldelft.nl/fews" targetNamespace="http://www.wldelft.nl/fews" elementFormDefault="qualified" attributeFormDefault="unqualified"
+		version="1.0">
+	<include schemaLocation="sharedTypes.xsd"/>
+	<element name="tabularConfigFilesDisplay" type="fews:TabularConfigFilesDisplayComplexType"/>
+	<complexType name="TabularConfigFilesDisplayComplexType">
+		<sequence>
+			<element name="editPermission" type="fews:nonEmptyStringType" minOccurs="0">
+				<annotation>
+					<documentation>Permission for the edit mode button</documentation>
+				</annotation>
+			</element>
+			<element name="taskButton" type="fews:TabularConfigFilesDisplayTaskComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Since 2024.01. Button that executes an exe/script to download/upload the configuration</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="TabularConfigFilesDisplayTaskComplexType">
+		<annotation>
+			<documentation>Since 2024.01. tabular config files display button with executable</documentation>
+		</annotation>
+		<sequence>
+			<element name="description" type="string" minOccurs="0"/>
+			<element name="permission" type="string" minOccurs="0"/>
+			<element name="iconFile" type="string">
+				<annotation>
+					<documentation>icon that must be displayed in the toolbar button in the case that the task appears in the toolbar</documentation>
+				</annotation>
+			</element>
+			<element name="workDir" type="string">
+				<annotation>
+					<documentation>working directory of the task</documentation>
+				</annotation>
+			</element>
+			<element name="executable" type="fews:fileStringType">
+				<annotation>
+					<documentation>Absolute path plus file name of the executable.</documentation>
+				</annotation>
+			</element>
+			<element name="arguments" type="fews:ArgumentsComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Arguments to be passed to the executable.</documentation>
+				</annotation>
+			</element>
+			<element name="environmentVariables" type="fews:EnvironmentVariablesComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Environment variables to be passed to the executable.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+		<attribute name="name" type="string" use="required"/>
+	</complexType>
+</schema>

@@ -7,4 +7,4 @@ from .base import render
 
 
 def generate(model: ModuleParameters) -> str:
-    return render("module_parameters.xml.j2", model)
+    return render("module_datasets/module_parameters.xml.j2", model)

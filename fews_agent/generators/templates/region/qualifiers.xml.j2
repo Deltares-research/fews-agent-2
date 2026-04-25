@@ -1,0 +1,41 @@
+{%- macro emit_qnode(n, tag='qualifierNode') -%}
+<{{ tag }} id="{{ n.id }}">
+  {%- if n.name is not none %}<name>{{ n.name }}</name>{% endif %}
+  {%- if n.description is not none %}<description>{{ n.description }}</description>{% endif %}
+  {%- for qid in n.qualifierId %}<qualifierId>{{ qid }}</qualifierId>{% endfor %}
+  {%- for child in n.qualifierNode %}
+  {{ emit_qnode(child) }}
+  {%- endfor %}
+  {%- for c in n.constraints %}{{ c | dict_to_xml('constraints') | safe }}{% endfor %}
+</{{ tag }}>
+{%- endmacro -%}
+{%- macro emit_qual(q, tag="qualifier") -%}
+<{{ tag }} id="{{ q.id }}"{% if q.name is not none %} name="{{ q.name }}"{% endif %}
+{%- set has_body = q.description is not none or q.shortName is not none or q.child or q.group is not none -%}
+{%- if has_body %}>
+    {%- if q.description is not none %}<description>{{ q.description }}</description>{% endif %}
+    {%- if q.shortName is not none %}<shortName>{{ q.shortName }}</shortName>{% endif %}
+    {%- for c in q.child %}
+    {{ emit_qual(c, tag="child") }}
+    {%- endfor %}
+    {%- if q.group is not none %}<group>{{ q.group }}</group>{% endif %}
+  </{{ tag }}>
+{%- else %}/>
+{%- endif %}
+{%- endmacro -%}
+<?xml version="1.0" encoding="UTF-8"?>
+<qualifiers xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/qualifiers.xsd">
+  <allowReferencingUndefinedQualifiers>{{ 'true' if allowReferencingUndefinedQualifiers else 'false' }}</allowReferencingUndefinedQualifiers>
+{% for q in qualifier %}
+  {{ emit_qual(q) }}
+{% endfor %}
+{% for csv in csvFile %}
+  <csvFile>
+    <file>{{ csv.file }}</file>
+    {% if csv.charset is not none %}<charset>{{ csv.charset }}</charset>{% endif %}
+  </csvFile>
+{% endfor %}
+{% if qualifierRootNode is not none %}
+  {{ emit_qnode(qualifierRootNode, tag='qualifierRootNode') }}
+{% endif %}
+</qualifiers>

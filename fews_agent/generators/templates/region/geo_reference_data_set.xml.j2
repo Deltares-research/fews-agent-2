@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<geoReferenceDataSet xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/geoReferenceDataSet.xsd" version="{{ version }}">
+  <geoDatum>{{ geoDatum }}</geoDatum>
+  {%- for gr in geoReferenceData %}
+  <geoReferenceData label="{{ gr.label }}">
+    <mapSectionId>{{ gr.mapSectionId }}</mapSectionId>
+    {%- for p in gr.point %}
+    <point{% if p.x is not none %} x="{{ p.x | xmlstr }}"{% endif %}{% if p.y is not none %} y="{{ p.y | xmlstr }}"{% endif %}/>
+    {%- endfor %}
+  </geoReferenceData>
+  {%- endfor %}
+</geoReferenceDataSet>

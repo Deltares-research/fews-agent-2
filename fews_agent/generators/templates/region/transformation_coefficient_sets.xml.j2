@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<transformationCoefficientSets xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/transformationCoefficientSets.xsd" version="1.0">
+{% if timeZone is not none %}  <timeZone>{{ timeZone }}</timeZone>
+{% endif %}
+{% for cs in coefficientSet %}  <coefficientSet id="{{ cs.id }}">
+  {% if cs.coefficientSet %}{{ cs.coefficientSet | dict_to_xml | safe }}{% endif %}
+  {% for pcs in cs.periodCoefficientSet %}<periodCoefficientSet>
+    {% for p in pcs.period %}<period>
+      {% if p.period is not none %}<period startDate="{{ p.period.startDate }}" endDate="{{ p.period.endDate }}"/>{% endif %}
+      {% if p.season is not none %}<season><startMonthDay>{{ p.season.startMonthDay }}</startMonthDay><endMonthDay>{{ p.season.endMonthDay }}</endMonthDay></season>{% endif %}
+    </period>{% endfor %}
+    {{ pcs.coefficientSet | dict_to_xml | safe }}
+  </periodCoefficientSet>{% endfor %}
+  {% for lcs in cs.locationCoefficientSet %}<locationCoefficientSet>
+    {% for loc in lcs.location %}<location>
+      <locationId>{{ loc.locationId }}</locationId>
+      {% if loc.locationName is not none %}<locationName>{{ loc.locationName }}</locationName>{% endif %}
+    </location>{% endfor %}
+    {% if lcs.coefficientSet %}{{ lcs.coefficientSet | dict_to_xml | safe }}{% endif %}
+    {% for pcs in lcs.periodCoefficientSet %}<periodCoefficientSet>
+      {% for p in pcs.period %}<period>
+        {% if p.period is not none %}<period startDate="{{ p.period.startDate }}" endDate="{{ p.period.endDate }}"/>{% endif %}
+        {% if p.season is not none %}<season><startMonthDay>{{ p.season.startMonthDay }}</startMonthDay><endMonthDay>{{ p.season.endMonthDay }}</endMonthDay></season>{% endif %}
+      </period>{% endfor %}
+      {{ pcs.coefficientSet | dict_to_xml | safe }}
+    </periodCoefficientSet>{% endfor %}
+  </locationCoefficientSet>{% endfor %}
+  </coefficientSet>
+{% endfor %}
+</transformationCoefficientSets>

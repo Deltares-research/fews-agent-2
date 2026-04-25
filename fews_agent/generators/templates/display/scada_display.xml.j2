@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<scadaDisplay xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/scadaDisplay.xsd">
+  <displayName>{{ displayName }}</displayName>
+  {% if showTimeNavigatorToolbar is not none %}
+  <showTimeNavigatorToolbar>{{ showTimeNavigatorToolbar | dict_to_xml | safe }}</showTimeNavigatorToolbar>
+  {% endif %}
+  {% if globalDatumButtonViewPermission is not none %}<globalDatumButtonViewPermission>{{ globalDatumButtonViewPermission }}</globalDatumButtonViewPermission>{% endif %}
+  {% if backgroundColor is not none %}<backgroundColor>{{ backgroundColor }}</backgroundColor>{% endif %}
+  {% for d in dateFormat %}
+  <dateFormat id="{{ d.id }}">
+    {% if d.timeZone is not none %}
+    <timeZone>{% if d.timeZone.timeZoneName is not none %}<timeZoneName>{{ d.timeZone.timeZoneName }}</timeZoneName>{% endif %}{% if d.timeZone.timeZoneOffset is not none %}<timeZoneOffset>{{ d.timeZone.timeZoneOffset }}</timeZoneOffset>{% endif %}</timeZone>
+    {% endif %}
+    <dateTimePattern>{{ d.dateTimePattern }}</dateTimePattern>
+  </dateFormat>
+  {% endfor %}
+  {% for n in numberFormat %}
+  <numberFormat id="{{ n.id }}"><pattern>{{ n.pattern }}</pattern></numberFormat>
+  {% endfor %}
+  {% for v in variable %}
+  <variable>
+    <variableId>{{ v.variableId }}</variableId>
+    <timeSeriesSet>{{ v.timeSeriesSet | dict_to_xml | safe }}</timeSeriesSet>
+  </variable>
+  {% endfor %}
+  {% for t in transformation %}
+  <transformation>{{ t | dict_to_xml | safe }}</transformation>
+  {% endfor %}
+  {% for p in scadaPanel %}
+  <scadaPanel id="{{ p.id }}"{% if p.name is not none %} name="{{ p.name }}"{% endif %}>
+    <svgFile>{{ p.svgFile }}</svgFile>
+    {% if p.overrulingTimeNavigatorTimeStep is not none %}
+    <overrulingTimeNavigatorTimeStep{% if p.overrulingTimeNavigatorTimeStep.unit is not none %} unit="{{ p.overrulingTimeNavigatorTimeStep.unit }}"{% endif %}{% if p.overrulingTimeNavigatorTimeStep.multiplier is not none %} multiplier="{{ p.overrulingTimeNavigatorTimeStep.multiplier }}"{% endif %}{% if p.overrulingTimeNavigatorTimeStep.divider is not none %} divider="{{ p.overrulingTimeNavigatorTimeStep.divider }}"{% endif %}{% if p.overrulingTimeNavigatorTimeStep.id is not none %} id="{{ p.overrulingTimeNavigatorTimeStep.id }}"{% endif %}/>
+    {% endif %}
+    {% if p.nodeId is not none %}<nodeId>{{ p.nodeId }}</nodeId>{% endif %}
+    {% if p.permission is not none %}<permission>{{ p.permission }}</permission>{% endif %}
+    {% if p.backgroundColor is not none %}<backgroundColor>{{ p.backgroundColor }}</backgroundColor>{% endif %}
+    {{ p.components | dict_to_xml | safe }}
+  </scadaPanel>
+  {% endfor %}
+  {% for sid in scadaPanelId %}<scadaPanelId>{{ sid }}</scadaPanelId>{% endfor %}
+</scadaDisplay>

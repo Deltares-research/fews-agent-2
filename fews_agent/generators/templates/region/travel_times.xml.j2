@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<travelTimes xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/travelTimes.xsd">
+{%- macro loc(l, tag) %}<{{ tag }} id="{{ l.id }}"{% if l.name is not none %} name="{{ l.name }}"{% endif %}{% if l.parameterId is not none %} parameterId="{{ l.parameterId }}"{% endif %}/>{%- endmacro %}
+{% for t in travelTime %}
+  <travelTime>
+    {{ loc(t.downstreamLocation, 'downstreamLocation') }}
+    {% for u in t.upstreamLocation %}{{ loc(u, 'upstreamLocation') }}
+    {% endfor %}
+    {% if t.travelTime is not none %}<travelTime unit="{{ t.travelTime.unit }}" multiplier="{{ t.travelTime.multiplier }}"/>{% endif %}
+    <validPeriod unit="{{ t.validPeriod.unit }}"{% if t.validPeriod.start is not none %} start="{{ t.validPeriod.start }}"{% endif %}{% if t.validPeriod.end is not none %} end="{{ t.validPeriod.end }}"{% endif %}/>
+    {% if t.defaultEquation is not none %}<defaultEquation equationType="{{ t.defaultEquation.equationType }}"{% if t.defaultEquation.polynomialOrder is not none %} polynomialOrder="{{ t.defaultEquation.polynomialOrder }}"{% endif %}/>{% endif %}
+    {% for r in t.userDefinedRelation %}<userDefinedRelation>{{ r }}</userDefinedRelation>
+    {% endfor %}
+  </travelTime>
+{% endfor %}
+</travelTimes>

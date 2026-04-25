@@ -1,0 +1,585 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- edited with XMLSpy v2009 sp1 (http://www.altova.com) by ICT (Stichting Deltares) -->
+<!-- edited with XMLSPY v2004 rel. 3 U (http://www.xmlspy.com) by tacoma (WL | Delft Hydraulics) -->
+<!--Delft FEWS (Copyright 2003 WL | Delft Hydraulics) -->
+<schema xmlns="http://www.w3.org/2001/XMLSchema" xmlns:fews="http://www.wldelft.nl/fews" targetNamespace="http://www.wldelft.nl/fews" elementFormDefault="qualified" attributeFormDefault="unqualified"
+		version="1.0">
+	<include schemaLocation="sharedTypes.xsd"/>
+	<element name="valuePropertiesEntryDisplay" type="fews:ValuePropertiesEntryDisplayComplexType">
+		<annotation>
+			<documentation>Display in which input elements to edit value properties can be freely configured.</documentation>
+		</annotation>
+	</element>
+	<complexType name="ValuePropertiesEntryDisplayComplexType">
+		<sequence>
+			<element name="variable" type="fews:VariableDefinitionValuePropertiesEntryDisplayComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Definition of time series sets which can be referred to in other parts of the config</documentation>
+				</annotation>
+			</element>
+			<element name="enableButtonsByPhase" type="boolean" minOccurs="0">
+				<annotation>
+					<documentation>If the data in the display has a phase, like new, update, final, enable or disable the buttons which depend on it.</documentation>
+				</annotation>
+			</element>
+			<element name="button" type="fews:ExportButtonComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Button can be configured to either create a new or follow-up set of properties. Or export a file with the contents of the display filled in a template.</documentation>
+				</annotation>
+			</element>
+			<element name="valuePropertiesVariableId" type="fews:idStringType">
+				<annotation>
+					<documentation>Variable id for the main time series to read and write the properties from.</documentation>
+				</annotation>
+			</element>
+			<element name="externalIdAttributeFunction" type="fews:nonEmptyStringType" minOccurs="0">
+				<annotation>
+					<documentation>Function that will be resolved based on location attributes to determine the id for the export tag %EXTERNAL_ID%</documentation>
+				</annotation>
+			</element>
+			<element name="externalNameAttributeFunction" type="fews:nonEmptyStringType" minOccurs="0">
+				<annotation>
+					<documentation>Function that will be resolved based on location attributes to determine the name used in the forecast text and flood warning title</documentation>
+				</annotation>
+			</element>
+			<element name="timeZoneAttributeFunction" type="fews:nonEmptyStringType" minOccurs="0">
+				<annotation>
+					<documentation>Function that can be resolved based on location attributes to determine the local time zone of the display</documentation>
+				</annotation>
+			</element>
+			<element name="convertDatumAttributeFunction" type="fews:nonEmptyStringType" minOccurs="0">
+				<annotation>
+					<documentation>Function that can be resolved based on location attributes to determine whether for the location datum conversion should be applied</documentation>
+				</annotation>
+			</element>
+
+			<element name="subLocationsStructure" type="fews:SubLocationsStructureComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>The structure associated with sub locations which match the main location. Can be used to show each matching sub location in its own row in a table. Can also be used to determine the value of a connected element of the main location by combining the values of the sub locations</documentation>
+				</annotation>
+			</element>
+			<element name="forecastLocationsStructure" type="fews:ForecastLocationsStructureComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Structure of the forecast locations that can be connected to matching sub locations. Can be used to determine separate properties for forecast locations and an editable table to enter and edit values for creating a forecast time series.</documentation>
+				</annotation>
+			</element>
+
+			<element name="dateFormat" type="fews:ValuePropertiesEntryDisplayDateFormatComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Date format that can be referred to within tags</documentation>
+				</annotation>
+			</element>
+			<element name="numberFormat" type="fews:ValuePropertiesEntryDisplayNumberFormatComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Number format that can be referred to within tags</documentation>
+				</annotation>
+			</element>
+			<choice maxOccurs="unbounded">
+				<element name="valueProperty" type="fews:EntryValuePropertyComplexType" maxOccurs="unbounded"/>
+				<element name="newLine" type="fews:emptyElement"/>
+			</choice>
+			<element name="subLocationsTable" type="fews:SubLocationsTableComplexType" minOccurs="0" maxOccurs="2">
+				<annotation>
+					<documentation>Defines a table in the GUI to show each matching sub location in its own row in a table. Can contain both editable and non editable columns. The contents are based on a sub locations structure.</documentation>
+				</annotation>
+			</element>
+			<element name="forecastCreationPanel" type="fews:ForecastCreationPanelComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Panel to input elements for value properties of the forecast and show and editable table to fill in values of a forecast.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="VariableDefinitionValuePropertiesEntryDisplayComplexType">
+		<sequence>
+			<element name="variableId" type="fews:idStringType">
+				<annotation>
+					<documentation>Identifier for this variable. Use this identifier to reference to this variable in a transformation.</documentation>
+				</annotation>
+			</element>
+			<element name="timeSeriesSet" type="fews:TimeSeriesSetComplexType">
+				<annotation>
+					<documentation>Identifier for this variable. Use this identifier to reference to this variable in a transformation.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="ValuePropertiesEntryDisplayDateFormatComplexType">
+		<sequence>
+			<choice>
+				<element name="timeZone" type="fews:TimeZoneComplexType" minOccurs="0">
+					<annotation>
+						<documentation>Optional time zone for this dateFormat. If no time zone is defined, then uses GMT.</documentation>
+					</annotation>
+				</element>
+				<element name="timeZoneNameLocationAttributeId" type="fews:idStringType" minOccurs="0">
+					<annotation>
+						<documentation>Optional location attribute to look up a local time zone for this dateFormat.</documentation>
+					</annotation>
+				</element>
+			</choice>
+			<element name="dateTimePattern" type="fews:nonEmptyStringType">
+				<annotation>
+					<documentation>Pattern for this dateFormat. This can be e.g. "yyyy-MM-dd HH:mm:ss".</documentation>
+				</annotation>
+			</element>
+		</sequence>
+		<attribute name="id" type="fews:idStringType" use="required">
+			<annotation>
+				<documentation>Identifier for this dateFormat. Use this identifier to reference to this dateFormat in a tag in the text of an svg object.</documentation>
+			</annotation>
+		</attribute>
+	</complexType>
+	<complexType name="EntryValuePropertyComplexType">
+		<sequence>
+			<element name="enumerationValue" type="fews:ValuePropertiesEntryDisplayEnumerationValueComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Different possible values for this property, when 1 or more enumeration values are defined the column will become editable through a dropdown.</documentation>
+				</annotation>
+			</element>
+			<choice>
+				<element name="defaultValue" type="fews:nonEmptyStringType" minOccurs="0">
+					<annotation>
+						<documentation>Value that is used initially</documentation>
+					</annotation>
+				</element>
+				<element name="defaultValueAttributeFunction" type="fews:nonEmptyStringType" minOccurs="0">
+					<annotation>
+						<documentation>Default value taken from an attribute function</documentation>
+					</annotation>
+				</element>
+				<element name="templateValueAttributeFunction" type="fews:nonEmptyStringType" minOccurs="0">
+					<annotation>
+						<documentation>Attribute function which resolves to the text for a predefined template from which a %TAG% can be replaced</documentation>
+					</annotation>
+				</element>
+			</choice>
+			<element name="special" type="fews:SpecialEntryValuePropertyComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Element to define special rules for determining content of the value property</documentation>
+				</annotation>
+			</element>
+		</sequence>
+		<attribute name="id" type="fews:idStringType" use="required"/>
+		<attribute name="propertyType" type="fews:propertyTypeEnumStringType" use="required"/>
+		<attribute name="name" type="string"/>
+		<attribute name="enabled" type="boolean" default="true">
+			<annotation>
+				<documentation>Determines whether or not the elment can be edited. If not editable the element is just for showing.</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="numberOfLines" type="fews:positiveInteger" default="1">
+			<annotation>
+				<documentation>When this number is higher then 1 the input field component will have that many lines as a height on startup. Extra lines are automatically added when needed.</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="width" type="fews:positiveInteger" default="100">
+			<annotation>
+				<documentation>Determines the width of the input element on the screen in pixels</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="forceUpperCase" type="boolean" default="false">
+			<annotation>
+				<documentation>When true, all text is automatically changed to uppercase</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="formatId" type="fews:idStringType" use="optional">
+			<annotation>
+				<documentation>Reference to a date format or number format depending on the property type.</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="convertDatum" type="boolean" use="optional">
+			<annotation>
+				<documentation>Applies datum conversion for locations if their convertDatum attributeFunction resolves to true</documentation>
+			</annotation>
+		</attribute>
+	</complexType>
+	<complexType name="SubLocationsTableComplexType">
+		<sequence>
+			<element name="title" type="fews:nonEmptyStringType" minOccurs="0"/>
+			<element name="maxVisibleRows" type="nonNegativeInteger" minOccurs="0">
+				<annotation>
+					<documentation>Maximum number of rows to show in the table, default is unlimited. When the number of matching sub locations exceeds this number, a scroll bar will be shown to scroll through the sub locations.</documentation>
+				</annotation>
+			</element>
+			<element name="subLocationsStructureId" type="fews:idStringType" minOccurs="0"/>
+			<choice maxOccurs="unbounded">
+				<element name="orderAttributeColumn" type="fews:ValuePropertiesEntryDisplayAttributeColumnComplexType"/>
+				<element name="locationNameColumn" type="fews:PredefinedColumnComplexType"/>
+				<element name="automateColumn" type="fews:PredefinedColumnComplexType"/>
+				<element name="valuePropertyColumn" type="fews:ValuePropertiesEntryDisplayValuePropertyColumnComplexType"/>
+				<element name="specialValuePropertyColumn" type="fews:SpecialValuePropertyColumnComplexType"/>
+				<element name="attributeColumn" type="fews:ValuePropertiesEntryDisplayAttributeColumnComplexType"/>
+				<element name="timeSeriesColumn" type="fews:TimeSeriesValuePropertiesEntryDisplayColumnComplexType">
+					<annotation>
+						<documentation>Value depends on contents of connected time series. On save the value will be stored in the property when valuePropertyId is configured. If the time series is not available the stored value in the property will be used when that is available.</documentation>
+					</annotation>
+				</element>
+				<element name="valueColumn" type="fews:ValuePropertiesEntryDisplayValueColumnComplexType"/>
+			</choice>
+		</sequence>
+		<attribute name="id" type="fews:idStringType" use="required"/>
+	</complexType>
+	<complexType name="ValuePropertiesEntryDisplayAttributeColumnComplexType">
+		<attribute name="id" type="fews:idStringType" use="required"/>
+		<attribute name="name" type="fews:nonEmptyStringType" use="required"/>
+		<attribute name="attributeFunction" type="fews:nonEmptyStringType" use="required"/>
+		<attribute name="width" type="fews:positiveInteger" use="required"/>
+		<attribute name="sortable" type="boolean" default="true"/>
+	</complexType>
+	<complexType name="ValuePropertiesEntryDisplayEnumerationValueComplexType">
+		<attribute name="code" type="fews:idStringType" use="required"/>
+		<attribute name="label" type="fews:nonEmptyStringType" use="required"/>
+	</complexType>
+	<complexType name="TimeSeriesValuePropertiesEntryDisplayColumnComplexType">
+		<sequence>
+			<element name="thresholdGroupId" type="fews:idStringType" minOccurs="0"/>
+		</sequence>
+		<attribute name="id" type="fews:idStringType" use="required"/>
+		<attribute name="name" type="fews:nonEmptyStringType" use="required"/>
+		<attribute name="width" type="fews:positiveInteger" use="required"/>
+		<attribute name="variableId" type="fews:idStringType" use="required"/>
+		<attribute name="valuePropertyId" type="fews:idStringType"/>
+		<attribute name="thresholdColorValuePropertyId" type="fews:idStringType"/>
+		<attribute name="columnContent" type="fews:timeSeriesContentTypeEnumStringType" use="required"/>
+		<attribute name="formatId" type="fews:idStringType" use="optional">
+			<annotation>
+				<documentation>Reference to a date format or number format depending on the property type.</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="convertDatum" type="boolean" use="optional">
+			<annotation>
+				<documentation>Applies datum conversion for locations if their convertDatum attributeFunction resolves to true</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="sortable" type="boolean" default="true"/>
+	</complexType>
+	<complexType name="ValuePropertiesEntryDisplayValueColumnComplexType">
+		<sequence>
+			<element name="thresholdGroupId" type="fews:idStringType" minOccurs="0"/>
+		</sequence>
+		<attribute name="id" type="fews:idStringType" use="required"/>
+		<attribute name="valuePropertyId" type="fews:idStringType" use="required"/>
+		<attribute name="thresholdColorValuePropertyId" type="fews:idStringType"/>
+		<attribute name="name" type="fews:nonEmptyStringType" use="required"/>
+		<attribute name="width" type="fews:positiveInteger" use="required"/>
+		<attribute name="editable" type="boolean" use="required"/>
+		<attribute name="timeType" type="fews:timeTypeEnumStringType" use="optional" default="lastValue"/>
+		<attribute name="sortable" type="boolean" default="true"/>
+	</complexType>
+	<complexType name="ExportButtonComplexType">
+		<sequence>
+			<element name="icon" type="fews:fileStringType" minOccurs="0">
+				<annotation>
+					<documentation>File name of the icon located in IconFiles config folder</documentation>
+				</annotation>
+			</element>
+			<element name="type" type="fews:buttonEnumStringType">
+				<annotation>
+					<documentation>Type of the button, for instance to initialize a new set or update an existing or export contents to a (report) file</documentation>
+				</annotation>
+			</element>
+			<element name="templateFile" type="fews:fileStringType" minOccurs="0"/>
+			<element name="defaultFolder" type="fews:fileStringType" minOccurs="0"/>
+			<element name="defaultFileName" type="fews:fileStringType" minOccurs="0"/>
+			<element name="openFileAfterCreation" type="boolean" minOccurs="0"/>
+			<element name="workflowId" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>Workflow to run when this button is pressed</documentation>
+				</annotation>
+			</element>
+			<element name="confirmationQuestion" type="fews:nonEmptyStringType" minOccurs="0">
+				<annotation>
+					<documentation>Question to show in confirmation dialog after pressing this button.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+		<attribute name="name" type="fews:nonEmptyStringType"/>
+	</complexType>
+	<complexType name="ValuePropertiesEntryDisplayValuePropertyColumnComplexType">
+		<sequence>
+			<element name="enumerationValue" type="fews:ValuePropertiesEntryDisplayEnumerationValueComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Different possible values for this property, when 1 or more enumeration values are defined the column will become editable through a dropdown.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+		<attribute name="id" type="fews:idStringType"/>
+		<attribute name="name" type="fews:nonEmptyStringType"/>
+		<attribute name="valuePropertyId" type="fews:idStringType"/>
+		<attribute name="width" type="fews:positiveInteger"/>
+		<attribute name="sortable" type="boolean" default="true"/>
+	</complexType>
+	<complexType name="PredefinedColumnComplexType">
+		<attribute name="id" type="fews:idStringType"/>
+		<attribute name="columnName" type="fews:nonEmptyStringType"/>
+		<attribute name="width" type="fews:positiveInteger"/>
+		<attribute name="sortable" type="boolean" default="true"/>
+	</complexType>
+	<complexType name="SpecialEntryValuePropertyComplexType">
+			<sequence minOccurs="0">
+				<element name="variableId" type="fews:idStringType"/>
+				<element name="valueType" type="fews:timeSeriesContentTypeEnumStringType"/>
+			</sequence>
+		<attribute name="type" type="fews:specialValuePropertyTypeEnumStringType"/>
+	</complexType>
+	<simpleType name="specialValuePropertyTypeEnumStringType">
+		<annotation>
+			<documentation>To define the type of the property</documentation>
+		</annotation>
+		<restriction base="string">
+			<enumeration value="status">
+				<annotation>
+					<documentation>Connected to special buttons 'initial' and 'update'</documentation>
+				</annotation>
+			</enumeration>
+			<enumeration value="severity">
+				<annotation>
+					<documentation>Not editable, but dependent on maximum severity of connected sublocations table.</documentation>
+				</annotation>
+			</enumeration>
+			<enumeration value="phase">
+				<annotation>
+					<documentation>Not editable, but dependent on previous and current severity of connected sublocations table.</documentation>
+				</annotation>
+			</enumeration>
+			<enumeration value="sequence">
+				<annotation>
+					<documentation>Connected to special buttons 'initial' and 'update'</documentation>
+				</annotation>
+			</enumeration>
+			<enumeration value="nextIssueTime">
+				<annotation>
+					<documentation>Connected to status and can not be in the past</documentation>
+				</annotation>
+			</enumeration>
+			<enumeration value="warningCurrent">
+				<annotation>
+					<documentation>Default text is connected to warning current boolean property in sub locations which can be set via the sub locations table. Content is overrulable.</documentation>
+				</annotation>
+			</enumeration>
+			<enumeration value="floodingNotExpected">
+				<annotation>
+					<documentation>Default text is connected to flooding not expected boolean property in sub locations which can be set via the sub locations table. Content is overrulable.</documentation>
+				</annotation>
+			</enumeration>
+			<enumeration value="floodWarningTitle">
+				<annotation>
+					<documentation>Default text depends on the phase and location name. Content is overrulable.</documentation>
+				</annotation>
+			</enumeration>
+			<enumeration value="statusText">
+				<annotation>
+					<documentation>Default text depends on includeCurrent and includePeak boolean value properties. Content is overrulable.</documentation>
+				</annotation>
+			</enumeration>
+			<enumeration value="forecastText">
+				<annotation>
+					<documentation>Default text depends on warning text in forecast creation table. Content is overrulable.</documentation>
+				</annotation>
+			</enumeration>
+			<enumeration value="forecastLocationSeverity">
+				<annotation>
+					<documentation>Default value depends on contents of the forecast creation table. Content is overrulable when forecast creation table is empty.</documentation>
+				</annotation>
+			</enumeration>
+			<enumeration value="forecastLocationPhase">
+				<annotation>
+					<documentation>Default value depends on contents of the forecast creation table. Content is overrulable when forecast creation table is empty.</documentation>
+				</annotation>
+			</enumeration>
+			<enumeration value="timeSeries">
+				<annotation>
+					<documentation>Value depends on contents of connected time series. On save the value will be stored in the property. If the time series is not available the stored value in the property will be used when that is available.</documentation>
+				</annotation>
+			</enumeration>
+			<enumeration value="priority">
+				<annotation>
+					<documentation>Determines whether a report should be sent with priority, will result in a text enumeration drop down element, with Normal, Priority and Top priority</documentation>
+				</annotation>
+			</enumeration>
+			<enumeration value="sews">
+				<annotation>
+					<documentation>Connected to a boolean value property which can be used in a special export tags %SEWS% and %PRIORITY%</documentation>
+				</annotation>
+			</enumeration>
+		</restriction>
+	</simpleType>
+	<simpleType name="buttonEnumStringType">
+		<annotation>
+			<documentation>To define the type of the property</documentation>
+		</annotation>
+		<restriction base="string">
+			<enumeration value="initial">
+				<annotation>
+					<documentation>Clear all properties and unlock. Reset special value property 'status' and 'sequence' when available</documentation>
+				</annotation>
+			</enumeration>
+			<enumeration value="update">
+				<annotation>
+					<documentation>Unlock and update special value property 'status' and 'sequence' when available.</documentation>
+				</annotation>
+			</enumeration>
+			<enumeration value="correct">
+				<annotation>
+					<documentation>Unlock and update 'sequence' when available.</documentation>
+				</annotation>
+			</enumeration>
+			<enumeration value="stopSequence">
+				<annotation>
+					<documentation>End sequence without finalising. This enables starting a new initial warning for a new sequence without sending a final. Should be used only on exceptional cases, for instance after down time</documentation>
+				</annotation>
+			</enumeration>
+			<enumeration value="runWorkflow">
+				<annotation>
+					<documentation>Only run connected workflow, no direct local export.</documentation>
+				</annotation>
+			</enumeration>
+			<enumeration value="reportDraft">
+				<annotation>
+					<documentation>Only direct local export.</documentation>
+				</annotation>
+			</enumeration>
+			<enumeration value="reportFinal">
+				<annotation>
+					<documentation>Direct local export. Locking of the data and running workflow.</documentation>
+				</annotation>
+			</enumeration>
+		</restriction>
+	</simpleType>
+	<simpleType name="timeSeriesContentTypeEnumStringType">
+		<restriction base="string">
+			<enumeration value="firstTime">
+				<annotation>
+					<documentation>Time of first non missing value</documentation>
+				</annotation>
+			</enumeration>
+			<enumeration value="lastTime">
+				<annotation>
+					<documentation>Time of last non missing value</documentation>
+				</annotation>
+			</enumeration>
+			<enumeration value="firstValue">
+				<annotation>
+					<documentation>First non missing value</documentation>
+				</annotation>
+			</enumeration>
+			<enumeration value="lastValue">
+				<annotation>
+					<documentation>Last non missing value</documentation>
+				</annotation>
+			</enumeration>
+		</restriction>
+	</simpleType>
+	<simpleType name="specialValuePropertyColumnTypeEnumStringType">
+		<annotation>
+			<documentation>To define the type of the property</documentation>
+		</annotation>
+		<restriction base="string">
+			<enumeration value="include"/>
+			<enumeration value="watchPhase"/>
+			<enumeration value="warningPhase"/>
+			<enumeration value="observedSeverity"/>
+			<enumeration value="forecastSeverity"/>
+			<enumeration value="watchSeverity"/>
+			<enumeration value="warningCurrent"/>
+			<enumeration value="floodingNotExpected"/>
+			<enumeration value="subcatchmentHeadline"/>
+			<enumeration value="defaultText"/>
+		</restriction>
+	</simpleType>
+	<complexType name="SpecialValuePropertyColumnComplexType">
+		<choice>
+			<sequence>
+				<element name="enumerationValue" type="fews:ValuePropertiesEntryDisplayEnumerationValueComplexType" minOccurs="0" maxOccurs="unbounded">
+					<annotation>
+						<documentation>Different possible values for this property, when 1 or more enumeration values are defined the column will become editable through a dropdown.</documentation>
+					</annotation>
+				</element>
+			</sequence>
+			<element name="defaultText" type="fews:nonEmptyStringType" >
+				<annotation>
+					<documentation>Text to show when user did not enter or change anything.</documentation>
+				</annotation>
+			</element>
+		</choice>
+		<attribute name="id" type="fews:idStringType"/>
+		<attribute name="name" type="fews:nonEmptyStringType"/>
+		<attribute name="valuePropertyId" type="fews:idStringType"/>
+		<attribute name="width" type="fews:positiveInteger"/>
+		<attribute name="enabled" type="boolean"/>
+		<attribute name="type" type="fews:specialValuePropertyColumnTypeEnumStringType"/>
+		<attribute name="variableId" type="fews:idStringType" use="optional"/>
+		<attribute name="sortable" type="boolean" default="true"/>
+	</complexType>
+	<complexType name="ForecastCreationPanelComplexType">
+		<sequence>
+			<element name="title" type="fews:nonEmptyStringType" minOccurs="0"/>
+			<element name="forecastLocationsVariableId" type="fews:idStringType"/>
+			<choice maxOccurs="unbounded">
+				<element name="valueProperty" type="fews:EntryValuePropertyComplexType" maxOccurs="unbounded"/>
+				<element name="newLine" type="fews:emptyElement"/>
+			</choice>
+			<element name="forecastCreationTable" type="fews:ForecastCreationTableComplexType"/>
+		</sequence>
+	</complexType>
+	<complexType name="ForecastCreationTableComplexType">
+		<sequence>
+			<element name="column" type="fews:ForecastCreationTableColumnComplexType" minOccurs="0" maxOccurs="unbounded"/>
+		</sequence>
+	</complexType>
+	<complexType name="ForecastCreationTableColumnComplexType">
+		<sequence>
+			<element name="enumerationValue" type="string" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>From dropdown choosable values, only implemented for column type 'comment' so far</documentation>
+				</annotation>
+			</element>
+		</sequence>
+		<attribute name="id" type="fews:idStringType" use="required"/>
+		<attribute name="name" type="fews:nonEmptyStringType" use="required"/>
+		<attribute name="width" type="fews:positiveInteger" use="required"/>
+		<attribute name="type" type="fews:forecastCreationTableEnumStringType" use="required"/>
+	</complexType>
+	<simpleType name="forecastCreationTableEnumStringType">
+		<annotation>
+			<documentation>To define the type of the property</documentation>
+		</annotation>
+		<restriction base="string">
+			<enumeration value="clear"/>
+			<enumeration value="include"/>
+			<enumeration value="level"/>
+			<enumeration value="date"/>
+			<enumeration value="severity"/>
+			<enumeration value="timeType"/>
+			<enumeration value="levelType"/>
+			<enumeration value="range"/>
+			<enumeration value="forecastType"/>
+			<enumeration value="likelihood"/>
+			<enumeration value="warningText"/>
+			<enumeration value="comment"/>
+		</restriction>
+	</simpleType>
+	<simpleType name="timeTypeEnumStringType">
+		<annotation>
+			<documentation>To define the type of the property</documentation>
+		</annotation>
+		<restriction base="string">
+			<enumeration value="lastValue"/>
+		</restriction>
+	</simpleType>
+	<complexType name="ValuePropertiesEntryDisplayNumberFormatComplexType">
+		<sequence>
+			<element name="pattern" type="fews:nonEmptyStringType">
+				<annotation>
+					<documentation>Pattern for this numberFormat. This can be e.g. "{0,number,#.##}" to get data values that are rounded to two decimal places.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+		<attribute name="id" type="fews:idStringType" use="required">
+			<annotation>
+				<documentation>Identifier for this numberFormat. Use this identifier to reference to this numberFormat in a tag in the text of an svg object.</documentation>
+			</annotation>
+		</attribute>
+	</complexType>
+</schema>

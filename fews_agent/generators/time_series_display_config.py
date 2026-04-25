@@ -7,4 +7,4 @@ from .base import render
 
 
 def generate(model: TimeSeriesDisplay) -> str:
-    return render("time_series_display_config.xml.j2", model)
+    return render("system/time_series_display_config.xml.j2", model)

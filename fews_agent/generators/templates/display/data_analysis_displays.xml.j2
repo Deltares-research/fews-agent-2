@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<dataAnalysisDisplays xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/dataAnalysisDisplays.xsd">
+{%- for d in dataAnalysisDisplay %}
+  <dataAnalysisDisplay id="{{ d.id }}"{% if d.name is not none %} name="{{ d.name }}"{% endif %}>
+    <relativeViewPeriod unit="{{ d.relativeViewPeriod.unit }}"{% if d.relativeViewPeriod.start is not none %} start="{{ d.relativeViewPeriod.start }}"{% endif %}{% if d.relativeViewPeriod.end is not none %} end="{{ d.relativeViewPeriod.end }}"{% endif %}{% if d.relativeViewPeriod.startOverrulable is not none %} startOverrulable="{{ 'true' if d.relativeViewPeriod.startOverrulable else 'false' }}"{% endif %}{% if d.relativeViewPeriod.endOverrulable is not none %} endOverrulable="{{ 'true' if d.relativeViewPeriod.endOverrulable else 'false' }}"{% endif %}/>
+    <filters>
+    {%- for fid in d.filters.filterId %}
+      <filterId>{{ fid }}</filterId>
+    {%- endfor %}
+    </filters>
+    {%- if d.selectionPanel is not none %}
+    <selectionPanel>
+      <locationSelection{% if d.selectionPanel.locationSelection.name is not none %} name="{{ d.selectionPanel.locationSelection.name }}"{% endif %}/>
+      <parameterSelection{% if d.selectionPanel.parameterSelection.name is not none %} name="{{ d.selectionPanel.parameterSelection.name }}"{% endif %}/>
+      {%- if d.selectionPanel.moduleInstanceSelection is not none %}
+      <moduleInstanceSelection{% if d.selectionPanel.moduleInstanceSelection.name is not none %} name="{{ d.selectionPanel.moduleInstanceSelection.name }}"{% endif %}/>
+      {%- endif %}
+      {%- for la in d.selectionPanel.locationAttributeSelection %}
+      <locationAttributeSelection attributeId="{{ la.attributeId }}" name="{{ la.name }}"/>
+      {%- endfor %}
+    </selectionPanel>
+    {%- endif %}
+    <toolBoxes>
+      {%- if d.toolBoxes.resampling %}
+      <resampling/>
+      {%- endif %}
+      {%- if d.toolBoxes.correlation %}
+      <correlation/>
+      {%- endif %}
+      {%- for w in d.toolBoxes.workflow %}
+      <workflow id="{{ w.id }}"{% if w.name is not none %} name="{{ w.name }}"{% endif %}>
+        <workflowId>{{ w.workflowId }}</workflowId>
+        <results>
+          {%- if w.results.filterId is not none %}
+          <filterId>{{ w.results.filterId }}</filterId>
+          {%- endif %}
+          {%- for apid in w.results.archiveProductId %}
+          <archiveProductId>{{ apid }}</archiveProductId>
+          {%- endfor %}
+        </results>
+        {%- if w.iconId is not none %}
+        <iconId>{{ w.iconId }}</iconId>
+        {%- endif %}
+      </workflow>
+      {%- endfor %}
+    </toolBoxes>
+    {%- if d.exportArchiveProducts is not none %}
+    <exportArchiveProducts enabled="{{ 'true' if d.exportArchiveProducts.enabled else 'false' }}">
+      <metaData>
+        <properties>
+          <areaId>{{ d.exportArchiveProducts.metaData.properties.areaId }}</areaId>
+          {%- if d.exportArchiveProducts.metaData.properties.sourceId is not none %}
+          <sourceId>{{ d.exportArchiveProducts.metaData.properties.sourceId }}</sourceId>
+          {%- endif %}
+        </properties>
+        {%- if d.exportArchiveProducts.metaData.attributes is not none %}
+        <attributes>
+        {%- for a in d.exportArchiveProducts.metaData.attributes.attribute %}
+          <attribute key="{{ a.key }}" value="{{ a.value }}"/>
+        {%- endfor %}
+        </attributes>
+        {%- endif %}
+      </metaData>
+    </exportArchiveProducts>
+    {%- endif %}
+  </dataAnalysisDisplay>
+{%- endfor %}
+</dataAnalysisDisplays>

@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<flagSourceColumns xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/flagSourceColumns.xsd">
+{% for c in column %}
+  <column id="{{ c.id }}"{% if c.name is not none %} name="{{ c.name }}"{% endif %}>
+    <storageKey>{{ c.storageKey }}</storageKey>
+    {% if c.description is not none %}<description>{{ c.description }}</description>{% endif %}
+    {% if c.shortName is not none %}<shortName>{{ c.shortName }}</shortName>{% endif %}
+    {% if c.toolTip is not none %}<toolTip>{{ c.toolTip }}</toolTip>{% endif %}
+    {% if c.editable is not none %}<editable>{{ 'true' if c.editable else 'false' }}</editable>{% endif %}
+    {% if c.alwaysVisible is not none %}<alwaysVisible>{{ 'true' if c.alwaysVisible else 'false' }}</alwaysVisible>{% endif %}
+    {% if c.clearOnValueOrFlagChange is not none %}<clearOnValueOrFlagChange>{{ 'true' if c.clearOnValueOrFlagChange else 'false' }}</clearOnValueOrFlagChange>{% endif %}
+    {% if c.backgroundColor is not none %}<backgroundColor>{{ c.backgroundColor }}</backgroundColor>{% endif %}
+  </column>
+{% endfor %}
+{% if timeOfValidity is not none %}
+  <timeOfValidity>
+    <columnId>{{ timeOfValidity.columnId }}</columnId>
+    <defaultFlagSource>{{ timeOfValidity.defaultFlagSource }}</defaultFlagSource>
+  </timeOfValidity>
+{% endif %}
+</flagSourceColumns>

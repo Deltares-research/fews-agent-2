@@ -1,0 +1,13 @@
+{%- import "_partials/timeseries_set.xml.j2" as tss -%}
+<?xml version="1.0" encoding="UTF-8"?>
+<supportStationSets xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/supportStationSets.xsd">
+{% for s in supportStationSet %}
+  <supportStationSet>
+    {{ tss.render(s.supportStationTimeSeriesSet, tag="supportStationTimeSeriesSet") }}
+    <dataTimeSeriesSets>
+    {% for ts in s.dataTimeSeriesSet %}{{ tss.render(ts, tag="TimeSeriesSet") }}
+    {% endfor %}
+    </dataTimeSeriesSets>
+  </supportStationSet>
+{% endfor %}
+</supportStationSets>

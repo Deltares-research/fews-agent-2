@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<archives xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/archives.xsd">
+  {% if enabled is not none %}<enabled>{{ 'true' if enabled else 'false' }}</enabled>{% endif %}
+  <catalogueUrl>{{ catalogueUrl }}</catalogueUrl>
+  {% if openDapUrl is not none %}<openDapUrl>{{ openDapUrl }}</openDapUrl>{% endif %}
+  {% if fileServerUrl is not none %}<fileServerUrl>{{ fileServerUrl }}</fileServerUrl>{% endif %}
+  {% if elasticSearchUrl is not none %}<elasticSearchUrl>{{ elasticSearchUrl }}</elasticSearchUrl>{% endif %}
+  {% if dataFolder is not none %}<dataFolder>{{ dataFolder }}</dataFolder>{% endif %}
+  {% if createFewsConfigFromArchive is not none %}<createFewsConfigFromArchive>{{ 'true' if createFewsConfigFromArchive else 'false' }}</createFewsConfigFromArchive>{% endif %}
+  {% if fewsWebServicesAlwaysImportsDataFromExternalDataSource is not none %}<fewsWebServicesAlwaysImportsDataFromExternalDataSource>{{ 'true' if fewsWebServicesAlwaysImportsDataFromExternalDataSource else 'false' }}</fewsWebServicesAlwaysImportsDataFromExternalDataSource>{% endif %}
+  {% for f in areaLocationAttributeFunction %}<areaLocationAttributeFunction>{{ f }}</areaLocationAttributeFunction>{% endfor %}
+  {% for ts in seamlessIntegrationTimeSeries %}<seamlessIntegrationTimeSeries>{{ ts | dict_to_xml | safe }}</seamlessIntegrationTimeSeries>{% endfor %}
+  {% if notUsedForSeamlessIntegration is not none %}<notUsedForSeamlessIntegration>{{ 'true' if notUsedForSeamlessIntegration else 'false' }}</notUsedForSeamlessIntegration>{% endif %}
+  {% for s in externalCFCompliantNetCdfStorage %}<externalCFCompliantNetCdfStorage>{{ s | dict_to_xml | safe }}</externalCFCompliantNetCdfStorage>{% endfor %}
+  {% if archiveDatabase is not none %}<archiveDatabase>{{ archiveDatabase | dict_to_xml | safe }}</archiveDatabase>{% endif %}
+  {% for s in seamlessWaterML2 %}<seamlessWaterML2>{{ s | dict_to_xml | safe }}</seamlessWaterML2>{% endfor %}
+  {% for s in seamlessFewsWebService %}<seamlessFewsWebService>{{ s | dict_to_xml | safe }}</seamlessFewsWebService>{% endfor %}
+  {% if maxConnectionRetryCount is not none %}<maxConnectionRetryCount>{{ maxConnectionRetryCount }}</maxConnectionRetryCount>{% endif %}
+  {% if seamlessIntegrationIsOptional is not none %}<seamlessIntegrationIsOptional>{{ 'true' if seamlessIntegrationIsOptional else 'false' }}</seamlessIntegrationIsOptional>{% endif %}
+  {% if locationGroupAttributeId is not none %}<locationGroupAttributeId>{{ locationGroupAttributeId }}</locationGroupAttributeId>{% endif %}
+  {% if uploadEditedDataToOpenArchive is not none %}<uploadEditedDataToOpenArchive>{{ 'true' if uploadEditedDataToOpenArchive else 'false' }}</uploadEditedDataToOpenArchive>{% endif %}
+  {% if customExportFolders is not none %}<customExportFolders>{{ customExportFolders | dict_to_xml | safe }}</customExportFolders>{% endif %}
+  {% if exportWithoutMetadataFile is not none %}<exportWithoutMetadataFile>{{ exportWithoutMetadataFile | dict_to_xml | safe }}</exportWithoutMetadataFile>{% endif %}
+  {% if archiveUploadTask is not none %}<archiveUploadTask>{{ archiveUploadTask | dict_to_xml | safe }}</archiveUploadTask>{% endif %}
+</archives>

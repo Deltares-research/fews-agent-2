@@ -7,4 +7,4 @@ from .base import render
 
 
 def generate(model: ThresholdGroups) -> str:
-    return render("thresholds.xml.j2", model)
+    return render("region/thresholds.xml.j2", model)

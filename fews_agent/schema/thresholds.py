@@ -35,9 +35,23 @@ class ThresholdGroup(FewsModel):
     levelThreshold: list[LevelThreshold] = Field(min_length=1)
 
 
+class ForecastAvailableThreshold(FewsModel):
+    """Used to log that a forecast was available in a time window when
+    the observed threshold crossed. Powers the SkillScoreDisplay."""
+
+    id: str
+    name: str | None = None
+    intId: int | None = None  # deprecated
+
+
 class ThresholdGroups(FewsModel):
-    """Root of Thresholds.xml (the element is `thresholdGroups`, plural)."""
+    """Root of Thresholds.xml (the element is `thresholdGroups`, plural).
+
+    XSD sequence: eventExpiryTime? maxActionEventDuration?
+    forecastAvailableThreshold? thresholdGroup+.
+    """
 
     thresholdGroup: list[ThresholdGroup] = Field(min_length=1)
     eventExpiryTime: UnitMultiplier | None = None
     maxActionEventDuration: UnitMultiplier | None = None
+    forecastAvailableThreshold: ForecastAvailableThreshold | None = None

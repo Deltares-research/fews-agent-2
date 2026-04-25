@@ -1,0 +1,39 @@
+{%- macro qattrs(m, prefix="internal") -%}
+{%- for suffix in ['Qualifier', 'Qualifier1', 'Qualifier2', 'Qualifier3', 'Qualifier4'] -%}
+{%- set v = m[prefix ~ suffix] -%}
+{%- if v is not none %} {{ prefix ~ suffix }}="{{ v }}"{% endif -%}
+{%- endfor -%}
+{%- endmacro -%}
+{%- macro eattrs(m, prefix="internal") -%}
+{%- for suffix in ['Ensemble', 'EnsembleMemberIndex', 'EnsembleMemberId'] -%}
+{%- set v = m[prefix ~ suffix] -%}
+{%- if v is not none %} {{ prefix ~ suffix }}="{{ v }}"{% endif -%}
+{%- endfor -%}
+{%- endmacro -%}
+{%- macro qfuncattrs(m, prefix="internal") -%}
+{%- for suffix in ['QualifierFunction', 'QualifierFunction1', 'QualifierFunction2', 'QualifierFunction3', 'QualifierFunction4'] -%}
+{%- set v = m[prefix ~ suffix] -%}
+{%- if v is not none %} {{ prefix ~ suffix }}="{{ v }}"{% endif -%}
+{%- endfor -%}
+{%- endmacro -%}
+<?xml version="1.0" encoding="UTF-8"?>
+<idMap version="{{ version }}" xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/idMap.xsd">
+{%- for m in map %}
+  <map{% if m.internalModuleInstance is not none %} internalModuleInstance="{{ m.internalModuleInstance }}"{% endif %} internalLocation="{{ m.internalLocation }}" internalParameter="{{ m.internalParameter }}"{{ qattrs(m, 'internal') }}{{ eattrs(m, 'internal') }}{% if m.externalModuleInstance is not none %} externalModuleInstance="{{ m.externalModuleInstance }}"{% endif %} externalLocation="{{ m.externalLocation }}" externalParameter="{{ m.externalParameter }}"{% if m.externalParameterQualifier is not none %} externalParameterQualifier="{{ m.externalParameterQualifier }}"{% endif %}{{ qattrs(m, 'external') }}{{ eattrs(m, 'external') }}/>
+{%- endfor %}
+{%- for f in function %}
+  <function internalLocationSet="{{ f.internalLocationSet }}"{% if f.internalParameter is not none %} internalParameter="{{ f.internalParameter }}"{% endif %}{{ qattrs(f, 'internal') }}{{ eattrs(f, 'internal') }}{% if f.internalParameterFunction is not none %} internalParameterFunction="{{ f.internalParameterFunction }}"{% endif %}{{ qfuncattrs(f, 'internal') }}{% if f.internalEnsembleFunction is not none %} internalEnsembleFunction="{{ f.internalEnsembleFunction }}"{% endif %}{% if f.internalEnsembleMemberIndexFunction is not none %} internalEnsembleMemberIndexFunction="{{ f.internalEnsembleMemberIndexFunction }}"{% endif %}{% if f.internalEnsembleMemberIdFunction is not none %} internalEnsembleMemberIdFunction="{{ f.internalEnsembleMemberIdFunction }}"{% endif %} externalLocationFunction="{{ f.externalLocationFunction }}"{% if f.externalLocationFunctionLookupAttributeId is not none %} externalLocationFunctionLookupAttributeId="{{ f.externalLocationFunctionLookupAttributeId }}"{% endif %}{% if f.externalLocationFunctionLookupText is not none %} externalLocationFunctionLookupText="{{ f.externalLocationFunctionLookupText }}"{% endif %} externalParameterFunction="{{ f.externalParameterFunction }}"{{ qfuncattrs(f, 'external') }}{% if f.externalEnsembleFunction is not none %} externalEnsembleFunction="{{ f.externalEnsembleFunction }}"{% endif %}{% if f.externalEnsembleMemberIndexFunction is not none %} externalEnsembleMemberIndexFunction="{{ f.externalEnsembleMemberIndexFunction }}"{% endif %}{% if f.externalEnsembleMemberIdFunction is not none %} externalEnsembleMemberIdFunction="{{ f.externalEnsembleMemberIdFunction }}"{% endif %}/>
+{%- endfor %}
+{%- for mi in moduleInstance %}
+  <moduleInstance internal="{{ mi.internal }}" external="{{ mi.external }}"/>
+{%- endfor %}
+{%- for p in parameter %}
+  <parameter internal="{{ p.internal }}"{{ qattrs(p, 'internal') }}{{ eattrs(p, 'internal') }} external="{{ p.external }}"{{ qattrs(p, 'external') }}{{ eattrs(p, 'external') }}/>
+{%- endfor %}
+{%- for l in location %}
+  <location internal="{{ l.internal }}"{{ qattrs(l, 'internal') }} external="{{ l.external }}"{{ qattrs(l, 'external') }}/>
+{%- endfor %}
+  {%- if enableOneToOneMapping %}<enableOneToOneMapping/>{% endif %}
+  {%- if enableCaseInsensitivity %}<enableCaseInsensitivity/>{% endif %}
+  {%- if ignoreExternalQualifiersWhenMappingToInternal %}<ignoreExternalQualifiersWhenMappingToInternal/>{% endif %}
+</idMap>

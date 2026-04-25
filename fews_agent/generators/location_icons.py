@@ -7,4 +7,4 @@ from .base import render
 
 
 def generate(model: LocationIcons) -> str:
-    return render("location_icons.xml.j2", model)
+    return render("system/location_icons.xml.j2", model)

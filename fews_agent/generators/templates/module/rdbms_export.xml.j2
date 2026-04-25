@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rdbmsExport xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/rdbmsExport.xsd">
+  <jdbcDriverClass>{{ jdbcDriverClass }}</jdbcDriverClass>
+  <jdbcConnectionString>{{ jdbcConnectionString }}</jdbcConnectionString>
+  <user>{{ user }}</user>
+  {%- if password is not none %}
+  <password>{{ password }}</password>
+  {%- else %}
+  <encryptedPassword>{{ encryptedPassword }}</encryptedPassword>
+  {%- endif %}
+  <exportTimeWindow start="{{ exportTimeWindow.start }}" end="{{ exportTimeWindow.end }}"{% if exportTimeWindow.startOverrulable is not none %} startOverrulable="{{ 'true' if exportTimeWindow.startOverrulable else 'false' }}"{% endif %}{% if exportTimeWindow.endOverrulable is not none %} endOverrulable="{{ 'true' if exportTimeWindow.endOverrulable else 'false' }}"{% endif %} unit="{{ exportTimeWindow.unit }}">
+    {%- if exportTimeWindow.description is not none %}
+    <description>{{ exportTimeWindow.description }}</description>
+    {%- endif %}
+  </exportTimeWindow>
+  <exportTimeZone>{{ exportTimeZone }}</exportTimeZone>
+  {%- for mi in moduleInstance %}
+  <moduleInstance moduleInstanceID="{{ mi.moduleInstanceID }}"/>
+  {%- endfor %}
+  {%- for f in filter %}
+  <filter filterID="{{ f.filterID }}"/>
+  {%- endfor %}
+</rdbmsExport>

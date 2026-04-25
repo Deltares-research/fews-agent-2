@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<importArchiveModule xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/importArchiveModule.xsd">
+{%- macro basic(i, tag) %}<{{ tag }}>
+    {% if i.timeSeriesSetIdMap is not none %}<timeSeriesSetIdMap>{{ i.timeSeriesSetIdMap }}</timeSeriesSetIdMap>{% endif %}
+    <importFolder>{{ i.importFolder }}</importFolder>
+  </{{ tag }}>{%- endmacro %}
+  {% for i in importSimulated %}{{ basic(i, 'importSimulated') }}
+  {% endfor %}
+  {% for i in importSimulatedHistorical %}{{ basic(i, 'importSimulatedHistorical') }}
+  {% endfor %}
+  {% for i in importObserved %}{{ basic(i, 'importObserved') }}
+  {% endfor %}
+  {% for i in importMessages %}<importMessages>
+    <importFolder>{{ i.importFolder }}</importFolder>
+  </importMessages>
+  {% endfor %}
+  {% for i in importExternalForecast %}{{ basic(i, 'importExternalForecast') }}
+  {% endfor %}
+  {% for i in importHistoricalEvents %}<importHistoricalEvents>
+    <importFolder>{{ i.importFolder }}</importFolder>
+    {% if i.failedFolder is not none %}<failedFolder>{{ i.failedFolder }}</failedFolder>{% endif %}
+    {% if i.backupFolder is not none %}<backupFolder>{{ i.backupFolder }}</backupFolder>{% endif %}
+    <idMapId>{{ i.idMapId }}</idMapId>
+    {% if i.dataFeedId is not none %}<dataFeedId>{{ i.dataFeedId }}</dataFeedId>{% endif %}
+    {% if i.disableDataFeedInfo %}<disableDataFeedInfo/>{% endif %}
+  </importHistoricalEvents>
+  {% endfor %}
+  {% for i in importRatingCurves %}<importRatingCurves>
+    <importFolder>{{ i.importFolder }}</importFolder>
+  </importRatingCurves>
+  {% endfor %}
+  {% for i in importEditedData %}<importEditedData>
+    <importFolder>{{ i.importFolder }}</importFolder>
+  </importEditedData>
+  {% endfor %}
+  {% for i in importRequestedDataSets %}<importRequestedDataSets>
+    <importFolder>{{ i.importFolder }}</importFolder>
+    <dataFolderArchive>{{ i.dataFolderArchive }}</dataFolderArchive>
+  </importRequestedDataSets>
+  {% endfor %}
+  {% if logErrorsAsWarnings is not none %}<logErrorsAsWarnings>{{ 'true' if logErrorsAsWarnings else 'false' }}</logErrorsAsWarnings>{% endif %}
+  {% if logErrorsAsWarningsToFileOnly is not none %}<logErrorsAsWarningsToFileOnly>{{ 'true' if logErrorsAsWarningsToFileOnly else 'false' }}</logErrorsAsWarningsToFileOnly>{% endif %}
+</importArchiveModule>

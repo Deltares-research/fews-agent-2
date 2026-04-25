@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<script xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/waterCoachScript.xsd">
+{%- if title is not none %}
+  <title>{{ title }}</title>
+{%- endif %}
+{%- if timeZone is not none %}
+  <timeZone>
+  {%- if timeZone.offset is not none %}<offset>{{ timeZone.offset }}</offset>{% endif -%}
+  {%- if timeZone.name is not none %}<name>{{ timeZone.name }}</name>{% endif -%}
+  </timeZone>
+{%- endif %}
+  <dataStart date="{{ dataStart.date }}" time="{{ dataStart.time }}"/>
+{%- if dataStop is not none %}
+  <dataStop date="{{ dataStop.date }}" time="{{ dataStop.time }}"/>
+{%- endif %}
+{%- if displayStart is not none %}
+  <displayStart date="{{ displayStart.date }}" time="{{ displayStart.time }}"/>
+{%- endif %}
+{%- if scriptStart is not none %}
+  <scriptStart date="{{ scriptStart.date }}" time="{{ scriptStart.time }}"/>
+{%- endif %}
+{%- if scriptStop is not none %}
+  <scriptStop date="{{ scriptStop.date }}" time="{{ scriptStop.time }}"/>
+{%- endif %}
+{%- if stories is not none %}
+  <stories>{{ stories | dict_to_xml | safe }}</stories>
+{%- endif %}
+{%- for w in workflow %}
+  <workflow>{{ w | dict_to_xml | safe }}</workflow>
+{%- endfor %}
+{%- if forecastTable is not none %}
+  <forecastTable{% for k, v in forecastTable.items() if k.startswith('@') %} {{ k[1:] }}="{{ v }}"{% endfor %}>{{ forecastTable | dict_to_xml | safe }}</forecastTable>
+{%- endif %}
+{%- if forecastNote is not none %}
+  <forecastNote{% for k, v in forecastNote.items() if k.startswith('@') %} {{ k[1:] }}="{{ v }}"{% endfor %}>{{ forecastNote | dict_to_xml | safe }}</forecastNote>
+{%- endif %}
+{%- if dictionaryFiles is not none %}
+  <dictionaryFiles>{{ dictionaryFiles | dict_to_xml | safe }}</dictionaryFiles>
+{%- endif %}
+</script>

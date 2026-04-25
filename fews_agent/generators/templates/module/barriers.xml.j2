@@ -1,0 +1,56 @@
+{%- import "_partials/timeseries_set.xml.j2" as tss -%}
+<?xml version="1.0" encoding="UTF-8"?>
+<Barriers xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/barriers.xsd">
+  {%- for v in variable %}
+  <variable>
+    <variableId>{{ v.variableId }}</variableId>
+    {{ tss.render(v.timeSeriesSet) }}
+  </variable>
+  {%- endfor %}
+  {%- for b in barrier %}
+  <barrier id="{{ b.id }}" name="{{ b.name }}">
+    {%- for sd in b.stateDefinition %}
+    <stateDefinition id="{{ sd.id }}">
+      <variableId>{{ sd.variableId }}</variableId>
+      <stateVariables>
+        {%- for sv in sd.stateVariables.stateVariable %}
+        <stateVariable id="{{ sv.id }}">
+          <variableId>{{ sv.variableId }}</variableId>
+        </stateVariable>
+        {%- endfor %}
+      </stateVariables>
+      {%- for sv in sd.stateValue %}
+      <stateValue id="{{ sv.id }}" value="{{ sv.value }}">
+        {%- for svv in sv.stateVariableValue %}
+        <stateVariableValue stateVariableId="{{ svv.stateVariableId }}" value="{{ svv.value | xmlstr }}"/>
+        {%- endfor %}
+      </stateValue>
+      {%- endfor %}
+      <transitions>
+        {%- for st in sd.transitions.stateTransition %}
+        <stateTransition>
+          <startStateValueId>{{ st.startStateValueId }}</startStateValueId>
+          <endStateValueId>{{ st.endStateValueId }}</endStateValueId>
+          {%- for tv in st.transitionValue %}
+          <transitionValue>
+            <stateVariableId>{{ tv.stateVariableId }}</stateVariableId>
+            {%- if tv.timeOffset is not none %}
+            <timeOffset unit="{{ tv.timeOffset.unit }}" value="{{ tv.timeOffset.value }}"/>
+            {%- endif %}
+            {%- if tv.constantValue is not none %}
+            <constantValue>{{ tv.constantValue | xmlstr }}</constantValue>
+            {%- else %}
+            {%- for v in tv.value %}
+            <value level="{{ v.level | xmlstr }}" speed="{{ v.speed | xmlstr }}">{{ v.body }}</value>
+            {%- endfor %}
+            {%- endif %}
+          </transitionValue>
+          {%- endfor %}
+        </stateTransition>
+        {%- endfor %}
+      </transitions>
+    </stateDefinition>
+    {%- endfor %}
+  </barrier>
+  {%- endfor %}
+</Barriers>

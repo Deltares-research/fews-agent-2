@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<userGroups xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/userGroups.xsd">
+{% for ug in userGroup %}
+  <userGroup id="{{ ug.id }}"{% if ug.name is not none %} name="{{ ug.name }}"{% endif %}>
+    {% for g in ug.userGroup %}<userGroup>{{ g }}</userGroup>{% endfor %}
+    {% for u in ug.user %}<user id="{{ u.id }}"/>{% endfor %}
+    {% for s in ug.systemUserGroup %}<systemUserGroup>{{ s }}</systemUserGroup>{% endfor %}
+  </userGroup>
+{% endfor %}
+</userGroups>

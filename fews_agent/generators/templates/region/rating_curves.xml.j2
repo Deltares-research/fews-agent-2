@@ -1,0 +1,106 @@
+{%- macro loc(l) -%}
+<locationId>{{ l.locationId }}</locationId>
+      {%- if l.name is not none %}
+      <name>{{ l.name }}</name>
+      {%- endif %}
+{%- endmacro -%}
+<?xml version="1.0" encoding="UTF-8"?>
+<ratingCurves xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/ratingCurves.xsd" version="{{ version }}">
+{%- for rc in ratingCurve %}
+  <ratingCurve{% if rc.ratingCurveId is not none %} ratingCurveId="{{ rc.ratingCurveId }}"{% endif %}>
+    {%- if rc.description is not none %}
+    <description>{{ rc.description }}</description>
+    {%- endif %}
+    <location>
+      {{ loc(rc.location) }}
+    </location>
+    <ratingCurveType>{{ rc.ratingCurveType }}</ratingCurveType>
+    {%- if rc.reversible is not none %}
+    <reversible>{{ 'true' if rc.reversible else 'false' }}</reversible>
+    {%- endif %}
+    {%- for vp in rc.validPeriod %}
+    <validPeriod>
+      {%- if vp.startDate is not none %}
+      <startDate>{{ vp.startDate }}</startDate>
+      {%- endif %}
+      {%- if vp.endDate is not none %}
+      <endDate>{{ vp.endDate }}</endDate>
+      {%- endif %}
+    </validPeriod>
+    {%- endfor %}
+    {%- if rc.correction is not none %}
+    <correction>
+      {%- if rc.correction.unsteadyFlow is not none %}
+      <unsteadyFlow>
+        <jonesEquation>
+          <h_min>{{ rc.correction.unsteadyFlow.jonesEquation.h_min | xmlstr }}</h_min>
+          <a>{{ rc.correction.unsteadyFlow.jonesEquation.a | xmlstr }}</a>
+          <b>{{ rc.correction.unsteadyFlow.jonesEquation.b | xmlstr }}</b>
+          <c>{{ rc.correction.unsteadyFlow.jonesEquation.c | xmlstr }}</c>
+        </jonesEquation>
+      </unsteadyFlow>
+      {%- endif %}
+      {%- if rc.correction.backwater is not none %}
+      <backwater>
+        <referenceLocation>
+          {{ loc(rc.correction.backwater.referenceLocation) }}
+        </referenceLocation>
+        {%- if rc.correction.backwater.constantFallMethod is not none %}
+        <constantFallMethod>
+          <referenceFall>{{ rc.correction.backwater.constantFallMethod.referenceFall | xmlstr }}</referenceFall>
+        </constantFallMethod>
+        {%- else %}
+        <normalFallMethod>
+          <h_min>{{ rc.correction.backwater.normalFallMethod.h_min | xmlstr }}</h_min>
+          <a>{{ rc.correction.backwater.normalFallMethod.a | xmlstr }}</a>
+          <b>{{ rc.correction.backwater.normalFallMethod.b | xmlstr }}</b>
+          <c>{{ rc.correction.backwater.normalFallMethod.c | xmlstr }}</c>
+        </normalFallMethod>
+        {%- endif %}
+      </backwater>
+      {%- endif %}
+    </correction>
+    {%- endif %}
+    {%- if rc.ratingCurveTable is not none %}
+    <ratingCurveTable>
+      {%- for r in rc.ratingCurveTable.ratingCurveTableRecord %}
+      <ratingCurveTableRecord level="{{ r.level | xmlstr }}" flow="{{ r.flow | xmlstr }}"/>
+      {%- endfor %}
+    </ratingCurveTable>
+    {%- endif %}
+    {%- for eq in rc.ratingCurveEquation %}
+    <ratingCurveEquation>
+      {%- if eq.lowerLevel is not none %}
+      <lowerLevel>{{ eq.lowerLevel | xmlstr }}</lowerLevel>
+      {%- endif %}
+      {%- if eq.upperLevel is not none %}
+      <upperLevel>{{ eq.upperLevel | xmlstr }}</upperLevel>
+      {%- endif %}
+      {%- if eq.flag is not none %}
+      <flag>{{ eq.flag }}</flag>
+      {%- endif %}
+      {%- if eq.equation is not none %}
+      <equation>{{ eq.equation }}</equation>
+      <a>{{ eq.a | xmlstr }}</a>
+      <b>{{ eq.b | xmlstr }}</b>
+      <c>{{ eq.c | xmlstr }}</c>
+      {%- else %}
+      <userDefinedEquation>{{ eq.userDefinedEquation }}</userDefinedEquation>
+      {%- if eq.inputVariable is not none %}
+      <inputVariable>{{ eq.inputVariable }}</inputVariable>
+      {%- endif %}
+      {%- if eq.reverseUserDefinedEquation is not none %}
+      <reverseUserDefinedEquation>{{ eq.reverseUserDefinedEquation }}</reverseUserDefinedEquation>
+      {%- endif %}
+      {%- if eq.reverseEquationInputVariable is not none %}
+      <reverseEquationInputVariable>{{ eq.reverseEquationInputVariable }}</reverseEquationInputVariable>
+      {%- endif %}
+      {%- for co in eq.coefficient %}
+      <coefficient id="{{ co.id }}" value="{{ co.value | xmlstr }}"/>
+      {%- endfor %}
+      {%- endif %}
+    </ratingCurveEquation>
+    {%- endfor %}
+  </ratingCurve>
+{%- endfor %}
+</ratingCurves>

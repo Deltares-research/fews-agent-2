@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<webServices xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/webServices.xsd">
+{%- if general is not none %}
+  <general>{{ general | dict_to_xml | safe }}</general>
+{%- endif %}
+{%- if piRestService is not none %}
+  <piRestService>{{ piRestService | dict_to_xml | safe }}</piRestService>
+{%- endif %}
+{%- if wmsService is not none %}
+  <wmsService>{{ wmsService | dict_to_xml | safe }}</wmsService>
+{%- endif %}
+{%- if wfsService is not none %}
+  <wfsService>{{ wfsService | dict_to_xml | safe }}</wfsService>
+{%- endif %}
+{%- if ssdService is not none %}
+  <ssdService>{{ ssdService | dict_to_xml | safe }}</ssdService>
+{%- endif %}
+{%- if waterMlService is not none %}
+  <waterMlService>{{ waterMlService | dict_to_xml | safe }}</waterMlService>
+{%- endif %}
+{%- if digitalDeltaService is not none %}
+  <digitalDeltaService>{{ digitalDeltaService | dict_to_xml | safe }}</digitalDeltaService>
+{%- endif %}
+{%- if operatingRequestService is not none %}
+  <operatingRequestService>{{ operatingRequestService | dict_to_xml | safe }}</operatingRequestService>
+{%- endif %}
+{%- if webOperatorClientConfiguration is not none %}
+  <webOperatorClientConfiguration>{{ webOperatorClientConfiguration | dict_to_xml | safe }}</webOperatorClientConfiguration>
+{%- endif %}
+</webServices>

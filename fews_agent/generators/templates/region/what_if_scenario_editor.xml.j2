@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<WhatIfScenarioEditor xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/whatIfScenarioEditor.xsd" title="{{ title }}"{% if description is not none %} description="{{ description }}"{% endif %} deploymentMethod="{{ deploymentMethod }}">
+{% if editScenarioPermission is not none %}  <editScenarioPermission>{{ editScenarioPermission }}</editScenarioPermission>
+{% endif %}
+{% if createScenarioPermission is not none %}  <createScenarioPermission>{{ createScenarioPermission }}</createScenarioPermission>
+{% endif %}
+{% if deleteScenarioPermission is not none %}  <deleteScenarioPermission>{{ deleteScenarioPermission }}</deleteScenarioPermission>
+{% endif %}
+{% if persistScenarioPermission is not none %}  <persistScenarioPermission>{{ persistScenarioPermission }}</persistScenarioPermission>
+{% endif %}
+{% if runScenarioPermission is not none %}  <runScenarioPermission>{{ runScenarioPermission }}</runScenarioPermission>
+{% endif %}
+{% for d in defaults %}  <defaults>
+    {% if d.mapDefaults is not none %}<mapDefaults geoMapId="{{ d.mapDefaults.geoMapId }}"><geoMap>{{ d.mapDefaults.geoMap | dict_to_xml | safe }}</geoMap></mapDefaults>{% endif %}
+  </defaults>
+{% endfor %}
+{% macro emit_editor_filter(ef) -%}
+<editorFilters name="{{ ef.name }}"{% if ef.description is not none %} description="{{ ef.description }}"{% endif %}>
+  {% for child in ef.editorFilter %}{{ emit_editor_filter_inner(child) }}{% endfor %}
+  {% if ef.scenarioTemplates is not none %}<scenarioTemplates>{{ ef.scenarioTemplates | dict_to_xml | safe }}</scenarioTemplates>{% endif %}
+</editorFilters>
+{%- endmacro %}
+{% macro emit_editor_filter_inner(ef) -%}
+<editorFilter name="{{ ef.name }}"{% if ef.description is not none %} description="{{ ef.description }}"{% endif %}>
+  {% for child in ef.editorFilter %}{{ emit_editor_filter_inner(child) }}{% endfor %}
+  {% if ef.scenarioTemplates is not none %}<scenarioTemplates>{{ ef.scenarioTemplates | dict_to_xml | safe }}</scenarioTemplates>{% endif %}
+</editorFilter>
+{%- endmacro %}
+{% for ef in editorFilters %}  {{ emit_editor_filter(ef) }}
+{% endfor %}
+</WhatIfScenarioEditor>

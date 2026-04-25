@@ -1,0 +1,15 @@
+{%- import "_partials/timeseries_set.xml.j2" as tss -%}
+<?xml version="1.0" encoding="UTF-8"?>
+<hymosTransferDbImportRun xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/hymosTransferDbImportRun.xsd">
+{% for t in import_ %}
+  <import>
+    <importDirectory>{{ t.importDirectory }}</importDirectory>
+    {% if t.idMapId is not none %}<idMapId>{{ t.idMapId }}</idMapId>{% endif %}
+    {% if t.unitConversionsId is not none %}<unitConversionsId>{{ t.unitConversionsId }}</unitConversionsId>{% endif %}
+    {% if t.flagConversionsId is not none %}<flagConversionsId>{{ t.flagConversionsId }}</flagConversionsId>{% endif %}
+    {% for ts in t.timeSeriesSet %}{{ tss.render(ts) }}
+    {% endfor %}
+    {% if t.importTimeZone is not none %}<importTimeZone>{% if t.importTimeZone.timeZoneName is not none %}<timeZoneName>{{ t.importTimeZone.timeZoneName }}</timeZoneName>{% endif %}{% if t.importTimeZone.timeZoneOffset is not none %}<timeZoneOffset>{{ t.importTimeZone.timeZoneOffset }}</timeZoneOffset>{% endif %}</importTimeZone>{% endif %}
+  </import>
+{% endfor %}
+</hymosTransferDbImportRun>

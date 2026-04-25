@@ -14,8 +14,14 @@ class UserRef(FewsModel):
 
 
 class UserGroup(FewsModel):
+    # Attrs
     id: UserGroupId
+    name: str | None = None
+    # Members are an XSD choice (unbounded) between userGroup ref,
+    # user ref, and systemUserGroup (AD group) — all simple id strings.
+    userGroup: list[str] = Field(default_factory=list)
     user: list[UserRef] = Field(default_factory=list)
+    systemUserGroup: list[str] = Field(default_factory=list)
 
 
 class UserGroups(FewsModel):

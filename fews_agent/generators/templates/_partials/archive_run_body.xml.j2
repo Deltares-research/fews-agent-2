@@ -1,0 +1,59 @@
+{%- macro rel_period(tag, p) -%}
+<{{ tag }} start="{{ p.start }}" end="{{ p.end }}"{% if p.startOverrulable is not none %} startOverrulable="{{ 'true' if p.startOverrulable else 'false' }}"{% endif %}{% if p.endOverrulable is not none %} endOverrulable="{{ 'true' if p.endOverrulable else 'false' }}"{% endif %} unit="{{ p.unit }}">
+      {%- if p.description is not none %}
+      <description>{{ p.description }}</description>
+      {%- endif %}
+    </{{ tag }}>
+{%- endmacro -%}
+{%- macro body(m) -%}
+{%- if m.importDirectory is not none %}
+  <importDirectory>{{ m.importDirectory }}</importDirectory>
+  {%- endif %}
+  {%- if m.exportDirectory is not none %}
+  <exportDirectory>{{ m.exportDirectory }}</exportDirectory>
+  {%- endif %}
+  {%- if m.importArchiveRun is not none %}
+  <importArchiveRun>
+    {%- if m.importArchiveRun.archiveType is not none %}
+    <archiveType>{{ m.importArchiveRun.archiveType }}</archiveType>
+    {%- endif %}
+    {%- if m.importArchiveRun.includeGrids is not none %}
+    <includeGrids>{{ 'true' if m.importArchiveRun.includeGrids else 'false' }}</includeGrids>
+    {%- endif %}
+  </importArchiveRun>
+  {%- elif m.exportArchiveRun is not none %}
+  <exportArchiveRun>
+    {{ rel_period('archivePeriod', m.exportArchiveRun.archivePeriod) }}
+    {%- for w in m.exportArchiveRun.workflow %}
+    <workflow>{{ w }}</workflow>
+    {%- endfor %}
+    {%- if m.exportArchiveRun.exportToFile is not none %}
+    <exportToFile>{{ 'true' if m.exportArchiveRun.exportToFile else 'false' }}</exportToFile>
+    {%- endif %}
+    {%- if m.exportArchiveRun.exportToDatabase is not none %}
+    <exportToDatabase>{{ 'true' if m.exportArchiveRun.exportToDatabase else 'false' }}</exportToDatabase>
+    {%- endif %}
+    {%- if m.exportArchiveRun.overrulingPeriod is not none %}
+    {{ rel_period('overrulingPeriod', m.exportArchiveRun.overrulingPeriod) }}
+    {%- endif %}
+    {%- if m.exportArchiveRun.excludeTimeSeriesExpiringWithin is not none %}
+    <excludeTimeSeriesExpiringWithin unit="{{ m.exportArchiveRun.excludeTimeSeriesExpiringWithin.unit }}" multiplier="{{ m.exportArchiveRun.excludeTimeSeriesExpiringWithin.multiplier }}"/>
+    {%- endif %}
+    {%- if m.exportArchiveRun.onlyApproved is not none %}
+    <onlyApproved>{{ 'true' if m.exportArchiveRun.onlyApproved else 'false' }}</onlyApproved>
+    {%- endif %}
+    {%- if m.exportArchiveRun.archiveType is not none %}
+    <archiveType>{{ m.exportArchiveRun.archiveType }}</archiveType>
+    {%- endif %}
+    {%- for c in m.exportArchiveRun.logEventConstraint %}
+    <logEventConstraint{% if c.eventCode is not none %} eventCode="{{ c.eventCode }}"{% endif %}{% if c.messageText is not none %} messageText="{{ c.messageText }}"{% endif %}/>
+    {%- endfor %}
+    {%- if m.exportArchiveRun.description is not none %}
+    <description>{{ m.exportArchiveRun.description }}</description>
+    {%- endif %}
+    {%- for mi in m.exportArchiveRun.includeModuleInstanceId %}
+    <includeModuleInstanceId>{{ mi }}</includeModuleInstanceId>
+    {%- endfor %}
+  </exportArchiveRun>
+  {%- endif %}
+{%- endmacro -%}

@@ -1,0 +1,142 @@
+{%- import "_partials/spatial_interpolation.xml.j2" as si -%}
+{%- macro grid_output(g) -%}
+<filename>{{ g.filename }}</filename>
+      {%- if g.mapStackFilename is not none %}
+      <mapStackFilename>{{ g.mapStackFilename }}</mapStackFilename>
+      {%- endif %}
+{%- endmacro -%}
+{%- macro flood_input(i) -%}
+{%- if i.profileFile is not none %}<profileFile>{{ i.profileFile }}</profileFile>
+      {%- else %}<timeSeriesFile>{{ i.timeSeriesFile }}</timeSeriesFile>{% endif %}
+      <asciiDemFile>{{ i.asciiDemFile }}</asciiDemFile>
+      {%- if i.xmlAxisFile is not none %}
+      <xmlAxisFile>{{ i.xmlAxisFile }}</xmlAxisFile>
+      {%- else %}
+      <asciiAxisFile>{{ i.asciiAxisFile }}</asciiAxisFile>
+      {%- endif %}
+      <asciiMapSectionFile>{{ i.asciiMapSectionFile }}</asciiMapSectionFile>
+      {%- if i.xmlInterpolationOutlineFile is not none %}
+      <xmlInterpolationOutlineFile>{{ i.xmlInterpolationOutlineFile }}</xmlInterpolationOutlineFile>
+      {%- endif %}
+      <geoReferenceFile>{{ i.geoReferenceFile }}</geoReferenceFile>
+      {%- if i.locationId is not none %}
+      <locationId>{{ i.locationId }}</locationId>
+      {%- endif %}
+      {%- if i.parameterId is not none %}
+      <parameterId>{{ i.parameterId }}</parameterId>
+      {%- endif %}
+{%- endmacro -%}
+{%- macro flood_output(o) -%}
+<outputOption>{{ o.outputOption }}</outputOption>
+      {%- if o.levelOutput is not none %}
+      <levelOutput>{{ 'true' if o.levelOutput else 'false' }}</levelOutput>
+      {%- endif %}
+      {%- if o.asciiGrid is not none %}
+      <asciiGrid>
+      {{ grid_output(o.asciiGrid) }}
+      </asciiGrid>
+      {%- endif %}
+      {%- if o.pcrGrid is not none %}
+      <pcrGrid>
+      {{ grid_output(o.pcrGrid) }}
+      </pcrGrid>
+      {%- endif %}
+      {%- if o.contour is not none %}
+      <contour>
+        <filename>{{ o.contour.filename }}</filename>
+        <numberofContours>{{ o.contour.numberofContours }}</numberofContours>
+      </contour>
+      {%- endif %}
+      {%- if o.bilGrid is not none %}
+      <bilGrid>
+      {{ grid_output(o.bilGrid) }}
+      </bilGrid>
+      {%- endif %}
+{%- endmacro -%}
+<?xml version="1.0" encoding="UTF-8"?>
+<floodMapSets xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/floodMapSets.xsd" version="{{ version }}">
+  {%- if description is not none %}
+  <description>{{ description }}</description>
+  {%- endif %}
+  <floodMapDirectories>
+    {%- if floodMapDirectories.rootDir is not none %}
+    <rootDir>{{ floodMapDirectories.rootDir }}</rootDir>
+    {%- endif %}
+    {%- if floodMapDirectories.workDir is not none %}
+    <workDir>{{ floodMapDirectories.workDir }}</workDir>
+    {%- endif %}
+    <outputDir>{{ floodMapDirectories.outputDir }}</outputDir>
+    <inputDir>{{ floodMapDirectories.inputDir }}</inputDir>
+    {%- if floodMapDirectories.pcrDir is not none %}
+    <pcrDir>{{ floodMapDirectories.pcrDir }}</pcrDir>
+    {%- endif %}
+  </floodMapDirectories>
+  {%- if geoDatum is not none %}
+  <geoDatum>{{ geoDatum }}</geoDatum>
+  {%- endif %}
+  {%- if diagnosticFile is not none %}
+  <diagnosticFile>{{ diagnosticFile }}</diagnosticFile>
+  {%- endif %}
+  {%- for fs in floodMapSet %}
+  <floodMapSet>
+    {%- if fs.longitudinalProfile is not none %}
+    <longitudinalProfile>
+      <branchFile>{{ fs.longitudinalProfile.branchFile }}</branchFile>
+      <timeSeriesFile>{{ fs.longitudinalProfile.timeSeriesFile }}</timeSeriesFile>
+      <profileFile>{{ fs.longitudinalProfile.profileFile }}</profileFile>
+    </longitudinalProfile>
+    {%- elif fs.floodExtentMap is not none %}
+    <floodExtentMap>
+      <input>
+      {{ flood_input(fs.floodExtentMap.input) }}
+      </input>
+      <interpolationOptions>
+    {{ si.body(fs.floodExtentMap.interpolationOptions) }}
+      </interpolationOptions>
+      {%- if fs.floodExtentMap.pcrScript is not none %}
+      <pcrScript>
+        {%- if fs.floodExtentMap.pcrScript.pcrExecutableFilename is not none %}
+        <pcrExecutableFilename>{{ fs.floodExtentMap.pcrScript.pcrExecutableFilename }}</pcrExecutableFilename>
+        {%- endif %}
+        {%- if fs.floodExtentMap.pcrScript.pcrDllFileName is not none %}
+        <pcrDllFileName>{{ fs.floodExtentMap.pcrScript.pcrDllFileName }}</pcrDllFileName>
+        {%- endif %}
+        {%- if fs.floodExtentMap.pcrScript.pcrScriptFile is not none %}
+        <pcrScriptFile>{{ fs.floodExtentMap.pcrScript.pcrScriptFile }}</pcrScriptFile>
+        {%- else %}
+        <pcrScriptXMLFile>{{ fs.floodExtentMap.pcrScript.pcrScriptXMLFile }}</pcrScriptXMLFile>
+        {%- endif %}
+        {%- for a in fs.floodExtentMap.pcrScript.pcrArguments %}
+        <pcrArguments>{{ a }}</pcrArguments>
+        {%- endfor %}
+      </pcrScript>
+      {%- endif %}
+      {%- for o in fs.floodExtentMap.output %}
+      <output>
+      {{ flood_output(o) }}
+      </output>
+      {%- endfor %}
+    </floodExtentMap>
+    {%- else %}
+    {%- for fm in fs.floodMap %}
+    <floodMap>
+      <input>
+      {{ flood_input(fm.input) }}
+      </input>
+      <extrapolationOptions>
+        {%- if fm.extrapolationOptions.extrapolationSteps is not none %}
+        <extrapolationSteps>{{ fm.extrapolationOptions.extrapolationSteps }}</extrapolationSteps>
+        {%- endif %}
+        {%- if fm.extrapolationOptions.cleanUpProfile is not none %}
+        <cleanUpProfile>{{ 'true' if fm.extrapolationOptions.cleanUpProfile else 'false' }}</cleanUpProfile>
+        {%- endif %}
+      </extrapolationOptions>
+      <output>
+      {{ flood_output(fm.output) }}
+      </output>
+    </floodMap>
+    {%- endfor %}
+    {%- endif %}
+  </floodMapSet>
+  {%- endfor %}
+</floodMapSets>

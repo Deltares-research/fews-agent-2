@@ -1,0 +1,204 @@
+{%- macro directories(d) -%}
+<directories>
+    <configDir>{{ d.configDir }}</configDir>
+    <workDir>{{ d.workDir }}</workDir>
+    <moduleDir>{{ d.moduleDir }}</moduleDir>
+    <importDir>{{ d.importDir }}</importDir>
+    <exportDir>{{ d.exportDir }}</exportDir>
+  </directories>
+{%- endmacro -%}
+{%- macro adapter_files(a) -%}
+<adapterfiles>
+    {%- if a.stateFile is not none %}
+    <stateFile>{{ a.stateFile }}</stateFile>
+    {%- endif %}
+    {%- if a.stateTimeSeriesFile is not none %}
+    <stateTimeSeriesFile>{{ a.stateTimeSeriesFile }}</stateTimeSeriesFile>
+    {%- endif %}
+    {%- if a.parameterFile is not none %}
+    <parameterFile>{{ a.parameterFile }}</parameterFile>
+    {%- endif %}
+    {%- if a.inputHindcastFile is not none %}
+    <inputHindcastFile>{{ a.inputHindcastFile }}</inputHindcastFile>
+    {%- endif %}
+    {%- if a.inputForecastFile is not none %}
+    <inputForecastFile>{{ a.inputForecastFile }}</inputForecastFile>
+    {%- endif %}
+    {%- if a.outputHindcastFile is not none %}
+    <outputHindcastFile>{{ a.outputHindcastFile }}</outputHindcastFile>
+    {%- endif %}
+    {%- if a.outputForecastFile is not none %}
+    <outputForecastFile>{{ a.outputForecastFile }}</outputForecastFile>
+    {%- endif %}
+    {%- if a.diagnosticFile is not none %}
+    <diagnosticFile>{{ a.diagnosticFile }}</diagnosticFile>
+    {%- endif %}
+    {%- for f in a.inflowHindcastFile %}
+    <inflowHindcastFile>{{ f }}</inflowHindcastFile>
+    {%- endfor %}
+    {%- for f in a.inflowForecastFile %}
+    <inflowForecastFile>{{ f }}</inflowForecastFile>
+    {%- endfor %}
+  </adapterfiles>
+{%- endmacro -%}
+{%- macro module_files(m) -%}
+<modulefiles>
+    {%- if m.structureFile is not none %}
+    <structureFile>{{ m.structureFile }}</structureFile>
+    {%- endif %}
+    {%- if m.dataFile is not none %}
+    <dataFile>{{ m.dataFile }}</dataFile>
+    {%- endif %}
+    {%- if m.parameterFile is not none %}
+    <parameterFile>{{ m.parameterFile }}</parameterFile>
+    {%- endif %}
+    {%- if m.inputHindcastFile is not none %}
+    <inputHindcastFile>{{ m.inputHindcastFile }}</inputHindcastFile>
+    {%- endif %}
+    {%- if m.inputForecastFile is not none %}
+    <inputForecastFile>{{ m.inputForecastFile }}</inputForecastFile>
+    {%- endif %}
+    {%- if m.outputHindcastFile is not none %}
+    <outputHindcastFile>{{ m.outputHindcastFile }}</outputHindcastFile>
+    {%- endif %}
+    {%- if m.outputForecastFile is not none %}
+    <outputForecastFile>{{ m.outputForecastFile }}</outputForecastFile>
+    {%- endif %}
+    {%- if m.logFile is not none %}
+    <logFile>{{ m.logFile }}</logFile>
+    {%- endif %}
+  </modulefiles>
+{%- endmacro -%}
+{%- macro variables(v) -%}
+<variables>
+    <name>{{ v.name }}</name>
+    <reservoir>{{ 'true' if v.reservoir else 'false' }}</reservoir>
+    {%- if v.reservoirId is not none %}
+    <reservoirId>{{ v.reservoirId }}</reservoirId>
+    {%- endif %}
+    {%- if v.area is not none %}
+    <area>{{ v.area | xmlstr }}</area>
+    {%- endif %}
+    <useError>{{ 'true' if v.useError else 'false' }}</useError>
+    {%- if v.outputTimeStep is not none %}
+    <outputTimeStep{% if v.outputTimeStep.unit is not none %} unit="{{ v.outputTimeStep.unit }}"{% endif %}{% if v.outputTimeStep.multiplier is not none %} multiplier="{{ v.outputTimeStep.multiplier }}"{% endif %}{% if v.outputTimeStep.id is not none %} id="{{ v.outputTimeStep.id }}"{% endif %}/>
+    {%- endif %}
+  </variables>
+{%- endmacro -%}
+{%- macro inflow(n) -%}
+<inflows>
+      <name>{{ n.name }}</name>
+      <location>{{ n.location }}</location>
+      <type>{{ n.type }}</type>
+      <hindcastFile>{{ n.hindcastFile }}</hindcastFile>
+      <forecastFile>{{ n.forecastFile }}</forecastFile>
+      <proportion>{{ n.proportion | xmlstr }}</proportion>
+    </inflows>
+{%- endmacro -%}
+<?xml version="1.0" encoding="UTF-8"?>
+<midlandsModel xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/midlandsModels.xsd">
+  {%- if mcrm is not none %}
+  <mcrm>
+  {{ directories(mcrm.directories) }}
+  {{ adapter_files(mcrm.adapterfiles) }}
+  {{ module_files(mcrm.modulefiles) }}
+  {{ variables(mcrm.variables) }}
+  <parameters>
+    <inputParameters>
+      <hindcastParameters>
+        <discharge>{{ mcrm.parameters.inputParameters.hindcastParameters.discharge }}</discharge>
+        <precipitation>{{ mcrm.parameters.inputParameters.hindcastParameters.precipitation }}</precipitation>
+        <temperature>{{ mcrm.parameters.inputParameters.hindcastParameters.temperature }}</temperature>
+        <evaporation>{{ mcrm.parameters.inputParameters.hindcastParameters.evaporation }}</evaporation>
+        {%- if mcrm.parameters.inputParameters.hindcastParameters.reservoirLevel is not none %}
+        <reservoirLevel>{{ mcrm.parameters.inputParameters.hindcastParameters.reservoirLevel }}</reservoirLevel>
+        {%- endif %}
+      </hindcastParameters>
+      <forecastParameters>
+        <precipitation>{{ mcrm.parameters.inputParameters.forecastParameters.precipitation }}</precipitation>
+        <temperature>{{ mcrm.parameters.inputParameters.forecastParameters.temperature }}</temperature>
+        <evaporation>{{ mcrm.parameters.inputParameters.forecastParameters.evaporation }}</evaporation>
+      </forecastParameters>
+    </inputParameters>
+    <outputParameters>
+      {%- for which in ['hindcastParameters', 'forecastParameters'] %}
+      {%- set op = mcrm.parameters.outputParameters[which] %}
+      <{{ which }}>
+        <simulatedDischarge>{{ op.simulatedDischarge }}</simulatedDischarge>
+        <updatedDischarge>{{ op.updatedDischarge }}</updatedDischarge>
+        <soilMoistureDeficit>{{ op.soilMoistureDeficit }}</soilMoistureDeficit>
+        <groundWater>{{ op.groundWater }}</groundWater>
+        <snowWaterEquivalent>{{ op.snowWaterEquivalent }}</snowWaterEquivalent>
+        <snowDensity>{{ op.snowDensity }}</snowDensity>
+        {%- if op.reservoirStorage is not none %}
+        <reservoirStorage>{{ op.reservoirStorage }}</reservoirStorage>
+        {%- endif %}
+        {%- if op.reservoirRelease is not none %}
+        <reservoirRelease>{{ op.reservoirRelease }}</reservoirRelease>
+        {%- endif %}
+      </{{ which }}>
+      {%- endfor %}
+    </outputParameters>
+  </parameters>
+  {%- if mcrm.stateParameters is not none %}
+  <stateParameters>
+    {%- set sp = mcrm.stateParameters %}
+    {%- for k in ['snowpackWaterEquivalent', 'snowpackDensity', 'snowpackDepth',
+                  'interceptionStorage', 'soilMoistureDeficit', 'groundWaterStorage',
+                  'reservoirStorage', 'reservoirRelease', 'channelStorage', 'floodplainStorage'] %}
+    {%- if sp[k] is not none %}
+    <{{ k }}>{{ sp[k] }}</{{ k }}>
+    {%- endif %}
+    {%- endfor %}
+  </stateParameters>
+  {%- endif %}
+  </mcrm>
+  {%- else %}
+  <dodo>
+  {{ directories(dodo.directories) }}
+  {{ adapter_files(dodo.adapterfiles) }}
+  {{ module_files(dodo.modulefiles) }}
+  {{ variables(dodo.variables) }}
+  <parameters>
+    <inputParameters>
+      <hindcastParameters>
+        <discharge>{{ dodo.parameters.inputParameters.hindcastParameters.discharge }}</discharge>
+        {%- for d in dodo.parameters.inputParameters.hindcastParameters.inflowDischarge %}
+        <inflowDischarge>{{ d }}</inflowDischarge>
+        {%- endfor %}
+      </hindcastParameters>
+      <forecastParameters>
+        {%- for d in dodo.parameters.inputParameters.forecastParameters.inflowDischarge %}
+        <inflowDischarge>{{ d }}</inflowDischarge>
+        {%- endfor %}
+      </forecastParameters>
+    </inputParameters>
+    <outputParameters>
+      {%- for which in ['hindcastParameters', 'forecastParameters'] %}
+      {%- set op = dodo.parameters.outputParameters[which] %}
+      <{{ which }}>
+        <simulatedDischarge>{{ op.simulatedDischarge }}</simulatedDischarge>
+        <updatedDischarge>{{ op.updatedDischarge }}</updatedDischarge>
+        <floodPlainStorage>{{ op.floodPlainStorage }}</floodPlainStorage>
+      </{{ which }}>
+      {%- endfor %}
+    </outputParameters>
+  </parameters>
+  {%- for n in dodo.inflows %}
+  {{ inflow(n) }}
+  {%- endfor %}
+  {%- if dodo.stateParameters is not none %}
+  <stateParameters>
+    {%- set sp = dodo.stateParameters %}
+    {%- for k in ['channelStorage', 'floodplainStorage', 'staticStorageVolume',
+                  'staticStorageSwitch', 'currentExcessOutflow', 'priorExcessOutflow',
+                  'lastLaggedOutflow'] %}
+    {%- if sp[k] is not none %}
+    <{{ k }}>{{ sp[k] }}</{{ k }}>
+    {%- endif %}
+    {%- endfor %}
+  </stateParameters>
+  {%- endif %}
+  </dodo>
+  {%- endif %}
+</midlandsModel>

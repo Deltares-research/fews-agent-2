@@ -1,0 +1,6 @@
+{%- import "_partials/task_properties.xml.j2" as tp -%}
+{%- set self_ = { 'description': description, 'userId': userId, 'workflowId': workflowId, 'taskSelection': taskSelection, 'forecastPriority': forecastPriority, 'forecastLength': forecastLength, 'makeForcastCurrent': makeForcastCurrent, 'whatIfScenarioId': whatIfScenarioId, 'stateSelectionXml': stateSelectionXml, 'selectedLocationId': selectedLocationId, 'runExpiryTime': runExpiryTime, 'taskRunType': taskRunType, 'properties': properties, 'activeModuleInstanceRuns': activeModuleInstanceRuns, 'mcSynchronisation': mcSynchronisation, 'ensembleParts': ensembleParts, 'ensembleMemberIndexRange': ensembleMemberIndexRange, 'moduleInstanceIndices': moduleInstanceIndices } -%}
+<?xml version="1.0" encoding="UTF-8"?>
+<taskProperties xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/taskProperties.xsd">
+{{ tp.render(self_) }}
+</taskProperties>

@@ -7,4 +7,4 @@ from .base import render
 
 
 def generate(model: TransformationModule) -> str:
-    return render("transformation_module.xml.j2", model)
+    return render("module/transformation_module.xml.j2", model)

@@ -1,0 +1,58 @@
+{%- import "_partials/properties_body.xml.j2" as props -%}
+{%- import "_partials/attribute.xml.j2" as attr -%}
+<?xml version="1.0" encoding="UTF-8"?>
+<whatIf xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/whatIf.xsd">
+  <id>{{ id }}</id>
+  {%- if name is not none %}
+  <name>{{ name }}</name>
+  {%- endif %}
+  {%- if description is not none %}
+  <description>{{ description }}</description>
+  {%- endif %}
+  {%- if parentId is not none %}
+  <parentId>{{ parentId }}</parentId>
+  {%- endif %}
+  <userId>{{ userId }}</userId>
+  <templateId>{{ templateId }}</templateId>
+  {%- for r in referencedTemplateId %}
+  <referencedTemplateId>{{ r }}</referencedTemplateId>
+  {%- endfor %}
+  {%- if properties is not none %}
+  <properties>
+  {{ props.body(properties) }}
+  </properties>
+  {%- endif %}
+  {%- for m in originalModifiers %}
+  <originalModifiers modifierTypeId="{{ m.modifierTypeId }}" modifierId="{{ m.modifierId }}" systemActivityDescriptorId="{{ m.systemActivityDescriptorId }}"/>
+  {%- endfor %}
+  {%- for m in modifier %}
+  <modifier modifierTypeId="{{ m.modifierTypeId }}" modifierId="{{ m.modifierId }}" systemActivityDescriptorId="{{ m.systemActivityDescriptorId }}"/>
+  {%- endfor %}
+  {%- for ls in locationSet %}
+  <locationSet>
+    <whatIfLocationSetId>{{ ls.whatIfLocationSetId }}</whatIfLocationSetId>
+    <geoDatum>{{ ls.geoDatum }}</geoDatum>
+    {%- for loc in ls.location %}
+    <location id="{{ loc.id }}" name="{{ loc.name }}">
+      <x>{{ loc.x | xmlstr }}</x>
+      <y>{{ loc.y | xmlstr }}</y>
+      {%- if loc.z is not none %}
+      <z>{{ loc.z | xmlstr }}</z>
+      {%- endif %}
+      {%- if loc.parentLocationId is not none %}
+      <parentLocationId>{{ loc.parentLocationId }}</parentLocationId>
+      {%- endif %}
+      {%- for a in loc.attribute %}
+      {{ attr.render(a) }}
+      {%- endfor %}
+    </location>
+    {%- endfor %}
+  </locationSet>
+  {%- endfor %}
+  {%- if singleRunWhatIf is not none %}
+  <singleRunWhatIf>{{ 'true' if singleRunWhatIf else 'false' }}</singleRunWhatIf>
+  {%- endif %}
+  {%- if creationTime is not none %}
+  <creationTime date="{{ creationTime.date }}"{% if creationTime.time is not none %} time="{{ creationTime.time }}"{% endif %}/>
+  {%- endif %}
+</whatIf>

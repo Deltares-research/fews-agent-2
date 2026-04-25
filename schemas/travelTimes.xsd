@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--Delft FEWS (Copyright 2003 WL | Delft Hydraulics) -->
+<schema targetNamespace="http://www.wldelft.nl/fews" xmlns="http://www.w3.org/2001/XMLSchema" xmlns:fews="http://www.wldelft.nl/fews" elementFormDefault="qualified" attributeFormDefault="unqualified" version="1.0">
+	<include schemaLocation="sharedTypes.xsd"/>
+	<!--Schema with element  travelTimes-->
+	<element name="travelTimes" type="fews:TravelTimesComplexType">
+		<annotation>
+			<documentation>Travel times</documentation>
+		</annotation>
+	</element>
+	<complexType name="TravelTimesComplexType">
+		<annotation>
+			<documentation>List of travel times between event set stations</documentation>
+		</annotation>
+		<sequence>
+			<element name="travelTime" type="fews:TravelTimeComplexType" minOccurs="0" maxOccurs="unbounded"/>
+		</sequence>
+	</complexType>
+	<complexType name="TravelTimeComplexType">
+		<annotation>
+			<documentation>Travel between an upstream and down stream station</documentation>
+		</annotation>
+		<sequence>
+			<element name="downstreamLocation" type="fews:TravelTimeLocationComplexType">
+				<annotation>
+					<documentation>Location ID of downstream station.</documentation>
+				</annotation>
+			</element>
+			<element name="upstreamLocation" type="fews:TravelTimeLocationComplexType" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Location IDs of upstream station.</documentation>
+				</annotation>
+			</element>
+			<element name="travelTime" type="fews:TimeSpanComplexType" minOccurs="0">
+				<annotation>
+					<documentation>
+                        Time an event takes to travel from the upstream location to the downstream location. Can be used
+                        in combination with the validPeriod. When multiple upstream events are found within the valid
+                        period then the upstream event is chosen with a time that comes closest toe the upstream time.
+                        If omitted the upstream event with an event time closest to the downstream event is chosen.
+                    </documentation>
+				</annotation>
+			</element>
+			<element name="validPeriod" type="fews:RelativePeriodComplexType">
+				<annotation>
+					<documentation>The validPeriod represents the period defined by a minimum allowed traveltime and
+                        a maximum allowed traveltime. The times are relative to the downstream event time. So all traveltimes
+                        should be negative. Positive traveltimes are allowed but they represent upstream events that occur
+                        after the downstream event.
+                    </documentation>
+				</annotation>
+			</element>
+			<element name="defaultEquation" type="fews:CorrelationEquationsComplexType" minOccurs="0"/>
+            <element name="userDefinedRelation" type="string" minOccurs="0" maxOccurs="unbounded">
+                <annotation>
+                    <documentation>Reference to a user defined location in the CorrelationDisplay configuration file.
+                    Note: It is important to be aware which CorrelationDisplay file references this travelTime element.</documentation>
+                </annotation>
+            </element>
+		</sequence>
+	</complexType>
+	<complexType name="TravelTimeLocationComplexType">
+		<annotation>
+			<documentation>Location name and id</documentation>
+		</annotation>
+		<attribute name="id" type="fews:idStringType" use="required"/>
+		<attribute name="name" type="fews:nameStringType" use="optional"/>
+		<attribute name="parameterId" type="fews:idStringType" use="optional"/>
+	</complexType>
+</schema>

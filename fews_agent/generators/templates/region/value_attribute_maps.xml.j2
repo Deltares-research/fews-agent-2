@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<valueAttributeMaps version="{{ version }}" xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/valueAttributeMaps.xsd">
+{% for m in valueAttributeMap %}
+  <valueAttributeMap id="{{ m.id }}">
+    {% for a in m.attributes %}<attributes value="{{ a.value | xmlstr }}">
+      <description>{{ a.description }}</description>
+      {% if a.colour is not none %}<colour>{{ a.colour }}</colour>{% endif %}
+      {% if a.image is not none %}<image>{{ a.image }}</image>{% endif %}
+    </attributes>
+    {% endfor %}
+  </valueAttributeMap>
+{% endfor %}
+</valueAttributeMaps>

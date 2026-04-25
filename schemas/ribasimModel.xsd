@@ -1,0 +1,121 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- edited with XMLSpy v2009 sp1 (http://www.altova.com) by ICT (Stichting Deltares) -->
+<schema xmlns:fews="http://www.wldelft.nl/fews" xmlns="http://www.w3.org/2001/XMLSchema" targetNamespace="http://www.wldelft.nl/fews" elementFormDefault="qualified" attributeFormDefault="unqualified" version="1.0">
+	<include schemaLocation="sharedTypes.xsd"/>
+	<!-- -->
+	<element name="ribasimModel" type="fews:RibasimModelComplexType"/>
+	<!-- -->
+	<complexType name="RibasimModelComplexType">
+		<sequence>
+			<element name="description" type="string" minOccurs="0"/>
+			<element name="simulationTimestep" type="fews:SimulationTimestepEnumStringType" minOccurs="0"/>
+			<element name="ribasimVersion" type="string" default="7" minOccurs="0">
+				<annotation>
+					<documentation>Ribasim version by default it is set to 7 ,  older or new version s should be mentioned here. </documentation>
+				</annotation>
+			</element>
+			<element name="fileHeaders" type="fews:RibasimFileHeaderComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Ribasim file header </documentation>
+				</annotation>
+			</element>
+			<element name="directories" type="fews:RibasimFolderNamesComplexType"/>
+			<element name="adapterfiles" type="fews:RibasimAdapterFilesComplexType">
+				<annotation>
+					<documentation>files used by Adapter</documentation>
+				</annotation>
+			</element>
+			<element name="modelFiles" type="fews:RibasimModelFilesComplexType">
+				<annotation>
+					<documentation>files used by model</documentation>
+				</annotation>
+			</element>
+		</sequence>
+		<attribute name="version" type="fews:versionStringType" use="required" fixed="1.1"/>
+	</complexType>
+	<!-- -->
+	<complexType name="RibasimAdapterFilesComplexType">
+		<sequence>
+			<element name="stateFile" type="fews:fileStringType" minOccurs="0">
+				<annotation>
+					<documentation>State xml file: Contains information on where to retrieve the state file that is to be used for the forecast.</documentation>
+				</annotation>
+			</element>
+			<element name="inputFile" type="fews:RibasimFileComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>name of ribasim input files which has to be written by Ribasim adapter </documentation>
+				</annotation>
+			</element>
+			<element name="outputFile" type="fews:RibasimFileComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>name of Ribasim output file to be imported to fews database</documentation>
+				</annotation>
+			</element>
+			<element name="diagnosticFile" type="fews:fileStringType" minOccurs="0">
+				<annotation>
+					<documentation>Diagnostic file: Contains all messages produced by the ribasim  module adapter.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<!-- -->
+	<complexType name="RibasimModelFilesComplexType">
+		<sequence>
+			<element name="logFile" type="fews:fileStringType" minOccurs="0">
+				<annotation>
+					<documentation>Ribasim module log file: Contains messages produced by the Ribasim modules.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<!-- -->
+	<complexType name="RibasimFolderNamesComplexType">
+		<annotation>
+			<documentation>Folder names required by the Ribasim Model</documentation>
+		</annotation>
+		<sequence>
+			<element name="workDir" type="fews:directoryStringType" minOccurs="0">
+				<annotation>
+					<documentation>ribasim directory file directory and other data directory, if optional it is taken same as rootdir</documentation>
+				</annotation>
+			</element>
+			<element name="inputDir" type="fews:directoryStringType" minOccurs="0"/>
+			<element name="outputDir" type="fews:directoryStringType" minOccurs="0"/>
+			<element name="stateDir" type="fews:directoryStringType" minOccurs="0">
+				<annotation>
+					<documentation>if no stateDir is defined it is taken same as rootDir</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<!--  -->
+	<complexType name="RibasimFileComplexType">
+		<attribute name="type" type="fews:RibasimFileEnumStringType" use="required"/>
+		<attribute name="fileOut" type="fews:fileStringType" use="required"/>
+		<attribute name="fileIn" type="fews:fileStringType" use="required"/>
+		<attribute name="conversionfile" type="fews:fileStringType" use="optional"/>
+		<attribute name="headerId" type="string"/>
+		<attribute name="unit" type="int" default="1"/>
+	</complexType>
+	<!-- -->
+	<simpleType name="RibasimFileEnumStringType">
+		<restriction base="string">
+			<enumeration value="tms"/>
+			<enumeration value="par"/>
+		</restriction>
+	</simpleType>
+	<simpleType name="SimulationTimestepEnumStringType">
+		<restriction base="string">
+			<enumeration value="month"/>
+			<enumeration value="halfmonth"/>
+			<enumeration value="decade"/>
+			<enumeration value="week"/>
+		</restriction>
+	</simpleType>
+	<complexType name="RibasimFileHeaderComplexType">
+		<sequence>
+			<element name="text" type="string"/>
+		</sequence>
+		<attribute name="id" type="string"/>
+	</complexType>
+</schema>

@@ -1,0 +1,117 @@
+{%- import "_partials/variable.xml.j2" as var -%}
+{%- macro list_entry(name, e) -%}
+<{{ name }}{% if e.number is not none %} number="{{ e.number }}"{% endif %}{% if e.type is not none %} type="{{ e.type }}"{% endif %}{% if e.seperator is not none %} seperator="{{ e.seperator }}"{% endif %}>
+        <data>{{ e.data }}</data>
+      </{{ name }}>
+{%- endmacro -%}
+{%- macro cond(c) -%}
+<rule variable="{{ c.variable }}" operator="{{ c.operator }}" value="{{ c.value }}"{% if c.logical is not none %} logical="{{ c.logical }}"{% endif %}/>
+{%- endmacro -%}
+{%- macro rule_criteria(rc) -%}
+{%- if rc.rule is not none %}
+            {{ cond(rc.rule) }}
+{%- else %}
+            <ruleGroup>
+              {%- for r in rc.ruleGroup.rule %}
+              {{ cond(r) }}
+              {%- endfor %}
+            </ruleGroup>
+{%- endif %}
+{%- endmacro -%}
+{%- macro rule_criterias(name, rcs) -%}
+<{{ name }} rule="{{ rcs.rule }}" ruleIndex="{{ rcs.ruleIndex }}"{% if rcs.rulePreferredColor is not none %} rulePreferredColor="{{ rcs.rulePreferredColor }}"{% endif %}{% if rcs.valuetype is not none %} valuetype="{{ rcs.valuetype }}"{% endif %}{% if rcs.indextype is not none %} indextype="{{ rcs.indextype }}"{% endif %}>
+          {%- for item in rcs.item %}
+          {%- if item.ruleCriteria is not none %}
+          <ruleCriteria>
+            {{ rule_criteria(item.ruleCriteria) }}
+          </ruleCriteria>
+          {%- else %}
+          <ruleCriteriaLogicalOperator>{{ item.ruleCriteriaLogicalOperator }}</ruleCriteriaLogicalOperator>
+          {%- endif %}
+          {%- endfor %}
+      </{{ name }}>
+{%- endmacro -%}
+{%- macro col_data(cd) -%}
+<rowdata{% if cd.rownumber is not none %} rownumber="{{ cd.rownumber }}"{% endif %}>
+        {%- for cdi in cd.columndata %}
+        <columndata{% if cdi.columnnumber is not none %} columnnumber="{{ cdi.columnnumber }}"{% endif %} type="{{ cdi.type }}" value="{{ cdi.value }}"/>
+        {%- endfor %}
+      </rowdata>
+{%- endmacro -%}
+{%- macro info(i) -%}
+<info>
+        {%- if i.extrapolation is not none %}
+        <extrapolation>{{ i.extrapolation }}</extrapolation>
+        {%- endif %}
+        {%- if i.interpolation is not none %}
+        <interpolation>{{ i.interpolation }}</interpolation>
+        {%- endif %}
+      </info>
+{%- endmacro -%}
+<?xml version="1.0" encoding="UTF-8"?>
+<LookUpSets xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/lookupSets.xsd" version="{{ version }}">
+{%- for ls in lookupSet %}
+  <lookupSet{% if ls.lookupSetId is not none %} lookupSetId="{{ ls.lookupSetId }}"{% endif %}>
+    {%- for iv in ls.inputVariable %}
+    {{ var.render(iv, 'inputVariable') }}
+    {%- endfor %}
+    {%- if ls.criticalConditionLookup is not none %}
+    <criticalConditionLookup{% if ls.criticalConditionLookup.id is not none %} id="{{ ls.criticalConditionLookup.id }}"{% endif %}>
+      {%- for cc in ls.criticalConditionLookup.criticalCondition %}
+      {{ rule_criterias('criticalCondition', cc) }}
+      {%- endfor %}
+    </criticalConditionLookup>
+    {%- elif ls.simpleTableLookup is not none %}
+    <simpleTableLookup lookUpVariableId="{{ ls.simpleTableLookup.lookUpVariableId }}" outputVariableId="{{ ls.simpleTableLookup.outputVariableId }}" rows="{{ ls.simpleTableLookup.rows }}" columns="{{ ls.simpleTableLookup.columns }}"{% if ls.simpleTableLookup.type is not none %} type="{{ ls.simpleTableLookup.type }}"{% endif %}>
+      {{ list_entry('LookUpData', ls.simpleTableLookup.LookUpData) }}
+      {%- if ls.simpleTableLookup.rowwise %}
+      {%- for e in ls.simpleTableLookup.rowwise %}
+      {{ list_entry('rowwise', e) }}
+      {%- endfor %}
+      {%- elif ls.simpleTableLookup.columnwise %}
+      {%- for e in ls.simpleTableLookup.columnwise %}
+      {{ list_entry('columnwise', e) }}
+      {%- endfor %}
+      {%- else %}
+      {%- for cd in ls.simpleTableLookup.rowdata %}
+      {{ col_data(cd) }}
+      {%- endfor %}
+      {%- endif %}
+      {%- if ls.simpleTableLookup.info is not none %}
+      {{ info(ls.simpleTableLookup.info) }}
+      {%- endif %}
+    </simpleTableLookup>
+    {%- else %}
+    <multiDimensionalTableLookup{% if ls.multiDimensionalTableLookup.lookUpColVariableId is not none %} lookUpColVariableId="{{ ls.multiDimensionalTableLookup.lookUpColVariableId }}"{% endif %}{% if ls.multiDimensionalTableLookup.lookUpRowVariableId is not none %} lookUpRowVariableId="{{ ls.multiDimensionalTableLookup.lookUpRowVariableId }}"{% endif %} outputVariableId="{{ ls.multiDimensionalTableLookup.outputVariableId }}" rows="{{ ls.multiDimensionalTableLookup.rows }}" columns="{{ ls.multiDimensionalTableLookup.columns }}"{% if ls.multiDimensionalTableLookup.type is not none %} type="{{ ls.multiDimensionalTableLookup.type }}"{% endif %}>
+      {{ list_entry('LookUpColData', ls.multiDimensionalTableLookup.LookUpColData) }}
+      {{ list_entry('LookUpRowData', ls.multiDimensionalTableLookup.LookUpRowData) }}
+      {%- if ls.multiDimensionalTableLookup.rowwise %}
+      {%- for e in ls.multiDimensionalTableLookup.rowwise %}
+      {{ list_entry('rowwise', e) }}
+      {%- endfor %}
+      {%- elif ls.multiDimensionalTableLookup.columnwise %}
+      {%- for e in ls.multiDimensionalTableLookup.columnwise %}
+      {{ list_entry('columnwise', e) }}
+      {%- endfor %}
+      {%- else %}
+      {%- for cd in ls.multiDimensionalTableLookup.rowdata %}
+      {{ col_data(cd) }}
+      {%- endfor %}
+      {%- endif %}
+      {%- if ls.multiDimensionalTableLookup.info is not none %}
+      {{ info(ls.multiDimensionalTableLookup.info) }}
+      {%- endif %}
+    </multiDimensionalTableLookup>
+    {%- endif %}
+    {%- if ls.defaultValue is not none %}
+    {{ rule_criterias('defaultValue', ls.defaultValue) }}
+    {%- endif %}
+    {%- for ov in ls.outputVariable %}
+    {{ var.render(ov, 'outputVariable') }}
+    {%- endfor %}
+    {%- if ls.comment is not none %}
+    <comment>{{ ls.comment }}</comment>
+    {%- endif %}
+  </lookupSet>
+{%- endfor %}
+</LookUpSets>

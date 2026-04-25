@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schema xmlns="http://www.w3.org/2001/XMLSchema" xmlns:fews="http://www.wldelft.nl/fews" targetNamespace="http://www.wldelft.nl/fews" elementFormDefault="qualified" version="1.0">
+	<include schemaLocation="sharedTypes.xsd"/>
+	<!--
+	Author: Orsolya Egressy-Molnar.
+    Legacy upload and download with upload/download of multiple eventActions.
+	Purpose: Schema for specifying lists of event actions mappings. 
+	The root element "eventactions" contains a list of eventAction elements. -->
+	<element name="eventActions">
+		<complexType>
+			<sequence>
+				<element name="eventAction" type="fews:LegacyEventActionType" minOccurs="0" maxOccurs="unbounded"/>
+			</sequence>
+		</complexType>
+	</element>
+	<complexType name="TagComplexType">
+		<attribute name="name" type="fews:idStringType"/>
+	</complexType>
+	<complexType name="LegacyResumeComplexType"/>
+	<complexType name="LegacySuspendComplexType"/>
+	<complexType name="LegacyRepeatIntervalComplexType">
+		<attribute name="interval" type="long"/>
+	</complexType>
+	<complexType name="LegacyEnhanceComplexType">
+		<sequence>
+			<element name="tag" type="fews:TagComplexType"/>
+			<choice>
+				<element name="resume" type="fews:LegacyResumeComplexType"/>
+				<element name="suspend" type="fews:LegacySuspendComplexType"/>
+				<element name="repeatinterval" type="fews:LegacyRepeatIntervalComplexType"/>
+			</choice>
+		</sequence>
+	</complexType>
+	<simpleType name="OneoffDateType">
+		<restriction base="string">
+			<pattern value="\d\d\d\d-\d\d-\d\dT\d\d:\d\d:\d\d.\d\d\d\+\d\d:\d\d"/>
+		</restriction>
+	</simpleType>
+	<complexType name="OneoffCardinalTimeComplexType">
+		<attribute name="interval" type="long"/>
+		<attribute name="reference" type="fews:OneoffDateType"/>
+		<attribute name="unit" type="string"/>
+	</complexType>
+	<complexType name="LegacyOneoffComplexType">
+		<sequence>
+			<element name="cardinaltime" type="fews:OneoffCardinalTimeComplexType"/>
+			<element name="tag" type="fews:TagComplexType"/>
+		</sequence>
+	</complexType>
+	<complexType name="LegacyEventActionType">
+		<sequence>
+			<choice>
+				<element name="enhance" type="fews:LegacyEnhanceComplexType"/>
+				<element name="oneoff" type="fews:LegacyOneoffComplexType"/>
+			</choice>
+		</sequence>
+		<attribute name="actionConfigurationId" type="string" use="required"/>
+		<attribute name="description" type="string" use="required"/>
+	</complexType>
+	<!-- EventActionComplexType as part of mc.xsd -->
+	<complexType name="VoidComplexType"/>
+	<complexType name="CardinalTimeStepComplexType">
+		<sequence>
+			<element name="intervalTimeSpan" type="fews:TimeSpanComplexType">
+				<annotation>
+					<documentation>Triggering of oneoff tasks will only be done once for each subsequent interval in seconds since the reference time.</documentation>
+				</annotation>
+			</element>
+			<element name="referenceTime" type="fews:DateTimeComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Start time for the specified interval. When absent, the reference time is Jan 1st, 1970 0:00 GMT.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="OneOffComplexType">
+		<sequence>
+			<element name="cardinalTimeStep" type="fews:CardinalTimeStepComplexType" minOccurs="0">
+				<annotation>
+					<documentation>For multiple events occurring within one and the same cardinal time step, the one-off Task is only triggered once.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="RepeatIntervalComplexType">
+		<sequence>
+			<element name="timeSpan" type="fews:TimeSpanComplexType"/>
+		</sequence>
+	</complexType>
+	<complexType name="EnhanceComplexType">
+		<sequence>
+			<choice>
+				<element name="suspend" type="fews:VoidComplexType">
+					<annotation>
+						<documentation>Suspends a Task.</documentation>
+					</annotation>
+				</element>
+				<element name="resume" type="fews:VoidComplexType">
+					<annotation>
+						<documentation>Resumes a Task.</documentation>
+					</annotation>
+				</element>
+				<element name="repeatInterval" type="fews:RepeatIntervalComplexType">
+					<annotation>
+						<documentation>Changes the frequency of the Task.</documentation>
+					</annotation>
+				</element>
+			</choice>
+		</sequence>
+	</complexType>
+	<complexType name="EventActionComplexType">
+		<sequence>
+			<choice>
+				<element name="oneoff" type="fews:OneOffComplexType">
+					<annotation>
+						<documentation>Triggers a suspended oneoff Task.</documentation>
+					</annotation>
+				</element>
+				<element name="enhance" type="fews:EnhanceComplexType">
+					<annotation>
+						<documentation>Suspends or resumes a Task, or changes the Tasks repeat interval.</documentation>
+					</annotation>
+				</element>
+			</choice>
+		</sequence>
+		<attribute name="id" type="fews:idStringType" use="required"/>
+		<attribute name="tagName" type="fews:idStringType" use="required">
+			<annotation>
+				<documentation>Tag name referred to in EventActionMapping.</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="description" type="string" use="optional"/>
+		<attribute name="mcId" type="fews:mcIdStringType" use="optional"/>
+	</complexType>
+</schema>

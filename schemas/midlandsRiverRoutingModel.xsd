@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--Delft FEWS (Copyright 2003 WL | Delft Hydraulics) -->
+<schema targetNamespace="http://www.wldelft.nl/fews" xmlns="http://www.w3.org/2001/XMLSchema" xmlns:fews="http://www.wldelft.nl/fews" elementFormDefault="qualified" attributeFormDefault="unqualified" version="1.0">
+	<include schemaLocation="midlandsSharedTypes.xsd"/>
+	<complexType name="DodoComplexType">
+		<annotation>
+			<documentation>root element</documentation>
+		</annotation>
+		<sequence>
+			<element name="directories" type="fews:MidlandsFolderNamesComplexType">
+				<annotation>
+					<documentation>Contains all directory information required by the module</documentation>
+				</annotation>
+			</element>
+			<element name="adapterfiles" type="fews:MidlandsAdapterFileNamesComplextype">
+				<annotation>
+					<documentation>Contains names of all DODO module adapter files</documentation>
+				</annotation>
+			</element>
+			<element name="modulefiles" type="fews:MidlandsModuleFileNamesComplexType">
+				<annotation>
+					<documentation>Contains names of all DODO module files</documentation>
+				</annotation>
+			</element>
+			<element name="variables" type="fews:MidlandsVariablesComplexType">
+				<annotation>
+					<documentation>General variables</documentation>
+				</annotation>
+			</element>
+			<element name="parameters" type="fews:DodoParametersComplexType">
+				<annotation>
+					<documentation>All input and output parameters</documentation>
+				</annotation>
+			</element>
+			<element name="inflows" type="fews:MidlandsInflowComplexType" maxOccurs="6">
+				<annotation>
+					<documentation>Inflows</documentation>
+				</annotation>
+			</element>
+			<element name="stateParameters" type="fews:DodoStateParametersComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Contains list of state variables that need to be updated in the state input file.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="DodoParametersComplexType">
+		<annotation>
+			<documentation>All DODO parameters</documentation>
+		</annotation>
+		<sequence>
+			<element name="inputParameters" type="fews:DodoInputParametersComplexType"/>
+			<element name="outputParameters" type="fews:DodoOutputParametersComplexType"/>
+		</sequence>
+	</complexType>
+	<complexType name="DodoInputParametersComplexType">
+		<annotation>
+			<documentation>Input parameters</documentation>
+		</annotation>
+		<sequence>
+			<element name="hindcastParameters" type="fews:DodoInputHindcastParametersComplexType"/>
+			<element name="forecastParameters" type="fews:DodoInputForecastParametersComplexType"/>
+		</sequence>
+	</complexType>
+	<complexType name="DodoInputHindcastParametersComplexType">
+		<annotation>
+			<documentation>Input hindcast parameters</documentation>
+		</annotation>
+		<sequence>
+			<element name="discharge" type="fews:idStringType"/>
+			<element name="inflowDischarge" type="fews:idStringType" maxOccurs="6">
+				<annotation>
+					<documentation>Order of the these ids is the same as the order of the 'inflow' items.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="DodoInputForecastParametersComplexType">
+		<annotation>
+			<documentation>Input forecast parameters</documentation>
+		</annotation>
+		<sequence>
+			<element name="inflowDischarge" type="fews:idStringType" maxOccurs="6"/>
+		</sequence>
+	</complexType>
+	<complexType name="DodoOutputParametersComplexType">
+		<annotation>
+			<documentation>Output parameters</documentation>
+		</annotation>
+		<sequence>
+			<element name="hindcastParameters" type="fews:DodoOutputHindcastParametersComplexType"/>
+			<element name="forecastParameters" type="fews:DodoOutputForecastParametersComplexType"/>
+		</sequence>
+	</complexType>
+	<complexType name="DodoOutputHindcastParametersComplexType">
+		<annotation>
+			<documentation>Output hindcast parameters</documentation>
+		</annotation>
+		<sequence>
+			<element name="simulatedDischarge" type="fews:idStringType"/>
+			<element name="updatedDischarge" type="fews:idStringType"/>
+			<element name="floodPlainStorage" type="fews:idStringType"/>
+		</sequence>
+	</complexType>
+	<complexType name="DodoOutputForecastParametersComplexType">
+		<annotation>
+			<documentation>Output forecast parameters</documentation>
+		</annotation>
+		<sequence>
+			<element name="simulatedDischarge" type="fews:idStringType"/>
+			<element name="updatedDischarge" type="fews:idStringType"/>
+			<element name="floodPlainStorage" type="fews:idStringType"/>
+		</sequence>
+	</complexType>
+	<complexType name="DodoStateParametersComplexType">
+		<annotation>
+			<documentation>State parameters</documentation>
+		</annotation>
+		<sequence>
+			<element name="channelStorage" type="fews:idStringType" minOccurs="0"/>
+			<element name="floodplainStorage" type="fews:idStringType" minOccurs="0"/>
+			<element name="staticStorageVolume" type="fews:idStringType" minOccurs="0"/>
+			<element name="staticStorageSwitch" type="fews:idStringType" minOccurs="0"/>
+			<element name="currentExcessOutflow" type="fews:idStringType" minOccurs="0"/>
+			<element name="priorExcessOutflow" type="fews:idStringType" minOccurs="0"/>
+			<element name="lastLaggedOutflow" type="fews:idStringType" minOccurs="0"/>
+		</sequence>
+	</complexType>
+</schema>

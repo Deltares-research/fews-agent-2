@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sampleDisplay xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/sampleDisplay.xsd">
+  {% if enableEditor is not none %}<enableEditor>{{ 'true' if enableEditor else 'false' }}</enableEditor>{% endif %}
+  {% if permissions is not none %}<permissions>
+    {% if permissions.editorPermission is not none %}<editorPermission>{{ permissions.editorPermission }}</editorPermission>{% endif %}
+    {% for m in permissions.moduleInstance %}<moduleInstance id="{{ m.id }}" viewPermission="{{ m.viewPermission }}"/>
+    {% endfor %}
+  </permissions>{% endif %}
+  {% for s in season %}<season startMonthDay="{{ s.startMonthDay }}" endMonthDay="{{ s.endMonthDay }}"{% if s.timeZone is not none %} timeZone="{{ s.timeZone }}"{% endif %}{% if s.label is not none %} label="{{ s.label }}"{% endif %}/>
+  {% endfor %}
+</sampleDisplay>

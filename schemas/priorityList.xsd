@@ -1,0 +1,56 @@
+<!-- edited with XMLSpy v2006 sp2 U (http://www.altova.com) by Erik de Rooij (WL|Delft Hydraulics) -->
+<schema xmlns="http://www.w3.org/2001/XMLSchema" xmlns:fews="http://www.wldelft.nl/fews" targetNamespace="http://www.wldelft.nl/fews" elementFormDefault="qualified" attributeFormDefault="unqualified">
+	<element name="priorities" type="fews:PrioritiesComplexType">
+		<annotation>
+			<documentation>List of priorities defined for a certain storage basin</documentation>
+		</annotation>
+	</element>
+	<complexType name="PrioritiesComplexType">
+		<sequence>
+			<element name="priorityList" type="fews:PriorityListComplexType" maxOccurs="unbounded"/>
+		</sequence>
+	</complexType>
+	<complexType name="PriorityListComplexType">
+		<annotation>
+			<documentation>List of priorities defined for a certain storage basin</documentation>
+		</annotation>
+		<sequence>
+			<element name="priority" type="fews:PriorityComplexType" maxOccurs="unbounded"/>
+		</sequence>
+		<attribute name="id" type="int" use="required"/>
+	</complexType>
+	<complexType name="PriorityComplexType">
+		<sequence>
+			<element name="structureId" type="string">
+				<annotation>
+					<documentation>Id of a structure that must be available in the storage basin to which this priority list belongs</documentation>
+				</annotation>
+			</element>
+			<element name="stateId" type="int">
+				<annotation>
+					<documentation>Integer Id of a state that must be available in the structure definition defined by the structureId</documentation>
+				</annotation>
+			</element>
+			<element name="priorityIndex" type="int">
+				<annotation>
+					<documentation>Index of the priority. Higher indices indicate a lower priority.</documentation>
+				</annotation>
+			</element>
+			<element name="priorityStatus" minOccurs="0">
+				<annotation>
+					<documentation>Status of priority. 
+active - structure state is currently deployed 
+required - structure state is required to run. no other state may be defined for this structure.
+not_available - structure state is currently not available.</documentation>
+				</annotation>
+				<simpleType>
+					<restriction base="string">
+						<enumeration value="active"/>
+						<enumeration value="required"/>
+						<enumeration value="not_available"/>
+					</restriction>
+				</simpleType>
+			</element>
+		</sequence>
+	</complexType>
+</schema>

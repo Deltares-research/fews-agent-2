@@ -7,4 +7,4 @@ from .base import render
 
 
 def generate(model: UnitConversions) -> str:
-    return render("unit_conversions.xml.j2", model)
+    return render("id_mapping/unit_conversions.xml.j2", model)

@@ -1,0 +1,40 @@
+{%- macro qc_render(qc) -%}
+
+<queueconnection>
+      <factory{% if qc.factory.jndi is not none %} jndi="{{ qc.factory.jndi }}"{% endif %}/>
+    </queueconnection>
+{%- endmacro -%}
+<?xml version="1.0" encoding="UTF-8"?>
+<fews-master-config xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/synchronisationConfiguration.xsd">
+  {%- if queueconnection is not none %}
+  {{ qc_render(queueconnection) }}
+  {%- endif %}
+  {%- if defaultMcId is not none %}
+  <defaultMcId>{{ defaultMcId }}</defaultMcId>
+  {%- endif %}
+  {%- for m in mc %}
+  <mc{% if m.id is not none %} id="{{ m.id }}"{% endif %}{% if m.name is not none %} name="{{ m.name }}"{% endif %}>
+    {%- if m.queueconnection is not none %}
+    {{ qc_render(m.queueconnection) }}
+    {%- endif %}
+    <jndicontext{% if m.jndicontext.factory is not none %} factory="{{ m.jndicontext.factory }}"{% endif %}{% if m.jndicontext.provider is not none %} provider="{{ m.jndicontext.provider }}"{% endif %}{% if m.jndicontext.prefixes is not none %} prefixes="{{ m.jndicontext.prefixes }}"{% endif %}/>
+    <queue>
+      <root{% if m.queue.root.jndi is not none %} jndi="{{ m.queue.root.jndi }}"{% endif %}/>
+      <synch{% if m.queue.synch.jndi is not none %} jndi="{{ m.queue.synch.jndi }}"{% endif %}{% if m.queue.synch.timeout is not none %} timeout="{{ m.queue.synch.timeout }}"{% endif %}/>
+    </queue>
+  </mc>
+  {%- endfor %}
+  {%- if database is not none %}
+  <database{% if database.driverclass is not none %} driverclass="{{ database.driverclass }}"{% endif %}>
+    <connection{% if database.connection.string is not none %} string="{{ database.connection.string }}"{% endif %}{% if database.connection.userid is not none %} userid="{{ database.connection.userid }}"{% endif %}{% if database.connection.password is not none %} password="{{ database.connection.password }}"{% endif %}/>
+  </database>
+  {%- endif %}
+  <synchronisation>
+    <messaging{% if synchronisation.messaging.maxrecords is not none %} maxrecords="{{ synchronisation.messaging.maxrecords }}"{% endif %}{% if synchronisation.messaging.maxlobdata is not none %} maxlobdata="{{ synchronisation.messaging.maxlobdata }}"{% endif %}/>
+    <processor{% if synchronisation.processor.maxlistsize is not none %} maxlistsize="{{ synchronisation.processor.maxlistsize }}"{% endif %}/>
+    <schema{% if synchronisation.schema_.location is not none %} location="{{ synchronisation.schema_.location }}"{% endif %}/>
+  </synchronisation>
+  {%- if login is not none %}
+  <login{% if login.timeout is not none %} timeout="{{ login.timeout }}"{% endif %}/>
+  {%- endif %}
+</fews-master-config>

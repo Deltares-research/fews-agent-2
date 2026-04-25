@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<transformations version="{{ version }}" xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/transformations.xsd">
+{% for t in transformation %}
+  <transformation id="{{ t.id }}"{% if t.name is not none %} name="{{ t.name }}"{% endif %}>
+    {% for p in t.periodDependantTransformation %}<periodDependantTransformation>
+      {% for v in p.validPeriod %}<validPeriod>
+        {% if v.startDate is not none %}<startDate>{{ v.startDate }}</startDate>{% endif %}
+        {% if v.endDate is not none %}<endDate>{{ v.endDate }}</endDate>{% endif %}
+      </validPeriod>
+      {% endfor %}
+      <table>
+        {% for r in p.table.tableRecord %}<tableRecord input="{{ r.input | xmlstr }}" output="{{ r.output | xmlstr }}"/>
+        {% endfor %}
+      </table>
+    </periodDependantTransformation>
+    {% endfor %}
+  </transformation>
+{% endfor %}
+</transformations>

@@ -1,0 +1,19 @@
+{%- import "_partials/variable.xml.j2" as var -%}
+<?xml version="1.0" encoding="UTF-8"?>
+<lookupDisplay version="{{ version }}" xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/lookupDisplay.xsd">
+  <general>
+    <reportDirectory>{{ general.reportDirectory }}</reportDirectory>
+    {% if general.externalBrowser is not none %}<externalBrowser>{{ general.externalBrowser }}</externalBrowser>{% endif %}
+  </general>
+  {% for d in lookupDisplayDescriptor %}<lookupDisplayDescriptor descriptorId="{{ d.descriptorId }}">
+    {% if d.description is not none %}<description>{{ d.description }}</description>{% endif %}
+    <workflowDescriptorId>{{ d.workflowDescriptorId }}</workflowDescriptorId>
+    {% if d.prefixwhatifScenarioDescriptorID is not none %}<prefixwhatifScenarioDescriptorID>{{ d.prefixwhatifScenarioDescriptorID }}</prefixwhatifScenarioDescriptorID>{% endif %}
+    {% for iv in d.inputVariable %}{{ var.render(iv, 'inputVariable') }}
+    {% endfor %}
+    {{ var.render(d.outputVariable, 'outputVariable') }}
+    {% if d.subDir is not none %}<subDir>{{ d.subDir }}</subDir>{% endif %}
+    <reportFileName>{{ d.reportFileName }}</reportFileName>
+  </lookupDisplayDescriptor>
+  {% endfor %}
+</lookupDisplay>

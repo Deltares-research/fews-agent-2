@@ -1,0 +1,142 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- edited with XMLSpy v2007 sp2 (http://www.altova.com) by WL | Delft Hydraulics (WL | Delft Hydraulics) -->
+<!-- edited with XMLSPY v2004 rel. 3 U (http://www.xmlspy.com) by Chris Mare (WL | Delft Hydraulics) -->
+<!--Delft FEWS (Copyright 2003 WL | Delft Hydraulics) -->
+<schema xmlns="http://www.w3.org/2001/XMLSchema" xmlns:fews="http://www.wldelft.nl/fews" targetNamespace="http://www.wldelft.nl/fews" elementFormDefault="qualified" attributeFormDefault="unqualified" version="1.0">
+	<include schemaLocation="sharedTypes.xsd"/>
+	<include schemaLocation="timeSeriesDisplay.xsd"/>
+	<element name="stateEditor" type="fews:StateEditorComplexType"/>
+	<!---->
+	<complexType name="StateEditorComplexType">
+		<sequence>
+			<element name="general" type="fews:StateModifiersDisplayGeneralComplexType"/>
+			<element name="modelGroups" type="fews:ModelGroupsComplexType"/>
+			<element name="model" type="fews:ModelComplexType" maxOccurs="unbounded"/>
+			<element name="stateParameterGroup" type="fews:StateParameterGroupComplexType" maxOccurs="unbounded"/>
+			<element name="seriesGroup" type="fews:SeriesGroupComplexType" minOccurs="0" maxOccurs="unbounded"/>
+			<element name="stateParameter" type="fews:StateParameterComplexType" maxOccurs="unbounded"/>
+			<element name="timeSeriesDisplay" type="fews:TimeSeriesDisplayConfigComplexType" minOccurs="0"/>
+		</sequence>
+	</complexType>
+	<!---->
+	<complexType name="StateModifiersDisplayGeneralComplexType">
+		<sequence>
+			<element name="displayName" type="string">
+				<annotation>
+					<documentation>Appears in the title bar of the dialog</documentation>
+				</annotation>
+			</element>
+			<element name="timeZone" type="fews:TimeZoneSimpleType" minOccurs="0"/>
+		</sequence>
+	</complexType>
+	<!--    -->
+	<complexType name="ModelGroupComplexType">
+		<sequence>
+			<element name="description" type="string" minOccurs="0"/>
+			<choice>
+				<element name="modelId" type="fews:idStringType" maxOccurs="unbounded"/>
+				<element name="modelGroupId" type="fews:idStringType" maxOccurs="unbounded"/>
+			</choice>
+		</sequence>
+		<attribute name="id" type="fews:idStringType" use="required"/>
+		<attribute name="name" type="fews:nameStringType" use="optional"/>
+	</complexType>
+	<!---->
+	<complexType name="ModelComplexType">
+		<sequence>
+			<element name="locationId" type="fews:idStringType" minOccurs="0"/>
+			<element name="stateParameterGroupId" type="fews:idStringType" maxOccurs="unbounded"/>
+			<element name="resultSeriesGroupId" type="fews:idStringType" minOccurs="0" maxOccurs="unbounded"/>
+		</sequence>
+		<attribute name="id" type="fews:idStringType" use="required"/>
+		<attribute name="name" type="fews:nameStringType"/>
+	</complexType>
+	<!---->
+	<complexType name="StateParameterComplexType">
+		<sequence>
+			<element name="range" type="fews:StateRangeComplexType"/>
+			<element name="inputSeries" type="fews:StateSeriesComplexType"/>
+			<element name="outputSeries" type="fews:StateSeriesComplexType"/>
+			<choice minOccurs="0">
+				<element name="climatology" type="fews:ClimatologyComplexType"/>
+				<element name="climatologySeries" type="fews:StateSeriesComplexType" maxOccurs="3">
+					<annotation>
+						<documentation>Max. 3 series can be specified, concerning   min, max and mean.  Use attribute qualifier to identify the series as min,max or mean.   </documentation>
+					</annotation>
+				</element>
+			</choice>
+		</sequence>
+		<attribute name="id" type="fews:idStringType" use="required"/>
+		<attribute name="name" type="fews:nameStringType"/>
+	</complexType>
+	<!---->
+	<complexType name="StateRangeComplexType">
+		<attribute name="min" type="double" use="required"/>
+		<attribute name="max" type="double" use="required"/>
+	</complexType>
+	<!---->
+	<complexType name="ClimatologyComplexType">
+		<sequence>
+			<element name="event" type="fews:EventComplexType" minOccurs="0" maxOccurs="unbounded"/>
+		</sequence>
+	</complexType>
+	<!---->
+	<complexType name="EventComplexType">
+		<attribute name="date" type="fews:dateType" use="required"/>
+		<attribute name="time" type="fews:timeType" use="required"/>
+		<attribute name="mean" type="double"/>
+		<attribute name="min" type="double"/>
+		<attribute name="max" type="double"/>
+	</complexType>
+	<!---->
+	<complexType name="StateSeriesComplexType">
+		<attribute name="id" type="fews:idStringType" use="required"/>
+		<attribute name="locationId" type="fews:idStringType" use="required">
+			<annotation>
+				<documentation>Use keyword ALL to indicate that the location Id wil be specified by model element 'locationId'</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="parameterId" type="fews:idStringType" use="required"/>
+		<attribute name="qualifier" type="fews:seriesQualifierEnumStringType">
+			<annotation>
+				<documentation>Use keywords min, max or mean to specify which data the series describes. </documentation>
+			</annotation>
+		</attribute>
+	</complexType>
+	<!---->
+	<complexType name="ModelGroupsComplexType">
+		<sequence>
+			<element name="modelGroup" type="fews:ModelGroupComplexType" maxOccurs="unbounded"/>
+		</sequence>
+	</complexType>
+	<!---->
+	<complexType name="SeriesGroupComplexType">
+		<sequence>
+			<element name="series" type="fews:StateSeriesComplexType" maxOccurs="unbounded"/>
+		</sequence>
+		<attribute name="id" type="fews:idStringType" use="required"/>
+	</complexType>
+	<!---->
+	<complexType name="StateParameterGroupComplexType">
+		<sequence>
+			<element name="stateParameterId" type="fews:idStringType" maxOccurs="unbounded"/>
+		</sequence>
+		<attribute name="id" type="fews:idStringType" use="required"/>
+	</complexType>
+	<!---->
+	<simpleType name="seriesQualifierEnumStringType">
+		<restriction base="string">
+			<enumeration value="min"/>
+			<enumeration value="max"/>
+			<enumeration value="mean"/>
+		</restriction>
+	</simpleType>
+	<!---->
+	<simpleType name="TimeZoneSimpleType">
+		<annotation>
+			<documentation>The timeZone (in decimal hours shift from GMT) 
+	            e.g. -1.0 or 3.5. If not present GMT is assumed</documentation>
+		</annotation>
+		<restriction base="double"/>
+	</simpleType>
+</schema>

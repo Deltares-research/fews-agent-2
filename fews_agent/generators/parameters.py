@@ -7,4 +7,4 @@ from .base import render
 
 
 def generate(model: Parameters) -> str:
-    return render("parameters.xml.j2", model)
+    return render("region/parameters.xml.j2", model)

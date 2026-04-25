@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<overtoppingModule version="{{ version }}" xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/overtoppingModule.xsd">
+  <general>
+    <inputDir>{{ general.inputDir }}</inputDir>
+    {% if general.lookupDataSetDir is not none %}<lookupDataSetDir>{{ general.lookupDataSetDir }}</lookupDataSetDir>{% endif %}
+    <outputDir>{{ general.outputDir }}</outputDir>
+    <diagnosticFile>{{ general.diagnosticFile }}</diagnosticFile>
+    {% if general.debugLevel is not none %}<debugLevel>{{ general.debugLevel }}</debugLevel>{% endif %}
+  </general>
+  <overtoppingMethod>{{ overtoppingMethod }}</overtoppingMethod>
+{%- macro ofile(f, tag) %}<{{ tag }} filename="{{ f.filename }}" fileType="{{ f.fileType }}" mappingId="{{ f.mappingId }}"{% if f.coefficientId is not none %} coefficientId="{{ f.coefficientId }}"{% endif %}{% if f.outputvariableId is not none %} outputvariableId="{{ f.outputvariableId }}"{% endif %}/>{%- endmacro %}
+  {% for f in input %}{{ ofile(f, 'input') }}
+  {% endfor %}
+  {% for f in output %}{{ ofile(f, 'output') }}
+  {% endfor %}
+  {% for ms in mappings %}<mappings id="{{ ms.id }}">
+    {% for m in ms.mapping %}<mapping variable="{{ m.variable }}" column="{{ m.column }}"{% if m.dataType is not none %} dataType="{{ m.dataType }}"{% endif %}{% if m.ordering is not none %} ordering="{{ m.ordering }}"{% endif %}{% if m.columnHeader is not none %} columnHeader="{{ m.columnHeader }}"{% endif %}/>
+    {% endfor %}
+  </mappings>
+  {% endfor %}
+  {% for cs in coefficients %}<coefficients id="{{ cs.id }}">
+    {% for c in cs.coefficient %}<coefficient variable="{{ c.variable }}"{% if c.value is not none %} value="{{ c.value }}"{% endif %}{% if c.dataType is not none %} dataType="{{ c.dataType }}"{% endif %}/>
+    {% endfor %}
+  </coefficients>
+  {% endfor %}
+</overtoppingModule>

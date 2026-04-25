@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<webOCDashboards xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/webOCDashboards.xsd">
+{%- for d in dashboard %}
+  <dashboard>
+    <id>{{ d.id }}</id>
+    {%- if d.name is not none %}
+    <name>{{ d.name }}</name>
+    {%- endif %}
+    <cssTemplate>{{ d.cssTemplate }}</cssTemplate>
+    <groups>
+    {%- for g in d.groups.group %}
+      <group>
+        <elements>
+        {%- for el in g.elements.element %}
+          <element>
+            <gridTemplateArea>{{ el.gridTemplateArea }}</gridTemplateArea>
+            <items>
+            {%- for it in el['items'].item %}
+              <item>
+                <topologyNodeId>{{ it.topologyNodeId }}</topologyNodeId>
+                <component>{{ it.component }}</component>
+                {%- if it.componentSettingsId is not none %}
+                <componentSettingsId>{{ it.componentSettingsId }}</componentSettingsId>
+                {%- endif %}
+                {%- for aid in it.actionId %}
+                <actionId>{{ aid }}</actionId>
+                {%- endfor %}
+              </item>
+            {%- endfor %}
+            </items>
+          </element>
+        {%- endfor %}
+        </elements>
+      </group>
+    {%- endfor %}
+    </groups>
+    {%- if d.viewPermission is not none %}
+    <viewPermission>{{ d.viewPermission }}</viewPermission>
+    {%- endif %}
+  </dashboard>
+{%- endfor %}
+</webOCDashboards>

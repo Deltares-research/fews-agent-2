@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<clientConfiguration xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/clientConfig.xsd">
+{% if title is not none %}  <title>{{ title }}</title>
+{% endif %}
+{% if clientType is not none %}  <clientType>{{ clientType }}</clientType>
+{% endif %}
+{% if otherRootConfigFiles is not none %}  <otherRootConfigFiles>
+    {% for n in otherRootConfigFiles.name %}<name>{{ n }}</name>
+    {% endfor %}
+  </otherRootConfigFiles>
+{% endif %}
+{% if databaseServer is not none %}  <databaseServer>{{ databaseServer | dict_to_xml | safe }}</databaseServer>
+{% endif %}
+{% if jmsServer is not none %}  <jmsServer>{{ jmsServer | dict_to_xml | safe }}</jmsServer>
+{% endif %}
+{% for c in connection %}  <connection{% for k, v in c.items() if k.startswith('@') %} {{ k[1:] }}="{{ v }}"{% endfor %}>{{ c | dict_to_xml | safe }}</connection>
+{% endfor %}
+{% for j in jvmOption %}  <jvmOption>{{ j }}</jvmOption>
+{% endfor %}
+{% if localCacheSizeMB is not none %}  <localCacheSizeMB>{{ localCacheSizeMB }}</localCacheSizeMB>
+{% endif %}
+{% if localDataStoreFormat is not none %}  <localDataStoreFormat>{{ localDataStoreFormat }}</localDataStoreFormat>
+{% endif %}
+{% if logging is not none %}  <logging>
+    {% if logging.debugEnabled is not none %}<debugEnabled>{{ 'true' if logging.debugEnabled else 'false' }}</debugEnabled>{% endif %}
+    {% if logging.rollingTotalSizeMB is not none %}<rollingTotalSizeMB>{{ logging.rollingTotalSizeMB }}</rollingTotalSizeMB>{% endif %}
+    {% if logging.logFileEntryIncludesTaskRunId is not none %}<logFileEntryIncludesTaskRunId>{{ 'true' if logging.logFileEntryIncludesTaskRunId else 'false' }}</logFileEntryIncludesTaskRunId>{% endif %}
+    {% if logging.windowsEventLogEnabled is not none %}<windowsEventLogEnabled>{{ 'true' if logging.windowsEventLogEnabled else 'false' }}</windowsEventLogEnabled>{% endif %}
+    {% if logging.linuxSyslogFacility is not none %}<linuxSyslogFacility>{{ logging.linuxSyslogFacility }}</linuxSyslogFacility>{% endif %}
+  </logging>
+{% endif %}
+{% if coldStatesDirectory is not none %}  <coldStatesDirectory>{{ coldStatesDirectory }}</coldStatesDirectory>
+{% endif %}
+{% if warmStatesDirectory is not none %}  <warmStatesDirectory>{{ warmStatesDirectory }}</warmStatesDirectory>
+{% endif %}
+{% for a in autoExportModuleDataSet %}  <autoExportModuleDataSet name="{{ a.name }}" exportDir="{{ a.exportDir }}"/>
+{% endfor %}
+{% if proxyAutoConfigScriptUrl is not none %}  <proxyAutoConfigScriptUrl>{{ proxyAutoConfigScriptUrl }}</proxyAutoConfigScriptUrl>
+{% endif %}
+{% if proxyAutoConfigScriptContent is not none %}  <proxyAutoConfigScriptContent>{{ proxyAutoConfigScriptContent }}</proxyAutoConfigScriptContent>
+{% endif %}
+{% if directSynchProfile is not none %}  <directSynchProfile id="{{ directSynchProfile.id }}"{% if directSynchProfile.name is not none %} name="{{ directSynchProfile.name }}"{% endif %}>
+    {% if directSynchProfile.description is not none %}<description>{{ directSynchProfile.description }}</description>{% endif %}
+  </directSynchProfile>
+{% endif %}
+{% for sp in synchProfile %}  <synchProfile{% for k, v in sp.items() if k.startswith('@') %} {{ k[1:] }}="{{ v }}"{% endfor %}>{{ sp | dict_to_xml | safe }}</synchProfile>
+{% endfor %}
+{% if externalTables is not none %}  <externalTables>{{ externalTables | dict_to_xml | safe }}</externalTables>
+{% endif %}
+</clientConfiguration>

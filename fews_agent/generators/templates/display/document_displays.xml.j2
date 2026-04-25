@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<documentDisplays xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/documentDisplays.xsd">
+  {%- for d in documentDisplay %}
+  <documentDisplay id="{{ d.id }}" name="{{ d.name }}">
+    {%- if d.report is not none %}
+    <report>
+      {%- if d.report.archiveProductId is not none %}
+      <archiveProductId>{{ d.report.archiveProductId }}</archiveProductId>
+      {%- endif %}
+      {%- if d.report.reportModuleInstanceId is not none %}
+      <reportModuleInstanceId>{{ d.report.reportModuleInstanceId }}</reportModuleInstanceId>
+      {%- endif %}
+      {%- if d.report.showReports is not none %}
+      <showReports>
+        {%- for s in d.report.showReports.productWorkflowStatusId %}
+        <productWorkflowStatusId>{{ s }}</productWorkflowStatusId>
+        {%- endfor %}
+      </showReports>
+      {%- endif %}
+      {%- if d.report.editor is not none %}
+      <editor>{{ 'true' if d.report.editor else 'false' }}</editor>
+      {%- endif %}
+    </report>
+    {%- elif d.compose is not none %}
+    <compose>
+      {%- for c in d.compose.composeId %}
+      <composeId>{{ c }}</composeId>
+      {%- endfor %}
+    </compose>
+    {%- elif d.browser is not none %}
+    <browser>
+      {%- if d.browser.layout is not none %}
+      <layout>
+        {%- if d.browser.layout.preview is not none %}
+        <preview>{{ 'true' if d.browser.layout.preview else 'false' }}</preview>
+        {%- endif %}
+        {%- if d.browser.layout.headers is not none %}
+        <headers>
+          {%- for h in d.browser.layout.headers.header %}
+          <header{% if h.productProperty is not none %} productProperty="{{ h.productProperty }}"{% endif %}{% if h.productAttribute is not none %} productAttribute="{{ h.productAttribute }}"{% endif %} name="{{ h.name }}">{{ h.value }}</header>
+          {%- endfor %}
+        </headers>
+        {%- endif %}
+      </layout>
+      {%- endif %}
+      <archiveProducts>
+        {%- for a in d.browser.archiveProducts.archiveProductId %}
+        <archiveProductId>{{ a }}</archiveProductId>
+        {%- endfor %}
+        {%- for a in d.browser.archiveProducts.archiveProductSetId %}
+        <archiveProductSetId>{{ a }}</archiveProductSetId>
+        {%- endfor %}
+      </archiveProducts>
+    </browser>
+    {%- endif %}
+    {%- if d.relativeViewPeriod is not none %}
+    <relativeViewPeriod start="{{ d.relativeViewPeriod.start }}" end="{{ d.relativeViewPeriod.end }}"{% if d.relativeViewPeriod.startOverrulable is not none %} startOverrulable="{{ 'true' if d.relativeViewPeriod.startOverrulable else 'false' }}"{% endif %}{% if d.relativeViewPeriod.endOverrulable is not none %} endOverrulable="{{ 'true' if d.relativeViewPeriod.endOverrulable else 'false' }}"{% endif %} unit="{{ d.relativeViewPeriod.unit }}">
+      {%- if d.relativeViewPeriod.description is not none %}
+      <description>{{ d.relativeViewPeriod.description }}</description>
+      {%- endif %}
+    </relativeViewPeriod>
+    {%- endif %}
+    {%- if d.viewPermission is not none %}
+    <viewPermission>{{ d.viewPermission }}</viewPermission>
+    {%- endif %}
+    {%- if d.editPermission is not none %}
+    <editPermission>{{ d.editPermission }}</editPermission>
+    {%- endif %}
+  </documentDisplay>
+  {%- endfor %}
+</documentDisplays>

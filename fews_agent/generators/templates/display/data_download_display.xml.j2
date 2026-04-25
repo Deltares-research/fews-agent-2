@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<dataDownloadDisplay xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/dataDownloadDisplay.xsd">
+{% for t in displayTemplate %}
+  <displayTemplate{% if t.id is not none %} id="{{ t.id }}"{% endif %}>
+    <showLocationName>{{ t.showLocationName }}</showLocationName>
+    <showParameterName>{{ t.showParameterName }}</showParameterName>
+    <locationAttributes>
+      {% for a in t.locationAttributes %}<attributeId>{{ a }}</attributeId>
+      {% endfor %}
+    </locationAttributes>
+  </displayTemplate>
+{% endfor %}
+</dataDownloadDisplay>

@@ -1,0 +1,96 @@
+{%- import "_partials/variable.xml.j2" as var -%}
+{%- macro param_data(d) -%}
+{%- if d.booleanData is not none -%}
+<booleanData{% if d.booleanData.allowAdjust is not none %} allowAdjust="{{ 'true' if d.booleanData.allowAdjust else 'false' }}"{% endif %}>{{ 'true' if d.booleanData.value else 'false' }}</booleanData>
+{%- elif d.intData is not none -%}
+<intData maxVal="{{ d.intData.maxVal }}" minVal="{{ d.intData.minVal }}"{% if d.intData.allowAdjust is not none %} allowAdjust="{{ 'true' if d.intData.allowAdjust else 'false' }}"{% endif %}{% if d.intData.stepSize is not none %} stepSize="{{ d.intData.stepSize }}"{% endif %}>{{ d.intData.value }}</intData>
+{%- elif d.doubleData is not none -%}
+<doubleData maxVal="{{ d.doubleData.maxVal | xmlstr }}" minVal="{{ d.doubleData.minVal | xmlstr }}"{% if d.doubleData.allowAdjust is not none %} allowAdjust="{{ 'true' if d.doubleData.allowAdjust else 'false' }}"{% endif %}{% if d.doubleData.stepSize is not none %} stepSize="{{ d.doubleData.stepSize | xmlstr }}"{% endif %}>{{ d.doubleData.value | xmlstr }}</doubleData>
+{%- else -%}
+<stringData>{{ d.stringData }}</stringData>
+{%- endif -%}
+{%- endmacro -%}
+<?xml version="1.0" encoding="UTF-8"?>
+<whatIfScenarioFilters xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/whatIfScenarioFilters.xsd" version="{{ version }}"{% if id is not none %} id="{{ id }}"{% endif %} name="{{ name }}">
+  {%- if description is not none %}
+  <description>{{ description }}</description>
+  {%- endif %}
+  {%- if propertiesTabVisible is not none %}
+  <propertiesTabVisible>{{ 'true' if propertiesTabVisible else 'false' }}</propertiesTabVisible>
+  {%- endif %}
+  {%- if enumerations is not none %}
+  <enumerations>
+    {%- for se in enumerations.stringEnumeration %}
+    <stringEnumeration id="{{ se.id }}">
+      {%- for s in se.string %}
+      <string>{{ s }}</string>
+      {%- endfor %}
+    </stringEnumeration>
+    {%- endfor %}
+  </enumerations>
+  {%- endif %}
+  {%- if properties is not none %}
+  <properties>
+    {%- for p in properties.property %}
+    <property key="{{ p.key }}">
+      <enumerationId>{{ p.enumerationId }}</enumerationId>
+    </property>
+    {%- endfor %}
+  </properties>
+  {%- endif %}
+  {%- if variableSets is not none %}
+  <variableSets>
+    {%- for v in variableSets.variable %}
+    {{ var.render(v, tag='variable') }}
+    {%- endfor %}
+  </variableSets>
+  {%- endif %}
+  {%- if configFiles is not none %}
+  <configFiles>
+    {%- if configFiles.moduleParameterFiles is not none %}
+    <moduleParameterFiles>
+      {%- for f in configFiles.moduleParameterFiles.moduleParameterFile %}
+      <moduleParameterFile name="{{ f.name }}" version="{{ f.version }}"/>
+      {%- endfor %}
+    </moduleParameterFiles>
+    {%- endif %}
+    {%- if configFiles.moduleDataSetFiles is not none %}
+    <moduleDataSetFiles>
+      {%- for f in configFiles.moduleDataSetFiles.moduleDataSetFile %}
+      <moduleDataSetFile name="{{ f.name }}" version="{{ f.version }}"/>
+      {%- endfor %}
+    </moduleDataSetFiles>
+    {%- endif %}
+    {%- if configFiles.hideModuleDataSetFilesPanel %}
+    <hideModuleDataSetFilesPanel/>
+    {%- endif %}
+    {%- if configFiles.moduleParameters is not none %}
+    <moduleParameters id="{{ configFiles.moduleParameters.id }}">
+      {%- if configFiles.moduleParameters.description is not none %}
+      <description>{{ configFiles.moduleParameters.description }}</description>
+      {%- endif %}
+      {%- for p in configFiles.moduleParameters.param %}
+      <param{% if p.id is not none %} id="{{ p.id }}"{% endif %}>
+        <name>{{ p.name }}</name>
+        <data>
+          {{ param_data(p.data) }}
+        </data>
+        {%- if p.comment is not none %}
+        <comment>{{ p.comment }}</comment>
+        {%- endif %}
+      </param>
+      {%- endfor %}
+    </moduleParameters>
+    {%- endif %}
+    {%- if configFiles.hideModuleParameterFilesPanel %}
+    <hideModuleParameterFilesPanel/>
+    {%- endif %}
+    {%- if configFiles.piModelParametersContent is not none %}
+    <piModelParametersContent>{{ configFiles.piModelParametersContent }}</piModelParametersContent>
+    {%- endif %}
+  </configFiles>
+  {%- endif %}
+  {%- if relativeT0DateFormat is not none %}
+  <relativeT0DateFormat>{{ 'true' if relativeT0DateFormat else 'false' }}</relativeT0DateFormat>
+  {%- endif %}
+</whatIfScenarioFilters>

@@ -1,0 +1,34 @@
+{%- import "_partials/timeseries_set.xml.j2" as tss -%}
+<?xml version="1.0" encoding="UTF-8"?>
+<thresholdValueSets xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/thresholdValueSets.xsd">
+{% for tvs in thresholdValueSet %}
+  <thresholdValueSet id="{{ tvs.id }}"{% if tvs.name is not none %} name="{{ tvs.name }}"{% endif %}>
+    {% if tvs.description is not none %}<description>{{ tvs.description }}</description>{% endif %}
+    {% if tvs.considerQualifiers is not none %}<considerQualifiers>{{ 'true' if tvs.considerQualifiers else 'false' }}</considerQualifiers>{% endif %}
+    {% if tvs.standDownIndividualLocations is not none %}<standDownIndividualLocations>{{ 'true' if tvs.standDownIndividualLocations else 'false' }}</standDownIndividualLocations>{% endif %}
+    {% for lai in tvs.locationAttributeId %}<locationAttributeId>{{ lai }}</locationAttributeId>{% endfor %}
+    {% if tvs.graceTime is not none %}{{ tvs.graceTime | dict_to_xml('graceTime') | safe }}{% endif %}
+    {% if tvs.stage is not none %}{{ tvs.stage | dict_to_xml('stage') | safe }}{% endif %}
+    {% if tvs.discharge is not none %}{{ tvs.discharge | dict_to_xml('discharge') | safe }}{% endif %}
+    {% for ltv in tvs.levelThresholdValue %}
+    <levelThresholdValue>
+      <levelThresholdId>{{ ltv.levelThresholdId }}</levelThresholdId>
+      <valueFunction>{{ ltv.valueFunction }}</valueFunction>
+    </levelThresholdValue>
+    {% endfor %}
+    {% if tvs.forecastAvailableThresholdValue is not none %}{{ tvs.forecastAvailableThresholdValue | dict_to_xml('forecastAvailableThresholdValue') | safe }}{% endif %}
+    {% for t in tvs.timeSeries %}{{ t | dict_to_xml('timeSeries') | safe }}{% endfor %}
+    {% for ts in tvs.timeSeriesSet %}
+    {{ tss.render(ts) }}
+    {% endfor %}
+    {% if tvs.stageDischargeConversion is not none %}
+    <stageDischargeConversion>
+      <dischargeParameterId>{{ tvs.stageDischargeConversion.dischargeParameterId }}</dischargeParameterId>
+    </stageDischargeConversion>
+    {% endif %}
+  </thresholdValueSet>
+{% endfor %}
+{% if eventTimeViewPeriod is not none %}
+  <eventTimeViewPeriod start="{{ eventTimeViewPeriod.start }}" end="{{ eventTimeViewPeriod.end }}"{% if eventTimeViewPeriod.startOverrulable is not none %} startOverrulable="{{ 'true' if eventTimeViewPeriod.startOverrulable else 'false' }}"{% endif %}{% if eventTimeViewPeriod.endOverrulable is not none %} endOverrulable="{{ 'true' if eventTimeViewPeriod.endOverrulable else 'false' }}"{% endif %} unit="{{ eventTimeViewPeriod.unit }}">{% if eventTimeViewPeriod.description is not none %}<description>{{ eventTimeViewPeriod.description }}</description>{% endif %}</eventTimeViewPeriod>
+{% endif %}
+</thresholdValueSets>

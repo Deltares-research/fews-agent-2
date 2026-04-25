@@ -1,0 +1,16 @@
+{%- import "_partials/variable.xml.j2" as var -%}
+<?xml version="1.0" encoding="UTF-8"?>
+<statisticsSets xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/statisticsSets.xsd">
+{% for s in statisticsSet %}
+  <statisticsSet>
+    {{ var.render(s.inputVariable, 'inputVariable') }}
+    <statisticalFunctions>
+      {% if s.statisticalFunctions.standard is not none %}<standard{% if s.statisticalFunctions.standard.upperPercentage is not none %} upperPercentage="{{ s.statisticalFunctions.standard.upperPercentage }}"{% endif %}{% if s.statisticalFunctions.standard.lowerPercentage is not none %} lowerPercentage="{{ s.statisticalFunctions.standard.lowerPercentage }}"{% endif %}/>{% endif %}
+      {% if s.statisticalFunctions.higherMoment %}<higherMoment/>{% endif %}
+      {% if s.statisticalFunctions.movingAverage is not none %}<movingAverage numberSamples="{{ s.statisticalFunctions.movingAverage.numberSamples }}"/>{% endif %}
+    </statisticalFunctions>
+    {% for o in s.outputVariable %}{{ var.render(o, 'outputVariable') }}
+    {% endfor %}
+  </statisticsSet>
+{% endfor %}
+</statisticsSets>

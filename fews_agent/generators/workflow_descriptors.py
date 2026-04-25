@@ -7,4 +7,4 @@ from .base import render
 
 
 def generate(model: WorkflowDescriptors) -> str:
-    return render("workflow_descriptors.xml.j2", model)
+    return render("region/workflow_descriptors.xml.j2", model)

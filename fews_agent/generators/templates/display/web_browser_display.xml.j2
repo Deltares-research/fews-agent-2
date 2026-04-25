@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<webBrowserDisplay xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/webBrowserDisplay.xsd">
+  {% if defaultBrowser is not none %}<defaultBrowser>{{ 'true' if defaultBrowser else 'false' }}</defaultBrowser>{% endif %}
+  {% if bringToFront is not none %}<bringToFront>{{ 'true' if bringToFront else 'false' }}</bringToFront>{% endif %}
+  {% if lazyLoading is not none %}<lazyLoading>{{ 'true' if lazyLoading else 'false' }}</lazyLoading>{% endif %}
+  {% if disablePrinting is not none %}<disablePrinting>{{ 'true' if disablePrinting else 'false' }}</disablePrinting>{% endif %}
+  {% for s in chromiumSwitch %}<chromiumSwitch>{{ s }}</chromiumSwitch>
+  {% endfor %}
+  <domainWhiteList>
+    {% for a in domainWhiteList.access %}<access{% if a.origin is not none %} origin="{{ a.origin }}"{% endif %}/>
+    {% endfor %}
+  </domainWhiteList>
+  {% if downloadDir is not none %}<downloadDir>{{ downloadDir }}</downloadDir>{% endif %}
+  {% if jcefBinDir is not none %}<jcefBinDir>{{ jcefBinDir }}</jcefBinDir>{% endif %}
+</webBrowserDisplay>

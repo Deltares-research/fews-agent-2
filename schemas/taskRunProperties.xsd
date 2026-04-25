@@ -1,0 +1,166 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- edited with XMLSPY v2004 rel. 3 U (http://www.xmlspy.com) by rooij_e (WL | Delft Hydraulics) -->
+<!-- todo OA remove taskproperties, task properties are no longer needed because the taskproperties from a task are immutable -->
+<!--  Delft FEWS (Copyright 2003 WL | Delft Hydraulics) -->
+<schema targetNamespace="http://www.wldelft.nl/fews" xmlns="http://www.w3.org/2001/XMLSchema" xmlns:fews="http://www.wldelft.nl/fews" elementFormDefault="qualified" attributeFormDefault="unqualified" version="1.0">
+	<include schemaLocation="taskProperties.xsd"/>
+	<!-- TaskRunProperties -->
+	<element name="taskRunProperties" type="fews:TaskRunPropertiesComplexType">
+		<annotation>
+			<documentation>The properties of a particular task run.</documentation>
+		</annotation>
+	</element>
+	<!-- TaskRunPropertiesComplexType -->
+	<complexType name="TaskRunPropertiesComplexType">
+		<sequence>
+			<element name="taskProperties" type="fews:TaskPropertiesComplexType">
+				<annotation>
+					<documentation>The task properties being used as template to create the task run.</documentation>
+				</annotation>
+			</element>
+			<element name="taskRunId" type="fews:idStringType">
+				<annotation>
+					<documentation>The ID of the task run.</documentation>
+				</annotation>
+			</element>
+			<element name="time0" type="dateTime">
+				<annotation>
+					<documentation>Default start time of the forecast period.</documentation>
+				</annotation>
+			</element>
+			<element name="externalForecastTime" type="fews:ExternalForecastTimeComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>forecast time defined with the forecast length estimator</documentation>
+				</annotation>
+			</element>
+			<element name="inputProduct" type="fews:InputProductComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>The input products used in this task run.</documentation>
+				</annotation>
+			</element>
+			<element name="archiveTaskRun" type="fews:ArchiveTaskComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Deprecated, used by old archive</documentation>
+				</annotation>
+			</element>
+			<element name="usedConfFiles" type="fews:ConfigFilesComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Deprecated, no longer used</documentation>
+				</annotation>
+			</element>
+			<element name="usedModuleInstanceRuns" type="fews:ModuleInstanceRunKeyComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>ModuleInstanceRunDescriptors that were used in the task runs that belong to this task. Optional.</documentation>
+				</annotation>
+			</element>
+            <element name="usedModifiers" type="fews:ModifierDescriptorKeyComplexType" minOccurs="0" maxOccurs="unbounded">
+                <annotation>
+                    <documentation>ModifierDescriptors that were used in the task runs that belong to this task. Optional.</documentation>
+                </annotation>
+            </element>
+            <!-- TEMPORARILY DISABLED -->
+			<!-- element name="moduleInstanceRunProperties" type="fews:ModuleInstanceRunComplexType" maxOccurs="unbounded">
+				<annotation>
+					<documentation>The run of a particular module instance.</documentation>
+				</annotation>
+			</element -->
+			<!-- element name="activeConfigFiles" type="fews:ActiveConfigFilesComplexType">
+				<annotation>
+					<documentation>All active configuration files being used in this task run.</documentation>
+				</annotation>
+			</element -->
+			<element name="expiryTime" type="dateTime" minOccurs="0">
+				<annotation>
+					<documentation>Smallest expiry time of the data used by the run.</documentation>
+				</annotation>
+			</element>
+			<element name="earliestExportedStateTime" type="dateTime" minOccurs="0">
+				<annotation>
+					<documentation>Since 2018.02 Earliest state time exported by the run</documentation>
+				</annotation>
+			</element>
+			<element name="latestExportedStateTime" type="dateTime" minOccurs="0">
+				<annotation>
+					<documentation>Since 2018.02 Latest state time exported by the run</documentation>
+				</annotation>
+			</element>
+			<element name="unexpectedColdStateUsed" type="fews:UnexpectedColdStateUsedComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Unexpected cold states that were used in the task run corresponding to this task run properties. Optional. If a warm state was selected but could not be found in the specified search period, then a cold state is used and information about this unexpected cold state used is contained here.</documentation>
+				</annotation>
+			</element>
+			<element name="backupWarmStateUsed" type="boolean" minOccurs="0">
+				<annotation>
+					<documentation>Optional. If a warm state was selected but could not be found in the specified search period, then a backup state could have been used.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<!-- UnexpectedColdStateUsedComplexType -->
+	<complexType name="UnexpectedColdStateUsedComplexType">
+		<sequence>
+			<element name="moduleInstanceId" type="fews:idStringType" minOccurs="1" maxOccurs="1">
+				<annotation>
+					<documentation>Module instance id corresponding to the task run for which this unexpected cold state was used.</documentation>
+				</annotation>
+			</element>
+			<element name="stateSearchRelativePeriod" type="fews:RelativePeriodComplexType" minOccurs="1" maxOccurs="1">
+				<annotation>
+					<documentation>Time window that was used to search for a warm state. The time window is relative to the start time of the forecast period.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+
+	<complexType name="ExternalForecastTimeComplexType">
+		<attribute name="id" type="fews:idStringType" use="required">
+			<annotation>
+				<documentation>Id of the reference time</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="date" type="fews:dateType" use="required">
+			<annotation>
+				<documentation>ISO 8601 (yyyy-mm-dd)</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="time" type="fews:timeType" use="required">
+			<annotation>
+				<documentation>ISO 8601 (hh:mm:ss.dsec e.g. 16:30:0.001)</documentation>
+			</annotation>
+		</attribute>
+	</complexType>
+	<complexType name="InputProductComplexType">
+		<sequence>
+			<element name="inputProduct" type="fews:InputProductComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Lists the input products this input product was built from.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+		<attribute name="productId" type="fews:idStringType" use="required">
+			<annotation>
+				<documentation>Id of the product</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="forecastDate" type="fews:dateType" use="required">
+			<annotation>
+				<documentation>The date part of the forecast (date)time. ISO 8601 (yyyy-mm-dd)</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="forecastTime" type="fews:timeType" use="required">
+			<annotation>
+				<documentation>The time part of the forecast (date)time. ISO 8601 (hh:mm:ss.dsec e.g. 16:30:0.001)</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="productDate" type="fews:dateType" use="required">
+			<annotation>
+				<documentation>The date part of the creation (date)time. ISO 8601 (yyyy-mm-dd)</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="productTime" type="fews:timeType" use="required">
+			<annotation>
+				<documentation>The time part of the creation (date)time. ISO 8601 (hh:mm:ss.dsec e.g. 16:30:0.001)</documentation>
+			</annotation>
+		</attribute>
+	</complexType>
+</schema>

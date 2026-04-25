@@ -1,0 +1,69 @@
+{%- macro activity(a, tag) -%}
+<{{ tag }}>
+      <dateFormat>{{ a.dateFormat }}</dateFormat>
+      {%- for f in a.input %}
+      <input>{{ f }}</input>
+      {%- endfor %}
+      {%- for f in a.output %}
+      <output>{{ f }}</output>
+      {%- endfor %}
+      {%- if a.profile is not none %}
+      <profile parameterId="{{ a.profile.parameterId }}" locationId="{{ a.profile.locationId }}">
+        {%- for p in a.profile.points %}
+        <points id="{{ p.id }}" column="{{ p.column }}"/>
+        {%- endfor %}
+      </profile>
+      {%- else %}
+      <timeSeries>
+        {%- for m in a.timeSeries.mapping %}
+        <mapping parameterId="{{ m.parameterId }}" locationId="{{ m.locationId }}" column="{{ m.column }}"/>
+        {%- endfor %}
+      </timeSeries>
+      {%- endif %}
+      {%- if a.timeStep is not none %}
+      <timeStep{% if a.timeStep.unit is not none %} unit="{{ a.timeStep.unit }}"{% endif %}{% if a.timeStep.multiplier is not none %} multiplier="{{ a.timeStep.multiplier }}"{% endif %}{% if a.timeStep.id is not none %} id="{{ a.timeStep.id }}"{% endif %}/>
+      {%- endif %}
+      {%- if a.moduleLogFile is not none %}
+      <moduleLogFile>{{ a.moduleLogFile }}</moduleLogFile>
+      {%- endif %}
+      {%- if a.stateFile is not none %}
+      <stateFile>{{ a.stateFile }}</stateFile>
+      {%- endif %}
+    </{{ tag }}>
+{%- endmacro -%}
+<?xml version="1.0" encoding="UTF-8"?>
+<commonAdapter xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/commonAdapter.xsd">
+  <general>
+    <workDir>{{ general.workDir }}</workDir>
+    <importDir>{{ general.importDir }}</importDir>
+    <exportDir>{{ general.exportDir }}</exportDir>
+    {%- if general.stateDir is not none %}
+    <stateDir>{{ general.stateDir }}</stateDir>
+    {%- endif %}
+    {%- if general.diagnosticFile is not none %}
+    <diagnosticFile>{{ general.diagnosticFile }}</diagnosticFile>
+    {%- endif %}
+    <missingValue>{{ general.missingValue | xmlstr }}</missingValue>
+    {%- if general.columnSeperator is not none %}
+    <columnSeperator>{{ general.columnSeperator }}</columnSeperator>
+    {%- endif %}
+    {%- if general.timeZone is not none %}
+    <timeZone>
+      {%- if general.timeZone.timeZoneOffset is not none %}
+      <timeZoneOffset>{{ general.timeZone.timeZoneOffset }}</timeZoneOffset>
+      {%- endif %}
+      {%- if general.timeZone.timeZoneName is not none %}
+      <timeZoneName>{{ general.timeZone.timeZoneName }}</timeZoneName>
+      {%- endif %}
+    </timeZone>
+    {%- endif %}
+  </general>
+  <activities>
+    {%- for a in activities.preAdapterActivities %}
+    {{ activity(a, 'preAdapterActivities') }}
+    {%- endfor %}
+    {%- for a in activities.postAdapterActivities %}
+    {{ activity(a, 'postAdapterActivities') }}
+    {%- endfor %}
+  </activities>
+</commonAdapter>

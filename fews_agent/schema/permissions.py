@@ -21,6 +21,9 @@ class UserGroupRef(FewsModel):
 
 class Permission(FewsModel):
     id: PermissionId
+    # Since 2024.01 — global property reference can gate availability
+    # per clientConfig.xml or environment. XSD default is true.
+    enabled: bool | None = None
     userGroup: list[UserGroupRef] = Field(default_factory=list)
 
 

@@ -1,0 +1,145 @@
+{%- macro zoom(name, z) -%}
+<{{ name }} level="{{ z.level }}"{% if z.levelLocationAttribute is not none %} levelLocationAttribute="{{ z.levelLocationAttribute }}"{% endif %}/>
+{%- endmacro -%}
+{%- macro opt_bool(name, v) -%}
+{%- if v is not none %}
+<{{ name }}>{{ 'true' if v else 'false' }}</{{ name }}>
+{%- endif %}
+{%- endmacro -%}
+{%- macro opt(name, v) -%}
+{%- if v is not none %}
+<{{ name }}>{{ v }}</{{ name }}>
+{%- endif %}
+{%- endmacro -%}
+{%- macro ts_chart(name, c) -%}
+<{{ name }} enabled="{{ 'true' if c.enabled else 'false' }}"{% if c.locationEnabledAttribute is not none %} locationEnabledAttribute="{{ c.locationEnabledAttribute }}"{% endif %}>
+      {%- if c.legend is not none %}
+      <legend enabled="{{ 'true' if c.legend.enabled else 'false' }}">
+        {%- if c.legend.minNumberOfLines is not none %}
+        <minNumberOfLines>{{ c.legend.minNumberOfLines }}</minNumberOfLines>
+        {%- endif %}
+        {%- if c.legend.maxNumberOfLines is not none %}
+        <maxNumberOfLines>{{ c.legend.maxNumberOfLines }}</maxNumberOfLines>
+        {%- endif %}
+        {%- if c.legend.placement is not none %}
+        <placement>{{ c.legend.placement }}</placement>
+        {%- endif %}
+      </legend>
+      {%- endif %}
+      {%- if c.xAxis is not none %}
+      <xAxis enabled="{{ 'true' if c.xAxis.enabled else 'false' }}" xTicks="{{ 'true' if c.xAxis.xTicks else 'false' }}" xLabel="{{ 'true' if c.xAxis.xLabel else 'false' }}"/>
+      {%- endif %}
+      {%- if c.yAxis is not none %}
+      <yAxis enabled="{{ 'true' if c.yAxis.enabled else 'false' }}" yTicks="{{ 'true' if c.yAxis.yTicks else 'false' }}" yLabel="{{ 'true' if c.yAxis.yLabel else 'false' }}"/>
+      {%- endif %}
+    </{{ name }}>
+{%- endmacro -%}
+<?xml version="1.0" encoding="UTF-8"?>
+<webOCComponentSettings xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/webOCComponentSettings.xsd">
+{%- for cs in componentSettings %}
+  <componentSettings id="{{ cs.id }}">
+    {%- if cs.map is not none %}
+    <map>
+      {%- if cs.map.wmsLayer is not none %}
+      <wmsLayer show="{{ 'true' if cs.map.wmsLayer.show else 'false' }}">
+        {{ opt_bool('autoPlay', cs.map.wmsLayer.autoPlay) }}
+        {{ opt_bool('animateVectors', cs.map.wmsLayer.animateVectors) }}
+        {{ opt_bool('doubleClickAction', cs.map.wmsLayer.doubleClickAction) }}
+      </wmsLayer>
+      {%- endif %}
+      {%- if cs.map.locationsLayer is not none %}
+      <locationsLayer show="{{ 'true' if cs.map.locationsLayer.show else 'false' }}">
+        {{ opt_bool('locationNames', cs.map.locationsLayer.locationNames) }}
+        {{ opt_bool('singleClickAction', cs.map.locationsLayer.singleClickAction) }}
+        {{ opt_bool('locationSearchEnabled', cs.map.locationsLayer.locationSearchEnabled) }}
+        {%- if cs.map.locationsLayer.minZoom is not none %}
+        {{ zoom('minZoom', cs.map.locationsLayer.minZoom) }}
+        {%- endif %}
+        {%- if cs.map.locationsLayer.maxZoom is not none %}
+        {{ zoom('maxZoom', cs.map.locationsLayer.maxZoom) }}
+        {%- endif %}
+      </locationsLayer>
+      {%- endif %}
+      {%- if cs.map.overlays is not none %}
+      <overlays>
+        {%- for o in cs.map.overlays.overlay %}
+        <overlay>
+          {%- if o.overlayId is not none %}
+          <overlayId>{{ o.overlayId }}</overlayId>
+          {%- else %}
+          <externalLayer id="{{ o.externalLayer.id }}" name="{{ o.externalLayer.name }}">
+            {%- if o.externalLayer.styleJsonFile is not none %}
+            <styleJsonFile>{{ o.externalLayer.styleJsonFile }}</styleJsonFile>
+            {%- endif %}
+            {{ opt_bool('visible', o.externalLayer.visible) }}
+          </externalLayer>
+          {%- endif %}
+          {{ opt_bool('visible', o.visible) }}
+        </overlay>
+        {%- endfor %}
+        {%- if cs.map.overlays.gridLayer is not none %}
+        <gridLayer>
+          {{ opt('description', cs.map.overlays.gridLayer.description) }}
+          {{ opt('viewPermission', cs.map.overlays.gridLayer.viewPermission) }}
+        </gridLayer>
+        {%- endif %}
+      </overlays>
+      {%- endif %}
+    </map>
+    {%- endif %}
+    {%- if cs.charts is not none %}
+    <charts>
+      {%- if cs.charts.general is not none %}
+      <general>
+        {{ opt('startPanel', cs.charts.general.startPanel) }}
+        {{ opt('toolbar', cs.charts.general.toolbar) }}
+        {{ opt_bool('locationNames', cs.charts.general.locationNames) }}
+      </general>
+      {%- endif %}
+      {%- if cs.charts.actions is not none %}
+      <actions>
+        {%- if cs.charts.actions.panelPlacement is not none %}
+        <panelPlacement>
+          <defaultPlacement>{{ cs.charts.actions.panelPlacement.defaultPlacement }}</defaultPlacement>
+          {%- for a in cs.charts.actions.panelPlacement.allowedPlacement %}
+          <allowedPlacement>{{ a }}</allowedPlacement>
+          {%- endfor %}
+        </panelPlacement>
+        {%- endif %}
+        {{ opt_bool('downloadData', cs.charts.actions.downloadData) }}
+        {{ opt_bool('downloadMetaData', cs.charts.actions.downloadMetaData) }}
+        {{ opt_bool('downloadFigure', cs.charts.actions.downloadFigure) }}
+      </actions>
+      {%- endif %}
+      {%- if cs.charts.timeSeriesChart is not none %}
+      {{ ts_chart('timeSeriesChart', cs.charts.timeSeriesChart) }}
+      {%- endif %}
+      {%- if cs.charts.timeSeriesTable is not none %}
+      <timeSeriesTable enabled="{{ 'true' if cs.charts.timeSeriesTable.enabled else 'false' }}"{% if cs.charts.timeSeriesTable.locationEnabledAttribute is not none %} locationEnabledAttribute="{{ cs.charts.timeSeriesTable.locationEnabledAttribute }}"{% endif %}>
+        {{ opt_bool('allowDateTimeSorting', cs.charts.timeSeriesTable.allowDateTimeSorting) }}
+        {{ opt('sortDateTimeColumn', cs.charts.timeSeriesTable.sortDateTimeColumn) }}
+      </timeSeriesTable>
+      {%- endif %}
+      {%- if cs.charts.verticalProfileChart is not none %}
+      {{ ts_chart('verticalProfileChart', cs.charts.verticalProfileChart) }}
+      {%- endif %}
+      {%- if cs.charts.verticalProfileTable is not none %}
+      <verticalProfileTable enabled="{{ 'true' if cs.charts.verticalProfileTable.enabled else 'false' }}"{% if cs.charts.verticalProfileTable.locationEnabledAttribute is not none %} locationEnabledAttribute="{{ cs.charts.verticalProfileTable.locationEnabledAttribute }}"{% endif %}>
+        {{ opt_bool('allowDepthColumnSorting', cs.charts.verticalProfileTable.allowDepthColumnSorting) }}
+        {{ opt('sortDepthColumn', cs.charts.verticalProfileTable.sortDepthColumn) }}
+      </verticalProfileTable>
+      {%- endif %}
+      {%- if cs.charts.metaDataPanel is not none %}
+      <metaDataPanel enabled="{{ 'true' if cs.charts.metaDataPanel.enabled else 'false' }}"{% if cs.charts.metaDataPanel.locationEnabledAttribute is not none %} locationEnabledAttribute="{{ cs.charts.metaDataPanel.locationEnabledAttribute }}"{% endif %}/>
+      {%- endif %}
+    </charts>
+    {%- endif %}
+    {%- if cs.ssd is not none %}
+    <ssd>
+      {{ opt_bool('zoomEnabled', cs.ssd.zoomEnabled) }}
+      {{ opt_bool('useBrowserStyle', cs.ssd.useBrowserStyle) }}
+    </ssd>
+    {%- endif %}
+  </componentSettings>
+{%- endfor %}
+</webOCComponentSettings>

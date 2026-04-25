@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<webOCMicroFrontEnds xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/webOCMicroFrontEnds.xsd">
+{% for m in microFrontEnd %}
+  <microFrontEnd>
+    <id>{{ m.id }}</id>
+    <icon>{{ m.icon }}</icon>
+    <remoteId>{{ m.remoteId }}</remoteId>
+    <componentId>{{ m.componentId }}</componentId>
+    <display>{{ m.display }}</display>
+  </microFrontEnd>
+{% endfor %}
+</webOCMicroFrontEnds>

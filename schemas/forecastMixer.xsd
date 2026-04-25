@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- edited with XMLSpy v2009 sp1 (http://www.altova.com) by ICT (Stichting Deltares) -->
+<schema xmlns:fews="http://www.wldelft.nl/fews" xmlns="http://www.w3.org/2001/XMLSchema" targetNamespace="http://www.wldelft.nl/fews" elementFormDefault="qualified" attributeFormDefault="unqualified" version="1.0">
+	<include schemaLocation="sharedTypes.xsd"/>
+	<element name="forecastMixer" type="fews:ForecastMixerComplexType"/>
+	<complexType name="ForecastMixerComplexType">
+		<sequence>
+			<element name="mixing" type="fews:ForecastMixingComplexType" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Specifies input and output time series. Input time series are mixed to create output time series, using the configured weighting method</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="ForecastMixingComplexType">
+		<sequence>
+			<element name="inputTimeSeries" type="fews:TimeSeriesFilterComplexType" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Filters the input time series from the plots. Input time series are mixed to create output time series, using the configured weighting method</documentation>
+				</annotation>
+			</element>
+			<element name="outputTimeSeries" type="fews:TimeSeriesFilterComplexType">
+				<annotation>
+					<documentation>Filters the output time series from the plots. Output time series created by mixing</documentation>
+				</annotation>
+			</element>
+			<element name="weightingMethod" type="fews:forecastMixerWeightsEnumStringType"/>
+		</sequence>
+		<attribute name="id" type="fews:idStringType" use="required">
+			<annotation>
+				<documentation>Id of the calculation</documentation>
+			</annotation>
+		</attribute>
+	</complexType>
+	<simpleType name="forecastMixerWeightsEnumStringType">
+		<restriction base="string">
+			<enumeration value="userDefinedWeights"/>
+			<enumeration value="equalWeights"/>
+		</restriction>
+	</simpleType>
+</schema>

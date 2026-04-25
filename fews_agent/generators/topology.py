@@ -7,4 +7,4 @@ from .base import render
 
 
 def generate(model: Topology) -> str:
-    return render("topology.xml.j2", model)
+    return render("region/topology.xml.j2", model)

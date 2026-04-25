@@ -7,4 +7,4 @@ from .base import render
 
 
 def generate(model: ModifierTypes) -> str:
-    return render("modifier_types.xml.j2", model)
+    return render("region/modifier_types.xml.j2", model)

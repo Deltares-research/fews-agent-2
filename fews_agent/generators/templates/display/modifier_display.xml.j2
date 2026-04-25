@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<modifierDisplay xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/modifierDisplay.xsd">
+  {% if showImportButton is not none %}<showImportButton>{{ 'true' if showImportButton else 'false' }}</showImportButton>{% endif %}
+  {% if showExportButton is not none %}<showExportButton>{{ 'true' if showExportButton else 'false' }}</showExportButton>{% endif %}
+  {% if rollbackModifierAfterDelete is not none %}<rollbackModifierAfterDelete>{{ 'true' if rollbackModifierAfterDelete else 'false' }}</rollbackModifierAfterDelete>{% endif %}
+  {% if showCreateModifierButton is not none %}<showCreateModifierButton>{{ 'true' if showCreateModifierButton else 'false' }}</showCreateModifierButton>{% endif %}
+  {% if showApplyToButton is not none %}<showApplyToButton>{{ 'true' if showApplyToButton else 'false' }}</showApplyToButton>{% endif %}
+  {% if showReRunButton is not none %}<showReRunButton>{{ 'true' if showReRunButton else 'false' }}</showReRunButton>{% endif %}
+  {% if modifiersSelection is not none %}<modifiersSelection>{{ modifiersSelection }}</modifiersSelection>{% endif %}
+  {% if dropDownMenuDisplayOrder is not none %}
+  <dropDownMenuDisplayOrder>
+    {% for item in dropDownMenuDisplayOrder.modifier %}
+    <modifier id="{{ item.id }}">
+      {% for pid in item.parameterId %}<parameterId>{{ pid }}</parameterId>{% endfor %}
+    </modifier>
+    {% endfor %}
+  </dropDownMenuDisplayOrder>
+  {% endif %}
+  {% if createModifierButtons is not none %}
+  <createModifierButtons>
+    {% for mid in createModifierButtons.modifierId %}<modifierId>{{ mid }}</modifierId>{% endfor %}
+  </createModifierButtons>
+  {% endif %}
+  {% if timeSeriesModifiersDisplayConfig is not none %}
+  <timeSeriesModifiersDisplayConfig>
+    {% if timeSeriesModifiersDisplayConfig.showTimeShiftModifierButtons is not none %}<showTimeShiftModifierButtons>{{ 'true' if timeSeriesModifiersDisplayConfig.showTimeShiftModifierButtons else 'false' }}</showTimeShiftModifierButtons>{% endif %}
+    {% if timeSeriesModifiersDisplayConfig.showTablePanel is not none %}<showTablePanel>{{ 'true' if timeSeriesModifiersDisplayConfig.showTablePanel else 'false' }}</showTablePanel>{% endif %}
+    {% if timeSeriesModifiersDisplayConfig.showChartPanel is not none %}<showChartPanel>{{ 'true' if timeSeriesModifiersDisplayConfig.showChartPanel else 'false' }}</showChartPanel>{% endif %}
+    {% if timeSeriesModifiersDisplayConfig.showChartLegend is not none %}<showChartLegend>{{ 'true' if timeSeriesModifiersDisplayConfig.showChartLegend else 'false' }}</showChartLegend>{% endif %}
+    {% if timeSeriesModifiersDisplayConfig.defaultOperationType is not none %}<defaultOperationType>{{ timeSeriesModifiersDisplayConfig.defaultOperationType }}</defaultOperationType>{% endif %}
+    {% if timeSeriesModifiersDisplayConfig.incrementOperationTypeAdd is not none %}<incrementOperationTypeAdd>{{ timeSeriesModifiersDisplayConfig.incrementOperationTypeAdd | xmlstr }}</incrementOperationTypeAdd>{% endif %}
+    {% if timeSeriesModifiersDisplayConfig.viewPeriodExtension is not none %}<viewPeriodExtension>{{ timeSeriesModifiersDisplayConfig.viewPeriodExtension }}</viewPeriodExtension>{% endif %}
+  </timeSeriesModifiersDisplayConfig>
+  {% endif %}
+</modifierDisplay>

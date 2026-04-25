@@ -1,0 +1,103 @@
+{%- import "_partials/variable.xml.j2" as var -%}
+{%- macro param_data(d) -%}
+        {%- if d.booleanData is not none %}
+        <booleanData{% if d.booleanData.allowAdjust is not none %} allowAdjust="{{ 'true' if d.booleanData.allowAdjust else 'false' }}"{% endif %}>{{ 'true' if d.booleanData.value else 'false' }}</booleanData>
+        {%- elif d.doubleData is not none %}
+        <doubleData maxVal="{{ d.doubleData.maxVal | xmlstr }}" minVal="{{ d.doubleData.minVal | xmlstr }}"{% if d.doubleData.allowAdjust is not none %} allowAdjust="{{ 'true' if d.doubleData.allowAdjust else 'false' }}"{% endif %}{% if d.doubleData.stepSize is not none %} stepSize="{{ d.doubleData.stepSize | xmlstr }}"{% endif %}>{{ d.doubleData.value | xmlstr }}</doubleData>
+        {%- elif d.intData is not none %}
+        <intData maxVal="{{ d.intData.maxVal }}" minVal="{{ d.intData.minVal }}"{% if d.intData.allowAdjust is not none %} allowAdjust="{{ 'true' if d.intData.allowAdjust else 'false' }}"{% endif %}{% if d.intData.stepSize is not none %} stepSize="{{ d.intData.stepSize }}"{% endif %}>{{ d.intData.value }}</intData>
+        {%- else %}
+        <stringData>{{ d.stringData }}</stringData>
+        {%- endif %}
+{%- endmacro -%}
+{%- macro param_block(name, p) -%}
+  <{{ name }}>
+      <name>{{ p.name }}</name>
+      {%- for it in p.item %}
+      <item>
+        <key>{{ it.key }}</key>
+        {%- if it.data is not none %}
+        <data>
+        {{ param_data(it.data) }}
+        </data>
+        {%- endif %}
+        {%- if it.description is not none %}
+        <description>{{ it.description }}</description>
+        {%- endif %}
+      </item>
+      {%- endfor %}
+      {%- if p.default is not none %}
+      <default>{{ p.default }}</default>
+      {%- endif %}
+    </{{ name }}>
+{%- endmacro -%}
+<?xml version="1.0" encoding="UTF-8"?>
+<prtfDisplay xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/prtfDisplay.xsd">
+  <title>{{ title }}</title>
+  {%- if idMapId is not none %}
+  <idMapId>{{ idMapId }}</idMapId>
+  {%- endif %}
+  {%- if scenarioIdMapId is not none %}
+  <scenarioIdMapId>{{ scenarioIdMapId }}</scenarioIdMapId>
+  {%- endif %}
+  {%- for gp in globalParameter %}
+  {{ param_block('globalParameter', gp) }}
+  {%- endfor %}
+  {%- for iv in inputVariable %}
+  {{ var.render(iv, 'inputVariable') }}
+  {%- endfor %}
+  {%- for g in prtfGroup %}
+  <prtfGroup{% if g.name is not none %} name="{{ g.name }}"{% endif %}>
+    <workflowId>{{ g.workflowId }}</workflowId>
+    <moduleInstanceId>{{ g.moduleInstanceId }}</moduleInstanceId>
+    {%- if g.locationId %}
+    {%- for lid in g.locationId %}
+    <locationId>{{ lid }}</locationId>
+    {%- endfor %}
+    {%- elif g.locationSetId is not none %}
+    <locationSetId>{{ g.locationSetId }}</locationSetId>
+    {%- endif %}
+    {%- for sg in g.subGroup %}
+    <subGroup name="{{ sg.name }}">
+      {%- if sg.locationId %}
+      {%- for lid in sg.locationId %}
+      <locationId>{{ lid }}</locationId>
+      {%- endfor %}
+      {%- else %}
+      <locationSetId>{{ sg.locationSetId }}</locationSetId>
+      {%- endif %}
+    </subGroup>
+    {%- endfor %}
+    {%- if g.approvedWorkflowId is not none %}
+    <approvedWorkflowId>{{ g.approvedWorkflowId }}</approvedWorkflowId>
+    {%- endif %}
+    <groupOptions>
+      {%- for p in g.groupOptions.groupParameter %}
+      {{ param_block('groupParameter', p) }}
+      {%- endfor %}
+    </groupOptions>
+  </prtfGroup>
+  {%- endfor %}
+  {%- for d in displayOptions %}
+  <displayOptions{% if d.key is not none %} key="{{ d.key }}"{% endif %}>
+    {%- if d.preferredColor is not none %}
+    <preferredColor>{{ d.preferredColor }}</preferredColor>
+    {%- endif %}
+    {%- if d.lineStyle is not none %}
+    <lineStyle>{{ d.lineStyle }}</lineStyle>
+    {%- endif %}
+    {%- if d.markerStyle is not none %}
+    <markerStyle>{{ d.markerStyle }}</markerStyle>
+    {%- endif %}
+    {%- if d.markerSize is not none %}
+    <markerSize>{{ d.markerSize }}</markerSize>
+    {%- endif %}
+    {%- if d.markerFilled is not none %}
+    <markerFilled>{{ 'true' if d.markerFilled else 'false' }}</markerFilled>
+    {%- endif %}
+  </displayOptions>
+  {%- endfor %}
+  {%- for ov in outputVariable %}
+  {{ var.render(ov, 'outputVariable') }}
+  {%- endfor %}
+</prtfDisplay>

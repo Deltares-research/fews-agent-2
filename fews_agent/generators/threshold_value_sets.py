@@ -7,4 +7,4 @@ from .base import render
 
 
 def generate(model: ThresholdValueSets) -> str:
-    return render("threshold_value_sets.xml.j2", model)
+    return render("region/threshold_value_sets.xml.j2", model)

@@ -1,0 +1,22 @@
+{%- import "_partials/timeseries_set.xml.j2" as tss -%}
+<?xml version="1.0" encoding="UTF-8"?>
+<workflowLoopRunner xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/workflowLoopRunner.xsd">
+  <workflowId>{{ workflowId }}</workflowId>
+  {% if runPeriodOptions is not none %}<runPeriodOptions{% if runPeriodOptions.alwaysFullPeriod is not none %} alwaysFullPeriod="{{ 'true' if runPeriodOptions.alwaysFullPeriod else 'false' }}"{% endif %}/>{% endif %}
+  {% for t in triggerOptions %}<triggerOptions>
+    {% if t.valueTrigger is not none %}<valueTrigger>
+      {{ tss.render(t.valueTrigger.timeSeriesSet) }}
+      <valueOption>{{ t.valueTrigger.valueOption }}</valueOption>
+      <value>{{ t.valueTrigger.value | xmlstr }}</value>
+      <relativeRunWindow unit="{{ t.valueTrigger.relativeRunWindow.unit }}"{% if t.valueTrigger.relativeRunWindow.start is not none %} start="{{ t.valueTrigger.relativeRunWindow.start }}"{% endif %}{% if t.valueTrigger.relativeRunWindow.end is not none %} end="{{ t.valueTrigger.relativeRunWindow.end }}"{% endif %}/>
+    </valueTrigger>{% endif %}
+    {% if t.stepValueTrigger is not none %}<stepValueTrigger>
+      {{ tss.render(t.stepValueTrigger.timeSeriesSet) }}
+      <stepValueOption>{{ t.stepValueTrigger.stepValueOption }}</stepValueOption>
+      {% if t.stepValueTrigger.stepSize.id is not none %}<stepSize id="{{ t.stepValueTrigger.stepSize.id }}"/>
+      {% else %}<stepSize unit="{{ t.stepValueTrigger.stepSize.unit }}"{% if t.stepValueTrigger.stepSize.multiplier is not none %} multiplier="{{ t.stepValueTrigger.stepSize.multiplier }}"{% endif %}/>{% endif %}
+      <relativeRunWindow unit="{{ t.stepValueTrigger.relativeRunWindow.unit }}"{% if t.stepValueTrigger.relativeRunWindow.start is not none %} start="{{ t.stepValueTrigger.relativeRunWindow.start }}"{% endif %}{% if t.stepValueTrigger.relativeRunWindow.end is not none %} end="{{ t.stepValueTrigger.relativeRunWindow.end }}"{% endif %}/>
+    </stepValueTrigger>{% endif %}
+  </triggerOptions>
+  {% endfor %}
+</workflowLoopRunner>

@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- edited with XMLSpy v2009 sp1 (http://www.altova.com) by ICT (Stichting Deltares) -->
+<schema xmlns="http://www.w3.org/2001/XMLSchema" xmlns:fews="http://www.wldelft.nl/fews" targetNamespace="http://www.wldelft.nl/fews" elementFormDefault="qualified" attributeFormDefault="unqualified" version="1.0">
+	<include schemaLocation="sharedTypes.xsd"/>
+	<element name="message">
+		<annotation>
+			<documentation>Since 2014.01  Any non empty text</documentation>
+		</annotation>
+		<complexType>
+			<simpleContent>
+				<extension base="fews:nonEmptyStringType">
+					<attribute name="userId" type="fews:idStringType" use="optional">
+						<annotation>
+							<documentation>ID of the user creating this  message </documentation>
+						</annotation>
+					</attribute>
+					<attribute name="topologyNodeId" type="fews:idStringType" use="optional">
+						<annotation>
+							<documentation>ID of the topology node this message  refers to.</documentation>
+						</annotation>
+					</attribute>
+					<attribute name="areaId" type="fews:idStringType" use="optional">
+						<annotation>
+							<documentation>ID of the area this message refers to. </documentation>
+						</annotation>
+					</attribute>
+					<attribute name="templateId" type="fews:idStringType" use="optional">
+						<annotation>
+							<documentation>ID of the note template this message refers to.  (message templates contain predefined text, that can be completed by the user )</documentation>
+						</annotation>
+					</attribute>
+					<attribute name="eventDate" type="fews:dateType" use="optional">
+						<annotation>
+							<documentation>Event date (GMT) this message refers to.           ISO 8601 (yyyy-mm-dd)</documentation>
+						</annotation>
+					</attribute>
+					<attribute name="eventTime" type="fews:timeType" use="optional">
+						<annotation>
+							<documentation>Event time (GMT) this message refers to.          ISO 8601 (hh:mm:ss.dsec  e.g. 16:30:0.001)</documentation>
+						</annotation>
+					</attribute>
+				</extension>
+			</simpleContent>
+		</complexType>
+	</element>
+</schema>

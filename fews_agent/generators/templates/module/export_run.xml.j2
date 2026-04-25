@@ -1,0 +1,49 @@
+{%- import "_partials/timeseries_set.xml.j2" as tss -%}
+<?xml version="1.0" encoding="UTF-8"?>
+<exportRun xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/exportRun.xsd">
+  {%- for e in export %}
+  <export>
+    <folder>{{ e.folder }}</folder>
+    {%- if e.validate_ is not none %}
+    <validate>{{ 'true' if e.validate_ else 'false' }}</validate>
+    {%- endif %}
+    {%- if e.idMapId is not none %}
+    <idMapId>{{ e.idMapId }}</idMapId>
+    {%- endif %}
+    {%- if e.unitConversionsId is not none %}
+    <unitConversionsId>{{ e.unitConversionsId }}</unitConversionsId>
+    {%- endif %}
+    {%- if e.flagConversionsId is not none %}
+    <flagConversionsId>{{ e.flagConversionsId }}</flagConversionsId>
+    {%- endif %}
+    {%- if e.exportMissingValues is not none %}
+    <exportMissingValues>{{ 'true' if e.exportMissingValues else 'false' }}</exportMissingValues>
+    {%- endif %}
+    {%- if e.exportEmptyHeaders is not none %}
+    <exportEmptyHeaders>{{ 'true' if e.exportEmptyHeaders else 'false' }}</exportEmptyHeaders>
+    {%- endif %}
+    {%- for ts in e.timeSeriesSet %}
+    {{ tss.render(ts) }}
+    {%- endfor %}
+    {%- if e.exportFilePrefix is not none %}
+    <exportFilePrefix>{{ e.exportFilePrefix }}</exportFilePrefix>
+    {%- endif %}
+    {%- if e.exportTimeZone is not none %}
+    <exportTimeZone>
+      {%- if e.exportTimeZone.timeZoneOffset is not none %}
+      <timeZoneOffset>{{ e.exportTimeZone.timeZoneOffset }}</timeZoneOffset>
+      {%- endif %}
+      {%- if e.exportTimeZone.timeZoneName is not none %}
+      <timeZoneName>{{ e.exportTimeZone.timeZoneName }}</timeZoneName>
+      {%- endif %}
+    </exportTimeZone>
+    {%- endif %}
+    {%- if e.exportMissingValue is not none %}
+    <exportMissingValue>{{ e.exportMissingValue | xmlstr }}</exportMissingValue>
+    {%- endif %}
+    {%- if e.temporaryFilePrefix is not none %}
+    <temporaryFilePrefix>{{ e.temporaryFilePrefix }}</temporaryFilePrefix>
+    {%- endif %}
+  </export>
+  {%- endfor %}
+</exportRun>

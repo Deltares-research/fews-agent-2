@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sacramentoModel xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/sacramentoModel.xsd">
+  <general>
+    <workDir>{{ general.workDir }}</workDir>
+    <importDir>{{ general.importDir }}</importDir>
+    <exportDir>{{ general.exportDir }}</exportDir>
+    <stateFile>{{ general.stateFile }}</stateFile>
+    <diagnosticFile>{{ general.diagnosticFile }}</diagnosticFile>
+    <missingValue>{{ general.missingValue | xmlstr }}</missingValue>
+  </general>
+  <activities>
+{%- macro activity(a, tag) %}
+    <{{ tag }}>
+      <dateFormat>{{ a.dateFormat }}</dateFormat>
+      {% for i in a.input %}<input>{{ i }}</input>
+      {% endfor %}
+      {% for o in a.output %}<output>{{ o }}</output>
+      {% endfor %}
+      {% for m in a.mapping %}<mapping>
+        <parameterId>{{ m.parameterId }}</parameterId>
+        <locationId>{{ m.locationId }}</locationId>
+        <column>{{ m.column }}</column>
+      </mapping>
+      {% endfor %}
+    </{{ tag }}>
+{%- endmacro %}
+    {% for a in activities.preAdapterActivities %}{{ activity(a, 'preAdapterActivities') }}
+    {% endfor %}
+    {% for a in activities.postAdapterActivities %}{{ activity(a, 'postAdapterActivities') }}
+    {% endfor %}
+  </activities>
+</sacramentoModel>

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configurationValidation version="{{ version }}" xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/configurationValidation.xsd">
+{% for ct in configType %}
+  <configType name="{{ ct.name }}">
+    {% for r in ct.configRef %}<configRef>
+      <sourceElement>{{ r.sourceElement }}</sourceElement>
+      <sourceAttribute>{{ r.sourceAttribute }}</sourceAttribute>
+      {% if r.refFileNamesFolder is not none %}<refFileNamesFolder>{{ r.refFileNamesFolder }}</refFileNamesFolder>
+      {% else %}<refConfig>{{ r.refConfig }}</refConfig>
+      <refElement>{{ r.refElement }}</refElement>
+      <refAttribute>{{ r.refAttribute }}</refAttribute>{% endif %}
+      {% if r.refOptional is not none %}<refOptional>{{ 'true' if r.refOptional else 'false' }}</refOptional>{% endif %}
+    </configRef>
+    {% endfor %}
+  </configType>
+{% endfor %}
+</configurationValidation>

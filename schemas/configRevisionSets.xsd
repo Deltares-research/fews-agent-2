@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- edited with XMLSpy v2009 sp1 (http://www.altova.com) by ICT (Stichting Deltares) -->
+<!--Delft FEWS (Copyright 2003 WL | Delft Hydraulics) -->
+<schema xmlns:fews="http://www.wldelft.nl/fews" xmlns="http://www.w3.org/2001/XMLSchema" targetNamespace="http://www.wldelft.nl/fews" elementFormDefault="qualified" attributeFormDefault="unqualified" version="1.0">
+	<include schemaLocation="sharedTypes.xsd"/>
+	<element name="configRevisionSet" type="fews:ConfigRevisionSetComplexType">
+		<annotation>
+			<documentation>Stores a single non-incremental configuration revision.</documentation>
+		</annotation>
+	</element>
+	<complexType name="ConfigRevisionSetComplexType">
+		<sequence>
+			<element name="metaData" type="fews:ConfigRevisionSetMetaDataComplexType"/>
+			<element name="tableVersion" type="fews:ConfigRevisionSetTableVersionComplexType" minOccurs="0" maxOccurs="unbounded"/>
+		</sequence>
+	</complexType>
+	<complexType name="ConfigRevisionSetTableVersionComplexType">
+		<sequence minOccurs="0" maxOccurs="unbounded">
+			<element name="entry" type="fews:idStringType"/>
+		</sequence>
+		<attribute name="table" type="string" use="required">
+			<annotation>
+				<documentation>Table name of the provided entries. Contents of configtablename in configrevisionstore table of 2010_02.</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="version" type="string" use="required">
+			<annotation>
+				<documentation>Version of config file. Contents of version field of table configrevisionstore of 2010_02.</documentation>
+			</annotation>
+		</attribute>
+	</complexType>
+	<complexType name="ConfigRevisionSetMetaDataComplexType">
+		<attribute name="revisionId" type="string" use="required"/>
+		<attribute name="numberOfChanges" type="int" use="required"/>
+		<attribute name="creationTime" type="dateTime" use="required"/>
+		<attribute name="creationUserId" type="string" use="required"/>
+		<attribute name="commentText" type="string"/>
+	</complexType>
+</schema>

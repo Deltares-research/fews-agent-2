@@ -1,0 +1,39 @@
+{%- macro dimension(d) -%}
+<dimension name="{{ d.name }}"{% if d.length is not none %} length="{{ d.length }}"{% endif %}{% if d.mass is not none %} mass="{{ d.mass }}"{% endif %}{% if d.time is not none %} time="{{ d.time }}"{% endif %}{% if d.temperature is not none %} temperature="{{ d.temperature }}"{% endif %}{% if d.electricCurrent is not none %} electricCurrent="{{ d.electricCurrent }}"{% endif %}{% if d.amountOfSubstance is not none %} amountOfSubstance="{{ d.amountOfSubstance }}"{% endif %}{% if d.luminousIntensity is not none %} luminousIntensity="{{ d.luminousIntensity }}"{% endif %}/>
+{%- endmacro -%}
+<?xml version="1.0" encoding="UTF-8"?>
+<parameterGroups version="{{ version }}" xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/parameters.xsd">
+  {% if description is not none %}<description>{{ description }}</description>{% endif %}
+  {% if defaultSpectrumDomainParameterId is not none %}<defaultSpectrumDomainParameterId>{{ defaultSpectrumDomainParameterId }}</defaultSpectrumDomainParameterId>{% endif %}
+{% for g in parameterGroup %}
+  <parameterGroup id="{{ g.id }}"{% if g.name is not none %} name="{{ g.name }}"{% endif %}>
+    {% if g.description is not none %}<description>{{ g.description }}</description>{% endif %}
+    {% if g.enumerationId is not none %}
+    <enumerationId>{{ g.enumerationId }}</enumerationId>
+    {% else %}
+    <parameterType>{{ g.parameterType }}</parameterType>
+    {% if g.dimension is not none %}{{ dimension(g.dimension) }}{% endif %}
+    <unit>{{ g.unit }}</unit>
+    {% if g.displayUnit is not none %}<displayUnit>{{ g.displayUnit }}</displayUnit>{% endif %}
+    {% if g.valueResolution is not none %}<valueResolution>{{ g.valueResolution | xmlstr }}</valueResolution>{% endif %}
+    {% if g.valueResolutionUnit is not none %}<valueResolutionUnit>{{ g.valueResolutionUnit }}</valueResolutionUnit>{% endif %}
+    {% if g.usesDatum is not none %}<usesDatum>{{ 'true' if g.usesDatum else 'false' }}</usesDatum>{% endif %}
+    {% endif %}
+    {% for p in g.parameter %}
+    <parameter id="{{ p.id }}"{% if p.name is not none %} name="{{ p.name }}"{% endif %}>
+      <shortName>{{ p.shortName }}</shortName>
+      {% if p.description is not none %}<description>{{ p.description }}</description>{% endif %}
+      {% if p.allowedValuesAttributeId is not none %}<allowedValuesAttributeId>{{ p.allowedValuesAttributeId }}</allowedValuesAttributeId>{% endif %}
+      {% if p.simulatedHistoricalParameterId is not none %}<simulatedHistoricalParameterId>{{ p.simulatedHistoricalParameterId }}</simulatedHistoricalParameterId>{% endif %}
+      {% if p.valueResolution is not none %}<valueResolution>{{ p.valueResolution | xmlstr }}</valueResolution>{% endif %}
+      {% if p.valueResolutionUnit is not none %}<valueResolutionUnit>{{ p.valueResolutionUnit }}</valueResolutionUnit>{% endif %}
+      {% if p.allowMissing is not none %}<allowMissing>{{ 'true' if p.allowMissing else 'false' }}</allowMissing>{% endif %}
+      {% if p.standardName is not none %}<standardName>{{ p.standardName }}</standardName>
+      {% if p.standardNameModifier is not none %}<standardNameModifier>{{ p.standardNameModifier }}</standardNameModifier>{% endif %}{% endif %}
+      {% if p.cellMethod is not none %}<cellMethod>{{ p.cellMethod }}</cellMethod>{% endif %}
+      {% if p.verticalPositiveDirection is not none %}<verticalPositiveDirection>{{ p.verticalPositiveDirection }}</verticalPositiveDirection>{% endif %}
+    </parameter>
+    {% endfor %}
+  </parameterGroup>
+{% endfor %}
+</parameterGroups>

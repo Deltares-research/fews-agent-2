@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<storageBasin id="{{ id }}"{% if name is not none %} name="{{ name }}"{% endif %} xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/storageBasinSystem.xsd">
+  {% for e in elevationStorageTable %}<elevationStorageTable elevation="{{ e.elevation | xmlstr }}" storage="{{ e.storage | xmlstr }}"{% if e.stage is not none %} stage="{{ e.stage | xmlstr }}"{% endif %}{% if e.area is not none %} area="{{ e.area | xmlstr }}"{% endif %}{% if e.outflowDischarge is not none %} outflowDischarge="{{ e.outflowDischarge | xmlstr }}"{% endif %}/>
+  {% endfor %}
+  {% for s in structure %}<structure>
+    <pumpingStation id="{{ s.pumpingStation.id }}"{% if s.pumpingStation.name is not none %} name="{{ s.pumpingStation.name }}"{% endif %}{% if s.pumpingStation.minimumDeploymentTime is not none %} minimumDeploymentTime="{{ s.pumpingStation.minimumDeploymentTime }}"{% endif %}{% if s.pumpingStation.switchOfLevel is not none %} switchOfLevel="{{ s.pumpingStation.switchOfLevel | xmlstr }}"{% endif %}{% if s.pumpingStation.switchOnLevel is not none %} switchOnLevel="{{ s.pumpingStation.switchOnLevel | xmlstr }}"{% endif %}{% if s.pumpingStation.alarmLevel is not none %} alarmLevel="{{ s.pumpingStation.alarmLevel | xmlstr }}"{% endif %}>
+      {% for ps in s.pumpingStation.pumpState %}<pumpState id="{{ ps.id }}">
+        <constantDischarge>
+          <discharge>{{ ps.constantDischarge.discharge | xmlstr }}</discharge>
+          {% if ps.constantDischarge.description is not none %}<description>{{ ps.constantDischarge.description }}</description>{% endif %}
+        </constantDischarge>
+      </pumpState>
+      {% endfor %}
+    </pumpingStation>
+  </structure>
+  {% endfor %}
+</storageBasin>

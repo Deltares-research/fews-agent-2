@@ -1,6 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<timeSteps xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/timeSteps.xsd">
-{% for t in timeStep %}
-  <timeStep id="{{ t.id }}"{% if t.unit is not none %} unit="{{ t.unit }}"{% endif %}{% if t.multiplier is not none %} multiplier="{{ t.multiplier }}"{% endif %}{% if t.times is not none %} times="{{ t.times }}"{% endif %}{% if t.timeZone is not none %} timeZone="{{ t.timeZone }}"{% endif %}/>
-{% endfor %}
-</timeSteps>

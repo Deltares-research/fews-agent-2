@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<chartLayer xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/chartLayer.xsd" version="{{ version }}">
+{%- if refreshInterval is not none %}
+  <refreshInterval unit="{{ refreshInterval.unit }}"{% if refreshInterval.multiplier is not none %} multiplier="{{ refreshInterval.multiplier }}"{% endif %}{% if refreshInterval.divider is not none %} divider="{{ refreshInterval.divider }}"{% endif %}/>
+{%- endif %}
+{%- if minScale is not none %}
+  <minScale>{{ minScale }}</minScale>
+{%- endif %}
+{%- if maxScale is not none %}
+  <maxScale>{{ maxScale }}</maxScale>
+{%- endif %}
+{%- for cf in chartFormat %}
+  <chartFormat{% for k, v in cf.items() if k.startswith('@') %} {{ k[1:] }}="{{ v }}"{% endfor %}>{{ cf | dict_to_xml | safe }}</chartFormat>
+{%- endfor %}
+{%- if originalMapSize is not none %}
+  <originalMapSize{% if originalMapSize.width is not none %} width="{{ originalMapSize.width }}"{% endif %}{% if originalMapSize.height is not none %} height="{{ originalMapSize.height }}"{% endif %}/>
+{%- endif %}
+{%- for c in chart %}
+  <chart{% for k, v in c.items() if k.startswith('@') %} {{ k[1:] }}="{{ v }}"{% endfor %}>{{ c | dict_to_xml | safe }}</chart>
+{%- endfor %}
+</chartLayer>

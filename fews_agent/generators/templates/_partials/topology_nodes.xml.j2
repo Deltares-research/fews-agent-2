@@ -2,22 +2,39 @@
 
 {% macro render_node(leaf) -%}
 <node id="{{ leaf.id }}"{% if leaf.name is not none %} name="{{ leaf.name }}"{% endif %}>
+  {% for p in leaf.previousNodeId %}<previousNodeId>{{ p }}</previousNodeId>{% endfor %}
+  {% if leaf.nextNodeId is not none %}<nextNodeId>{{ leaf.nextNodeId }}</nextNodeId>{% endif %}
+  {% for l in leaf.locationId %}<locationId>{{ l }}</locationId>{% endfor %}
+  {% if leaf.locationSetId is not none %}<locationSetId>{{ leaf.locationSetId }}</locationSetId>{% endif %}
+  {% for t in leaf.tabularLocationId %}<tabularLocationId>{{ t }}</tabularLocationId>{% endfor %}
   {% if leaf.url is not none %}<url>{{ leaf.url }}</url>{% endif %}
   {% if leaf.workflowId is not none %}<workflowId>{{ leaf.workflowId }}</workflowId>{% endif %}
   {% if leaf.graceTime is not none %}<graceTime unit="{{ leaf.graceTime.unit }}" multiplier="{{ leaf.graceTime.multiplier }}"/>{% endif %}
   {% for vmg in leaf.visibleModifierGroup %}<visibleModifierGroup>{{ vmg }}</visibleModifierGroup>{% endfor %}
+  {% if leaf.componentSettingsId is not none %}<componentSettingsId>{{ leaf.componentSettingsId }}</componentSettingsId>{% endif %}
   {% if leaf.localRun is not none %}<localRun>{{ 'true' if leaf.localRun else 'false' }}</localRun>{% endif %}
   {% if leaf.showRunApprovedForecastButton is not none %}<showRunApprovedForecastButton>{{ 'true' if leaf.showRunApprovedForecastButton else 'false' }}</showRunApprovedForecastButton>{% endif %}
+  {% if leaf.backgroundSelectionColor is not none %}<backgroundSelectionColor>{{ leaf.backgroundSelectionColor }}</backgroundSelectionColor>{% endif %}
+  {% if leaf.backgroundNonSelectionColor is not none %}<backgroundNonSelectionColor>{{ leaf.backgroundNonSelectionColor }}</backgroundNonSelectionColor>{% endif %}
+  {% if leaf.textSelectionColor is not none %}<textSelectionColor>{{ leaf.textSelectionColor }}</textSelectionColor>{% endif %}
+  {% if leaf.textNonSelectionColor is not none %}<textNonSelectionColor>{{ leaf.textNonSelectionColor }}</textNonSelectionColor>{% endif %}
 </node>
 {%- endmacro %}
 
 {% macro render_group(group) -%}
 <nodes id="{{ group.id }}"{% if group.name is not none %} name="{{ group.name }}"{% endif %}>
+  {% if group.showModifiers is not none %}<showModifiers>{{ 'true' if group.showModifiers else 'false' }}</showModifiers>{% endif %}
+  {% if group.showRunApprovedForecastButton is not none %}<showRunApprovedForecastButton>{{ 'true' if group.showRunApprovedForecastButton else 'false' }}</showRunApprovedForecastButton>{% endif %}
   {% for child in group.nodes %}
   {{ render_group(child) }}
   {% endfor %}
   {% for leaf in group.node %}
   {{ render_node(leaf) }}
   {% endfor %}
+  {% for gid in group.groupId %}<groupId>{{ gid }}</groupId>{% endfor %}
+  {% if group.backgroundSelectionColor is not none %}<backgroundSelectionColor>{{ group.backgroundSelectionColor }}</backgroundSelectionColor>{% endif %}
+  {% if group.backgroundNonSelectionColor is not none %}<backgroundNonSelectionColor>{{ group.backgroundNonSelectionColor }}</backgroundNonSelectionColor>{% endif %}
+  {% if group.textSelectionColor is not none %}<textSelectionColor>{{ group.textSelectionColor }}</textSelectionColor>{% endif %}
+  {% if group.textNonSelectionColor is not none %}<textNonSelectionColor>{{ group.textNonSelectionColor }}</textNonSelectionColor>{% endif %}
 </nodes>
 {%- endmacro %}

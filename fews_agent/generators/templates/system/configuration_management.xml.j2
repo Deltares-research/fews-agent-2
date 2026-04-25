@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configurationManagement version="{{ version }}" xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/configurationManagement.xsd">
+  <configParams>
+    <defaultXmlEditor>{{ configParams.defaultXmlEditor }}</defaultXmlEditor>
+    <defaultHtmlEditor>{{ configParams.defaultHtmlEditor }}</defaultHtmlEditor>
+    <directPrimaryValidation>{{ 'true' if configParams.directPrimaryValidation else 'false' }}</directPrimaryValidation>
+    <analysisMatchLimit>{{ configParams.analysisMatchLimit }}</analysisMatchLimit>
+  </configParams>
+  {% for g in configGroup %}<configGroup title="{{ g.title }}">
+    <tableName>{{ g.tableName }}</tableName>
+    <columnName>{{ g.columnName }}</columnName>
+    <subDirectory>{{ g.subDirectory }}</subDirectory>
+    <dataRelationType>{{ g.dataRelationType }}</dataRelationType>
+    <fileType>{{ g.fileType }}</fileType>
+    {% for c in g.childType %}<childType name="{{ c.name }}"/>
+    {% endfor %}
+    {% if g.configTypeContainsSpace is not none %}<configTypeContainsSpace>{{ 'true' if g.configTypeContainsSpace else 'false' }}</configTypeContainsSpace>{% endif %}
+  </configGroup>
+  {% endfor %}
+  {% if excludedWorkflows %}<excludedWorkflows>
+    {% for w in excludedWorkflows %}<workflowName>{{ w }}</workflowName>
+    {% endfor %}
+  </excludedWorkflows>{% endif %}
+</configurationManagement>

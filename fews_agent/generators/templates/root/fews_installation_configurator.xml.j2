@@ -1,0 +1,98 @@
+{%- macro jms(j) -%}
+<appServerType>{{ j.appServerType }}</appServerType>
+    <appServerName>{{ j.appServerName }}</appServerName>
+    {%- if j.appServerPort is not none %}
+    <appServerPort>{{ j.appServerPort }}</appServerPort>
+    {%- endif %}
+    <rootJNDI>{{ j.rootJNDI }}</rootJNDI>
+    {%- if j.appJavaHome is not none %}
+    <appJavaHome>{{ j.appJavaHome }}</appJavaHome>
+    {%- endif %}
+{%- endmacro -%}
+{%- macro dbs(d) -%}
+<dbServerType>{{ d.dbServerType }}</dbServerType>
+    <dbServerName>{{ d.dbServerName }}</dbServerName>
+    {%- if d.dbServerPort is not none %}
+    <dbServerPort>{{ d.dbServerPort }}</dbServerPort>
+    {%- endif %}
+    <dbInstanceName>{{ d.dbInstanceName }}</dbInstanceName>
+    {%- if d.dbInstanceUser is not none %}
+    <dbInstanceUser>{{ d.dbInstanceUser }}</dbInstanceUser>
+    {%- endif %}
+    {%- if d.dbInstancePassword is not none %}
+    <dbInstancePassword>{{ d.dbInstancePassword }}</dbInstancePassword>
+    {%- endif %}
+    {%- if d.dbEncryptPassword is not none %}
+    <dbEncryptPassword>{{ 'true' if d.dbEncryptPassword else 'false' }}</dbEncryptPassword>
+    {%- endif %}
+{%- endmacro -%}
+<?xml version="1.0" encoding="UTF-8"?>
+<fewsInstallationConfigurator xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/fewsInstallationConfigurator.xsd">
+{%- for sc in systemConfiguration %}
+  <systemConfiguration>
+    {%- if sc.jmsServer is not none %}
+    <jmsServer>
+    {{ jms(sc.jmsServer) }}
+    </jmsServer>
+    {%- endif %}
+    <dbServer>
+    {{ dbs(sc.dbServer) }}
+    </dbServer>
+    <masterController>
+      <mcId>{{ sc.masterController.mcId }}</mcId>
+      <mcRegionName>{{ sc.masterController.mcRegionName }}</mcRegionName>
+      <mcOS>{{ sc.masterController.mcOS }}</mcOS>
+      <mcJavaHome>{{ sc.masterController.mcJavaHome }}</mcJavaHome>
+      <fewsmcHome>{{ sc.masterController.fewsmcHome }}</fewsmcHome>
+      {%- if sc.masterController.mcRestartScript is not none %}
+      <mcRestartScript>{{ sc.masterController.mcRestartScript }}</mcRestartScript>
+      {%- endif %}
+      <aiFilesDirBaseName>{{ sc.masterController.aiFilesDirBaseName }}</aiFilesDirBaseName>
+      {%- if sc.masterController.aiRestartScriptPath is not none %}
+      <aiRestartScriptPath>{{ sc.masterController.aiRestartScriptPath }}</aiRestartScriptPath>
+      {%- endif %}
+      {%- if sc.masterController.aiRestartScriptArgs is not none %}
+      <aiRestartScriptArgs>{{ sc.masterController.aiRestartScriptArgs }}</aiRestartScriptArgs>
+      {%- endif %}
+    </masterController>
+    {%- for rmc in sc.remoteMasterController %}
+    <remoteMasterController remoteMcId="{{ rmc.remoteMcId }}">
+      {%- if rmc.remoteDbServer is not none %}
+      <remoteDbServer>
+      {{ dbs(rmc.remoteDbServer) }}
+      </remoteDbServer>
+      {%- else %}
+      <remoteJMSServer>
+      {{ jms(rmc.remoteJMSServer) }}
+      </remoteJMSServer>
+      {%- endif %}
+    </remoteMasterController>
+    {%- endfor %}
+    {%- for fs in sc.forecastingShells %}
+    <forecastingShells>
+      <numberOfFSS>{{ fs.numberOfFSS }}</numberOfFSS>
+      <fssOS>{{ fs.fssOS }}</fssOS>
+      <fssJavaHome>{{ fs.fssJavaHome }}</fssJavaHome>
+      <fssRootDir>{{ fs.fssRootDir }}</fssRootDir>
+      <fssRegionHomeName>{{ fs.fssRegionHomeName }}</fssRegionHomeName>
+      {%- if fs.clientMode is not none %}
+      <clientMode>{{ fs.clientMode }}</clientMode>
+      {%- endif %}
+    </forecastingShells>
+    {%- endfor %}
+    {%- for oc in sc.operatorClients %}
+    <operatorClients>
+      <ocDir>{{ oc.ocDir }}</ocDir>
+      <clientMode>{{ oc.clientMode }}</clientMode>
+    </operatorClients>
+    {%- endfor %}
+    {%- if sc.archiveServer is not none %}
+    <archiveServer>
+      <archiveServerName>{{ sc.archiveServer.archiveServerName }}</archiveServerName>
+      <archiveServerPort>{{ sc.archiveServer.archiveServerPort }}</archiveServerPort>
+      <archiveRootDir>{{ sc.archiveServer.archiveRootDir }}</archiveRootDir>
+    </archiveServer>
+    {%- endif %}
+  </systemConfiguration>
+{%- endfor %}
+</fewsInstallationConfigurator>

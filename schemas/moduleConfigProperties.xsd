@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- edited with XMLSpy v2009 sp1 (http://www.altova.com) by ICT (Stichting Deltares) -->
+<!--Delft FEWS (Copyright 2003 WL | Delft Hydraulics) -->
+<schema xmlns:fews="http://www.wldelft.nl/fews" xmlns="http://www.w3.org/2001/XMLSchema" targetNamespace="http://www.wldelft.nl/fews" elementFormDefault="qualified" attributeFormDefault="unqualified" version="1.0">
+	<include schemaLocation="sharedTypes.xsd"/>
+	<element name="moduleConfigProperties" type="fews:PropertiesComplexType">
+		<annotation>
+			<documentation>This properties can be referenced in module config files with
+				$key$, similar to global properties.
+				$key$ is resolved by first searching in the moduleConfigFileProperties defined in the workflow descriptor of the running task and after that in the moduleConfigFileProperties
+				defined in the the region config and at last in the global properties in the root dir
+			</documentation>
+		</annotation>
+	</element>
+</schema>

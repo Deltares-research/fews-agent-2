@@ -1,0 +1,82 @@
+{%- import "_partials/timeseries_set.xml.j2" as tss -%}
+{%- macro col_attrs(c) -%}
+{%- if c.name is not none %} name="{{ c.name }}"{% endif %}{% if c.width is not none %} width="{{ c.width }}"{% endif %}
+{%- endmacro -%}
+{%- macro cols(g) -%}
+      {%- for c in g.locationIdColumn %}
+      <locationIdColumn{{ col_attrs(c) }}/>
+      {%- endfor %}
+      {%- for c in g.locationNameColumn %}
+      <locationNameColumn{{ col_attrs(c) }}/>
+      {%- endfor %}
+      {%- for c in g.forecastTimeColumn %}
+      <forecastTimeColumn{{ col_attrs(c) }}/>
+      {%- endfor %}
+      {%- for c in g.forecastValueColumn %}
+      <forecastValueColumn{{ col_attrs(c) }}/>
+      {%- endfor %}
+      {%- for c in g.forecastLowerValueColumn %}
+      <forecastLowerValueColumn{{ col_attrs(c) }}/>
+      {%- endfor %}
+      {%- for c in g.forecastUpperValueColumn %}
+      <forecastUpperValueColumn{{ col_attrs(c) }}/>
+      {%- endfor %}
+      {%- for c in g.forecastPredictionTimeColumn %}
+      <forecastPredictionTimeColumn{{ col_attrs(c) }}/>
+      {%- endfor %}
+      {%- for c in g.valuePropertyColumn %}
+      <valuePropertyColumn valuePropertyId="{{ c.valuePropertyId }}"{% if c.propertyType is not none %} propertyType="{{ c.propertyType }}"{% endif %}{% if c.name is not none %} name="{{ c.name }}"{% endif %}{% if c.editable is not none %} editable="{{ 'true' if c.editable else 'false' }}"{% endif %}{% if c.width is not none %} width="{{ c.width }}"{% endif %}{% if c.enumerationValue %}>
+        {%- for e in c.enumerationValue %}
+        <enumerationValue>{{ e }}</enumerationValue>
+        {%- endfor %}
+      </valuePropertyColumn>
+      {%- else %}/>{% endif %}
+      {%- endfor %}
+{%- endmacro -%}
+<?xml version="1.0" encoding="UTF-8"?>
+<verificationAnalysisDisplay xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/verificationAnalysisDisplay.xsd">
+  <viewPeriod unit="{{ viewPeriod.unit }}"{% if viewPeriod.start is not none %} start="{{ viewPeriod.start }}"{% endif %}{% if viewPeriod.end is not none %} end="{{ viewPeriod.end }}"{% endif %}/>
+  <dateTimeFormat>{{ dateTimeFormat }}</dateTimeFormat>
+  <floodPeriodModuleConfigFileName>{{ floodPeriodModuleConfigFileName }}</floodPeriodModuleConfigFileName>
+  {%- if floodPeriodArchiveEventTypeId is not none %}
+  <floodPeriodArchiveEventTypeId>{{ floodPeriodArchiveEventTypeId }}</floodPeriodArchiveEventTypeId>
+  {%- endif %}
+  {%- if floodEventArchiveEventTypeId is not none %}
+  <floodEventArchiveEventTypeId>{{ floodEventArchiveEventTypeId }}</floodEventArchiveEventTypeId>
+  {%- endif %}
+  {%- for tid in showAllFloodPeriodsTopologyNodeId %}
+  <showAllFloodPeriodsTopologyNodeId>{{ tid }}</showAllFloodPeriodsTopologyNodeId>
+  {%- endfor %}
+  {%- for tab in showDataTab %}
+  <showDataTab name="{{ tab.name }}">
+    {%- if tab.filterAttributeId is not none %}
+    <filterAttributeId>{{ tab.filterAttributeId }}</filterAttributeId>
+    {%- endif %}
+    {%- for sf in tab.selectionFilter %}
+    <selectionFilter{% if sf.matchingAttributeId is not none %} matchingAttributeId="{{ sf.matchingAttributeId }}"{% endif %}{% if sf.matchingAttributeValue is not none %} matchingAttributeValue="{{ sf.matchingAttributeValue }}"{% endif %}{% if sf.selectedAttributeId is not none %} selectedAttributeId="{{ sf.selectedAttributeId }}"{% endif %}{% if sf.filterAttributeId is not none %} filterAttributeId="{{ sf.filterAttributeId }}"{% endif %}/>
+    {%- endfor %}
+    {%- for c in tab.locationValuePropertyCountColumn %}
+    <locationValuePropertyCountColumn id="{{ c.id }}" value="{{ c.value }}" name="{{ c.name }}"/>
+    {%- endfor %}
+    {%- for c in tab.locationValuePropertyMaxColumn %}
+    <locationValuePropertyMaxColumn id="{{ c.id }}" name="{{ c.name }}">
+      {%- for v in c.value %}
+      <value>{{ v }}</value>
+      {%- endfor %}
+    </locationValuePropertyMaxColumn>
+    {%- endfor %}
+    {{ cols(tab.columns) }}
+    {{ tss.render(tab.timeSeriesSet) }}
+    {%- if tab.connectedTimeSeries is not none %}
+    <connectedTimeSeries>
+      <matchingAttributeId>{{ tab.connectedTimeSeries.matchingAttributeId }}</matchingAttributeId>
+      {{ cols(tab.connectedTimeSeries.columns) }}
+      {{ tss.render(tab.connectedTimeSeries.connectedTimeSeriesSet, 'connectedTimeSeriesSet') }}
+    </connectedTimeSeries>
+    {%- endif %}
+    {%- for ts in tab.plotTimeSeriesSet %}
+    {{ tss.render(ts, 'plotTimeSeriesSet') }}
+    {%- endfor %}
+  </showDataTab>
+  {%- endfor %}
+</verificationAnalysisDisplay>

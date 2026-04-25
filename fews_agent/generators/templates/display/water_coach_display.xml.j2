@@ -1,0 +1,106 @@
+{%- macro import_attrs(o) -%}
+ visible="{{ 'true' if o.visible else 'false' }}" import="{{ 'true' if o.import_ else 'false' }}"
+{%- endmacro -%}
+<?xml version="1.0" encoding="UTF-8"?>
+<waterCoachDisplay xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/waterCoachDisplay.xsd">
+  {%- if onTheFlySystem is not none %}
+  <onTheFlySystem>
+    <eventTypeId>{{ onTheFlySystem.eventTypeId }}</eventTypeId>
+    {%- for aid in onTheFlySystem.areaId %}
+    <areaId>{{ aid }}</areaId>
+    {%- endfor %}
+    {%- if onTheFlySystem.permission is not none %}
+    <permission>{{ onTheFlySystem.permission }}</permission>
+    {%- endif %}
+    {%- if onTheFlySystem.importGridsAsReference is not none %}
+    <importGridsAsReference {{ import_attrs(onTheFlySystem.importGridsAsReference) }}/>
+    {%- endif %}
+    {%- if onTheFlySystem.importModelStates is not none %}
+    <importModelStates {{ import_attrs(onTheFlySystem.importModelStates) }}/>
+    {%- endif %}
+    {%- if onTheFlySystem.importModifiers is not none %}
+    <importModifiers {{ import_attrs(onTheFlySystem.importModifiers) }}/>
+    {%- endif %}
+  </onTheFlySystem>
+  {%- elif multipleSystems is not none %}
+  <multipleSystems enabled="{{ 'true' if multipleSystems.enabled else 'false' }}">
+    <systemTimeFile>{{ multipleSystems.systemTimeFile }}</systemTimeFile>
+  </multipleSystems>
+  {%- endif %}
+{%- for cfg in config %}
+  <config>
+    {%- if cfg.defaultPeriod is not none %}
+    <defaultPeriod unit="{{ cfg.defaultPeriod.unit }}"{% if cfg.defaultPeriod.start is not none %} start="{{ cfg.defaultPeriod.start }}"{% endif %}{% if cfg.defaultPeriod.end is not none %} end="{{ cfg.defaultPeriod.end }}"{% endif %}/>
+    {%- endif %}
+    {%- if cfg.scenarioScriptDatabasePath is not none %}
+    <scenarioScriptDatabasePath>{{ cfg.scenarioScriptDatabasePath }}</scenarioScriptDatabasePath>
+    {%- endif %}
+    {%- for p in cfg.gridBinFilesPath %}
+    <gridBinFilesPath>{{ p }}</gridBinFilesPath>
+    {%- endfor %}
+    <hideYear>{{ 'true' if cfg.hideYear else 'false' }}</hideYear>
+    {%- for fa in cfg.fileAssociation %}
+    <fileAssociation extension="{{ fa.extension }}">{{ fa.value }}</fileAssociation>
+    {%- endfor %}
+    {%- if cfg.timeControl is not none %}
+    <timeControl>
+      {%- if cfg.timeControl.pause is not none %}
+      <pause>{{ 'true' if cfg.timeControl.pause else 'false' }}</pause>
+      {%- endif %}
+      {%- if cfg.timeControl.next is not none %}
+      <next>{{ 'true' if cfg.timeControl.next else 'false' }}</next>
+      {%- endif %}
+      {%- if cfg.timeControl.set is not none %}
+      <set>{{ 'true' if cfg.timeControl.set else 'false' }}</set>
+      {%- endif %}
+      {%- if cfg.timeControl.fastForwardBackward is not none %}
+      <fastForwardBackward>{{ 'true' if cfg.timeControl.fastForwardBackward else 'false' }}</fastForwardBackward>
+      {%- endif %}
+    </timeControl>
+    {%- endif %}
+    {%- if cfg.experienceLevel is not none %}
+    <experienceLevel>
+      {%- if cfg.experienceLevel.levels is not none %}
+      <levels>{{ cfg.experienceLevel.levels }}</levels>
+      {%- endif %}
+      {%- if cfg.experienceLevel.adjustLevel is not none %}
+      <adjustLevel>{{ 'true' if cfg.experienceLevel.adjustLevel else 'false' }}</adjustLevel>
+      {%- endif %}
+    </experienceLevel>
+    {%- endif %}
+    {%- if cfg.fewsLogEventCodes is not none %}
+    <fewsLogEventCodes>{{ cfg.fewsLogEventCodes }}</fewsLogEventCodes>
+    {%- endif %}
+    {%- if cfg.serverHostName is not none %}
+    <serverHostName>{{ cfg.serverHostName }}</serverHostName>
+    {%- endif %}
+    {%- if cfg.serverPort is not none %}
+    <serverPort>{{ cfg.serverPort }}</serverPort>
+    {%- endif %}
+    {%- if cfg.writePiOutput is not none %}
+    <writePiOutput>{{ 'true' if cfg.writePiOutput else 'false' }}</writePiOutput>
+    {%- endif %}
+    {%- if cfg.copyLocalDataStore is not none %}
+    <copyLocalDataStore>{{ 'true' if cfg.copyLocalDataStore else 'false' }}</copyLocalDataStore>
+    {%- endif %}
+    {%- if cfg.defaultUserName is not none %}
+    <defaultUserName>{{ cfg.defaultUserName }}</defaultUserName>
+    {%- endif %}
+    {%- if cfg.defaultScenario is not none %}
+    <defaultScenario>{{ cfg.defaultScenario }}</defaultScenario>
+    {%- endif %}
+    {%- if cfg.defaultScript is not none %}
+    <defaultScript>{{ cfg.defaultScript }}</defaultScript>
+    {%- endif %}
+    {%- if cfg.scriptLogPath is not none %}
+    <scriptLogPath>{{ cfg.scriptLogPath }}</scriptLogPath>
+    {%- endif %}
+    {%- if cfg.displayConfirm is not none %}
+    <displayConfirm>{{ 'true' if cfg.displayConfirm else 'false' }}</displayConfirm>
+    {%- endif %}
+    {%- if cfg.clientConfigExportUrl is not none %}
+    <clientConfigExportUrl>{{ cfg.clientConfigExportUrl }}</clientConfigExportUrl>
+    {%- endif %}
+  </config>
+{%- endfor %}
+</waterCoachDisplay>

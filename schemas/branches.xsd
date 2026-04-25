@@ -1,0 +1,131 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--  Delft FEWS (Copyright 2003 WL | Delft Hydraulics) -->
+<schema targetNamespace="http://www.wldelft.nl/fews" xmlns:fews="http://www.wldelft.nl/fews" xmlns="http://www.w3.org/2001/XMLSchema" elementFormDefault="qualified" attributeFormDefault="unqualified" version="1.0">
+	<include schemaLocation="sharedTypes.xsd"/>
+	<element name="branches" type="fews:BranchesComplexType"/>
+	<!--  -->
+	<complexType name="BranchesComplexType">
+		<sequence>
+			<element name="geoDatum" type="fews:geoDatumStringType"/>
+			<element name="branch" type="fews:BranchComplexType" maxOccurs="unbounded">
+			<key name="branch">
+				<selector xpath="."/>
+				<field xpath="@id"/>
+			</key>
+		</element>
+		</sequence>
+		<attribute name="version" type="fews:versionStringType" use="required" fixed="1.1"/>
+	</complexType>
+	<complexType name="BranchComplexType">
+		<annotation>
+			<documentation>Each branch element has a number of required elements
+                These are:
+
+                -BranchID
+                -BranchName
+                -StartChainage
+                -EndChainage
+                -UpNode
+                -DownNode
+                This definition is modified from the EUROTAS format</documentation>
+		</annotation>
+		<sequence>
+			<element name="branchName" type="fews:nameStringType">
+				<annotation>
+					<documentation>Name of the branch</documentation>
+				</annotation>
+			</element>
+			<element name="startChainage" type="double">
+				<annotation>
+					<documentation>Chainage at the start of the branch</documentation>
+				</annotation>
+			</element>
+			<element name="endChainage" type="double">
+				<annotation>
+					<documentation>Chainage at the end of the branch</documentation>
+				</annotation>
+			</element>
+			<element name="upNode" type="string" minOccurs="0">
+				<annotation>
+					<documentation>Upstream node</documentation>
+				</annotation>
+			</element>
+			<element name="downNode" type="string" minOccurs="0">
+				<annotation>
+					<documentation>Downstream node</documentation>
+				</annotation>
+			</element>
+			<element name="zone" type="string" minOccurs="0"/>
+			<element name="pt" type="fews:NodePointComplexType" minOccurs="2" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Each branch must hold at least two pt (point/node) elements.
+                        The maximum number of points is not limited. Each pt
+                        element has two required attributes, X and Y that
+                        point to a geographical location.</documentation>
+				</annotation>
+			</element>
+			<element name="comment" type="string" minOccurs="0">
+				<annotation>
+					<documentation>use this field as a notebook to add comments, suggestions
+                        description of data entered etc.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+		<attribute name="id" type="fews:idStringType" use="required"/>
+	</complexType>
+	<complexType name="NodePointComplexType">
+		<annotation>
+			<documentation>Each branch must hold at least two pt (point/node) elements.
+                The maximum number of points is not limited. Each pt
+                element has two required attributes, X and Y that
+                point to a geographical location.</documentation>
+		</annotation>
+        <attribute name="x" type="double" use="optional"/>
+		<attribute name="y" type="double" use="optional"/>
+        <attribute name="z" type="double" use="optional">
+            <annotation>
+                 <documentation>Level</documentation>
+             </annotation>
+        </attribute>
+        <attribute name="z_lmc" type="double" use="optional">
+            <annotation>
+                <documentation>Level left main channel</documentation>
+            </annotation>
+        </attribute>
+        <attribute name="z_rmc" type="double" use="optional">
+            <annotation>
+                <documentation>Level right main channel</documentation>
+            </annotation>
+        </attribute>
+        <attribute name="z_lb" type="double" use="optional">
+            <annotation>
+                <documentation>Level left bank</documentation>
+            </annotation>
+        </attribute>
+        <attribute name="z_rb" type="double" use="optional">
+            <annotation>
+                 <documentation>Level right bank</documentation>
+             </annotation>
+        </attribute>
+        <attribute name="z_lfp" type="double" use="optional">
+            <annotation>
+                 <documentation>Level left flood plain</documentation>
+             </annotation>
+        </attribute>
+        <attribute name="z_rfp" type="double" use="optional">
+            <annotation>
+                 <documentation>Level right flood plain</documentation>
+             </annotation>
+        </attribute>
+        <attribute name="chainage" type="double" use="required"/>
+		<attribute name="label" type="string" use="required"/>
+		<attribute name="description" type="string" use="optional"/>
+		<attribute name="thresholdValueSetId" type="fews:idStringType" use="optional">
+			<annotation>
+				<documentation>thresholdValueSetId was relevant only for Gui plugin LongitudinalProfileDisplay.  Since release 2007.02 this display is not supported anymore</documentation>
+			</annotation>
+		</attribute>
+
+
+	</complexType>
+</schema>

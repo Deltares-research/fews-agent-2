@@ -1,0 +1,34 @@
+{%- import "_partials/timeseries_set.xml.j2" as tss -%}
+<?xml version="1.0" encoding="UTF-8"?>
+<floodPeriodsModule xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/floodPeriodsModule.xsd">
+  <newFloodPeriodLogEventCode>{{ newFloodPeriodLogEventCode }}</newFloodPeriodLogEventCode>
+  <areaLocationAttributeId>{{ areaLocationAttributeId }}</areaLocationAttributeId>
+  <skipLocationsWithoutAreaId>{{ 'true' if skipLocationsWithoutAreaId else 'false' }}</skipLocationsWithoutAreaId>
+  <expiryTime unit="{{ expiryTime.unit }}" multiplier="{{ expiryTime.multiplier }}"/>
+  <periodInitialLength unit="{{ periodInitialLength.unit }}" multiplier="{{ periodInitialLength.multiplier }}"/>
+  <maximumPeriodExtensionLength unit="{{ maximumPeriodExtensionLength.unit }}" multiplier="{{ maximumPeriodExtensionLength.multiplier }}"/>
+  {% if forecastSearchPeriod is not none %}<forecastSearchPeriod unit="{{ forecastSearchPeriod.unit }}"{% if forecastSearchPeriod.start is not none %} start="{{ forecastSearchPeriod.start }}"{% endif %}{% if forecastSearchPeriod.end is not none %} end="{{ forecastSearchPeriod.end }}"{% endif %}/>{% endif %}
+{%- macro emit_crossings(c) %}
+    {% for x in c.thresholdValuesSetsCrossings %}<thresholdValuesSetsCrossings>
+      {% if x.thresholdGroupId is not none %}<thresholdGroupId>{{ x.thresholdGroupId }}</thresholdGroupId>{% endif %}
+      {% for ts in x.timeSeriesSet %}{{ tss.render(ts) }}
+      {% endfor %}
+    </thresholdValuesSetsCrossings>
+    {% endfor %}
+    {% for x in c.importedThresholdCrossings %}<importedThresholdCrossings>
+      <timeSeriesProperty key="{{ x.timeSeriesProperty.key }}">
+        {% for m in x.timeSeriesProperty.map %}<map value="{{ m.value }}" thresholdId="{{ m.thresholdId }}"/>
+        {% endfor %}
+      </timeSeriesProperty>
+      {% for ts in x.timeSeriesSet %}{{ tss.render(ts) }}
+      {% endfor %}
+    </importedThresholdCrossings>
+    {% endfor %}
+{%- endmacro %}
+  <observed>
+  {{ emit_crossings(observed) }}
+  </observed>
+  <forecasted>
+  {{ emit_crossings(forecasted) }}
+  </forecasted>
+</floodPeriodsModule>

@@ -1,0 +1,60 @@
+{%- import "_partials/timeseries_set.xml.j2" as tss -%}
+<?xml version="1.0" encoding="UTF-8"?>
+<correlationSets xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/correlationSets.xsd" version="{{ version }}">
+{%- for cs in correlationSet %}
+  <correlationSet>
+    {%- for ts in cs.inputTimeSerieSet %}
+    {{ tss.render(ts, 'inputTimeSerieSet') }}
+    {%- endfor %}
+    <correlation>
+      <forecastLocationId>{{ cs.correlation.forecastLocationId }}</forecastLocationId>
+      <equationType equationType="{{ cs.correlation.equationType.equationType }}"{% if cs.correlation.equationType.polynomialOrder is not none %} polynomialOrder="{{ cs.correlation.equationType.polynomialOrder }}"{% endif %}/>
+      <eventSetsDescriptorId>{{ cs.correlation.eventSetsDescriptorId }}</eventSetsDescriptorId>
+      <travelTimesDescriptorId>{{ cs.correlation.travelTimesDescriptorId }}</travelTimesDescriptorId>
+      <eventSelectionType>{{ cs.correlation.eventSelectionType }}</eventSelectionType>
+      {%- if cs.correlation.selectionCriteria is not none %}
+      <selectionCriteria>
+        {%- if cs.correlation.selectionCriteria.period is not none %}
+        <period>
+          <startDate>{{ cs.correlation.selectionCriteria.period.startDate }}</startDate>
+          {%- if cs.correlation.selectionCriteria.period.startTime is not none %}
+          <startTime>{{ cs.correlation.selectionCriteria.period.startTime }}</startTime>
+          {%- endif %}
+          <endDate>{{ cs.correlation.selectionCriteria.period.endDate }}</endDate>
+          {%- if cs.correlation.selectionCriteria.period.endTime is not none %}
+          <endTime>{{ cs.correlation.selectionCriteria.period.endTime }}</endTime>
+          {%- endif %}
+          <selectInsidePeriod>{{ 'true' if cs.correlation.selectionCriteria.period.selectInsidePeriod else 'false' }}</selectInsidePeriod>
+        </period>
+        {%- endif %}
+        {%- if cs.correlation.selectionCriteria.thresholds is not none %}
+        <thresholds>
+          <thresholdLimit>{{ cs.correlation.selectionCriteria.thresholds.thresholdLimit | xmlstr }}</thresholdLimit>
+          <selectAboveLimit>{{ 'true' if cs.correlation.selectionCriteria.thresholds.selectAboveLimit else 'false' }}</selectAboveLimit>
+        </thresholds>
+        {%- endif %}
+        {%- if cs.correlation.selectionCriteria.tags is not none %}
+        <tags>
+          {%- for t in cs.correlation.selectionCriteria.tags.tag %}
+          <tag>{{ t }}</tag>
+          {%- endfor %}
+          {%- if cs.correlation.selectionCriteria.tags.include is not none %}
+          <include>{{ 'true' if cs.correlation.selectionCriteria.tags.include else 'false' }}</include>
+          {%- else %}
+          <operator>{{ cs.correlation.selectionCriteria.tags.operator }}</operator>
+          {%- endif %}
+        </tags>
+        {%- endif %}
+        {%- if cs.correlation.selectionCriteria.travelTimes is not none %}
+        <travelTimes unit="{{ cs.correlation.selectionCriteria.travelTimes.unit }}"{% if cs.correlation.selectionCriteria.travelTimes.start is not none %} start="{{ cs.correlation.selectionCriteria.travelTimes.start }}"{% endif %}{% if cs.correlation.selectionCriteria.travelTimes.end is not none %} end="{{ cs.correlation.selectionCriteria.travelTimes.end }}"{% endif %}/>
+        {%- endif %}
+      </selectionCriteria>
+      {%- endif %}
+      {%- if cs.correlation.comment is not none %}
+      <comment>{{ cs.correlation.comment }}</comment>
+      {%- endif %}
+    </correlation>
+    {{ tss.render(cs.outputTimeSerieSet, 'outputTimeSerieSet') }}
+  </correlationSet>
+{%- endfor %}
+</correlationSets>

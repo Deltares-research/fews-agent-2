@@ -140,12 +140,25 @@ generators, and they are expected to appear in the run summary:
   `GenericXmlFile.body` dicts — they register as unresolved until the
   validator is extended to scan generic bodies.
 
-- **`PreprocessHRDPS` / `PreprocessHRDPA` never declared.**
-  Workflows `ImportHRDPSGrids.xml` and `ImportHRDPAGrids.xml` invoke
-  these module instance ids (23 refs combined), but neither
-  `ModuleInstanceDescriptors.xml` nor any module-config filename
-  declares them. Likely a genuine tutorial bug or an implicit FEWS
-  convention we haven't captured.
+- **Module instances referenced by workflows but never declared (23 refs).**
+  Several workflow files invoke moduleInstanceIds that no module-config
+  filename and no `ModuleInstanceDescriptors.xml` entry declares. The
+  cluster spans 7 distinct ids:
+  - `ImportRDPSforHistoricMerge` (1 ref, MergeHistoricGrids workflow)
+  - `ImportSREF` (1 ref, ImportSREFGrids workflow)
+  - `PreprocessHRDPS` (3 refs, ImportHRDPSGrids workflow)
+  - `PreprocessRDPSforHistoricMerge` (8 refs, MergeHistoricGrids +
+    UpdateHistoricGrids workflows)
+  - `RetrieveRDPA` (1 ref, UpdateHistoricGrids workflow)
+  - `RetrieveRDPSforHistoricMerge` (2 refs, MergeHistoricGrids +
+    UpdateHistoricGrids workflows)
+  - `RetrieveSREF` (1 ref, ImportSREFGrids workflow)
+  - `SnareHistoric` (2 refs, SnareForecastTemplate +
+    SnareHistoricTemplate's exportStateActivity)
+
+  The total of 1 + 3 + 23 = 27 matches the runner's "27 unresolved"
+  count. Likely genuine tutorial bugs or an implicit FEWS convention we
+  haven't captured.
 
 When adding a new generator or editing templates, these three clusters
 should stay at the expected counts. A change in any other unresolved

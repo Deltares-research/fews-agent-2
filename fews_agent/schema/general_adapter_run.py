@@ -27,6 +27,8 @@ Modeling notes:
 """
 from __future__ import annotations
 
+from typing import Any
+
 from pydantic import ConfigDict, Field, model_validator
 
 from .common import (
@@ -241,9 +243,16 @@ class ExportActivities(FewsModel):
 # ---------------------------------------------------------------------------
 
 class ExecutableCommand(FewsModel):
-    """`<command><executable>...</executable></command>`"""
+    """`<command>` XSD choice — either `<executable>` or the Java form
+    (`<className>` + optional binDir/moduleDataSetName + optional
+    customJreDir/jvmArg[]). Exactly one form must be supplied."""
 
-    executable: str
+    executable: str | None = None
+    className: str | None = None
+    binDir: str | None = None
+    moduleDataSetName: str | None = None
+    customJreDir: str | None = None
+    jvmArg: list[str] = Field(default_factory=list)
 
 
 class ExecutableArguments(FewsModel):
@@ -253,11 +262,21 @@ class ExecutableArguments(FewsModel):
 
 
 class ExecuteActivity(FewsModel):
-    command: ExecutableCommand
+    # Attrs
+    executeOnPreviousError: bool | None = None
+    # Elements in XSD sequence order
     description: str | None = None
+    command: ExecutableCommand
     arguments: ExecutableArguments | None = None
+    environmentVariables: dict[str, Any] | None = None
+    console: dict[str, Any] | None = None
+    logFile: list[dict[str, Any]] = Field(default_factory=list)
+    activityDurationWeight: str | None = None
     timeOut: int | None = None
+    maxNumberOfSimultaneousRuns: int | str | None = None
+    waitForOtherRun: bool | None = None
     ignoreDiagnostics: bool | None = None
+    ignoreExitCode: bool | None = None
     overrulingDiagnosticFile: str | None = None
 
 

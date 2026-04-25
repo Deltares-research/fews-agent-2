@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--Delft FEWS (Copyright 2003 WL | Delft Hydraulics) -->
+<schema xmlns:fews="http://www.wldelft.nl/fews" xmlns="http://www.w3.org/2001/XMLSchema" targetNamespace="http://www.wldelft.nl/fews" elementFormDefault="qualified" attributeFormDefault="unqualified" version="1.0">
+	<include schemaLocation="sharedTypes.xsd"/>
+	
+	<complexType name="dictionaryEntryType">
+		<annotation>
+			<documentation>An entry (word and its definition) in the dictionary.</documentation>
+		</annotation>
+		<sequence>
+			<element name="word" type="string"/>
+			<element name="definition" type="string"/>
+		</sequence>
+	</complexType>
+	<complexType name="dictionaryType">
+		<annotation>
+			<documentation>List of entries in the dictionary.</documentation>
+		</annotation>
+		<sequence>
+			<element name="entry" type="fews:dictionaryEntryType" minOccurs="0" maxOccurs="unbounded"/>
+		</sequence>
+	</complexType>
+	<element name="dictionary" type="fews:dictionaryType">
+		<annotation>
+			<documentation>Dictionary schema containing list of words/terms and their respective definitions.</documentation>
+		</annotation>
+	</element>
+</schema>
