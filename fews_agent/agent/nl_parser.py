@@ -54,7 +54,7 @@ def _schema_for_fields(fields: list[Any]) -> dict[str, Any]:
     actually said without inventing values.
     """
     properties: dict[str, Any] = {}
-    descriptions = {
+    scalar_descriptions = {
         "scalar": "string value, exactly as the user wrote it",
         "decimal": "numeric string preserving source digits (e.g. '0', '-180', '-142.8968')",
         "enum": "one of the allowed values",
@@ -63,16 +63,35 @@ def _schema_for_fields(fields: list[Any]) -> dict[str, Any]:
     }
     for f in fields:
         kind = getattr(f, "kind", "scalar")
-        prop: dict[str, Any] = {
-            "type": "string",
-            "description": (
-                f"{getattr(f, 'prompt', f.path)} — "
-                f"{descriptions.get(kind, 'string value')}"
-            ),
-        }
-        allowed = getattr(f, "allowed_values", None)
-        if allowed:
-            prop["enum"] = list(allowed)
+        if kind == "list_str":
+            prop: dict[str, Any] = {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": (
+                    f"{getattr(f, 'prompt', f.path)} — list of strings "
+                    f"the user provided (e.g. ['a', 'b', 'c'])."
+                ),
+            }
+        elif kind == "list_decimal":
+            prop = {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": (
+                    f"{getattr(f, 'prompt', f.path)} — list of numeric "
+                    f"strings preserving source digits."
+                ),
+            }
+        else:
+            prop = {
+                "type": "string",
+                "description": (
+                    f"{getattr(f, 'prompt', f.path)} — "
+                    f"{scalar_descriptions.get(kind, 'string value')}"
+                ),
+            }
+            allowed = getattr(f, "allowed_values", None)
+            if allowed:
+                prop["enum"] = list(allowed)
         properties[f.path] = prop
     return {
         "type": "object",
@@ -155,13 +174,30 @@ def parse_group(
         )
 
     valid_paths = {f.path for f in fields}
-    values: dict[str, str] = {}
+    list_kinds = {f.path for f in fields if getattr(f, "kind", "") in {"list_str", "list_decimal"}}
+    values: dict[str, Any] = {}
     for k, v in raw.items():
         if k not in valid_paths:
             continue
         if v is None:
             continue
-        # Coerce to string — Pydantic decimals etc. accept str.
+        if k in list_kinds:
+            # Keep lists as lists. Coerce items to stripped strings.
+            if isinstance(v, list):
+                cleaned = [
+                    str(x).strip() for x in v
+                    if x is not None and str(x).strip()
+                ]
+                if cleaned:
+                    values[k] = cleaned
+            elif isinstance(v, str) and v.strip():
+                # Some models return a comma-separated string; fall
+                # back to splitting.
+                cleaned = [x.strip() for x in v.split(",") if x.strip()]
+                if cleaned:
+                    values[k] = cleaned
+            continue
+        # Scalar — coerce to a stripped string.
         sval = str(v).strip()
         if not sval:
             continue
@@ -170,4 +206,131 @@ def parse_group(
     return ParseResult(values=values, raw_response=raw, usage=usage)
 
 
-__all__ = ["ParseResult", "parse_group"]
+def _list_schema_for_fields(fields: list[Any]) -> dict[str, Any]:
+    """Build a JSON schema for ``{"items": array of <item schema>}``.
+
+    Wrapping in an outer object plays nicer with the structured-output
+    fallback (which scavenges the first balanced ``{...}`` from the
+    completion). Bare top-level arrays are awkward for that scavenger.
+    """
+    item_schema = _schema_for_fields(fields)
+    return {
+        "type": "object",
+        "properties": {
+            "items": {
+                "type": "array",
+                "items": item_schema,
+            }
+        },
+        "required": ["items"],
+        "additionalProperties": False,
+    }
+
+
+def _list_user_prompt(text: str, group_label: str | None) -> str:
+    parts: list[str] = []
+    if group_label:
+        parts.append(f"The wizard is asking about: {group_label}")
+        parts.append("")
+    parts.append("User reply (may describe one OR multiple items):")
+    parts.append(text.strip())
+    parts.append("")
+    parts.append(
+        "Extract every item the user described. Return an object "
+        '{"items": [<item1>, <item2>, ...]} where each item is a JSON '
+        "object with only the fields the user mentioned for that item. "
+        "Even if the user describes a single item, wrap it in the "
+        "items array. Omit fields not present for that item — never "
+        "fabricate values."
+    )
+    return "\n".join(parts)
+
+
+def parse_group_list(
+    text: str,
+    fields: list[Any],
+    provider: StructuredOutputProvider,
+    group_label: str | None = None,
+) -> ParseResult:
+    """Extract a list of items from one user utterance.
+
+    Tolerates the model returning the array under various shapes:
+      - ``{"items": [...]}`` (the schema we asked for)
+      - bare ``[...]`` (model ignored the wrapper)
+      - bare ``{...}`` (single item; wrapped in a list)
+
+    ``ParseResult.values`` carries the list under the conventional key
+    ``"_items"`` so callers can distinguish from a single-dict parse.
+    """
+    if not text.strip():
+        return ParseResult(values={})
+
+    schema = _list_schema_for_fields(fields)
+    try:
+        resp = provider.generate_json(
+            system=_system_prompt(),
+            user=_list_user_prompt(text, group_label),
+            schema=schema,
+        )
+    except Exception as exc:  # noqa: BLE001
+        _logger.warning("nl_parser(list): provider call failed (%s)", exc)
+        return ParseResult(values={}, error=f"{type(exc).__name__}: {exc}")
+
+    raw = resp.data if isinstance(resp, StructuredResponse) else resp
+    usage = resp.usage if isinstance(resp, StructuredResponse) else None
+
+    # Normalise the response into ``items`` (list of dicts).
+    items: list[Any] | None = None
+    if isinstance(raw, dict):
+        if "items" in raw and isinstance(raw["items"], list):
+            items = raw["items"]
+        else:
+            # Bare single dict — wrap.
+            items = [raw]
+    elif isinstance(raw, list):
+        items = raw
+    if not items:
+        return ParseResult(
+            values={},
+            error="parser returned no items",
+            raw_response=raw if isinstance(raw, dict) else None,
+            usage=usage,
+        )
+
+    valid_paths = {f.path for f in fields}
+    list_kinds = {f.path for f in fields if getattr(f, "kind", "") in {"list_str", "list_decimal"}}
+    cleaned_items: list[dict[str, Any]] = []
+    for entry in items:
+        if not isinstance(entry, dict):
+            continue
+        cleaned: dict[str, Any] = {}
+        for k, v in entry.items():
+            if k not in valid_paths:
+                continue
+            if v is None:
+                continue
+            if k in list_kinds:
+                if isinstance(v, list):
+                    arr = [str(x).strip() for x in v if x is not None and str(x).strip()]
+                    if arr:
+                        cleaned[k] = arr
+                elif isinstance(v, str) and v.strip():
+                    arr = [x.strip() for x in v.split(",") if x.strip()]
+                    if arr:
+                        cleaned[k] = arr
+                continue
+            sval = str(v).strip()
+            if not sval:
+                continue
+            cleaned[k] = sval
+        if cleaned:
+            cleaned_items.append(cleaned)
+
+    return ParseResult(
+        values={"_items": cleaned_items},
+        raw_response=raw if isinstance(raw, dict) else None,
+        usage=usage,
+    )
+
+
+__all__ = ["ParseResult", "parse_group", "parse_group_list"]

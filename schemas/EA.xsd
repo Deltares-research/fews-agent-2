@@ -1,0 +1,6 @@
+<?xml version="1.0"?>
+<schema targetNamespace="http://www.wldelft.nl/fews" elementFormDefault="qualified" attributeFormDefault="unqualified"
+        version="1.0" xmlns:fews="http://www.w3.org/2001/XMLSchema" xmlns="http://www.w3.org/2001/XMLSchema">
+    <include schemaLocation="EATimeSeriesDataExchangeFormat.xsd"/>
+    <include schemaLocation="EAMetadata.xsd"/>
+</schema>

@@ -108,14 +108,44 @@ def render(events: list[dict[str, Any]]) -> str:
 
     if wizard_asks or wizard_confirms or direct_generates:
         parts.append("## Wizard activity\n")
+        # Phase summary if the script has multiple phases.
+        phases = [e for e in events if e["type"] == "phase_start"]
+        if len(phases) > 1:
+            parts.append(f"- **Phases:** {len(phases)}")
+            for p in phases:
+                phase_label = p.get("phase", "?")
+                phase_calls = sum(
+                    1 for e in events
+                    if e["type"] == "parser_call" and e.get("phase") == phase_label
+                )
+                phase_tokens = sum(
+                    int(e.get("total_tokens", 0))
+                    for e in events
+                    if e["type"] == "parser_call" and e.get("phase") == phase_label
+                )
+                done = any(
+                    e["type"] == "phase_done" and e.get("phase") == phase_label
+                    for e in events
+                )
+                phase_glyph = "✅" if done else "❌"
+                parts.append(
+                    f"  - {phase_glyph} `{phase_label}` "
+                    f"(spec=`{p.get('spec', '?')}`, "
+                    f"{p.get('answers_count', 0)} answers, "
+                    f"{phase_calls} parser calls, {phase_tokens:,} tokens)"
+                )
         parts.append(f"- **Wizard prompts answered:** {len(wizard_asks)}")
         parts.append(f"- **Wizard yes/no confirms:** {len(wizard_confirms)}")
         parts.append(f"- **`generate` calls:** {len(direct_generates)}")
-        if any(e.get("type") == "answers_remaining" for e in events):
-            ar = next(e for e in events if e.get("type") == "answers_remaining")
+        ar_total = sum(
+            int(e.get("count", 0))
+            for e in events
+            if e["type"] == "answers_remaining"
+        )
+        if ar_total:
             parts.append(
-                f"- **Scripted answers unused:** {ar.get('count', 0)} "
-                f"(wizard finished early)"
+                f"- **Scripted answers unused:** {ar_total} (some "
+                f"phase(s) finished short)"
             )
         if any(e.get("type") in {"wizard_ask_underflow", "wizard_confirm_underflow"} for e in events):
             n_under = sum(
@@ -187,6 +217,27 @@ def render(events: list[dict[str, Any]]) -> str:
         parts.append("## Conversation (wizard-driven)\n")
         for e in events:
             t = e["type"]
+            if t == "phase_start":
+                parts.append(
+                    f"### Phase: `{e.get('phase', '?')}` "
+                    f"(spec=`{e.get('spec', '?')}`, "
+                    f"{e.get('answers_count', 0)} answers)"
+                )
+                parts.append("")
+                continue
+            if t == "phase_done":
+                parts.append(
+                    f"<sub>Phase `{e.get('phase', '?')}` complete.</sub>"
+                )
+                parts.append("")
+                continue
+            if t == "phase_failed":
+                parts.append(
+                    f"⚠ **Phase `{e.get('phase', '?')}` generate failed:** "
+                    f"`{e.get('result', {})}`"
+                )
+                parts.append("")
+                continue
             if t == "wizard_ask":
                 prompt = e.get("prompt", "")
                 ans = e.get("answer", "")

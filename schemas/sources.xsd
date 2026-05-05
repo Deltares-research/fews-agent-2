@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schema xmlns="http://www.w3.org/2001/XMLSchema" xmlns:fews="http://www.wldelft.nl/fews/archive"
+		targetNamespace="http://www.wldelft.nl/fews/archive" elementFormDefault="qualified"
+		attributeFormDefault="unqualified" version="1.0">
+	<include schemaLocation="archive_sharedTypes.xsd"/>
+	<element name="sources" type="fews:SourcesComplexType"/>
+	<complexType name="SourcesComplexType">
+		<sequence>
+			<element name="source" type="fews:SourceComplexType" maxOccurs="unbounded"/>
+			<element name="mappedSource" type="fews:MappedSourceComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Since 2019.02 A mapping of a multiple source to a single source</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="SourceComplexType">
+		<attribute name="id" type="string" use="required"/>
+		<attribute name="name" type="string"/>
+	</complexType>
+	<complexType name="MappedSourceComplexType">
+		<sequence>
+			<element name="mappedSourceId" type="fews:idStringType" maxOccurs="unbounded">
+				<annotation>
+					<documentation>the id of a source which is mapped to this source id</documentation>
+				</annotation>
+			</element>
+		</sequence>
+		<attribute name="id" type="string" use="required"/>
+		<attribute name="name" type="string"/>
+	</complexType>
+</schema>

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schema xmlns="http://www.w3.org/2001/XMLSchema" xmlns:fews="http://www.wldelft.nl/fews/archive"
+		targetNamespace="http://www.wldelft.nl/fews/archive" elementFormDefault="qualified"
+		attributeFormDefault="unqualified" version="1.0">
+	<include schemaLocation="deletedDataSets.xsd"/>
+	<include schemaLocation="insertedDataSets.xsd"/>
+	<element name="changedDataSets" type="fews:ChangedDataSetsComplexType"/>
+	<complexType name="ChangedDataSetsComplexType">
+		<sequence>
+			<element name="deletedDataSet" type="fews:DeletedDataSetsComplexType" minOccurs="0"></element>
+			<element name="insertedDataSet" type="fews:InsertedDataSetsComplexType" minOccurs="0"></element>
+		</sequence>
+	</complexType>
+
+</schema>

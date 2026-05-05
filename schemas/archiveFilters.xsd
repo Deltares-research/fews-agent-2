@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schema xmlns="http://www.w3.org/2001/XMLSchema" xmlns:fews="http://www.wldelft.nl/fews/archive"
+		targetNamespace="http://www.wldelft.nl/fews/archive" elementFormDefault="qualified"
+		attributeFormDefault="unqualified" version="1.0">
+	<include schemaLocation="archive_sharedTypes.xsd"/>
+	<element name="archiveFilters" type="fews:ArchiveFiltersComplexType"/>
+	<complexType name="ArchiveFiltersComplexType">
+		<sequence>
+			<element name="archiveFilter" type="fews:ArchiveFilterComplexType" maxOccurs="unbounded">
+				<annotation>
+					<documentation>A filter can be used to search for specific data types in a specific part in the archive</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="ArchiveFilterComplexType">
+		<sequence>
+			<element name="areaId" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>Define (optionally) an areaId to search in a specific part of the archive</documentation>
+				</annotation>
+			</element>
+			<element name="sourceId" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>Define (optionally) an sourceId to search in a specific part of the archive</documentation>
+				</annotation>
+			</element>
+			<element name="timeSeriesType" type="fews:archiveTimeSeriesType">
+				<annotation>
+					<documentation>Define which time series type is connect to this filter</documentation>
+				</annotation>
+			</element>
+		</sequence>
+		<attribute name="id" type="fews:idStringType" use="required"/>
+	</complexType>
+</schema>

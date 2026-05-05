@@ -58,26 +58,59 @@ DEFAULT_VALIDATION_ROOT = REPO_ROOT / "validation"
 # ---------------------------------------------------------------------------
 
 @dataclass
-class Script:
-    """A scripted wizard replay.
+class Phase:
+    """One wizard run within a multi-phase project script.
 
-    ``answers`` is a queue of natural-language replies to consecutive
-    wizard prompts. The wizard's order is deterministic, so the script
-    just lists user utterances in the order they'd be typed.
+    Each phase targets one spec and carries the natural-language
+    answers the wizard will receive. All phases in a script share the
+    same project state, so a later phase can reference ids set in an
+    earlier one (e.g. `parameters` referencing `locations`).
+    """
+
+    spec_name: str
+    answers: list[str]
+    label: str = ""  # optional human-friendly tag for the report
+
+
+@dataclass
+class Script:
+    """A scripted wizard replay — one or more phases against one project.
+
+    Two compatible shapes:
+      - ``phases: [{spec_name, answers}, ...]`` for project-style runs
+        that walk multiple specs in one go.
+      - ``spec_name + answers`` (legacy) for a single-phase script;
+        treated as one-phase under the hood.
     """
 
     project_name: str
-    answers: list[str]
-    spec_name: str = "locations"
+    phases: list[Phase]
     fixture_root: str = "examples/config-tutorial"
     description: str = ""
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Script:
+        if "phases" in data:
+            phases = [
+                Phase(
+                    spec_name=p["spec_name"],
+                    answers=list(p["answers"]),
+                    label=p.get("label", p.get("spec_name", "")),
+                )
+                for p in data["phases"]
+            ]
+        else:
+            # Legacy single-phase script.
+            phases = [
+                Phase(
+                    spec_name=data.get("spec_name", "locations"),
+                    answers=list(data.get("answers", [])),
+                    label=data.get("spec_name", "locations"),
+                )
+            ]
         return cls(
             project_name=data["project_name"],
-            answers=list(data["answers"]),
-            spec_name=data.get("spec_name", "locations"),
+            phases=phases,
             fixture_root=data.get("fixture_root", "examples/config-tutorial"),
             description=data.get("description", ""),
         )
@@ -237,7 +270,12 @@ def replay(
     fresh_project: bool = True,
     progress: Progress | None = None,
 ) -> dict[str, Any]:
-    """Drive the wizard end-to-end with a scripted answer queue."""
+    """Drive the wizard end-to-end with a scripted answer queue.
+
+    Walks each phase in order: install the phase's answer queue, run
+    the wizard for the phase's spec, generate the XML, accumulate
+    validation. All phases share one project state and one event log.
+    """
     if progress is None:
         progress = Progress(script.project_name, enabled=False)
     os.environ["FEWS_AGENT_ALL_SPECS"] = "1"
@@ -255,109 +293,139 @@ def replay(
     if fresh_project and proj_dir.exists():
         shutil.rmtree(proj_dir)
 
-    ctx = ToolContext(
-        store=store,
-        project_name=script.project_name,
-        spec_name=script.spec_name,
-        project_data=store.load(script.project_name),
-    )
-
     log = EventLog(log_path)
     log.emit(
         "session_start",
         project=script.project_name,
-        spec=script.spec_name,
         fixture_root=script.fixture_root,
         provider=type(inner_provider).__name__,
         model=getattr(inner_provider, "model", "?"),
         description=script.description,
-        answers_count=len(script.answers),
+        n_phases=len(script.phases),
+        phases=[{"spec_name": p.spec_name, "label": p.label,
+                 "answers": len(p.answers)} for p in script.phases],
     )
     progress.line(
         f"session_start: provider={type(inner_provider).__name__} "
         f"model={getattr(inner_provider, 'model', '?')} "
-        f"answers={len(script.answers)}"
+        f"phases={len(script.phases)} "
+        f"answers_total={sum(len(p.answers) for p in script.phases)}"
     )
-
-    # Feed the queue.
-    queue: deque[str] = deque(script.answers)
-    handles = _PatchHandles(queue=queue, log=log, progress=progress)
-    handles.install()
 
     console = Console(quiet=True)  # suppress wizard's own noise
 
-    # Running totals across every parser invocation so the summary can
-    # report a single number without scanning JSONL after the fact.
+    # Per-project running totals (sum across all phases).
     parser_state = {"calls": 0, "prompt": 0, "completion": 0, "errors": 0}
 
-    def _on_parse(parsed: Any) -> None:
-        parser_state["calls"] += 1
-        if parsed.usage:
-            parser_state["prompt"] += int(parsed.usage.get("prompt_tokens", 0))
-            parser_state["completion"] += int(
-                parsed.usage.get("completion_tokens", 0)
+    def _make_on_parse(phase_label: str):
+        """Return an on_parse callback bound to the current phase label."""
+        def _on_parse(parsed: Any) -> None:
+            parser_state["calls"] += 1
+            if parsed.usage:
+                parser_state["prompt"] += int(parsed.usage.get("prompt_tokens", 0))
+                parser_state["completion"] += int(
+                    parsed.usage.get("completion_tokens", 0)
+                )
+            if parsed.error:
+                parser_state["errors"] += 1
+            log.emit(
+                "parser_call",
+                phase=phase_label,
+                n_values=len(parsed.values),
+                extracted=list(parsed.values.keys()),
+                error=parsed.error,
+                **(parsed.usage or {}),
             )
-        if parsed.error:
-            parser_state["errors"] += 1
+            if parsed.usage:
+                progress.line(
+                    f"  parser: extracted {len(parsed.values)} field(s) "
+                    f"({parsed.usage.get('total_tokens', 0):,} tokens)"
+                )
+            else:
+                progress.line(
+                    f"  parser: extracted {len(parsed.values)} field(s) "
+                    f"(no usage reported)"
+                )
+        return _on_parse
+
+    # Walk each phase: load fresh ctx so the wizard sees up-to-date
+    # project state for that spec, install its answer queue, run, then
+    # generate. Errors in one phase abort the project.
+    for phase_idx, phase in enumerate(script.phases):
         log.emit(
-            "parser_call",
-            n_values=len(parsed.values),
-            extracted=list(parsed.values.keys()),
-            error=parsed.error,
-            **(parsed.usage or {}),
+            "phase_start",
+            phase=phase.label,
+            spec=phase.spec_name,
+            answers_count=len(phase.answers),
+            index=phase_idx,
         )
-        if parsed.usage:
-            progress.line(
-                f"  parser: extracted {len(parsed.values)} field(s) "
-                f"({parsed.usage.get('total_tokens', 0):,} tokens)"
-            )
-        else:
-            progress.line(
-                f"  parser: extracted {len(parsed.values)} field(s) "
-                f"(no usage reported)"
-            )
-
-    try:
-        run_wizard(
-            script.spec_name,
-            ctx,
-            console,
-            provider=inner_provider,
-            on_parse=_on_parse,
-        )
-    except Exception as exc:  # noqa: BLE001
-        log.emit("error", error=f"{type(exc).__name__}: {exc}")
-        progress.line(f"ERROR: {type(exc).__name__}: {exc}")
-        handles.uninstall()
-        return _summary(script, log_path, log.events, ok=False, error=str(exc))
-    finally:
-        handles.uninstall()
-
-    if queue:
-        log.emit("answers_remaining", count=len(queue), unused=list(queue))
         progress.line(
-            f"  warning: {len(queue)} scripted answer(s) unused — wizard finished early"
+            f"phase {phase_idx + 1}/{len(script.phases)}: {phase.label} "
+            f"(spec={phase.spec_name}, {len(phase.answers)} answers)"
         )
 
-    # ------------------------------------------------------------------
-    # Generate XML for the spec, then validate.
-    # ------------------------------------------------------------------
-    progress.line(f"generate({script.spec_name}) — pulling from project state")
-    gen_result = generate_tool.generate(name=script.spec_name, ctx=ctx)
-    log.emit(
-        "generate",
-        spec=script.spec_name,
-        result={
-            **{k: v for k, v in gen_result.items() if k != "xml"},
-            "xml": _short(gen_result.get("xml", ""), 240),
-        },
-    )
-    if "error" in gen_result or "validation_errors" in gen_result:
-        log.emit("validation", ok=False, files=[], note=str(gen_result))
-        progress.line(f"  generate failed: {gen_result}")
-        return _summary(
-            script, log_path, log.events, ok=False, error=str(gen_result)
+        ctx = ToolContext(
+            store=store,
+            project_name=script.project_name,
+            spec_name=phase.spec_name,
+            project_data=store.load(script.project_name),
         )
+        queue: deque[str] = deque(phase.answers)
+        handles = _PatchHandles(queue=queue, log=log, progress=progress)
+        handles.install()
+
+        try:
+            run_wizard(
+                phase.spec_name,
+                ctx,
+                console,
+                provider=inner_provider,
+                on_parse=_make_on_parse(phase.label),
+            )
+        except Exception as exc:  # noqa: BLE001
+            log.emit("error", phase=phase.label, error=f"{type(exc).__name__}: {exc}")
+            progress.line(f"ERROR in phase {phase.label}: {exc}")
+            handles.uninstall()
+            return _summary(script, log_path, log.events, ok=False, error=str(exc))
+        finally:
+            handles.uninstall()
+
+        if queue:
+            log.emit(
+                "answers_remaining",
+                phase=phase.label,
+                count=len(queue),
+                unused=list(queue),
+            )
+            progress.line(
+                f"  warning: {len(queue)} scripted answer(s) unused in "
+                f"phase {phase.label}"
+            )
+
+        # Generate this phase's XML before moving on.
+        progress.line(f"  generate({phase.spec_name})")
+        gen_result = generate_tool.generate(name=phase.spec_name, ctx=ctx)
+        log.emit(
+            "generate",
+            phase=phase.label,
+            spec=phase.spec_name,
+            result={
+                **{k: v for k, v in gen_result.items() if k != "xml"},
+                "xml": _short(gen_result.get("xml", ""), 240),
+            },
+        )
+        if "error" in gen_result or "validation_errors" in gen_result:
+            log.emit(
+                "phase_failed",
+                phase=phase.label,
+                spec=phase.spec_name,
+                result=gen_result,
+            )
+            progress.line(f"  generate failed in {phase.label}: {gen_result}")
+            # Continue to next phase rather than abort — the user wants
+            # to see the per-file table even when some specs fail.
+            continue
+        log.emit("phase_done", phase=phase.label, spec=phase.spec_name)
 
     # ------------------------------------------------------------------
     # Walk the workspace's generated/ tree and validate per file.
@@ -452,7 +520,14 @@ def replay(
         files_with_fixture=n_fix,
         files_byte_equivalent=n_match,
         run_dir=str(run_dir),
-        answers_remaining=len(queue),
+        # Sum unused answers reported by per-phase events so the
+        # summary can flag scripts that ran short.
+        answers_remaining=sum(
+            int(e.get("count", 0))
+            for e in log.events
+            if e["type"] == "answers_remaining"
+        ),
+        n_phases=len(script.phases),
         parser_calls=parser_state["calls"],
         parser_errors=parser_state["errors"],
         parser_prompt_tokens=parser_state["prompt"],
@@ -518,9 +593,56 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Skip the post-replay Markdown render.",
     )
+    parser.add_argument(
+        "--max-phases",
+        type=int,
+        default=None,
+        help="Run only the first N phases of the script (for piloting).",
+    )
+    parser.add_argument(
+        "--phase-filter",
+        default=None,
+        help="Substring or comma-separated list — keep only phases whose "
+        "spec_name matches.",
+    )
+    parser.add_argument(
+        "--specs",
+        default=None,
+        help="Comma-separated list of EXACT spec names to keep (output "
+        "of `python -m runners.agent.pick`). Safer than --phase-filter "
+        "when names share substrings.",
+    )
+    parser.add_argument(
+        "--specs-from",
+        default=None,
+        help="Read --specs values from a file (one per line; whitespace "
+        "and blank lines ignored). Use '-' for stdin.",
+    )
     args = parser.parse_args(argv)
 
     script = load_script(args.script)
+    if args.specs or args.specs_from:
+        spec_text = args.specs or ""
+        if args.specs_from:
+            if args.specs_from == "-":
+                src = sys.stdin.read()
+            else:
+                src = Path(args.specs_from).read_text(encoding="utf-8")
+            spec_text = (spec_text + "\n" + src).strip(", \n")
+        wanted = {
+            tok.strip()
+            for tok in spec_text.replace("\n", ",").split(",")
+            if tok.strip()
+        }
+        script.phases = [p for p in script.phases if p.spec_name in wanted]
+    if args.phase_filter:
+        terms = [t.strip().lower() for t in args.phase_filter.split(",") if t.strip()]
+        script.phases = [
+            p for p in script.phases
+            if any(t in p.spec_name.lower() for t in terms)
+        ]
+    if args.max_phases is not None:
+        script.phases = script.phases[: args.max_phases]
     timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
     run_dir = _run_dir(Path(args.validation_root), script.project_name, timestamp)
     progress = Progress(script.project_name, enabled=not args.quiet)

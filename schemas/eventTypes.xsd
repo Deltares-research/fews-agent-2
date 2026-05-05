@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schema xmlns="http://www.w3.org/2001/XMLSchema" xmlns:fews="http://www.wldelft.nl/fews/archive"
+		targetNamespace="http://www.wldelft.nl/fews/archive" elementFormDefault="qualified"
+		attributeFormDefault="unqualified" version="1.0">
+	<include schemaLocation="archive_sharedTypes.xsd"/>
+	<element name="eventTypes" type="fews:EventTypesComplexType"/>
+	<complexType name="EventTypesComplexType">
+		<sequence>
+			<element name="eventType" type="fews:EventTypeComplexType" maxOccurs="unbounded"/>
+		</sequence>
+	</complexType>
+	<complexType name="EventTypeComplexType">
+		<sequence>
+			<element name="dateType" type="fews:archiveDataTypeSimpleType" maxOccurs="unbounded"/>
+			<element name="historicalEvent" type="boolean" default="false" minOccurs="0"/>
+		</sequence>
+		<attribute name="id" type="fews:idStringType" use="required"/>
+		<attribute name="name" type="fews:nameStringType" use="optional"/>
+	</complexType>
+	<simpleType name="archiveDataTypeSimpleType">
+		<restriction base="string">
+			<enumeration value="observed timeseries"/>
+			<enumeration value="simulated timeseries"/>
+			<enumeration value="external forecast timeseries"/>
+			<enumeration value="rating curves"/>
+			<enumeration value="modifiers"/>
+			<enumeration value="forecaster notes"/>
+			<enumeration value="reports"/>
+			<enumeration value="model states"/>
+			<enumeration value="products"/>
+			<enumeration value="snapshot"/>
+			<enumeration value="logfiles"/>
+			<enumeration value="configuration"/>
+		</restriction>
+	</simpleType>
+</schema>

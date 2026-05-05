@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schema xmlns="http://www.w3.org/2001/XMLSchema" xmlns:fews="http://www.wldelft.nl/fews/topology"
+		targetNamespace="http://www.wldelft.nl/fews/topology" elementFormDefault="qualified"
+		version="1.0">
+	<element name="networkValidationRules" type="fews:NetworkValidationRulesComplexType"/>
+	<complexType name="NetworkValidationRulesComplexType">
+		<sequence>
+			<element name="node" type="fews:NodeValidationRulesComplexType" maxOccurs="unbounded" minOccurs="0"/>
+			<element name="link" type="fews:LinkValidationRulesComplexType" maxOccurs="unbounded" minOccurs="0"/>
+		</sequence>
+	</complexType>
+	<complexType name="NodeValidationRulesComplexType">
+		<sequence>
+			<element name="defaultUpstreamValidationRule" type="fews:DefaultNodeValidationRulesComplexType" minOccurs="0"/>
+			<element name="defaultDownstreamValidationRule" type="fews:DefaultNodeValidationRulesComplexType" minOccurs="0"/>
+			<element name="upstreamValidationRuleForLinkType" type="fews:ConditionalNodeComplexType" maxOccurs="unbounded" minOccurs="0"/>
+			<element name="downstreamValidationRuleForLinkType" type="fews:ConditionalNodeComplexType" maxOccurs="unbounded" minOccurs="0"/>
+			<element name="allowedUpstreamLinkType" type="string" minOccurs="0" maxOccurs="unbounded"/>
+			<element name="allowedDownstreamLinkType" type="string" minOccurs="0" maxOccurs="unbounded"/>
+		</sequence>
+		<attribute name="nodeType" type="string" use="required"/>
+	</complexType>
+	<complexType name="LinkValidationRulesComplexType">
+		<sequence>
+			<element name="allowedUpstreamNodeType" type="string" minOccurs="0" maxOccurs="unbounded"/>
+			<element name="allowedDownstreamNodeType" type="string" minOccurs="0" maxOccurs="unbounded"/>
+			<element name="excludedUpstreamNodeType" type="string" minOccurs="0" maxOccurs="unbounded"/>
+			<element name="excludedDownstreamNodeType" type="string" minOccurs="0" maxOccurs="unbounded"/>
+		</sequence>
+		<attribute name="linkType" type="string" use="required"/>
+	</complexType>
+	<complexType name="DefaultNodeValidationRulesComplexType">
+		<sequence>
+		</sequence>
+		<attribute name="min" type="positiveInteger" use="optional"/>
+		<attribute name="max" type="positiveInteger" use="optional"/>
+	</complexType>
+	<complexType name="ConditionalNodeComplexType">
+		<attribute name="linkType" type="string" use="required"/>
+		<attribute name="min" type="positiveInteger" use="optional"/>
+		<attribute name="max" type="positiveInteger" use="optional"/>
+		<attribute name="minLink" type="positiveInteger" use="optional"/>
+	</complexType>
+	<simpleType name="positiveInteger">
+		<restriction base="integer">
+			<minInclusive value="0"/>
+		</restriction>
+	</simpleType>
+</schema>

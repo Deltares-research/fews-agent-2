@@ -1,0 +1,191 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schema xmlns="http://www.w3.org/2001/XMLSchema" xmlns:fews="http://www.wldelft.nl/fews/archive"
+		targetNamespace="http://www.wldelft.nl/fews/archive" elementFormDefault="qualified"
+		attributeFormDefault="unqualified" version="1.0">
+	<include schemaLocation="archive_sharedTypes.xsd"/>
+	<element name="archiveServer" type="fews:ArchiveServerComplexType"/>
+	<complexType name="ArchiveServerComplexType">
+		<sequence>
+			<element name="archiveEnvironmentName" type="string" minOccurs="0"/>
+			<element name="createFewsConfigFromArchive" type="boolean" minOccurs="0" default="false"/>
+			<element name="catalogueIndexFolder" type="fews:fileStringType" minOccurs="0"/>
+			<element name="baseUrlFileServer" type="anyURI">
+				<annotation>
+					<documentation>Base URL of the fileServer from which data records can be downloaded.</documentation>
+				</annotation>
+			</element>
+			<element name="baseUrlArchiveRootFolder" type="anyURI">
+				<annotation>
+					<documentation>Base URL of the archive root folder This directory should contain sub folders which contain the data, configuration etc</documentation>
+				</annotation>
+			</element>
+			<element name="baseUrlArchiveDataFolder" type="anyURI" minOccurs="0">
+				<annotation>
+					<documentation>Base URL of the archive data folder. If this option is not configured the base folder will be baseUrlArchiveRootFolder + data. Specify a custom location for the data if you dont the data to be located in baseUrlArchiveRootFolder + data</documentation>
+				</annotation>
+			</element>
+			<element name="elasticSearchUrl" type="anyURI" minOccurs="0">
+				<annotation>
+					<documentation>Since 2019.02. URL of the elastic search catalogue. If this option is not configured the default URL is http://localhost:9200.</documentation>
+				</annotation>
+			</element>
+			<element name="cacheFolderUrl" type="anyURI" minOccurs="0">
+					<annotation>
+						<documentation>Since 2019.02. To improve the performance of the harvester the time series meta data are now stored in cache file.
+							The cache folder for these files is by default data/cache , but can be customized by using this setting</documentation>
+					</annotation>
+			</element>
+			<element name="dataFolderFilter" type="fews:DataFolderFilterConstraintsComplexType" minOccurs="0">
+			<annotation>
+				<documentation>Since 2023.02. If configured, the harvester will skip folders that are excluded by the filter.</documentation>
+			</annotation>
+		</element>
+			<element name="fileNameFilter" type="fews:FileNameFilterConstraintsComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2023.02. If configured, the harvester will skip folders that are excluded by the filter.</documentation>
+				</annotation>
+			</element>
+			<element name="indexForecastTimeSeries" type="boolean" default="true" minOccurs="0">
+				<annotation>
+					<documentation>If this option is set to false the external forecasts and simulated forecasts time series and not be indexed anymore. This can be good improvement for the performance of the harvester. Downside is that you cannot use seamless integration for forecasts.</documentation>
+				</annotation>
+			</element>
+			<element name="searchAttribute" type="string" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Since 2022.01 Define the attributes by which the archive can be searched. The attribute can be a netcdf-attribute or a custom property.</documentation>
+				</annotation>
+			</element>
+			<element name="manageCatalogue" type="fews:booleanStringType" minOccurs="0" default="true">
+				<annotation>
+					<documentation>Since 2023.02 Indicate if the archive server manages the catalogue. This is the case by default. If elastic is hosted as a separate service then this option should
+						be set to false.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="autoInitCatalogue" type="fews:booleanStringType" minOccurs="0" default="false">
+				<annotation>
+					<documentation>Since 2023.02 If the version of the catalogue is not matching the version of the archive then the indices of the catalogue will be cleared and re-initialized
+						automatically for the current version.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="webserviceRunTask" type="fews:booleanStringType" minOccurs="0" default="false">
+				<annotation>
+					<documentation>Since 2023.02 If this option is set to true then it is allowed to start tasks by using the archive webservice. Note that if you dont protect this webservice by using
+						OpenId Connect that everyone who has access to the network can start tasks.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="security" type="fews:ArchiveSecurityComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2023.02. Configure how the Archive Server is secured.
+					</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="ArchiveSecurityComplexType">
+		<sequence>
+			<element name="openIdConnect" type="fews:ArchiveSecurityOpenIdConnectComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Configure Open ID Connect as security solution for the Archive Server and its API, the elastic proxy and the thredds proxy.
+					</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="ArchiveSecurityOpenIdConnectComplexType">
+		<sequence>
+			<element name="apiProtectionEnabled" type="boolean" default="true">
+				<annotation>
+					<documentation>In case only the Archive Admin console has to be protected by OIDC, apiProtectionEnabled should be false.
+						If enabled, an Operator Client or Standalone has to log in first to be able to use archive functionality
+					</documentation>
+				</annotation>
+			</element>
+			<element name="adminInterfaceUri" type="anyURI" minOccurs="0">
+				<annotation>
+					<documentation>Since 2025.01. Admin Interface URI. Used to get assigned groups that are managed in the Admin Interface. This way authorization can be done based on groups. The Admin Interface needs to be configured to support OIDC.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="authorizationUri" type="anyURI">
+				<annotation>
+					<documentation>OIDC authorization URI. Example for Azure AD: https://login.microsoftonline.com/my-tenantid/oauth2/v2.0/authorize
+					</documentation>
+				</annotation>
+			</element>
+			<element name="clientId" type="string">
+				<annotation>
+					<documentation>client id of the OIDC archive registration.
+					</documentation>
+				</annotation>
+			</element>
+			<choice>
+				<!--Either the client secret is configured directly or the client secret is stored in the Azure Key Vault-->
+				<element name="clientSecret" type="string">
+					<annotation>
+						<documentation>client secret of the OIDC archive registration. Strongly advised to use a ENV variable: $FEWS_ARCHIVE_AUTHENTICATION_OAUTH2_CLIENT_SECRET$
+						</documentation>
+					</annotation>
+				</element>
+				<sequence>
+					<element name="keyVault" type="string">
+						<annotation>
+							<documentation>Since 2024.01. Name of the Azure Key Vault the client secret is stored in.
+							</documentation>
+						</annotation>
+					</element>
+					<element name="clientSecretKeyVaultName" type="string">
+						<annotation>
+							<documentation>Since 2024.01. Name of the client secret as stored in the Azure Key Vault.
+							</documentation>
+						</annotation>
+					</element>
+					<element name="clientSecretKeyVaultClientId" type="string" minOccurs="0">
+						<annotation>
+							<documentation>Since 2024.01. Client id of the managed identity that has access to the key vault. Typically set as a user assigned managed identity on a VM that has been given keyvault user access.
+							</documentation>
+						</annotation>
+					</element>
+				</sequence>
+			</choice>
+			<element name="keysUri" type="anyURI">
+				<annotation>
+					<documentation>OIDC well known key URI. Example for Azure AD: https://login.microsoftonline.com/my-tenantid/discovery/v2.0/keys
+					</documentation>
+				</annotation>
+			</element>
+			<element name="redirectUri" type="anyURI">
+				<annotation>
+					<documentation>OIDC redirect URI. Has to be registered as redirect uri at the OIDC provider. For example: https://www.myarchiveserver.com/deltares-archive-server/login/oauth2/code/fews
+					</documentation>
+				</annotation>
+			</element>
+			<element name="tokenUri" type="anyURI">
+				<annotation>
+					<documentation>OIDC redirect URI. Example for Azure AD: https://login.microsoftonline.com/my-tenantid/oauth2/v2.0/token
+					</documentation>
+				</annotation>
+			</element>
+			<element name="userInfoUri" type="anyURI">
+				<annotation>
+					<documentation>OIDC user info URI. Example for Azure AD: https://graph.microsoft.com/oidc/userinfo
+					</documentation>
+				</annotation>
+			</element>
+			<element name="scope" type="string">
+				<annotation>
+					<documentation>OIDC scopes. Example for Azure AD, where the api scope is required to allow the OC or Standalone access to the Archive API: openid,Offline_Access,api://unique-api-identifier/DelftFewsBackendApis
+					</documentation>
+				</annotation>
+			</element>
+			<element name="audience" type="string" minOccurs="0">
+				<annotation>
+					<documentation>Since 2025.01. OIDC audience. If configured and apiProtectionEnabled is set to true, the "aud" claim in the access token has to match the configured audience. Useful to make sure the token is really meant for the archive server API.
+					</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+</schema>
