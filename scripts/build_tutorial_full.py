@@ -213,15 +213,9 @@ def build_project_yaml(
                 )
                 pattern_input_keys.add(key)
 
-    # Pattern-covered keys are excluded from direct_singletons (would
-    # produce duplicate output paths). CSV-covered keys ARE included,
-    # because direct_singletons runs after the CSV path and overwrites
-    # CSV-rendered files with the lossless JSON-derived version. CSVs
-    # remain useful as base_data for the contribution merger.
-    direct_specs: list[str] = []
-    for s in SPECS:
-        if s.input_key in tutorial_input and s.input_key not in pattern_input_keys:
-            direct_specs.append(s.name)
+    # No direct_singletons block — per-spec YAML files in inputs/
+    # cover everything the patterns and CSVs don't. The runner walks
+    # inputs/ for *.yaml automatically.
 
     project = {
         "name": "tutorial-full",
@@ -229,18 +223,14 @@ def build_project_yaml(
         "patterns": patterns_block,
         "singleton_seeds": {
             # Locations gets a baseline geoDatum; CSV adds rows; pattern
-            # contributions add NWP grids on top.
+            # contributions add NWP grids on top. The merger output is
+            # then overwritten by inputs/locations.yaml if present
+            # (since the project's own yaml is the lossless source).
             "Locations": {
                 "geoDatum": "WGS 1984",
             },
         },
-        "direct_singletons": {
-            "source": "../../config-tutorial-input.json",
-            "specs": direct_specs,
-        },
     }
-    print(f"  direct singletons: {len(direct_specs)} specs not covered by "
-          f"patterns/CSVs")
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(
@@ -262,10 +252,14 @@ def main() -> int:
             print(f"  ERR {cluster_yaml.name}: {exc}")
     print(f"Derived {len(pattern_records)} sub-cluster patterns")
 
-    # Step 2: build CSVs.
+    # Step 2: build CSVs (tabular) + per-spec YAMLs (non-tabular).
     inputs_dir = TUTORIAL_PROJECT_DIR / "inputs"
     build_csv_inputs(inputs_dir)
     print(f"Wrote tabular CSVs to {inputs_dir}")
+
+    # Per-spec YAMLs for everything the patterns + CSVs don't cover.
+    from scripts.split_tutorial_inputs import main as split_main
+    split_main()
 
     # Step 3: build the project.yaml.
     project_yaml = TUTORIAL_PROJECT_DIR / "project.yaml"

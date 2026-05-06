@@ -143,6 +143,57 @@ def _render_direct_singletons(
     return n
 
 
+def _render_yaml_inputs(
+    inputs_dir: Path, result: object,
+) -> int:
+    """Walk ``inputs_dir`` for *.yaml and *.yml files, render each as a spec.
+
+    File stem matches a SPEC name (e.g. ``filters.yaml`` → spec name
+    ``filters``). The file's contents are the input dict expected by
+    the spec's Pydantic class. Uses the existing render pipeline.
+
+    Renders only specs that have a SPEC entry. Files whose stem
+    doesn't match a spec name are skipped silently — they may be
+    documentation / project notes.
+    """
+    import yaml as _yaml
+
+    from fews_agent.agent.blueprint import RenderedFile
+    from fews_agent.generators import SPECS
+    from fews_agent.generators.base import render as render_template
+
+    spec_by_name = {s.name: s for s in SPECS}
+    n = 0
+    for path in sorted(inputs_dir.iterdir()):
+        if not path.is_file() or path.suffix.lower() not in {".yaml", ".yml"}:
+            continue
+        spec_name = path.stem
+        spec = spec_by_name.get(spec_name)
+        if spec is None:
+            continue
+        try:
+            data = _yaml.safe_load(path.read_text(encoding="utf-8"))
+            if data is None:
+                continue
+            model = spec.model_class.model_validate(data)
+            xml = render_template(spec.template_name, model)
+            relpath = str(spec.output_relpath).replace("\\", "/")
+            result.rendered_files.append(
+                RenderedFile(
+                    relpath=relpath,
+                    content=xml,
+                    pattern="(yaml)",
+                    instance_label=spec_name,
+                )
+            )
+            n += 1
+        except Exception as exc:  # noqa: BLE001
+            result.errors.append(
+                f"yaml input {path.name}: {type(exc).__name__}: {exc}"
+            )
+    return n
+
+
 def _csv_singleton_outputs(
     ingest_results: dict[str, IngestResult],
     target_class_names_with_contributions: set[str],
@@ -257,9 +308,21 @@ def build_from_blueprint(
                     f"csv→{type(model).__name__}: {exc}"
                 )
 
-    # Direct singletons: render specs straight from a JSON seed file.
-    # Used for project-specific singletons that don't fit patterns or
-    # the canonical CSV set (Filters, Topology, DisplayGroups, etc.).
+    # Per-spec YAML files in inputs/ — one file per non-tabular
+    # singleton (Filters, Topology, DisplayGroups, ...). The runner
+    # renders these via the existing template path. Configurator
+    # authors each file in its natural shape.
+    if inputs_dir is not None and inputs_dir.is_dir():
+        n_yaml = _render_yaml_inputs(inputs_dir, result)
+        if n_yaml:
+            console.print(
+                f"[dim]Per-spec YAML inputs: {n_yaml} rendered from "
+                f"{inputs_dir}[/dim]"
+            )
+
+    # Direct singletons (legacy path): render specs straight from a
+    # JSON seed file. Used for projects that prefer one big JSON over
+    # split per-spec yamls.
     if bp.direct_singletons_source and bp.direct_singletons_specs:
         n_direct = _render_direct_singletons(
             bp.direct_singletons_source, bp.direct_singletons_specs, result,
