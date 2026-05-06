@@ -1,0 +1,36 @@
+name: wsc_scalar_WSCHistoric
+description: 'Auto-derived pattern from tutorial instances: WSCHistoric.'
+variables:
+  wsc_variant:
+    type: str
+    required: true
+outputs:
+- schema: TimeSeriesImportRun
+  output: ModuleConfigFiles/Import/ECCCScalar/Import{{ wsc_variant }}.xml
+  data:
+    import:
+    - general:
+        importType: csv
+        folder: $IMPORT_FOLDER$/WSC
+        failedFolder: $IMPORT_FAILED_FOLDER$/WSC
+        backupFolder: $IMPORT_BACKUP_FOLDER$/WSC
+        idMapId: IdImportWSC
+        unitConversionsId: ImportUnitConversions
+      timeSeriesSet:
+      - moduleInstanceId: ImportWSC
+        valueType: scalar
+        parameterId: QR.obs
+        locationSetId: $MODELNAME1$HydroStations
+        timeSeriesType: external historical
+        timeStep:
+          unit: day
+          multiplier: 1
+        readWriteMode: read only
+- schema: Workflow
+  output: WorkflowFiles/Import/ECCCScalar/Import{{ wsc_variant }}.xml
+  data:
+    version: '1.1'
+    activity:
+    - runIndependent: true
+      moduleInstanceId: ImportWSCHistoric
+contributions: []

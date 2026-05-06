@@ -1,0 +1,99 @@
+name: snow_import_GLOBSNOW
+description: 'Auto-derived pattern from tutorial instances: GLOBSNOW.'
+variables:
+  snow_source:
+    type: str
+    required: true
+outputs:
+- schema: TimeSeriesImportRun
+  output: ModuleConfigFiles/Import/Snow/Import{{ snow_source }}.xml
+  data:
+    import:
+    - general:
+        importType: NETCDF-CF_GRID
+        folder: $IMPORT_FOLDER$/GLOBSNOW
+        fileNameDateTimeFilter:
+        - subFolderLevel: 0
+          timeStep:
+            unit: day
+            multiplier: 1
+          dateTimePattern: yyyyMMdd
+          preFixLength: 17
+          postFixLength: 14
+        fileNamePatternFilter: GlobSnow_SWE_L3A_*_v.1.0.nc*
+        fileNameObservationDateTimePattern: '''GlobSnow_SWE_L3A_''yyyyMMdd''_v.1.0.nc'''
+        failedFolder: $IMPORT_FAILED_FOLDER$/GLOBSNOW
+        backupFolder: $IMPORT_BACKUP_FOLDER$/GLOBSNOW
+        relativeViewPeriod:
+          unit: day
+          start: -3
+          end: 0
+          startOverrulable: false
+          endOverrulable: false
+        idMapId: IdImportGlobSnow
+        unitConversionsId: ImportUnitConversions
+        missingValue: '-1.0'
+        importTimeZone:
+          timeZoneName: GMT+0
+        dataFeedId: GlobSnow
+      timeSeriesSet:
+      - moduleInstanceId: ImportGLOBSNOW
+        valueType: grid
+        parameterId: SWE.sim
+        locationId: GLOBSNOW
+        timeSeriesType: external historical
+        timeStep:
+          unit: hour
+          multiplier: 6
+        readWriteMode: add originals
+        synchLevel: 6
+        expiryTime:
+          unit: day
+          multiplier: 15
+      externUnit:
+      - parameterId: SWE.sim
+        unit: mm
+- schema: GeneralAdapterRun
+  output: ModuleConfigFiles/Import/Snow/Retrieve{{ snow_source }}.xml
+  data:
+    general:
+      piVersion: '1.10'
+      rootDir: '%REGION_HOME%/Modules'
+      workDir: '%ROOT_DIR%/SnowDownload'
+      exportDir: '%ROOT_DIR%/SnowDownload'
+      exportDataSetDir: '%ROOT_DIR%'
+      importDir: '%ROOT_DIR%/SnowDownload'
+      dumpFileDir: $GA_DUMPFILEDIR$
+      dumpDir: '%ROOT_DIR%/SnowDownload'
+      diagnosticFile: '%ROOT_DIR%/SnowDownload/diag.xml'
+      time0Format: yyyyMMdd
+    activities:
+      startUpActivities:
+        purgeActivity:
+        - filter: '%ROOT_DIR%/SnowDownload/*.*'
+      exportActivities:
+        exportDataSetActivity:
+        - moduleInstanceId: SnowDownload
+      executeActivities:
+        executeActivity:
+        - description: Run wget64.exe to download GlobSnow SWE analysis
+          command:
+            executable: SnowDownload/DownloadGlobSnow.bat
+          arguments:
+            argument:
+            - https://www.globsnow.info/swe/nrt
+            - $IMPORT_FOLDER$/GlobSnow/
+            - '%TIME0%'
+            - GlobSnow
+          timeOut: 7200000
+          ignoreDiagnostics: false
+- schema: Workflow
+  output: WorkflowFiles/Import/Snow/Import{{ snow_source }}Grids.xml
+  data:
+    version: '1.1'
+    activity:
+    - runIndependent: true
+      moduleInstanceId: RetrieveGLOBSNOW
+    - runIndependent: true
+      moduleInstanceId: ImportGLOBSNOW
+contributions: []

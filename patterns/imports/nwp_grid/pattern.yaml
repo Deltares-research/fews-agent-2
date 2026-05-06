@@ -4,94 +4,175 @@ description: |
   Environment Canada's WCS service. Produces two files: the import
   config (timeSeriesImportRun) and a workflow that runs import +
   preprocess for both parameters.
+keywords: [nwp, ecccgrids, weather, forecast, precipitation, temperature, grid]
+when_to_use: |
+  When importing a numerical weather prediction product as gridded data
+  (PC.nwp + TA.nwp) from Environment Canada. Each instance covers one
+  NWP product (HRDPS, GDPS, RDPS, REPS, ...).
 
-# Variables the configurator supplies per instantiation.
-# Types: str | int | dict
+# Variables the configurator supplies per instantiation. Defaults are
+# used when not supplied; required ones must be present.
 variables:
   nwp_name:
     type: str
     required: true
-    description: |
-      NWP product name (HRDPS, GDPS, RDPS, REPS, ...). Drives
-      moduleInstanceId, locationId, and filenames everywhere it
-      appears. Must also be declared as a locationId in
-      LocationSets.xml (singleton path handles that).
   time_step_hours:
     type: int
     required: true
-    description: |
-      Forecast time step in hours. HRDPS=1, RDPS=3, GDPS=3, REPS=6.
   forecast_horizon_hours:
     type: int
     required: true
-    description: |
-      End of forecast horizon in hours from issue time.
-      HRDPS=48, RDPS=84, GDPS=240, REPS=384.
   start_lookback_hours:
     type: int
     default: 1
-    description: |
-      Hours before issue time the precipitation lookback covers.
-      Required because PC.nwp is accumulative and the first frame
-      is unavailable. Typically equals time_step_hours.
   expiry_time_days:
     type: int
     default: 7
-    description: |
-      Days before imported data is treated as stale by FEWS.
   subset_property_kind:
     type: str
     default: bool
-    description: |
-      XML element type wrapping the subset property — either ``bool``
-      or ``string``. Matches the FEWS properties block.
   subset_property_key:
     type: str
     default: useSubset
-    description: |
-      Key name. Common values: ``useSubset`` (paired with bool false),
-      ``subsettingCrs`` (paired with string EPSG:4326).
   subset_property_value:
     type: str
     default: "false"
-    description: |
-      String form of the value. ``"false"`` for the bool case,
-      ``"EPSG:4326"`` for the subsettingCrs case.
   workflow_shape:
     type: str
     default: inline
-    description: |
-      How the workflow handles preprocessing.
-        - inline: 3 inline activities (PC + Accumulate + TA). Used by
-          high-resolution products (HRDPS).
-        - inline_minimal: 2 inline activities (PC + TA, no Accumulate).
-          Used by analysis products (RDPA).
-        - delegated: 2 activities that call per-basin child workflows
-          ``Preprocess<NWP><MODELNAME>``. Used by lower-resolution
-          products (GDPS, RDPS, REPS) that share a downstream pipeline.
-        - none: import-only, no preprocess (HRDPA).
 
-# Each output file is rendered by one Jinja template. Output paths can
-# reference any variable.
-files:
-  - template: ImportNWP.xml.j2
+# Each output declares: which Pydantic schema class validates the data,
+# the output path (templated), and the data shape (with placeholder
+# expressions rendered before validation). The Jinja template is
+# looked up from the SPECS registry by schema class — no template
+# path declared here.
+outputs:
+  - schema: TimeSeriesImportRun
     output: ModuleConfigFiles/Import/ECCCGrids/Import{{ nwp_name }}.xml
-  - template: ImportNWPGrids.xml.j2
-    output: WorkflowFiles/Import/ECCCGrids/Import{{ nwp_name }}Grids.xml
+    data:
+      import:
+        - general:
+            importType: CanadaMeteoWCS
+            serverUrl: https://geo.weather.gc.ca/geomet?SERVICE=WCS&VERSION=2.0.1&REQUEST=GetCoverage
+            relativeViewPeriod:
+              unit: hour
+              start: "{{ start_lookback_hours }}"
+              end: "{{ forecast_horizon_hours }}"
+              startOverrulable: true
+              endOverrulable: true
+            idMapId: IdImportCanadaWCS
+          startTimeShift:
+            parameterId: PC.nwp
+            relativePeriod:
+              unit: hour
+              start: "-{{ start_lookback_hours }}"
+              end: 0
+          properties:
+            "{{ subset_property_kind }}":
+              - key: "{{ subset_property_key }}"
+                value: "{{ subset_property_value }}"
+          timeSeriesSet:
+            - moduleInstanceId: Import{{ nwp_name }}
+              valueType: grid
+              parameterId: PC.nwp
+              locationId: "{{ nwp_name }}"
+              timeSeriesType: external forecasting
+              timeStep:
+                unit: hour
+                multiplier: "{{ time_step_hours }}"
+              readWriteMode: add originals
+          externUnit:
+            - parameterId: PC.nwp
+              unit: kg m-2
+              cumulativeSum: true
+        - general:
+            importType: CanadaMeteoWCS
+            serverUrl: https://geo.weather.gc.ca/geomet?SERVICE=WCS&VERSION=2.0.1&REQUEST=GetCoverage
+            relativeViewPeriod:
+              unit: hour
+              start: 0
+              end: "{{ forecast_horizon_hours }}"
+              startOverrulable: true
+              endOverrulable: true
+            idMapId: IdImportCanadaWCS
+          properties:
+            "{{ subset_property_kind }}":
+              - key: "{{ subset_property_key }}"
+                value: "{{ subset_property_value }}"
+          timeSeriesSet:
+            - moduleInstanceId: Import{{ nwp_name }}
+              valueType: grid
+              parameterId: TA.nwp
+              locationId: "{{ nwp_name }}"
+              timeSeriesType: external forecasting
+              timeStep:
+                unit: hour
+                multiplier: "{{ time_step_hours }}"
+              readWriteMode: add originals
+          externUnit:
+            - parameterId: TA.nwp
+              unit: K
 
-# Cross-spec contributions — values this pattern adds to other files
-# the project shares. The expander aggregates these across all
-# instantiations and merges into the singleton files.
+  - schema: Workflow
+    output: WorkflowFiles/Import/ECCCGrids/Import{{ nwp_name }}Grids.xml
+    data:
+      version: "1.1"
+      properties:
+        string:
+          - {key: FORECAST, value: "{{ nwp_name }}"}
+          - {key: TIMESTEP, value: "{{ time_step_hours }}"}
+          - {key: EXPIRYTIME, value: "{{ expiry_time_days }}"}
+          - {key: INPUTGRID, value: "{{ nwp_name }}"}
+          - {key: OUTPUTGRID, value: $MODELNAME1$Grid}
+          - {key: INPUTMODULEINSTANCE, value: "Import{{ nwp_name }}"}
+          - {key: ENSEMBLE, value: main}
+          - {key: BASINLOCATIONS, value: $MODELNAME1$Basins}
+          - {key: STATIONLOCATIONS, value: ECCCStations$REGION$}
+          - {key: TIMESERIESTYPE, value: external forecasting}
+      activity:
+        - runIndependent: true
+          moduleInstanceId: "Import{{ nwp_name }}"
+{% if workflow_shape == 'inline' %}
+        - properties:
+            string:
+              - {key: PARAMETER, value: PC.nwp}
+          runIndependent: true
+          moduleInstanceId: "Preprocess{{ nwp_name }}"
+          moduleConfigFileName: PreprocessAccumulatedParametersNWPTemplate
+        - properties:
+            string:
+              - {key: LOCATIONSET, value: $MODELNAME1$Basins}
+              - {key: INPUTMODULEINSTANCE, value: "Preprocess{{ nwp_name }}"}
+          runIndependent: true
+          moduleInstanceId: "Preprocess{{ nwp_name }}"
+          moduleConfigFileName: AccumulateForecastPrecipTemplate
+        - properties:
+            string:
+              - {key: PARAMETER, value: TA.nwp}
+          runIndependent: true
+          moduleInstanceId: "Preprocess{{ nwp_name }}"
+          moduleConfigFileName: PreprocessInstantaneousParametersNWPTemplate
+{% elif workflow_shape == 'delegated' %}
+        - workflowId: "Preprocess{{ nwp_name }}$MODELNAME1$"
+        - workflowId: "Preprocess{{ nwp_name }}$MODELNAME2$"
+{% endif %}
+
+# Cross-spec contributions — entries this pattern adds to project-wide
+# singleton files. The expander aggregates these across all instances
+# and merges into the singleton's Pydantic instance.
 contributions:
-  ModuleInstanceDescriptors.xml:
-    - id: Import{{ nwp_name }}
-      description: Import {{ nwp_name }} gridded forecast
-    - id: Preprocess{{ nwp_name }}
-      description: Preprocess {{ nwp_name }} forecast (PC + TA)
-  Locations.xml:
-    # The NWP grid declares itself as a location (used as locationId
-    # in the timeSeriesSet). Singleton Locations.xml gets this row.
-    - id: "{{ nwp_name }}"
-      name: "{{ nwp_name }} source grid"
-      x: 0
-      y: 0
+  - target: ModuleInstanceDescriptors
+    field: moduleInstanceDescriptor
+    items:
+      - id: Import{{ nwp_name }}
+        description: Import {{ nwp_name }} gridded forecast
+      - id: Preprocess{{ nwp_name }}
+        description: Preprocess {{ nwp_name }} forecast (PC + TA)
+
+  - target: Locations
+    field: location
+    items:
+      - id: "{{ nwp_name }}"
+        name: "{{ nwp_name }} source grid"
+        x: 0
+        y: 0
