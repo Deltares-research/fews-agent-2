@@ -252,6 +252,21 @@ def main(argv: list[str] | None = None) -> int:
             "Locations", {}
         )["geoDatum"] = slots["geoDatum"]
 
+    # Cross-turn promotion: if singular basin_name + model_adapter were
+    # filled in different turns, synthesise the canonical `basins` pair.
+    # Without this, `is_intent_ready` blocks indefinitely because the
+    # skill only emits `basins` when both appear in the SAME message.
+    if (
+        not slots.get("basins")
+        and slots.get("basin_name")
+        and slots.get("model_adapter")
+    ):
+        slots["basins"] = [{
+            "basin_name": slots["basin_name"],
+            "model_adapter": slots["model_adapter"],
+        }]
+        notes.append(f"derived basins={slots['basins']}")
+
     # Sync missing_data: locations_source=csv → reminder for locations.csv.
     if slots.get("locations_source") == "csv":
         if "locations.csv" not in state.get("missing_data", []):

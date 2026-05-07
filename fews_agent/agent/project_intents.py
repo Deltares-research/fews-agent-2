@@ -88,12 +88,29 @@ def detect_imports(text: str) -> list[str]:
 # Skill 3: basin detection
 # ---------------------------------------------------------------------------
 
-_KNOWN_BASINS = {"liard", "snare"}  # canonical basins from the tutorial
+_KNOWN_BASINS = {"liard", "snare"}  # tutorial basins — hint only, not a gate
 
-# Generic regex for "X basin" or "basin X" in a sentence.
+# Multi-word basin name regex. Captures the leftmost capitalized word
+# in patterns like "Mackenzie basin", "Mackenzie River basin",
+# "Saskatchewan watershed", or "basin Mackenzie". Hydrographic-feature
+# words (River/Creek/Watershed/Lake) are absorbed into the noun phrase
+# so the captured name is the proper noun, not the feature word.
 _BASIN_PATTERN = re.compile(
-    r"(?P<n>[A-Z][a-zA-Z]+)\s+basin\b|\bbasin\s+(?P<m>[A-Z][a-zA-Z]+)",
-    re.IGNORECASE,
+    r"(?P<n>[A-Z][a-zA-Z]+)"
+    r"(?:\s+(?:[Rr]iver|[Cc]reek|[Ww]atershed|[Ll]ake|[Bb]ay))?"
+    r"\s+[Bb]asin\b"
+    r"|\b[Bb]asin\s+(?P<m>[A-Z][a-zA-Z]+)"
+)
+
+# Direct binding: "Mackenzie uses raven" / "Mackenzie River uses raven
+# model" — high-confidence pair. `adapter` is a generic lowercase token;
+# `_resolve_adapter_phrase` filters to known adapters.
+_USES_PATTERN = re.compile(
+    r"\b(?P<basin>[A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)?)\s+"
+    r"(?:uses?|with|via|using)\s+"
+    r"(?:the\s+)?"
+    r"(?P<adapter>[a-z][a-z0-9-]{2,15})"
+    r"(?:\s+(?:model|adapter|hydrolog\w*))?"
 )
 
 
@@ -135,24 +152,66 @@ def detect_all_basins(text: str) -> list[str]:
     return found
 
 
-def detect_basins_with_adapters(text: str) -> list[dict[str, str]]:
-    """Pair each basin found in text with its closest adapter mention.
-
-    Heuristic: find every basin position and every adapter position in
-    the lowercased text. For each basin, pair it with the nearest
-    unused adapter within ~120 characters. Returns a list of dicts
-    ``{basin_name, model_adapter}`` for cleanly-paired entries; basins
-    whose adapter we couldn't infer are omitted (the runner asks).
-    """
+def _find_basin_positions(text: str) -> list[tuple[int, str]]:
+    """All basin name occurrences with their start position. Combines
+    known-name matches and the multi-word `_BASIN_PATTERN` regex."""
+    found: list[tuple[int, str]] = []
+    seen_names: set[str] = set()
     lower = text.lower()
-    basins_found: list[tuple[int, str]] = []
     for known in _KNOWN_BASINS:
         for m in re.finditer(rf"\b{known}\b", lower):
-            basins_found.append((m.start(), known.title()))
-    # Process leftmost basin first so each gets its closest adapter
-    # before the next basin starts grabbing them.
-    basins_found.sort(key=lambda x: x[0])
+            name = known.title()
+            found.append((m.start(), name))
+            seen_names.add(name)
+    for m in _BASIN_PATTERN.finditer(text):
+        name = m.group("n") or m.group("m")
+        if not name or name.lower() in {"no", "without", "skip"}:
+            continue
+        canonical = name[:1].upper() + name[1:].lower()
+        if canonical not in seen_names:
+            found.append((m.start("n") if m.group("n") else m.start("m"), canonical))
+            seen_names.add(canonical)
+    found.sort(key=lambda x: x[0])
+    return found
 
+
+def detect_basins_with_adapters(text: str) -> list[dict[str, str]]:
+    """Pair each detected basin with an adapter.
+
+    Two-stage detection:
+      1. Direct "<Basin> uses <adapter>" syntax — high-confidence pairs
+         (`_USES_PATTERN`). The basin can be any capitalized name,
+         not just a known one.
+      2. Proximity pairing — for basins not already paired by stage 1,
+         find the nearest adapter mention within 120 chars.
+
+    Both known basins (`_KNOWN_BASINS`) and ad-hoc multi-word basin
+    phrases ("Mackenzie River basin") feed both stages.
+    """
+    pairs: list[dict[str, str]] = []
+    paired_basins: set[str] = set()
+
+    # Stage 1: direct "X uses Y" binding.
+    for m in _USES_PATTERN.finditer(text):
+        b_raw = m.group("basin").strip()
+        a_raw = m.group("adapter").lower().replace(" ", "").replace("-", "")
+        adapter = _resolve_adapter_phrase(a_raw)
+        if not adapter:
+            continue
+        # Canonicalise basin: title-case each word.
+        basin_canonical = " ".join(
+            w[:1].upper() + w[1:].lower() for w in b_raw.split()
+        )
+        if basin_canonical in paired_basins:
+            continue
+        pairs.append(
+            {"basin_name": basin_canonical, "model_adapter": adapter}
+        )
+        paired_basins.add(basin_canonical)
+
+    # Stage 2: proximity pairing for any basins not yet bound.
+    basins_found = _find_basin_positions(text)
+    lower = text.lower()
     adapters_found: list[tuple[int, str]] = []
     for adapter, phrases in _ADAPTER_PHRASES.items():
         for phrase in phrases:
@@ -160,11 +219,9 @@ def detect_basins_with_adapters(text: str) -> list[dict[str, str]]:
                 adapters_found.append((m.start(), adapter))
     adapters_found.sort(key=lambda x: x[0])
 
-    pairs: list[dict[str, str]] = []
-    used_basins: set[str] = set()
     used_adapter_positions: set[int] = set()
     for b_pos, b_name in basins_found:
-        if b_name in used_basins:
+        if b_name in paired_basins:
             continue
         nearest_idx = None
         min_dist = float("inf")
@@ -180,9 +237,19 @@ def detect_basins_with_adapters(text: str) -> list[dict[str, str]]:
             pairs.append(
                 {"basin_name": b_name, "model_adapter": a_name}
             )
-            used_basins.add(b_name)
+            paired_basins.add(b_name)
             used_adapter_positions.add(a_pos)
     return pairs
+
+
+def _resolve_adapter_phrase(raw: str) -> str | None:
+    """Normalise `_USES_PATTERN`'s adapter capture to a canonical key."""
+    raw = raw.lower()
+    for adapter, phrases in _ADAPTER_PHRASES.items():
+        for phrase in phrases:
+            if phrase.replace(" ", "").replace("-", "") == raw:
+                return adapter
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -653,19 +720,39 @@ INTENT_INPUT_EXPECTATIONS: dict[str, dict[str, list[str]]] = {
         "recommended_csvs": [
             "qualifiers.csv", "thresholdWarningLevels.csv",
         ],
-        # Common yamls for tutorial-shaped projects. These aren't
-        # strictly required (the build will succeed without them and
-        # singletons fall back to empty/default), but they're the
-        # files most projects need.
+        # Project-specific yamls the configurator must author themselves.
+        # These encode operational/UI policy that no automation can
+        # responsibly invent.
         "recommended_yamls_examples": [
-            "filtersFile.yaml", "topology.yaml", "displayGroupsFile.yaml",
-            "locationSetsFile.yaml", "gridsFile.yaml",
+            "modifierTypes.yaml", "modifierDisplay.yaml",
+            "locationIcons.yaml",
+        ],
+        # Yamls the runner auto-generates — configurator does NOT need
+        # to author these. Surfaced to the reply LLM so it doesn't
+        # falsely ask for them.
+        "auto_generated_yamls": [
+            "filtersFile.yaml (LLM-drafted)",
+            "topology.yaml (auto from workflows)",
+            "displayGroupsFile.yaml (bundled + project-trimmed)",
+            "gridsFile.yaml (bundled + project-trimmed)",
+            "locationSetsFile.yaml (id-stub from references)",
+            "moduleInstanceDescriptors.yaml (auto-derived)",
+            "workflowDescriptors.yaml (auto-derived)",
+            "idMap*.yaml (bundled + project-trimmed)",
+            "timeSteps.yaml (bundled standard)",
+            "import/exportUnitConversions.yaml (bundled standard)",
         ],
     },
     "build_data_import_only": {
         "required_csvs": ["locations.csv", "parameters.csv"],
         "recommended_csvs": [],
         "recommended_yamls_examples": [],
+        "auto_generated_yamls": [
+            "idMap*.yaml (bundled + project-trimmed)",
+            "moduleInstanceDescriptors.yaml (auto-derived)",
+            "workflowDescriptors.yaml (auto-derived)",
+            "timeSteps.yaml (bundled standard)",
+        ],
     },
     "build_basin_model_only": {
         "required_csvs": [],
@@ -674,6 +761,10 @@ INTENT_INPUT_EXPECTATIONS: dict[str, dict[str, list[str]]] = {
             "idImportRaven.yaml", "idExportRaven.yaml",
             "idImportwflow.yaml", "idExportwflow.yaml",
             "ravenParameters.yaml",
+        ],
+        "auto_generated_yamls": [
+            "moduleInstanceDescriptors.yaml (auto-derived)",
+            "workflowDescriptors.yaml (auto-derived)",
         ],
     },
 }
@@ -722,6 +813,9 @@ def compute_input_status(
         "yamls_recommended_examples": list(
             expectations.get("recommended_yamls_examples", [])
         ),
+        "auto_generated_yamls": list(
+            expectations.get("auto_generated_yamls", [])
+        ),
     }
 
 
@@ -761,9 +855,31 @@ def compose_reply(
         provider = OllamaProvider(model=model)
 
     intent_name = intent.name if intent else "(none)"
-    slots_text = ", ".join(
-        f"{k}={_format_slot_value(v)}" for k, v in slots.items() if v
-    ) or "(empty)"
+
+    # Split slots into known/unknown so the LLM can't accidentally
+    # mention an empty one as if it were filled.
+    slot_keys_for_intent: list[str] = []
+    if intent:
+        slot_keys_for_intent = list(
+            (intent.required_slots or []) + (intent.optional_slots or [])
+        )
+    # Also include any extra keys present in slots but not declared by
+    # the intent (e.g. cross-cutting `geoDatum`, `location`).
+    for k in slots:
+        if k not in slot_keys_for_intent:
+            slot_keys_for_intent.append(k)
+
+    known_lines: list[str] = []
+    unknown_lines: list[str] = []
+    for k in slot_keys_for_intent:
+        v = slots.get(k)
+        if v is None or v == [] or v == "":
+            unknown_lines.append(k)
+        else:
+            known_lines.append(f"{k} = {_format_slot_value(v)}")
+    known_text = "\n".join(f"  - {ln}" for ln in known_lines) or "  (none)"
+    unknown_text = ", ".join(unknown_lines) or "(none)"
+
     new_pat_text = (
         ", ".join(p.split("/")[-1] for p in new_patterns)
         if new_patterns else "(none new)"
@@ -776,6 +892,7 @@ def compose_reply(
         missing_recommended = input_status.get("csvs_recommended_missing", [])
         n_yamls = input_status.get("yamls_present_count", 0)
         yaml_examples = input_status.get("yamls_recommended_examples", [])
+        auto_yamls = input_status.get("auto_generated_yamls", [])
         input_text = (
             f"  inputs/ has: {len(present_csvs)} CSV(s) "
             f"({', '.join(present_csvs) or 'none'}), "
@@ -789,37 +906,70 @@ def compose_reply(
             input_text += (
                 f"  Recommended CSVs missing: {', '.join(missing_recommended)}\n"
             )
-        if n_yamls == 0 and yaml_examples:
+        if yaml_examples:
             input_text += (
-                f"  No yamls dropped yet. Common ones for this intent: "
-                f"{', '.join(yaml_examples[:3])} ...\n"
+                f"  Configurator-required yamls (must author): "
+                f"{', '.join(yaml_examples)}\n"
+            )
+        if auto_yamls:
+            input_text += (
+                f"  AUTO-GENERATED (don't ask user for these): "
+                f"{', '.join(auto_yamls[:5])}{'...' if len(auto_yamls) > 5 else ''}\n"
             )
     else:
         input_text = "  (input directory not scanned)\n"
 
     system = (
-        "You are a friendly assistant helping a configurator author a "
-        "FEWS project. The deterministic engine has ALREADY updated the "
-        "project state based on the user's message — your job is only "
-        "to phrase a natural reply. RULES:\n"
-        "1) Reply in 1-3 sentences. Plain English. No JSON, no bullets.\n"
-        "2) Briefly acknowledge what was understood this turn (refer to "
-        "the new patterns or slot values).\n"
-        "3) If REQUIRED CSVs are missing or no yamls have been dropped, "
-        "MENTION that — point the user at what to drop into inputs/.\n"
+        "You are a helpful assistant guiding a configurator through "
+        "authoring a Delft-FEWS project. The deterministic engine has "
+        "ALREADY updated state — your only job is to PHRASE a natural "
+        "reply. You CANNOT change state; anything you write is just "
+        "acknowledgment, questions, or suggestions.\n"
+        "\n"
+        "ANTI-FABRICATION RULE — read carefully:\n"
+        "Only reference values that appear under KNOWN. Treat values "
+        "under UNKNOWN as unstated by the user. NEVER fill in a value "
+        "from your own training. If `model_adapter` is in UNKNOWN, do "
+        "NOT mention raven/wflow/hbv/etc. — even if they sound "
+        "plausible for that basin. If `imports` is in UNKNOWN, do NOT "
+        "name HRDPS/GFS/etc. The user said what they said; don't "
+        "extrapolate.\n"
+        "\n"
+        "Bad reply (fabricated): 'Mackenzie uses raven.' (when "
+        "model_adapter is in UNKNOWN)\n"
+        "Good reply: 'Got it — Mackenzie basin. Which hydrological "
+        "model adapter does it use (raven, wflow, hbv96)?'\n"
+        "\n"
+        "RULES:\n"
+        "1) Reply in 1-3 sentences. Plain English. No JSON, no "
+        "   bullets, no emoji.\n"
+        "2) Reference KNOWN values BY NAME (e.g. 'Mackenzie basin', "
+        "   'HRDPS and GFS'). Don't say 'your basin' when you know "
+        "   the name.\n"
+        "3) Never ask the configurator for any file listed under "
+        "   AUTO-GENERATED — those are produced by the runner. Only "
+        "   ask for files under 'Configurator-required yamls' or in "
+        "   'REQUIRED CSVs missing'.\n"
         "4) If a `next_question` is given, ask it naturally. If "
-        "`is_ready` is true AND inputs look complete, encourage 'done'. "
-        "If `is_ready` but inputs are missing, suggest staging them first.\n"
-        "5) Optionally flag concerns: unusual adapter/basin pairings, "
-        "contradictions across turns.\n"
-        "6) If nothing was understood, ask for clarification.\n"
+        "   `is_ready` is true AND no required CSVs missing, "
+        "   encourage 'done'. If `is_ready` but CSVs missing, mention "
+        "   which.\n"
+        "5) Flag concerns ONLY when warranted by the data: "
+        "   contradictions across turns, or unusual basin/adapter "
+        "   pairings AMONG KNOWN VALUES. Don't invent concerns.\n"
+        "6) If nothing was understood (KNOWN is empty), ask for "
+        "   clarification — don't pretend.\n"
         "7) Output JSON {\"reply\": \"...\"}, nothing else."
     )
 
     user = (
         f"User just said: {user_message!r}\n"
         f"Active intent: {intent_name}\n"
-        f"Current slots: {slots_text}\n"
+        f"\n"
+        f"KNOWN (filled slots — safe to reference):\n{known_text}\n"
+        f"UNKNOWN (empty slots — DO NOT mention values for these): "
+        f"{unknown_text}\n"
+        f"\n"
         f"New patterns added this turn: {new_pat_text}\n"
         f"Engine notes: {'; '.join(notes) or '(none)'}\n"
         f"Input directory status:\n{input_text}"

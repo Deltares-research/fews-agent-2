@@ -147,19 +147,193 @@ def _render_direct_singletons(
     return n
 
 
+def _collect_idmap_references(rendered_files: list) -> set[str]:
+    """Walk rendered XMLs; return set of referenced idMap IDs."""
+    from lxml import etree
+    referenced: set[str] = set()
+    for rf in rendered_files:
+        try:
+            tree = etree.fromstring(rf.content.encode("utf-8"))
+        except etree.XMLSyntaxError:
+            continue
+        for tag in ("idMapId", "importIdMap", "exportIdMap"):
+            for el in tree.iter(f"{{*}}{tag}"):
+                t = (el.text or "").strip()
+                if t:
+                    referenced.add(t)
+    return referenced
+
+
+def _collect_parameter_ids(rendered_files: list) -> set[str]:
+    """Walk rendered XMLs; return set of <parameterId> references.
+    Used to filter idMap content to only include mappings for
+    parameters the project actually uses."""
+    from lxml import etree
+    ids: set[str] = set()
+    for rf in rendered_files:
+        try:
+            tree = etree.fromstring(rf.content.encode("utf-8"))
+        except etree.XMLSyntaxError:
+            continue
+        for el in tree.iter("{*}parameterId"):
+            t = (el.text or "").strip()
+            if t and not t.startswith("$"):
+                ids.add(t)
+    return ids
+
+
+def _collect_referenced_module_instances(rendered_files: list) -> set[str]:
+    """Walk rendered XMLs; collect <moduleInstanceId> references."""
+    from lxml import etree
+    ids: set[str] = set()
+    for rf in rendered_files:
+        try:
+            tree = etree.fromstring(rf.content.encode("utf-8"))
+        except etree.XMLSyntaxError:
+            continue
+        for el in tree.iter("{*}moduleInstanceId"):
+            t = (el.text or "").strip()
+            if t and not t.startswith("$"):
+                ids.add(t)
+    return ids
+
+
+def _collect_location_ids(rendered_files: list) -> set[str]:
+    """Walk rendered XMLs; return set of <locationId> references."""
+    from lxml import etree
+    ids: set[str] = set()
+    for rf in rendered_files:
+        try:
+            tree = etree.fromstring(rf.content.encode("utf-8"))
+        except etree.XMLSyntaxError:
+            continue
+        for el in tree.iter("{*}locationId"):
+            t = (el.text or "").strip()
+            if t:
+                ids.add(t)
+    return ids
+
+
+def _filter_displaygroups_content(
+    data: dict, project_module_instance_ids: set[str],
+) -> dict:
+    """Drop only plot body entries whose moduleInstanceId references
+    aren't in the project. displayGroup entries reference plots
+    indirectly (via plotId), so we don't filter them — XSD requires
+    at least one displayGroup, and dropping them would invalidate."""
+    if not isinstance(data, dict) or "body" not in data:
+        return data
+    original = data.get("body") or []
+    if not original or not project_module_instance_ids:
+        return data
+
+    def _references_known(entry: Any) -> bool:
+        if isinstance(entry, dict):
+            for k, v in entry.items():
+                if k == "moduleInstanceId" and v in project_module_instance_ids:
+                    return True
+                if _references_known(v):
+                    return True
+            return False
+        if isinstance(entry, list):
+            return any(_references_known(x) for x in entry)
+        return False
+
+    kept = []
+    for entry in original:
+        # Only filter `plot` entries; pass through `displayGroup` and others.
+        if isinstance(entry, dict) and "plot" in entry:
+            if _references_known(entry):
+                kept.append(entry)
+        else:
+            kept.append(entry)
+    if not kept:
+        return data  # safeguard
+    return {**data, "body": kept}
+
+
+def _filter_grids_content(
+    data: dict, project_location_ids: set[str],
+) -> dict:
+    """Drop grid entries whose @locationId isn't referenced by the project.
+
+    Keeps placeholder entries (those with a $...$ placeholder) since
+    those are FEWS runtime templates that resolve at execution time.
+    Empty-result safeguard: if all would be dropped, keep original.
+    """
+    if not isinstance(data, dict) or "body" not in data:
+        return data
+    original = data.get("body") or []
+    if not original:
+        return data
+    kept = []
+    for entry in original:
+        # Each body item has one of: regular, irregular, raster, etc.
+        # The locationId is on the inner dict.
+        inner = next(iter(entry.values())) if entry else {}
+        loc_id = inner.get("@locationId", "") if isinstance(inner, dict) else ""
+        if (
+            loc_id.startswith("$")
+            or loc_id in project_location_ids
+            or not loc_id
+        ):
+            kept.append(entry)
+    if not kept:
+        return data
+    return {**data, "body": kept}
+
+
+def _filter_idmap_content(
+    data: dict, project_parameter_ids: set[str],
+) -> dict:
+    """Drop idMap entries whose internalParameter isn't used by the project.
+
+    Map entries with no internalParameter (e.g. location-only mappings)
+    are kept as-is. If filtering drops everything, returns data unchanged
+    (safer to emit a slightly redundant idMap than miss mappings).
+    """
+    if not isinstance(data, dict) or "map" not in data:
+        return data
+    original = data.get("map") or []
+    if not original:
+        return data
+    kept = [
+        e for e in original
+        if e.get("internalParameter") is None
+        or e.get("internalParameter") in project_parameter_ids
+    ]
+    if not kept:
+        return data  # don't risk an empty idMap
+    return {**data, "map": kept}
+
+
+def _spec_is_idmap(spec_name: str) -> bool:
+    """An idMap spec is one whose name starts with idImport/idExport."""
+    return spec_name.startswith(("idImport", "idExport"))
+
+
+def _idmap_is_referenced(
+    spec_name: str, referenced_ids: set[str],
+) -> bool:
+    """Match spec name to a referenced ID. SPECS use camelCase
+    (idImportCanadaWCS); references use PascalCase (IdImportCanadaWCS)."""
+    if not referenced_ids:
+        return False
+    pascal = spec_name[:1].upper() + spec_name[1:]
+    return pascal in referenced_ids
+
+
 def _render_yaml_inputs(
     inputs_dir: Path, result: object, label: str = "yaml",
+    filter_idmaps_by_ref: bool = False,
 ) -> int:
     """Walk ``inputs_dir`` for *.yaml and *.yml files, render each as a spec.
 
-    File stem matches a SPEC name (e.g. ``filters.yaml`` → spec name
-    ``filters``). The file's contents are the input dict expected by
-    the spec's Pydantic class. Uses the existing render pipeline.
-
-    Skips a spec if the project already produced output for it (via
-    pattern, merger, or a previous yaml). This lets ``label`` mark
-    standard-inputs renders so they're distinguishable from project
-    inputs in the report.
+    When ``filter_idmaps_by_ref=True``, idMap yamls (idImport*/idExport*)
+    are only rendered if their canonical ID is referenced somewhere in
+    the already-rendered XMLs. Used for the standard-inputs fallback to
+    avoid emitting dead idMap files in projects that don't use all 14
+    bundled data sources.
     """
     import yaml as _yaml
 
@@ -171,6 +345,18 @@ def _render_yaml_inputs(
     already_produced = {
         rf.relpath.replace("\\", "/") for rf in result.rendered_files
     }
+    referenced_idmap_ids = (
+        _collect_idmap_references(result.rendered_files)
+        if filter_idmaps_by_ref else set()
+    )
+    project_parameter_ids = (
+        _collect_parameter_ids(result.rendered_files)
+        if filter_idmaps_by_ref else set()
+    )
+    project_location_ids = (
+        _collect_location_ids(result.rendered_files)
+        if filter_idmaps_by_ref else set()
+    )
     n = 0
     for path in sorted(inputs_dir.iterdir()):
         if not path.is_file() or path.suffix.lower() not in {".yaml", ".yml"}:
@@ -181,14 +367,41 @@ def _render_yaml_inputs(
             continue
         target_relpath = str(spec.output_relpath).replace("\\", "/")
         if target_relpath in already_produced and label != "yaml":
-            # Standard-inputs fallback respects what the project already
-            # produced. Project inputs can overwrite each other (last
-            # writer wins) but standards never overwrite project files.
+            continue
+        # Project-aware idMap filtering.
+        if (
+            filter_idmaps_by_ref
+            and _spec_is_idmap(spec_name)
+            and not _idmap_is_referenced(spec_name, referenced_idmap_ids)
+        ):
             continue
         try:
             data = _yaml.safe_load(path.read_text(encoding="utf-8"))
             if data is None:
                 continue
+            # Trim idMap content to project-used parameters.
+            if (
+                filter_idmaps_by_ref
+                and _spec_is_idmap(spec_name)
+                and project_parameter_ids
+            ):
+                data = _filter_idmap_content(data, project_parameter_ids)
+            # Trim gridsFile content to project-used locations.
+            if (
+                filter_idmaps_by_ref
+                and spec_name == "gridsFile"
+                and project_location_ids
+            ):
+                data = _filter_grids_content(data, project_location_ids)
+            # Trim displayGroups body to project-used module instances.
+            if (
+                filter_idmaps_by_ref
+                and spec_name == "displayGroupsFile"
+            ):
+                project_module_ids = (
+                    _collect_referenced_module_instances(result.rendered_files)
+                )
+                data = _filter_displaygroups_content(data, project_module_ids)
             model = spec.model_class.model_validate(data)
             xml = render_template(spec.template_name, model)
             result.rendered_files.append(
@@ -400,12 +613,92 @@ def build_from_blueprint(
     # gaps.
     if STANDARD_INPUTS_DIR.is_dir():
         n_std = _render_yaml_inputs(
-            STANDARD_INPUTS_DIR, result, label="standard"
+            STANDARD_INPUTS_DIR, result, label="standard",
+            filter_idmaps_by_ref=True,
         )
         if n_std:
             console.print(
                 f"[dim]Standard inputs filled: {n_std} spec(s)[/dim]"
             )
+
+    # Auto-derive Topology.xml from rendered workflow files. Only fires
+    # when the configurator hasn't provided their own topology.yaml.
+    topology_spec = next((s for s in _SPECS if s.name == "topology"), None)
+    if topology_spec:
+        topology_relpath = str(topology_spec.output_relpath).replace("\\", "/")
+        already_have_topology = any(
+            rf.relpath.replace("\\", "/") == topology_relpath
+            for rf in result.rendered_files
+        )
+        if not already_have_topology:
+            from fews_agent.agent.topology_derivation import derive_topology_yaml
+            topo_data = derive_topology_yaml(result.rendered_files)
+            if topo_data:
+                try:
+                    from fews_agent.agent.blueprint import RenderedFile
+                    from fews_agent.generators.base import (
+                        render as render_template,
+                    )
+                    model = topology_spec.model_class.model_validate(topo_data)
+                    xml = render_template(topology_spec.template_name, model)
+                    result.rendered_files.append(RenderedFile(
+                        relpath=topology_relpath,
+                        content=xml,
+                        pattern="(auto-topology)",
+                        instance_label="topology",
+                    ))
+                    n_groups = len(topo_data.get("nodes", []))
+                    console.print(
+                        f"[dim]Auto-derived topology: {n_groups} top-level "
+                        f"group(s)[/dim]"
+                    )
+                except Exception as exc:  # noqa: BLE001
+                    console.print(
+                        f"[yellow]Topology derivation produced invalid output: "
+                        f"{type(exc).__name__}: {str(exc)[:120]}[/yellow]"
+                    )
+
+    # Auto-derive a stub LocationSets.xml when no user yaml exists.
+    # Stubs are id-only; configurator fills in the data backing later.
+    locsets_spec = next(
+        (s for s in _SPECS if s.name == "locationSetsFile"), None,
+    )
+    if locsets_spec:
+        locsets_relpath = str(locsets_spec.output_relpath).replace("\\", "/")
+        already_have_locsets = any(
+            rf.relpath.replace("\\", "/") == locsets_relpath
+            for rf in result.rendered_files
+        )
+        if not already_have_locsets:
+            from fews_agent.agent.locationsets_derivation import (
+                derive_locationsets_yaml,
+            )
+            ls_data = derive_locationsets_yaml(result.rendered_files)
+            if ls_data:
+                try:
+                    from fews_agent.agent.blueprint import RenderedFile
+                    from fews_agent.generators.base import (
+                        render as render_template,
+                    )
+                    model = locsets_spec.model_class.model_validate(ls_data)
+                    xml = render_template(locsets_spec.template_name, model)
+                    result.rendered_files.append(RenderedFile(
+                        relpath=locsets_relpath,
+                        content=xml,
+                        pattern="(auto-locsets)",
+                        instance_label="locationSetsFile",
+                    ))
+                    n_stubs = len(ls_data.get("body", []))
+                    console.print(
+                        f"[yellow]Auto-stubbed LocationSets: {n_stubs} "
+                        f"id-only stub(s) — configurator must fill csv/"
+                        f"shapefile backing[/yellow]"
+                    )
+                except Exception as exc:  # noqa: BLE001
+                    console.print(
+                        f"[yellow]LocationSets stub invalid: "
+                        f"{type(exc).__name__}: {str(exc)[:120]}[/yellow]"
+                    )
 
     # Auto-derive descriptor singletons from rendered XMLs. Only fires
     # for descriptor specs that aren't already produced by patterns or
