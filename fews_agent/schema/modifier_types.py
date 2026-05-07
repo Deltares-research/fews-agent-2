@@ -66,9 +66,10 @@ class ModifierTimeSeries(FewsModel):
 
 
 class TimeSeriesModifier(FewsModel):
-    # Attrs
+    # Attrs. `name` carries the human-readable label shown to the
+    # operator; XSD requires it (use="required"), so Pydantic does too.
     id: ModifierId
-    name: str | None = None
+    name: str
     # ModifierBase elements (XSD sequence, inherited)
     modifierTypeDescription: str | None = None
     expiryTime: UnitMultiplier | None = None
@@ -99,8 +100,11 @@ class TimeSeriesModifier(FewsModel):
     defaultStartTime: DefaultTimeAnchor | None = None
     defaultEndTime: DefaultTimeAnchor | None = None
     defaultValidTime: bool = False
-    resolveInWorkflow: bool | None = None
-    resolveInPlots: bool | None = None
+    # `resolveInWorkflow` and `resolveInPlots` have no XSD `minOccurs="0"`,
+    # so they're required. Pydantic enforces what the XSD enforces — no
+    # silent defaults that would emit XSD-invalid XML.
+    resolveInWorkflow: bool
+    resolveInPlots: bool
     editInPlots: bool | None = None
     graphicalEditing: bool | None = None
     perEnsembleMember: bool | None = None

@@ -182,6 +182,41 @@ def main(argv: list[str] | None = None) -> int:
         console.print("[dim]Cancelled removal.[/dim]")
         return 0
 
+    # /edit <file>: enter per-yaml interactive edit mode.
+    if cmd.startswith("/edit "):
+        from fews_agent.agent import edit_modes
+        target_file = args.message.strip().split(None, 1)[1].strip()
+        reply, done = edit_modes.start(state, target_file, project_dir)
+        if done:
+            state.pop("_editing", None)
+        history.append({"role": "agent", "message": reply})
+        _append_log(project_dir, turn, "agent", reply, "edit-mode start")
+        _save(project_dir, state, history)
+        console.print(f"\n[bold magenta]agent[/bold magenta]: {reply}")
+        return 0
+
+    # /cancel-edit: abort an active edit session without writing.
+    if cmd in {"/cancel-edit", "cancel-edit", "/abort-edit"}:
+        if state.get("_editing"):
+            state.pop("_editing", None)
+            console.print("[dim]Edit session cancelled.[/dim]")
+        else:
+            console.print("[dim]No active edit session.[/dim]")
+        _save(project_dir, state, history)
+        return 0
+
+    # If an edit session is active, route this turn to its handler.
+    if state.get("_editing"):
+        from fews_agent.agent import edit_modes
+        reply, done = edit_modes.advance_turn(state, args.message, project_dir)
+        if done:
+            state.pop("_editing", None)
+        history.append({"role": "agent", "message": reply})
+        _append_log(project_dir, turn, "agent", reply, "edit-mode")
+        _save(project_dir, state, history)
+        console.print(f"\n[bold magenta]agent[/bold magenta]: {reply}")
+        return 0
+
     # Phase 1: skills.
     skill_results = extract_skills(args.message)
 
