@@ -711,6 +711,34 @@ def build_from_blueprint(
             f"{', '.join(d.instance_label for d in derived)}[/dim]"
         )
 
+    # Auto-derive sa_global.Properties so FEWS can resolve runtime
+    # placeholders ($MODELNAME1$, $TIMEZONE$, $DAY_TIMESTEP$, ...).
+    # Without this file, FEWS won't load the config — placeholders are
+    # left literal by both patterns and bundled standards on purpose
+    # (FEWS, not the agent, owns runtime substitution).
+    sa_relpath = "RootConfigFiles/sa_global.Properties"
+    already_have_sa = any(
+        rf.relpath.replace("\\", "/") == sa_relpath
+        for rf in result.rendered_files
+    )
+    if not already_have_sa:
+        from fews_agent.agent.global_properties_derivation import (
+            derive_global_properties,
+        )
+        sa_text = derive_global_properties(bp)
+        if sa_text:
+            from fews_agent.agent.blueprint import RenderedFile
+            result.rendered_files.append(RenderedFile(
+                relpath=sa_relpath,
+                content=sa_text,
+                pattern="(auto-globals)",
+                instance_label="sa_global.Properties",
+            ))
+            console.print(
+                f"[dim]Auto-derived sa_global.Properties for FEWS "
+                f"runtime placeholder resolution[/dim]"
+            )
+
     if result.errors:
         for err in result.errors:
             console.print(f"[red]error:[/red] {err}")
@@ -733,12 +761,18 @@ def build_from_blueprint(
     n_byte_eq = 0
     n_compared = 0
     files_report = []
+    n_non_xml = 0
     for entry in manifest["written"]:
         file_path = output_root / entry["path"]
         data = file_path.read_bytes()
-        xsd_ok, xsd_msg = validate_xsd(data)
-        if xsd_ok:
-            n_xsd_ok += 1
+        if not entry["path"].lower().endswith(".xml"):
+            # Non-XML outputs (sa_global.Properties etc.) — XSD doesn't apply.
+            xsd_ok, xsd_msg = True, "(not XML)"
+            n_non_xml += 1
+        else:
+            xsd_ok, xsd_msg = validate_xsd(data)
+            if xsd_ok:
+                n_xsd_ok += 1
         row = [
             entry["path"],
             entry["pattern"].split("/")[-1],
@@ -774,7 +808,8 @@ def build_from_blueprint(
 
     summary_lines = [
         f"[bold]Files generated:[/bold] {len(manifest['written'])}",
-        f"[bold]XSD-valid:[/bold] {n_xsd_ok}/{len(manifest['written'])}",
+        f"[bold]XSD-valid:[/bold] {n_xsd_ok}/{len(manifest['written']) - n_non_xml}"
+        + (f" (+{n_non_xml} non-XML)" if n_non_xml else ""),
         f"[bold]Pattern contributions:[/bold] "
         f"{len(manifest['contributions'])} merged into singletons",
     ]
