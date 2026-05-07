@@ -58,6 +58,10 @@ from fews_agent.agent.blueprint import (
     expand, load_blueprint, merge_contributions, write_output,
 )
 from fews_agent.agent.csv_ingest import IngestResult, ingest_directory
+from fews_agent.agent.descriptor_derivation import derive_descriptor_singletons
+from fews_agent.agent.filter_drafter import (
+    collect_filter_context, draft_filters_yaml,
+)
 from fews_agent.generators.base import canonicalize
 from fews_agent.validation import validate_xsd
 
@@ -144,7 +148,7 @@ def _render_direct_singletons(
 
 
 def _render_yaml_inputs(
-    inputs_dir: Path, result: object,
+    inputs_dir: Path, result: object, label: str = "yaml",
 ) -> int:
     """Walk ``inputs_dir`` for *.yaml and *.yml files, render each as a spec.
 
@@ -152,9 +156,10 @@ def _render_yaml_inputs(
     ``filters``). The file's contents are the input dict expected by
     the spec's Pydantic class. Uses the existing render pipeline.
 
-    Renders only specs that have a SPEC entry. Files whose stem
-    doesn't match a spec name are skipped silently — they may be
-    documentation / project notes.
+    Skips a spec if the project already produced output for it (via
+    pattern, merger, or a previous yaml). This lets ``label`` mark
+    standard-inputs renders so they're distinguishable from project
+    inputs in the report.
     """
     import yaml as _yaml
 
@@ -163,6 +168,9 @@ def _render_yaml_inputs(
     from fews_agent.generators.base import render as render_template
 
     spec_by_name = {s.name: s for s in SPECS}
+    already_produced = {
+        rf.relpath.replace("\\", "/") for rf in result.rendered_files
+    }
     n = 0
     for path in sorted(inputs_dir.iterdir()):
         if not path.is_file() or path.suffix.lower() not in {".yaml", ".yml"}:
@@ -171,27 +179,39 @@ def _render_yaml_inputs(
         spec = spec_by_name.get(spec_name)
         if spec is None:
             continue
+        target_relpath = str(spec.output_relpath).replace("\\", "/")
+        if target_relpath in already_produced and label != "yaml":
+            # Standard-inputs fallback respects what the project already
+            # produced. Project inputs can overwrite each other (last
+            # writer wins) but standards never overwrite project files.
+            continue
         try:
             data = _yaml.safe_load(path.read_text(encoding="utf-8"))
             if data is None:
                 continue
             model = spec.model_class.model_validate(data)
             xml = render_template(spec.template_name, model)
-            relpath = str(spec.output_relpath).replace("\\", "/")
             result.rendered_files.append(
                 RenderedFile(
-                    relpath=relpath,
+                    relpath=target_relpath,
                     content=xml,
-                    pattern="(yaml)",
+                    pattern=f"({label})",
                     instance_label=spec_name,
                 )
             )
+            already_produced.add(target_relpath)
             n += 1
         except Exception as exc:  # noqa: BLE001
             result.errors.append(
-                f"yaml input {path.name}: {type(exc).__name__}: {exc}"
+                f"{label} input {path.name}: {type(exc).__name__}: {exc}"
             )
     return n
+
+
+# Bundled standard yamls — universally-standard FEWS configuration that
+# almost never varies per project. Falls back here when the project's
+# inputs/ doesn't provide a yaml for these specs.
+STANDARD_INPUTS_DIR = REPO_ROOT / "fews_agent" / "agent" / "standard_inputs"
 
 
 def _csv_singleton_outputs(
@@ -330,6 +350,72 @@ def build_from_blueprint(
         console.print(
             f"[dim]Direct singletons: {n_direct} rendered from "
             f"{bp.direct_singletons_source.name}[/dim]"
+        )
+
+    # LLM filter drafter — proposes a filtersFile based on the project's
+    # actual moduleInstanceIds + parameterIds (extracted from rendered
+    # XMLs). Runs only when the configurator hasn't provided their own
+    # filtersFile.yaml.
+    from fews_agent.generators import SPECS as _SPECS
+    filters_spec = next(
+        (s for s in _SPECS if s.name == "filtersFile"), None
+    )
+    if filters_spec:
+        filters_relpath = str(filters_spec.output_relpath).replace("\\", "/")
+        already_have_filters = any(
+            rf.relpath.replace("\\", "/") == filters_relpath
+            for rf in result.rendered_files
+        )
+        if not already_have_filters:
+            ctx = collect_filter_context(result.rendered_files)
+            draft = draft_filters_yaml(ctx)
+            if draft:
+                try:
+                    from fews_agent.agent.blueprint import RenderedFile
+                    from fews_agent.generators.base import (
+                        render as render_template,
+                    )
+                    model = filters_spec.model_class.model_validate(draft)
+                    xml = render_template(filters_spec.template_name, model)
+                    result.rendered_files.append(RenderedFile(
+                        relpath=filters_relpath,
+                        content=xml,
+                        pattern="(filter-drafter)",
+                        instance_label="filtersFile",
+                    ))
+                    console.print(
+                        f"[dim]LLM-drafted filtersFile from "
+                        f"{len(ctx.get('moduleInstanceIds', []))} module IDs"
+                        f"[/dim]"
+                    )
+                except Exception as exc:  # noqa: BLE001
+                    console.print(
+                        f"[yellow]LLM filter draft invalid, will fall back "
+                        f"to standard: {type(exc).__name__}[/yellow]"
+                    )
+
+    # Standard-inputs fallback: bundled yamls (timeSteps, unit
+    # conversions) for specs the project didn't author its own version
+    # of. Configurator-provided files always win; standards only fill
+    # gaps.
+    if STANDARD_INPUTS_DIR.is_dir():
+        n_std = _render_yaml_inputs(
+            STANDARD_INPUTS_DIR, result, label="standard"
+        )
+        if n_std:
+            console.print(
+                f"[dim]Standard inputs filled: {n_std} spec(s)[/dim]"
+            )
+
+    # Auto-derive descriptor singletons from rendered XMLs. Only fires
+    # for descriptor specs that aren't already produced by patterns or
+    # by user-provided yamls.
+    derived = derive_descriptor_singletons(result.rendered_files)
+    if derived:
+        result.rendered_files.extend(derived)
+        console.print(
+            f"[dim]Auto-derived descriptors: "
+            f"{', '.join(d.instance_label for d in derived)}[/dim]"
         )
 
     if result.errors:

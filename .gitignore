@@ -213,6 +213,7 @@ __marimo__/
 *.md
 *.txt
 *.iml
+*.yaml
 .idea
 
 !CLAUDE.MD
