@@ -14,7 +14,7 @@ The flow per turn:
      focused question. Otherwise resolve patterns deterministically
      from the filled slots and mark the project ready.
 
-State persisted under ``examples/blueprints/<project>/.chat_state.json``.
+State persisted under ``projects/<project>/<project>_<datetime>/.chat_state.json``.
 
 Special user messages handled deterministically:
   - ``done`` / ``quit``: finalise + write project.yaml.
@@ -52,7 +52,30 @@ from fews_agent.agent.providers.ollama_provider import OllamaProvider
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 PATTERNS_ROOT = REPO_ROOT / "patterns"
-OUTPUT_ROOT = REPO_ROOT / "examples" / "blueprints"
+OUTPUT_ROOT = REPO_ROOT / "projects"
+
+
+def _resolve_project_dir(project_name: str) -> Path:
+    """Find or create the active datetime-stamped instance for a project.
+
+    Layout: ``projects/<project_name>/<project_name>_<YYYY-MM-DD_HHMMSS>/``.
+    Each chat session targets one instance — multiple instances over
+    time form a history of project iterations.
+
+    If any ``<project_name>_*`` instances exist, the lexicographically
+    latest is returned (timestamp format sorts chronologically). If
+    none exist, a fresh instance is created with the current timestamp.
+    """
+    parent = OUTPUT_ROOT / project_name
+    parent.mkdir(parents=True, exist_ok=True)
+    instances = sorted(d for d in parent.iterdir() if d.is_dir() and d.name.startswith(f"{project_name}_"))
+    if instances:
+        return instances[-1]
+    from datetime import datetime
+    dt = datetime.now().strftime("%Y-%m-%d_%H%M%S")
+    new_dir = parent / f"{project_name}_{dt}"
+    new_dir.mkdir(parents=True, exist_ok=True)
+    return new_dir
 
 
 def _state_path(project_dir: Path) -> Path:
@@ -140,7 +163,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     console = Console()
-    project_dir = OUTPUT_ROOT / args.project_name
+    project_dir = _resolve_project_dir(args.project_name)
     state, history = _load_state(project_dir, args.project_name)
     catalog = build_pattern_catalog(PATTERNS_ROOT)
     turn = len([h for h in history if h["role"] == "user"]) + 1

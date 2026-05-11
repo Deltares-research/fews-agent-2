@@ -292,7 +292,7 @@ def write_project(
     project_name = state["name"]
     project: dict[str, Any] = {
         "name": project_name,
-        "output_root": f"../../../validation/{project_name}/generated",
+        "output_root": "generated",
         "patterns": state.get("patterns", []),
         "singleton_seeds": state.get("singleton_seeds", {}),
     }

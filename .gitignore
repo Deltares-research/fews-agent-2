@@ -232,5 +232,8 @@ examples/*
 !examples/.gitkeep
 !examples/config-tutorial-input.json
 
+projects/*
+!projects/.gitkeep
+
 validation/*
 !validation/.gitkeep

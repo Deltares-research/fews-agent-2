@@ -17,7 +17,21 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from . import modifier_types
+from . import (
+    export_raven,
+    forecaster_notes_display,
+    location_icons,
+    manual_forecast_display,
+    modifier_display,
+    modifier_types,
+    module_instance_sets,
+    permissions,
+    raven_parameters,
+    threshold_value_sets,
+    thresholds,
+    user_groups,
+    validation_rule_sets,
+)
 
 if TYPE_CHECKING:
     pass
@@ -25,7 +39,19 @@ if TYPE_CHECKING:
 
 # filename → handler module. Add entries here when supporting a new yaml.
 REGISTRY: dict[str, Any] = {
+    "exportRaven.yaml": export_raven,
+    "forecasterNotesDisplay.yaml": forecaster_notes_display,
+    "locationIcons.yaml": location_icons,
+    "manualForecastDisplay.yaml": manual_forecast_display,
+    "modifierDisplay.yaml": modifier_display,
     "modifierTypes.yaml": modifier_types,
+    "moduleInstanceSets.yaml": module_instance_sets,
+    "permissions.yaml": permissions,
+    "ravenParameters.yaml": raven_parameters,
+    "thresholdValueSets.yaml": threshold_value_sets,
+    "thresholds.yaml": thresholds,
+    "userGroups.yaml": user_groups,
+    "validationRuleSets.yaml": validation_rule_sets,
 }
 
 

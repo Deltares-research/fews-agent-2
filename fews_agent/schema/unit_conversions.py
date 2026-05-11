@@ -15,10 +15,15 @@ class UnitConversion(FewsModel):
     # exact source representation. Tutorial values include integers (86400),
     # short decimals (0.5556), and scientific notation (2.77777E-4) — none
     # of which survive float or Decimal round-trip under :f formatting.
+    #
+    # XSD requires both `multiplier` and `incrementer` (no minOccurs="0"),
+    # though it specifies defaults of 1 and 0 respectively. Pydantic
+    # mirrors that by giving each a sentinel default rather than allowing
+    # them to be omitted entirely (which would emit XSD-invalid output).
     inputUnitType: str
     outputUnitType: str
-    multiplier: str | None = None
-    incrementer: str | None = None
+    multiplier: str = "1"
+    incrementer: str = "0"
 
 
 class UnitConversions(FewsModel):

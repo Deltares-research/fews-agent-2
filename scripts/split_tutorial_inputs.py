@@ -8,7 +8,7 @@ For each entry in ``examples/config-tutorial-input.json``:
   - Everything else → ``inputs/<spec_name>.yaml``.
 
 Result: a self-contained project at
-``examples/blueprints/tutorial-full/inputs/`` that the runner can
+``projects/tutorial/tutorial_<datetime>/inputs/`` that the runner can
 read directly. No reference to tutorial-input.json from the project.
 """
 from __future__ import annotations
@@ -24,7 +24,7 @@ sys.path.insert(0, str(REPO_ROOT))
 
 from fews_agent.generators import SPECS  # noqa: E402
 
-PROJECT_ROOT = REPO_ROOT / "examples" / "blueprints" / "tutorial-full"
+PROJECT_ROOT = REPO_ROOT / "projects" / "tutorial" / "tutorial_2026-05-07_120000"
 INPUTS_DIR = PROJECT_ROOT / "inputs"
 TUTORIAL_INPUT = REPO_ROOT / "examples" / "config-tutorial-input.json"
 CLUSTERS_DIR = REPO_ROOT / "data" / "patterns" / "clusters"

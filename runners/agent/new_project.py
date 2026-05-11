@@ -15,8 +15,8 @@ Usage::
         --answers "Forecast Liard with HRDPS imports;Raven;done"
 
     # Output:
-    #   examples/blueprints/liard-flood/project.yaml
-    #   examples/blueprints/liard-flood/_conversation.md
+    #   projects/liard-flood/liard-flood_<datetime>/project.yaml
+    #   projects/liard-flood/liard-flood_<datetime>/_conversation.md
 """
 from __future__ import annotations
 
@@ -39,7 +39,7 @@ from fews_agent.agent.providers.ollama_provider import OllamaProvider
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 PATTERNS_ROOT = REPO_ROOT / "patterns"
-OUTPUT_ROOT = REPO_ROOT / "examples" / "blueprints"
+OUTPUT_ROOT = REPO_ROOT / "projects"
 
 MAX_TURNS = 8
 
@@ -236,7 +236,10 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
-    output_dir = OUTPUT_ROOT / args.project_name
+    # Each new_project run creates a fresh datetime-stamped instance,
+    # so per-project history is preserved across iterations.
+    dt = datetime.now().strftime("%Y-%m-%d_%H%M%S")
+    output_dir = OUTPUT_ROOT / args.project_name / f"{args.project_name}_{dt}"
 
     canned = None
     initial = args.initial_prose

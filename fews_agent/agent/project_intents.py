@@ -69,13 +69,37 @@ _IMPORT_NAMES: list[str] = [
     "ECCCScalar",
 ]
 
+# Aliases for import names that appear in conversational language but
+# don't match the canonical name (which gets used as a pattern variable).
+# The detector recognises the LHS, the resolver maps to the RHS.
+_IMPORT_ALIASES: dict[str, str] = {
+    "ECCCStations": "ECCCScalar",
+    "WSC": "WSCHourly",  # bare "WSC" defaults to hourly variant
+}
+
+# Override the default "use import name as the variable value" behaviour
+# in `_IMPORT_PATTERN_MAP` resolution. Used when a pattern expects the
+# variable to be a literal filename root distinct from the import name.
+_IMPORT_VALUE_OVERRIDES: dict[str, str] = {
+    "NAM":  "ImportNAMGrids",
+    "SREF": "ImportSREFGrids",
+}
+
 
 def detect_imports(text: str) -> list[str]:
     """Return canonical import names mentioned in the text (in input order)."""
     found = []
     seen = set()
     upper = text.upper()
-    # Sort by length desc so 'WSCHistoric' matches before 'WSC'.
+    # Aliases: longest first to avoid 'WSC' matching inside 'WSCHourly'.
+    for alias, canonical in sorted(
+        _IMPORT_ALIASES.items(), key=lambda kv: -len(kv[0])
+    ):
+        if re.search(rf"\b{re.escape(alias.upper())}\b", upper):
+            if canonical not in seen:
+                found.append(canonical)
+                seen.add(canonical)
+    # Then known canonical names (also longest first).
     for name in sorted(_IMPORT_NAMES, key=lambda n: -len(n)):
         if re.search(rf"\b{re.escape(name.upper())}\b", upper):
             if name not in seen:
@@ -343,8 +367,11 @@ _IMPORT_PATTERN_MAP: dict[str, tuple[str, str]] = {
     "RDPA":  ("auto/nwp_grid_eccc_RDPA", "nwp_name"),
     # NOAA
     "GFS":  ("auto/nwp_grid_noaa", "nwp_name"),
-    "NAM":  ("auto/wf_import_nam_grids", "workflow_name"),
-    "SREF": ("auto/wf_import_sref_grids", "workflow_name"),
+    # NAM/SREF: the patterns emit ``{{ template_name }}.xml`` literally,
+    # so the variable value IS the filename root. Override the default
+    # (which would set it to the import name) via _IMPORT_VALUE_OVERRIDES.
+    "NAM":  ("auto/wf_import_nam_grids", "template_name"),
+    "SREF": ("auto/wf_import_sref_grids", "template_name"),
     # Satellite — label_var = source_name
     "GPM":   ("auto/satellite_precip_GPM", "source_name"),
     "GSMAP": ("auto/satellite_precip_GSMAP", "source_name"),
@@ -381,12 +408,28 @@ def _resolve_import_patterns(
         path, label_var = entry
         if path not in catalog_paths:
             continue
-        instance = {label_var: imp}
+        # Some patterns expect the variable's value to be a literal
+        # filename root (e.g. NAM → ImportNAMGrids), not the import name
+        # itself. Apply override map when present.
+        value = _IMPORT_VALUE_OVERRIDES.get(imp, imp)
+        instance = {label_var: value}
         existing = next((p for p in out if p["pattern"] == path), None)
         if existing:
             existing["instances"].append(instance)
         else:
             out.append({"pattern": path, "instances": [instance]})
+    # Aggregator: a project with any NOAA import gets the parent
+    # ImportNOAAGrids workflow that triggers GFS+NAM+SREF together.
+    # The pattern has no variables; one empty instance fires it.
+    noaa_imports = {"GFS", "NAM", "SREF"}
+    if (
+        any(imp in noaa_imports for imp in (imports or []))
+        and "auto/wf_noaa_grids_aggregator" in catalog_paths
+    ):
+        out.append({
+            "pattern": "auto/wf_noaa_grids_aggregator",
+            "instances": [{}],
+        })
     return out
 
 
