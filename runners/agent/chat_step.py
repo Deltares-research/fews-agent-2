@@ -37,6 +37,7 @@ from fews_agent.agent.project_chat import (
     write_project,
 )
 from fews_agent.agent.project_intents import (
+    ENGLISH_WORD_BLOCKLIST,
     INTENTS,
     classify_intent,
     compose_reply,
@@ -114,7 +115,12 @@ def _save(project_dir: Path, state: dict, history: list) -> None:
 
 
 def _append_log(
-    project_dir: Path, turn: int, role: str, message: str, note: str | None,
+    project_dir: Path,
+    turn: int,
+    role: str,
+    message: str,
+    note: str | None,
+    internals: str | None = None,
 ) -> None:
     project_dir.mkdir(parents=True, exist_ok=True)
     log = _log_path(project_dir)
@@ -130,8 +136,112 @@ def _append_log(
     block.append("")
     block.append(message)
     block.append("")
+    if internals:
+        block.append("<details><summary>Engine internals</summary>")
+        block.append("")
+        block.append(internals)
+        block.append("</details>")
+        block.append("")
     with log.open("a", encoding="utf-8") as fh:
         fh.write("\n".join(block) + "\n")
+
+
+def _format_internals(
+    skill_results: dict,
+    llm_intent: str | None,
+    llm_entities: dict | None,
+    chosen_intent: str | None,
+    notes: list[str],
+    state: dict,
+    new_patterns: list[str],
+    ready: bool,
+    next_q: str | None,
+    input_status: dict | None = None,
+    warnings: list[str] | None = None,
+) -> str:
+    """Render skill / intent / slot / pattern diagnostics as markdown."""
+    lines: list[str] = []
+
+    lines.append("**1. Skills (deterministic regex pass)**")
+    if skill_results:
+        for k, v in skill_results.items():
+            if v in (None, [], {}):
+                continue
+            lines.append(f"- `{k}` = {v!r}")
+    else:
+        lines.append("- (no skill output)")
+    lines.append("")
+
+    if llm_intent is not None or llm_entities is not None:
+        lines.append("**2. LLM intent classification (qwen2.5)**")
+        lines.append(f"- picked: `{llm_intent}`")
+        if llm_entities:
+            for k, v in llm_entities.items():
+                lines.append(f"- entity `{k}` = {v!r}")
+        lines.append(f"- final intent: `{chosen_intent}`")
+        lines.append("")
+
+    slot_notes = [n for n in notes if n.startswith("slot ") or n.startswith("derived ")]
+    if slot_notes:
+        lines.append("**3. Slot-fill events**")
+        for n in slot_notes:
+            lines.append(f"- {n}")
+        lines.append("")
+
+    if new_patterns:
+        lines.append("**4. Pattern resolution**")
+        lines.append(f"- {len(new_patterns)} new pattern(s) added:")
+        for p in new_patterns:
+            lines.append(f"  - `{p}`")
+        lines.append("")
+
+    if input_status:
+        lines.append("**5. Input scan (`inputs/` vs intent expectations)**")
+        present = input_status.get("csvs_present") or []
+        req_missing = input_status.get("csvs_required_missing") or []
+        rec_missing = input_status.get("csvs_recommended_missing") or []
+        ypc = input_status.get("yamls_present_count") or 0
+        rec_yamls = input_status.get("recommended_yamls") or input_status.get(
+            "yamls_recommended_examples"
+        ) or []
+        auto_yamls = input_status.get("auto_generated_yamls") or []
+        lines.append(f"- CSVs present: {present or '(none)'}")
+        lines.append(f"- CSVs required & missing: {req_missing or '(none)'}")
+        lines.append(f"- CSVs recommended & missing: {rec_missing or '(none)'}")
+        lines.append(f"- yamls present count: {ypc}")
+        if rec_yamls:
+            lines.append(f"- recommended yamls (configurator-authored): {rec_yamls}")
+        if auto_yamls:
+            lines.append(f"- auto-generated yamls (no need to author): {auto_yamls}")
+        lines.append("")
+
+    if warnings:
+        lines.append("**6. ⚠ Warnings (loud failures — surfaced to user)**")
+        for w in warnings:
+            lines.append(f"- {w}")
+        lines.append("")
+
+    lines.append("**7. State snapshot**")
+    lines.append(f"- intent: `{state.get('intent')}`")
+    slots = state.get("slots") or {}
+    lines.append(f"- slots filled: {sum(1 for v in slots.values() if v)}/{len(slots)}")
+    lines.append(f"- patterns: {len(state.get('patterns') or [])}")
+    lines.append(f"- ready: `{ready}`")
+    if next_q:
+        lines.append(f"- next unfilled question: {next_q!r}")
+    lines.append("")
+
+    other_notes = [
+        n for n in notes
+        if not n.startswith("slot ") and not n.startswith("derived ")
+    ]
+    if other_notes:
+        lines.append("**8. Other notes**")
+        for n in other_notes:
+            lines.append(f"- {n}")
+        lines.append("")
+
+    return "\n".join(lines).rstrip()
 
 
 def _resolve_patterns(state: dict, catalog) -> None:
@@ -174,7 +284,8 @@ def main(argv: list[str] | None = None) -> int:
     cmd = args.message.lower().strip()
 
     # Deterministic special commands.
-    if cmd in {"done", "/done", "quit"}:
+    if cmd in {"done", "/done", "quit", "force-done", "/force-done"}:
+        force = cmd in {"force-done", "/force-done"}
         intent = INTENTS.get(state.get("intent") or "")
         if intent and not is_intent_ready(intent, state.get("slots", {})):
             unfilled = next_unfilled_question(intent, state.get("slots", {}))
@@ -185,9 +296,26 @@ def main(argv: list[str] | None = None) -> int:
             if not args.finalize:
                 _save(project_dir, state, history)
                 return 1
+        existing_warnings = list(state.get("warnings") or [])
+        if existing_warnings and not force and not args.finalize:
+            note = (
+                f"{len(existing_warnings)} unresolved warning(s) — "
+                f"refusing to write project.yaml.\n\n"
+                + "\n".join(f"  - {w}" for w in existing_warnings)
+                + "\n\nType 'force-done' to write anyway, or send another "
+                  "message to address them."
+            )
+            console.print(f"[yellow]WARNING: {note}[/yellow]")
+            history.append({"role": "agent", "message": note})
+            _append_log(project_dir, turn, "agent", note, "done refused")
+            _save(project_dir, state, history)
+            return 2
         _resolve_patterns(state, catalog)
         project_path = write_project(state, project_dir)
-        console.print(f"[green]Wrote {project_path}[/green]")
+        msg = f"Wrote {project_path}"
+        if force and existing_warnings:
+            msg += f"  (forced — {len(existing_warnings)} warning(s) ignored)"
+        console.print(f"[green]{msg}[/green]")
         _save(project_dir, state, history)
         return 0
 
@@ -245,16 +373,19 @@ def main(argv: list[str] | None = None) -> int:
 
     # Phase 2: intent classification (only if no intent yet).
     notes: list[str] = []
+    llm_picked: str | None = None
+    llm_entities: dict | None = None
+    chosen_intent: str | None = state.get("intent")
     if state.get("intent") is None:
         provider = OllamaProvider(model=args.model)
-        llm_picked = None
         try:
             cls = classify_intent(
                 args.message, skill_results, provider=provider,
             )
             llm_picked = cls.get("intent")
+            llm_entities = cls.get("entities", {}) or {}
             # Merge LLM-supplied entities into skill results (skills win).
-            for k, v in cls.get("entities", {}).items():
+            for k, v in llm_entities.items():
                 if k not in skill_results or skill_results[k] is None:
                     skill_results[k] = v
                     notes.append(f"LLM filled {k}={v}")
@@ -338,6 +469,61 @@ def main(argv: list[str] | None = None) -> int:
         if p["pattern"] not in patterns_before
     ]
 
+    # Phase 4.25: warn loudly when a mentioned input has no pattern mapping.
+    # The LLM often sees more than skills + resolver can map (e.g. it picks
+    # up HARMONIE/ICON but the library only has patterns for ECCC + NOAA
+    # NWPs). Surface the gap so the configurator isn't surprised by silent
+    # drops downstream.
+    warnings: list[str] = []
+    mentioned_imports: set[str] = set()
+    if llm_entities and isinstance(llm_entities.get("imports"), list):
+        mentioned_imports.update(str(x) for x in llm_entities["imports"])
+    if isinstance(slots.get("imports"), list):
+        mentioned_imports.update(str(x) for x in slots["imports"])
+    mapped_imports: set[str] = set()
+    pattern_names_lower: set[str] = set()
+    for p in state.get("patterns", []):
+        pname = str(p.get("pattern", ""))
+        pattern_names_lower.add(pname.lower())
+        for inst in p.get("instances") or []:
+            if not isinstance(inst, dict):
+                continue
+            for k in ("nwp_name", "source_name", "wsc_variant",
+                      "snow_source", "template_name"):
+                v = inst.get(k)
+                if isinstance(v, str):
+                    mapped_imports.add(v)
+    unmapped_imports = sorted(
+        m for m in mentioned_imports - mapped_imports
+        if not any(m.lower() in pn for pn in pattern_names_lower)
+    )
+    if unmapped_imports:
+        warnings.append(
+            "No pattern in the library for: "
+            + ", ".join(unmapped_imports)
+            + ". These would be silently skipped. Add a pattern under "
+              "patterns/auto/, or remove them from the request."
+        )
+
+    # Suspicious basin names — single-token CAPITALISED words that are
+    # actually English sentence starters ("We", "It", "The", ...).
+    # The regex extractor in project_intents now filters these too, so
+    # this branch only catches LLM entity-extraction leaks.
+    if isinstance(slots.get("basins"), list):
+        suspicious = [
+            b for b in slots["basins"]
+            if isinstance(b, dict) and b.get("basin_name") in ENGLISH_WORD_BLOCKLIST
+        ]
+        if suspicious:
+            names = ", ".join(b["basin_name"] for b in suspicious)
+            warnings.append(
+                f"Detected '{names}' as a basin name, which looks like an "
+                f"English word, not a basin. Likely a regex false positive — "
+                f"confirm or correct before continuing."
+            )
+
+    state["warnings"] = warnings
+
     # Phase 4.5: scan the inputs/ directory and compute presence/missing.
     inputs_dir = project_dir / "inputs"
     input_scan = scan_inputs(inputs_dir)
@@ -358,11 +544,25 @@ def main(argv: list[str] | None = None) -> int:
         is_ready=ready,
         new_patterns=new_patterns,
         input_status=input_status,
+        warnings=warnings,
         provider=provider,
     )
 
+    internals = _format_internals(
+        skill_results=skill_results,
+        llm_intent=llm_picked,
+        llm_entities=llm_entities,
+        chosen_intent=chosen_intent,
+        notes=notes,
+        state=state,
+        new_patterns=new_patterns,
+        ready=ready,
+        next_q=next_q,
+        input_status=input_status,
+        warnings=warnings,
+    )
     history.append({"role": "agent", "message": agent_msg})
-    _append_log(project_dir, turn, "agent", agent_msg, None)
+    _append_log(project_dir, turn, "agent", agent_msg, None, internals=internals)
     _save(project_dir, state, history)
 
     console.print(f"\n[bold magenta]agent[/bold magenta]: {agent_msg}")

@@ -114,6 +114,31 @@ def detect_imports(text: str) -> list[str]:
 
 _KNOWN_BASINS = {"liard", "snare"}  # tutorial basins — hint only, not a gate
 
+# Capitalised English words the basin regex may mis-capture as a proper
+# noun (sentence starters, pronouns, common verbs). Skill output drops
+# these before they reach pattern resolution; the post-hoc warning in
+# `runners.agent.chat_step` imports this same set as defence in depth.
+ENGLISH_WORD_BLOCKLIST: frozenset[str] = frozenset({
+    "We", "It", "The", "This", "That", "These", "Those",
+    "I", "You", "He", "She", "They", "We're", "Our", "Their",
+    "Hi", "Hello", "Hey", "Yes", "No", "Ok", "Okay",
+    "Please", "Thanks", "Thank",
+    "And", "Or", "But", "So", "Then", "Also",
+    "Next", "First", "Last", "Now", "Today", "Tomorrow",
+    "All", "Some", "Any", "Each", "Every", "Both",
+    "Use", "Uses", "Used", "Using", "Run", "Runs", "Running",
+    "Imports", "Import", "Geo", "Datum", "Region",
+})
+
+
+def _is_blocked_basin(name: str) -> bool:
+    """True if ``name`` looks like an English word, not a basin name.
+
+    Checked against the canonical (title-case, no whitespace handling)
+    form used by `_BASIN_PATTERN` / `_USES_PATTERN` captures.
+    """
+    return name in ENGLISH_WORD_BLOCKLIST
+
 # Multi-word basin name regex. Captures the leftmost capitalized word
 # in patterns like "Mackenzie basin", "Mackenzie River basin",
 # "Saskatchewan watershed", or "basin Mackenzie". Hydrographic-feature
@@ -153,7 +178,9 @@ def detect_basin(text: str) -> str | None:
     if m:
         name = m.group("n") or m.group("m")
         if name and name.lower() not in {"no", "without", "skip"}:
-            return name[:1].upper() + name[1:].lower()
+            canonical = name[:1].upper() + name[1:].lower()
+            if not _is_blocked_basin(canonical):
+                return canonical
     return None
 
 
@@ -171,6 +198,8 @@ def detect_all_basins(text: str) -> list[str]:
         name = m.group("n") or m.group("m")
         if name and name.lower() not in {"no", "without", "skip"}:
             canonical = name[:1].upper() + name[1:].lower()
+            if _is_blocked_basin(canonical):
+                continue
             if canonical not in found:
                 found.append(canonical)
     return found
@@ -192,6 +221,8 @@ def _find_basin_positions(text: str) -> list[tuple[int, str]]:
         if not name or name.lower() in {"no", "without", "skip"}:
             continue
         canonical = name[:1].upper() + name[1:].lower()
+        if _is_blocked_basin(canonical):
+            continue
         if canonical not in seen_names:
             found.append((m.start("n") if m.group("n") else m.start("m"), canonical))
             seen_names.add(canonical)
@@ -226,6 +257,8 @@ def detect_basins_with_adapters(text: str) -> list[dict[str, str]]:
         basin_canonical = " ".join(
             w[:1].upper() + w[1:].lower() for w in b_raw.split()
         )
+        if _is_blocked_basin(basin_canonical):
+            continue
         if basin_canonical in paired_basins:
             continue
         pairs.append(
@@ -876,6 +909,7 @@ def compose_reply(
     is_ready: bool,
     new_patterns: list[str],
     input_status: dict[str, Any] | None = None,
+    warnings: list[str] | None = None,
     provider: OllamaProvider | None = None,
     model: str = "qwen2.5:7b-instruct",
 ) -> str:
@@ -1002,8 +1036,18 @@ def compose_reply(
         "   pairings AMONG KNOWN VALUES. Don't invent concerns.\n"
         "6) If nothing was understood (KNOWN is empty), ask for "
         "   clarification — don't pretend.\n"
-        "7) Output JSON {\"reply\": \"...\"}, nothing else."
+        "7) WARNINGS are LOUD FAILURES — if any are listed below, you "
+        "   MUST mention each one verbatim or paraphrased, and ask the "
+        "   user to confirm, correct, or 'continue anyway'. Never bury "
+        "   a warning. Never silently accept inputs that are flagged.\n"
+        "8) Output JSON {\"reply\": \"...\"}, nothing else."
     )
+
+    warnings_text = ""
+    if warnings:
+        warnings_text = "\nWARNINGS (must be surfaced in the reply):\n" + "\n".join(
+            f"  - {w}" for w in warnings
+        ) + "\n"
 
     user = (
         f"User just said: {user_message!r}\n"
@@ -1012,6 +1056,7 @@ def compose_reply(
         f"KNOWN (filled slots — safe to reference):\n{known_text}\n"
         f"UNKNOWN (empty slots — DO NOT mention values for these): "
         f"{unknown_text}\n"
+        f"{warnings_text}"
         f"\n"
         f"New patterns added this turn: {new_pat_text}\n"
         f"Engine notes: {'; '.join(notes) or '(none)'}\n"

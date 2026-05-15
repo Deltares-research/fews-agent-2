@@ -506,3 +506,102 @@ python -m runners.agent.build_from_blueprint \
 
 Tutorial regression: file count 120, XSD 120/120, byte-eq 118/120 must
 hold. Small-project: file count 29, XSD 28/28 + 1 non-XML must hold.
+
+## Session pickup notes (resume from another laptop)
+
+Branch: **`build-pattern-agent`**. Last committed work: `a227062
+End-to-end configurator UX: /edit handlers, yaml starters, output
+relocation`. The HEAD commit gives a working end-to-end chat → build
+pipeline; everything below is layered on top.
+
+### Uncommitted local changes (worth committing once verified)
+
+Two files are dirty on this branch:
+
+- **`fews_agent/agent/project_intents.py`** — adds
+  `ENGLISH_WORD_BLOCKLIST` (frozenset) and `_is_blocked_basin(name)`
+  helper. Applied at all four basin-extraction sites in
+  `extract_skills` and the LLM-intent fallback path. Fixes a
+  false-positive where common English words ("We", "It", "Next", "Hi",
+  "Our", "Imports", ...) leaked through the capitalised-name regex
+  and became phantom basins. The blocklist is the single source of
+  truth — `chat_step.py` imports it rather than maintaining a parallel
+  set.
+- **`runners/agent/chat_step.py`** — two changes:
+  1. Replaces the local `bad_basin_tokens` literal with an import of
+     `ENGLISH_WORD_BLOCKLIST` from `project_intents`.
+  2. Hardens the "no pattern in library" warning detector. Previously
+     it only matched `mentioned_imports` against instance-variable
+     values like `nwp_name` or `template_name`, which caused
+     false-positive warnings for sources like `NAM` and `SREF` whose
+     patterns expose `template_name: ImportNAMGrids` (a workflow
+     name, not the source name). The detector now also checks the
+     pattern names themselves by substring:
+     `if not any(m.lower() in pn for pn in pattern_names_lower)`.
+
+Untracked: **`scripts/draw_ux_flow_pdf.py`** — a presentation helper
+that emits a UX-flow PDF. Not on any build path; safe to keep or
+discard.
+
+### Demo / experiment projects on disk (reference fixtures, not regression oracles)
+
+Created during the recent presentation prep — each captures a specific
+behaviour you may want to inspect or rerun:
+
+- **`projects/full-demo/full-demo_2026-05-12_111230/`** — fresh
+  end-to-end demo. 7 configurator inputs (4 CSVs + 2 yamls + 1
+  shapefile) → 2-turn chat → 57 rendered files. Good "what does the
+  happy path produce" reference. Contains real `project.yaml` showing
+  20 pattern entries (HRDPS, GFS, raven_basin(Liard), 13 tpl_*,
+  4 wf_*).
+- **`projects/tutorial-csv-only/tutorial-csv-only_2026-05-13_085951/`**
+  — recreates the tutorial from CSV inputs only (no per-spec yamls).
+  Outcome: 36 patterns, 0 warnings, 100 files, 99/99 XSD-valid; ~73%
+  coverage of the tutorial's 135 XMLs. The missing ~27% are
+  configurator-policy yamls, project-specific module configs, vendor
+  binaries, and map-layer assets — i.e. genuinely external to what
+  CSVs + patterns can produce. Use this to demonstrate "minimum
+  viable input set" claims.
+- **`projects/rhine-blocklist/rhine-blocklist_2026-05-12_102438/`** —
+  4-turn rhine experiment that confirmed the
+  `ENGLISH_WORD_BLOCKLIST` fix kills the "We" false positive. Also
+  exercises the loud-failure contract: turn 1 surfaces a
+  HARMONIE/ICON warning (no pattern in library); `done` is refused on
+  turn 2; turn 3 drops them; turn 4's `done` succeeds. 47 files,
+  46/46 XSD-valid + 1 non-XML.
+
+None of these are the regression oracle — that's still
+`projects/tutorial/tutorial_2026-05-07_120000/` (120 files,
+byte-equivalent against `examples/config-tutorial/`) and
+`projects/small/small_2026-05-07_120000/` (29 files, XSD only).
+
+### Re-running on the other laptop
+
+After pulling the branch:
+
+```
+python -m runners.agent.chat_step \
+    --project-dir projects/full-demo/full-demo_2026-05-12_111230
+
+python -m runners.agent.build_from_blueprint \
+    --blueprint projects/full-demo/full-demo_2026-05-12_111230/project.yaml
+```
+
+The chat agent expects qwen2.5:7b-instruct on the local Ollama
+endpoint (`http://localhost:11434`). If Ollama isn't running, the
+chat agent fails loudly; the build path is fully deterministic and
+needs no LLM (filter drafter falls back to the bundled standard).
+
+### Open threads / next likely tasks
+
+- Commit the two dirty files. Suggested message:
+  `Eliminate basin-regex and warning-detector false positives`
+  (blocklist + pattern-name substring check; tested via rhine-blocklist
+  + tutorial-csv-only demos).
+- Consider promoting `ENGLISH_WORD_BLOCKLIST` from a frozenset literal
+  to a data file if the list grows past ~50 entries — current scale
+  doesn't justify it yet.
+- The plan file
+  `~/.claude/plans/now-lets-build-the-bubbly-spark.md` (29 typed-spec
+  promotions + tutorial sharpening) is an older plan; it is **not the
+  active workstream** on this branch. The pattern-agent thread is.
