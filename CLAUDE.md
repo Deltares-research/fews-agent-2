@@ -514,6 +514,48 @@ End-to-end configurator UX: /edit handlers, yaml starters, output
 relocation`. The HEAD commit gives a working end-to-end chat → build
 pipeline; everything below is layered on top.
 
+**Active context:** the user is prepping a presentation about this
+system. Most recent work clusters around (a) eliminating chat-agent
+false positives so the demos are clean, (b) building reference
+projects to show off each behaviour, and (c) clarifying the mental
+model for the audience. No active in-flight code change.
+
+### Mental model in 30 seconds
+
+The agent has **two halves**:
+
+1. **Elicitation half (chat).** LLM talks to the user, extracts
+   structured facts, decides which patterns are needed, writes
+   `project.yaml`. Lives in `runners/agent/chat_step.py` +
+   `fews_agent/agent/project_intents.py`.
+2. **Generation half (build).** Deterministic pipeline reads
+   `project.yaml`, expands patterns, ingests CSVs, fills with
+   bundled standards, runs derivers, validates twice (Pydantic +
+   XSD), writes XML. Lives in `runners/agent/build_from_blueprint.py`.
+
+Only **4 LLM jobs** in the whole system — everything else is templating
+or deterministic code:
+
+| # | Where | Job | Model |
+|---|---|---|---|
+| 1 | chat | Intent classification (build_forecasting_project / data_import_only / basin_model_only) | qwen2.5 |
+| 2 | chat | Entity extraction backup (when regex skills miss) | qwen2.5 |
+| 3 | chat | Compose user-facing reply | qwen2.5 |
+| 4 | build | Draft `Filters.xml` from project IDs | qwen2.5 |
+
+If Ollama is down, the chat half fails loudly; the build half still
+works end-to-end (job 4 falls back to the bundled standard
+`filtersFile.yaml`).
+
+### One pattern per *shape*, not per instance
+
+A confusion point worth flagging up front: `patterns/auto/raven_basin/`
+is **one** pattern.yaml — it handles every Raven basin (Liard, Snare,
+Athabasca, ...) as different instances. New patterns are only needed
+when the *shape* of the output files changes (Raven vs Wflow, ECCC
+grid vs NOAA grid). Within a shape, instances are just different
+values plugged into `{{ basin_name }}` or `{{ nwp_name }}`.
+
 ### Uncommitted local changes (worth committing once verified)
 
 Two files are dirty on this branch:
@@ -592,16 +634,187 @@ endpoint (`http://localhost:11434`). If Ollama isn't running, the
 chat agent fails loudly; the build path is fully deterministic and
 needs no LLM (filter drafter falls back to the bundled standard).
 
+### Verification checklist (run after pulling on the new laptop)
+
+Run these in order. Each has a known target — anything different is a
+regression worth investigating before doing anything else.
+
+```
+# 1. Branch state
+git status --short
+   # expect: M fews_agent/agent/project_intents.py
+   #         M runners/agent/chat_step.py
+   #         ?? scripts/draw_ux_flow_pdf.py
+
+git log --oneline -5
+   # expect HEAD: a227062 (or later if you committed the dirty files)
+
+# 2. Tutorial regression oracle (byte-equivalent)
+python -m runners.agent.build_from_blueprint \
+    --blueprint projects/tutorial/tutorial_2026-05-07_120000/project.yaml \
+    --diff-against examples/config-tutorial
+   # expect: file count 120, XSD 120/120, byte-eq 118/120,
+   #         27 unresolved semantic refs (documented in "Known findings")
+
+# 3. Small-project regression oracle (XSD only)
+python -m runners.agent.build_from_blueprint \
+    --blueprint projects/small/small_2026-05-07_120000/project.yaml
+   # expect: 29 files, XSD 28/28 + 1 non-XML sa_global.Properties
+
+# 4. Full-demo rebuild (proves the new chat agent + build path)
+python -m runners.agent.build_from_blueprint \
+    --blueprint projects/full-demo/full-demo_2026-05-12_111230/project.yaml
+   # expect: 57 files, all XSD-valid
+
+# 5. Tutorial-from-CSVs-only rebuild (the "minimum input" demo)
+python -m runners.agent.build_from_blueprint \
+    --blueprint projects/tutorial-csv-only/tutorial-csv-only_2026-05-13_085951/project.yaml
+   # expect: 100 files, 99/99 XSD-valid (1 non-XML)
+```
+
+If any of (2)–(5) drift, **stop** — the build path is the foundation
+of every demo, and silent drift here invalidates everything else.
+
+### File-pointer guide (where everything lives)
+
+When picking up cold, these are the files that matter most. Read in
+this order to recover context fast:
+
+```
+CLAUDE.md                                         this file (top-of-mind context)
+
+# Elicitation half
+runners/agent/chat_step.py                        turn loop, special commands, warning surfacing
+fews_agent/agent/project_intents.py               skills, intent registry, resolvers, blocklist
+fews_agent/agent/project_chat.py                  state I/O, pattern catalog loading
+fews_agent/agent/providers/ollama_provider.py     the only place that talks to qwen2.5
+
+# Generation half
+runners/agent/build_from_blueprint.py             the orchestrator; read this to follow the pipeline
+fews_agent/agent/blueprint.py                     blueprint dataclass + pattern expander
+fews_agent/agent/filter_drafter.py                LLM job #4
+fews_agent/agent/*_derivation.py                  the 4 deterministic derivers
+fews_agent/agent/standard_inputs/                 bundled fallback yamls
+
+# The pattern library (the asset that grows over time)
+patterns/auto/<name>/pattern.yaml                 one per capability
+patterns/auto/<name>/contributions.yaml           optional, for singleton-file merges
+
+# The schema layer
+fews_agent/schema/<spec>.py                       Pydantic models, one per FEWS spec
+fews_agent/generators/<spec>.py                   one-liner generate() wrappers
+fews_agent/generators/templates/<area>/<spec>.xml.j2   Jinja XML templates
+fews_agent/generators/__init__.py                 SPECS list — the master registry
+
+# Validation
+fews_agent/validation/xsd.py                      XSD gate
+fews_agent/validation/semantic.py                 cross-file ID walker
+```
+
+### Common gotchas (and how to debug them)
+
+- **Ollama not running.** `chat_step.py` will fail with a connection
+  error on first turn. Start Ollama, confirm with
+  `curl http://localhost:11434/api/tags`. The build path doesn't need
+  it.
+- **Phantom basin extracted from prose.** The
+  `ENGLISH_WORD_BLOCKLIST` (in `project_intents.py`) is the single
+  source of truth. Add the offending capitalised word there; both the
+  chat agent and the basin-extractor pick it up. Do *not* add it to a
+  second list in `chat_step.py` — that list was removed for exactly
+  this reason.
+- **Spurious "no pattern in library" warning.** The detector in
+  `chat_step.py` checks both instance-variable values *and* pattern
+  names by substring. If a new pattern hides the source name inside a
+  workflow name (like `wf_import_nam_grids` for "NAM"), the substring
+  check catches it. If you add a pattern with a name that doesn't
+  contain the source name in any form, add an explicit alias entry to
+  `_IMPORT_PATTERN_MAP` so the warning detector finds it.
+- **Tutorial byte-equivalence drift.** Almost always a template
+  ordering issue (FEWS XSDs use `xsd:sequence` — element order
+  matters). Diff the offending file with `diff -u` against
+  `examples/config-tutorial/<path>` and look for swapped elements.
+- **`Coverage: 119/120` instead of 120.** Usually means a generator
+  is silently raising and the wrapper is swallowing it — check
+  `_render_one` in `build_from_blueprint.py` and re-raise during
+  debug.
+- **`27 unresolved` semantic refs.** **Not a regression.** These are
+  the three documented tutorial-bug clusters in "Known findings"
+  above. Only worry if the number *changes*.
+
+### Presentation demo script (the journey we tell)
+
+The narrative the user has been refining for the talk:
+
+1. **The problem (1 slide).** A FEWS config is ~135 interlocking XML
+   files. Configurators write the same 70% of content every time.
+   Show one ECCC import XML as evidence of repetition.
+2. **The split (1 slide).** Two halves: LLM for fuzzy elicitation,
+   deterministic templates for rigid XML. Use the diagram from
+   `CLAUDE.md` "End-to-end pipeline."
+3. **Live chat demo.** Run `chat_step.py` against
+   `projects/full-demo/.../`. Show the engine internals
+   `<details>` blocks in `_conversation.md` to make the 4 stages
+   (skills → intent → slot-fill → pattern resolution) tangible.
+4. **Loud failures.** Switch to `projects/rhine-blocklist/.../`.
+   Show turn 1's HARMONIE/ICON warning, the refused `done`, the
+   recovery in turn 3. Talking point: "the agent refuses to ship
+   silently incomplete work."
+5. **The build path.** Run
+   `build_from_blueprint --blueprint projects/full-demo/.../project.yaml`.
+   Show the per-file table with XSD column. Open one rendered XML
+   (e.g. `ImportHRDPS.xml`) and compare to the matching
+   `patterns/auto/nwp_grid_eccc_HRDPS/pattern.yaml`. Talking point:
+   "this is what the LLM never sees — pure templating."
+6. **The CSV-only demo.** Switch to
+   `projects/tutorial-csv-only/.../`. 4 CSVs in, 99 XMLs out, 73% of
+   the tutorial. Talking point: "the inputs that *aren't* templated
+   are genuinely external — policy decisions, vendor binaries, map
+   layers."
+7. **What's deterministic vs LLM.** Reuse the 4-LLM-jobs table from
+   the mental model. Audience-friendly: "we use LLMs exactly where
+   the structure is unknown, and not one place more."
+
 ### Open threads / next likely tasks
 
-- Commit the two dirty files. Suggested message:
-  `Eliminate basin-regex and warning-detector false positives`
-  (blocklist + pattern-name substring check; tested via rhine-blocklist
-  + tutorial-csv-only demos).
-- Consider promoting `ENGLISH_WORD_BLOCKLIST` from a frozenset literal
-  to a data file if the list grows past ~50 entries — current scale
-  doesn't justify it yet.
-- The plan file
-  `~/.claude/plans/now-lets-build-the-bubbly-spark.md` (29 typed-spec
-  promotions + tutorial sharpening) is an older plan; it is **not the
-  active workstream** on this branch. The pattern-agent thread is.
+In rough priority order:
+
+1. **Commit the two dirty files.** Suggested message:
+   `Eliminate basin-regex and warning-detector false positives`
+   (blocklist + pattern-name substring check; tested via
+   rhine-blocklist + tutorial-csv-only demos).
+2. **Decide what to do with `scripts/draw_ux_flow_pdf.py`.** Keep
+   (commit it under `scripts/`) or discard. Not on any build path
+   either way.
+3. **Consider promoting `ENGLISH_WORD_BLOCKLIST`** from a frozenset
+   literal to a data file if the list grows past ~50 entries —
+   current scale doesn't justify it yet.
+4. **Tutorial coverage gap (~27%).** Document the four buckets
+   discovered in tutorial-csv-only: (a) configurator-policy yamls
+   (15 files, e.g. `modifierTypes`, `locationIcons`), (b)
+   project-specific module configs (3 files), (c) adapter assets
+   (2 files), (d) map-layer/vendor binaries (16 files). None are
+   solvable by "more patterns" — they're inherently external.
+   Worth a slide in the talk if there's room.
+5. **The plan file
+   `~/.claude/plans/now-lets-build-the-bubbly-spark.md`** (29
+   typed-spec promotions + tutorial sharpening) is an older plan;
+   it is **not the active workstream** on this branch. The
+   pattern-agent thread is.
+
+### Memory anchors (from `~/.claude/projects/.../memory/`)
+
+Three persistent constraints that survive across sessions — duplicated
+here so the other laptop's first read of CLAUDE.md surfaces them
+without needing to load the memory store:
+
+- **Never run git write commands** (no push/commit/add/pull/fetch/
+  merge). Draft commit messages for the user to run by hand.
+- **Jinja dict-method collisions in templates.** Fields named
+  `items`, `keys`, or `values` need bracket lookup (`obj["items"]`)
+  not attribute access (`obj.items`), because Jinja sees the dict
+  method first.
+- **Pydantic field aliases don't reach the template.** Aliases are
+  for input JSON parsing only. `model_dump()` emits the field name,
+  so templates must use the suffixed form (`import_`, `validate_`,
+  etc.) rather than the aliased form.
