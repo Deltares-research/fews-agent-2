@@ -27,6 +27,7 @@ dependencies = [
     # UI
     "streamlit>=1.40.0",
     "rich (>=15.0.0,<16.0.0)",
+    "watchdog (>=6.0.0,<7.0.0)",
 ]
 
 [project.scripts]

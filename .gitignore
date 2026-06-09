@@ -134,8 +134,11 @@ celerybeat.pid
 # SageMath parsed files
 *.sage.py
 
-# Environments
+# Environments — all .env variants are secret-bearing. The committed
+# templates live under `*.example` (NOT matched by these rules).
 .env
+.env.local
+.env.azure
 .envrc
 .venv
 env/
@@ -234,6 +237,9 @@ examples/*
 
 projects/*
 !projects/.gitkeep
+
+sessions/*
+!sessions/.gitkeep
 
 validation/*
 !validation/.gitkeep

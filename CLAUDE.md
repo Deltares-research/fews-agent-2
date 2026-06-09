@@ -802,6 +802,82 @@ In rough priority order:
    it is **not the active workstream** on this branch. The
    pattern-agent thread is.
 
+### Azure deployment — open questions for Deltares IT/cloud team
+
+The user wants a "quick & dirty" Azure deployment of the chat agent
+that bundles Ollama (rather than depending on Azure OpenAI). Two
+deploy paths already exist in the repo:
+
+- `Dockerfile` — Streamlit container. Defaults to `provider=ollama`
+  pointing at `host.docker.internal:11434`; switches to Azure OpenAI
+  via `FEWS_AGENT_PROVIDER=AZURE` + the four `AZURE_OPENAI_*` env
+  vars (see `fews_agent/agent/providers/factory.py`).
+- `compose.azure.yml` — local pre-flight + Azure Container Apps
+  deploy notes for the Azure OpenAI path. No GPU.
+
+**Why this matters.** qwen2.5:7b-instruct on CPU is 15-45s per turn
+(memory-bandwidth bound). On a T4 GPU it's 2-5s. Azure Container
+Apps does NOT support GPU, so a bundled-Ollama deploy either accepts
+slow CPU inference or needs a GPU host (VM, AKS GPU node pool, or
+ACI with GPU). Deltares' subscription almost certainly already has
+GPU quota approved — fresh subscriptions need a quota-increase
+ticket and can take days, so reusing org infra is the path of least
+resistance.
+
+**Before writing any deploy code**, the user needs to ask their
+cloud team:
+
+1. **Is there a shared AKS cluster with a GPU node pool?** If yes,
+   the work collapses to a ~50-line k8s manifest: one Pod with two
+   containers (`ollama/ollama` + the agent), `nvidia.com/gpu: 1`
+   request, a Service, an Ingress. Localhost networking between the
+   two containers (so `OLLAMA_HOST=http://localhost:11434`).
+2. **Is there an existing ACR to push to?** Avoids spinning up a
+   new registry, plus AKS often has `imagePullSecrets` already
+   wired for the org's ACR.
+3. **Which subscription + resource group are sanctioned for
+   experiments/demos?** Many orgs have a "sandbox" subscription
+   that doesn't need approval for small workloads.
+4. **Required tags, naming conventions, networking constraints?**
+   (Private endpoints only, no public IPs, mandatory cost-centre
+   tag, etc.) Surfaces early so the deploy doesn't get rejected at
+   policy-check time.
+5. **Is there an internal ML/inference platform already serving
+   models like Llama/Qwen/Mistral?** If yes, the bundled-Ollama
+   path becomes unnecessary — point the Streamlit container at
+   their internal endpoint with `OLLAMA_HOST=<internal-url>` and
+   skip the model-bundling entirely. This is the simplest
+   end-state.
+
+**Concrete deploy options ranked by expected hassle (assuming GPU
+quota exists):**
+
+| Option | When it fits | Pros | Cons |
+|---|---|---|---|
+| Point at existing internal Ollama-style endpoint | IT has one | ~0 deploy work | depends on what they expose |
+| Two-container Pod on shared AKS GPU node | AKS GPU node pool exists | clean, scales | needs k8s manifest + ingress |
+| Standalone `Standard_NC4as_T4_v3` VM + docker compose | nothing shared exists | ~$0.50/hr running, $0 when deallocated; T4 16GB fits qwen2.5:7b 4-bit easily | manual VM lifecycle; install nvidia-container-toolkit |
+| ACI with GPU | demo-only, very short-lived | no infra to manage | no scale-to-zero; expensive idle; T4/V100 only in some regions |
+| Azure Container Apps (CPU only) | no GPU available at all | already drafted in `compose.azure.yml` | slow inference (15-45s per turn) |
+
+The CLI work, once a target is picked:
+
+- **AKS path**: write `deploy/k8s/fews-agent.yaml` (Pod + Service +
+  Ingress), push image to ACR, `kubectl apply`.
+- **VM path**: write `scripts/deploy_azure_vm.sh` (`az vm create
+  --size Standard_NC4as_T4_v3 --image Ubuntu2204 ...`, then
+  cloud-init script to install nvidia-container-toolkit, docker,
+  pull the model, run a `compose.ollama-gpu.yml` stack with
+  `ollama/ollama` + the agent container).
+- **Internal-endpoint path**: just update `compose.azure.yml` (or
+  add `compose.ollama-internal.yml`) with `FEWS_AGENT_PROVIDER=ollama`
+  + `OLLAMA_HOST=<internal>`, deploy to Container Apps as before.
+
+**When the user comes back with answers**, the next action is to
+write whichever of the three deploy files matches what IT exposed,
+then a smoke test (deploy → run a 2-turn chat → confirm it generates
+a valid project.yaml).
+
 ### Memory anchors (from `~/.claude/projects/.../memory/`)
 
 Three persistent constraints that survive across sessions — duplicated

@@ -21,6 +21,7 @@ deterministic — no hallucination possible.
 """
 from __future__ import annotations
 
+import json
 import re
 from dataclasses import dataclass, field
 from typing import Any, Callable
@@ -75,6 +76,7 @@ _IMPORT_NAMES: list[str] = [
 _IMPORT_ALIASES: dict[str, str] = {
     "ECCCStations": "ECCCScalar",
     "WSC": "WSCHourly",  # bare "WSC" defaults to hourly variant
+    "Earth2Observe": "E2O",
 }
 
 # Override the default "use import name as the variable value" behaviour
@@ -276,6 +278,10 @@ def detect_basins_with_adapters(text: str) -> list[dict[str, str]]:
                 adapters_found.append((m.start(), adapter))
     adapters_found.sort(key=lambda x: x[0])
 
+    # When only one adapter is mentioned in the text, all basins share it
+    # ("Liard and Snare using raven"). With multiple adapters, each gets
+    # consumed by its nearest basin so we don't fan one out across all.
+    single_adapter = len(adapters_found) == 1
     used_adapter_positions: set[int] = set()
     for b_pos, b_name in basins_found:
         if b_name in paired_basins:
@@ -295,7 +301,8 @@ def detect_basins_with_adapters(text: str) -> list[dict[str, str]]:
                 {"basin_name": b_name, "model_adapter": a_name}
             )
             paired_basins.add(b_name)
-            used_adapter_positions.add(a_pos)
+            if not single_adapter:
+                used_adapter_positions.add(a_pos)
     return pairs
 
 
@@ -647,19 +654,30 @@ INTENTS: dict[str, Intent] = {
 def heuristic_intent_from_slots(
     slot_values: dict[str, Any],
 ) -> str | None:
-    """Pick the most likely intent based on which slots are filled."""
+    """Pick the most likely intent based on which slots are filled.
+
+    Defaults to ``build_forecasting_project`` whenever the slots aren't
+    a clean fit for one of the narrower intents — including the "no
+    slots at all" case. The reasoning: in a demo / first-time use,
+    the full forecasting build is what colleagues will want 90%+ of
+    the time, and the failure mode of "too few files emitted because
+    we picked a narrower intent" is worse than "extra slot prompt
+    asking about imports". The narrower intents only fire when the
+    LLM classifier picks them explicitly based on "only / no imports /
+    just the model"-style phrasing.
+    """
     has_basin = bool(
         slot_values.get("basins")
         or (slot_values.get("basin_name") and slot_values.get("model_adapter"))
     )
     has_imports = bool(slot_values.get("imports"))
-    if has_basin and has_imports:
-        return "build_forecasting_project"
     if has_imports and not has_basin:
         return "build_data_import_only"
-    if has_basin and not has_imports:
-        return "build_basin_model_only"
-    return None
+    # Both (basin + imports) → forecasting; basin alone → forecasting
+    # (the configurator will get prompted for imports next); nothing →
+    # forecasting. The narrower basin-only path is reachable only via
+    # an explicit LLM classification.
+    return "build_forecasting_project"
 
 
 def classify_intent(
@@ -690,6 +708,12 @@ def classify_intent(
         "entities. RULES:\n"
         "- Pick exactly one intent from the list (or 'unknown' if none "
         "fits).\n"
+        "- DEFAULT to build_forecasting_project. Only pick the narrower "
+        "  build_basin_model_only or build_data_import_only when the "
+        "  user EXPLICITLY says they want just one half — e.g. "
+        "  'imports only', 'model only', 'no imports yet', 'without a "
+        "  model', 'just data ingestion'. A mention of a basin without "
+        "  imports is NOT enough to pick the narrower intent.\n"
         "- The deterministic skills already found the entities listed; "
         "if you spot any the skills missed, add them. Don't override "
         "what the skills found unless the user explicitly contradicted.\n"
@@ -718,7 +742,62 @@ def classify_intent(
     data.setdefault("intent", "unknown")
     data.setdefault("entities", {})
     data.setdefault("reasoning", "")
+
+    # Default-to-forecasting bias: the narrower build_*_only intents
+    # are easy for a small LLM to overfit to when the user's prose
+    # mentions a basin without imports (or imports without a basin)
+    # — even if no explicit "only / just / no model / no imports"
+    # signal is present. Demote a narrower pick to forecasting when
+    # the prose contains no narrowing keyword. This preserves the
+    # narrower intents for cases where the user is explicit
+    # ("set up imports only", "model only — no NWP yet") but defaults
+    # to the richer build in ambiguous cases.
+    picked = data.get("intent") or ""
+    if picked in {"build_basin_model_only", "build_data_import_only"}:
+        if not _prose_signals_narrower_intent(prose):
+            data["intent"] = "build_forecasting_project"
+            note = (
+                f"promoted {picked} → build_forecasting_project "
+                "(no explicit 'only' / 'no imports' / 'model only' "
+                "signal in prose; default-to-forecasting policy)"
+            )
+            data["reasoning"] = (
+                f"{data['reasoning']}\n{note}" if data["reasoning"] else note
+            )
+    elif picked not in INTENTS and picked != "unknown":
+        # LLM made up an intent name not in the registry. Treat as
+        # ambiguous and default to forecasting.
+        data["intent"] = "build_forecasting_project"
+
     return data
+
+
+# Words/phrases that signal the user *deliberately* wants a narrower
+# intent. When present in the prose, the default-to-forecasting bias
+# in ``classify_intent`` stands down. Order matters only for human
+# readability — matching is substring-based, case-insensitive.
+_NARROWING_PHRASES: tuple[str, ...] = (
+    "only", "just the", "just imports", "just import", "just data",
+    "just the model", "just model",
+    "no model", "without model", "without a model",
+    "no imports", "without imports", "without nwp",
+    "no nwp", "no forecast",
+    "model only", "model-only", "imports only", "import only",
+    "import-only", "model only.", "model only,",
+    "data only", "data ingestion only",
+)
+
+
+def _prose_signals_narrower_intent(prose: str) -> bool:
+    """True if the user's prose contains an explicit narrowing signal.
+
+    Substring match, case-insensitive. False-positive risk is low —
+    "only" is a strong content word; bare appearances like "the only
+    basin" still count and that's the intended bias (when in doubt,
+    take the user at their word that they want a narrower build).
+    """
+    lower = (prose or "").lower()
+    return any(phrase in lower for phrase in _NARROWING_PHRASES)
 
 
 # ---------------------------------------------------------------------------
@@ -948,12 +1027,33 @@ def compose_reply(
 
     known_lines: list[str] = []
     unknown_lines: list[str] = []
+    known_values_flat: list[str] = []  # for the post-LLM guard
     for k in slot_keys_for_intent:
         v = slots.get(k)
         if v is None or v == [] or v == "":
             unknown_lines.append(k)
         else:
             known_lines.append(f"{k} = {_format_slot_value(v)}")
+            known_values_flat.extend(_flatten_slot_value(v))
+    # Highlight basins/imports in a natural form the LLM can read directly,
+    # to discourage "should I add Snare?" when Snare is already present.
+    basins_in_state = slots.get("basins") or []
+    if basins_in_state and isinstance(basins_in_state, list) and isinstance(basins_in_state[0], dict):
+        basin_phrases = [
+            f"{b.get('basin_name')} ({b.get('model_adapter')})"
+            for b in basins_in_state if b.get("basin_name")
+        ]
+        if basin_phrases:
+            known_lines.insert(
+                0,
+                f"Basins already in project: {', '.join(basin_phrases)}",
+            )
+    imports_in_state = slots.get("imports") or []
+    if isinstance(imports_in_state, list) and imports_in_state:
+        known_lines.insert(
+            0 if not basins_in_state else 1,
+            f"Imports already in project: {', '.join(imports_in_state)}",
+        )
     known_text = "\n".join(f"  - {ln}" for ln in known_lines) or "  (none)"
     unknown_text = ", ".join(unknown_lines) or "(none)"
 
@@ -1017,6 +1117,26 @@ def compose_reply(
         "Good reply: 'Got it — Mackenzie basin. Which hydrological "
         "model adapter does it use (raven, wflow, hbv96)?'\n"
         "\n"
+        "ANTI-FABRICATED-ACTION RULE — equally important:\n"
+        "You have NO ability to perform actions for the user. The "
+        "engine — not you — is what mutates state. You can only "
+        "acknowledge, ask, or suggest. NEVER offer to do something on "
+        "the user's behalf with phrases like 'Would you like me to "
+        "add…?', 'Shall I include…?', 'Want me to remove…?'. If the "
+        "user says 'yes' to such a phantom offer, nothing will happen "
+        "and the user will be confused. The only yes/no flow that is "
+        "actually wired up is the engine-proposed pattern-removal "
+        "confirmation (which appears in Engine notes — you don't "
+        "invent it). For everything else, instruct the user how to "
+        "phrase their own next message instead of asking permission.\n"
+        "\n"
+        "Bad reply (fabricated action): 'The Snare basin hasn't been "
+        "added yet. Would you like me to add it now?' (the engine "
+        "won't add anything on 'yes')\n"
+        "Good reply: 'The Snare basin isn't in the project yet. To "
+        "add it, say something like: \"also add the Snare basin using "
+        "raven\".'\n"
+        "\n"
         "RULES:\n"
         "1) Reply in 1-3 sentences. Plain English. No JSON, no "
         "   bullets, no emoji.\n"
@@ -1040,7 +1160,20 @@ def compose_reply(
         "   MUST mention each one verbatim or paraphrased, and ask the "
         "   user to confirm, correct, or 'continue anyway'. Never bury "
         "   a warning. Never silently accept inputs that are flagged.\n"
-        "8) Output JSON {\"reply\": \"...\"}, nothing else."
+        "8) NEVER offer to perform an action ('Want me to…?', "
+        "   'Shall I…?', 'Would you like me to add/remove/change…?'). "
+        "   You cannot mutate state. If the user wants a change, tell "
+        "   them how to phrase it themselves on the next turn. The "
+        "   ONLY exception is when Engine notes contain an explicit "
+        "   pattern-removal proposal — then yes/no IS wired.\n"
+        "9) NEVER ask whether to add/include something that is "
+        "   ALREADY in KNOWN. If a basin or import appears under "
+        "   'Basins already in project' or 'Imports already in "
+        "   project', it is DONE — do not ask 'should I also add "
+        "   X?' or 'do you want to add X?'. The engine has already "
+        "   added it. Move on to next_question or, if ready, "
+        "   encourage 'done'.\n"
+        "10) Output JSON {\"reply\": \"...\"}, nothing else."
     )
 
     warnings_text = ""
@@ -1076,7 +1209,11 @@ def compose_reply(
         resp = provider.generate_json(system=system, user=user, schema=schema)
         text = (resp.data or {}).get("reply", "").strip()
         if text:
-            return text
+            cleaned = _strip_fabricated_add_offers(text, known_values_flat)
+            if cleaned:
+                return cleaned
+            # cleaned came back None → reply was entirely a fabricated
+            # offer; fall through to the deterministic template.
     except Exception:
         pass
 
@@ -1109,22 +1246,913 @@ def _format_slot_value(v: Any) -> str:
     return str(v)
 
 
+def _flatten_slot_value(v: Any) -> list[str]:
+    """Yield individual referenceable tokens from a slot value.
+
+    Used by the post-LLM guard to detect "should I add <X>?" leaks
+    where <X> is already in state — feeds the case-insensitive match
+    against the LLM's reply.
+    """
+    out: list[str] = []
+    if isinstance(v, list):
+        for item in v:
+            if isinstance(item, dict):
+                for x in item.values():
+                    if x:
+                        out.append(str(x))
+            elif item:
+                out.append(str(item))
+    elif v:
+        out.append(str(v))
+    return out
+
+
+# Matches "should I add Snare", "want me to include HRDPS", "shall I
+# add Liard basin", etc. Captures the named entity for the case-
+# insensitive membership check against KNOWN values.
+_FABRICATED_ADD_OFFER = re.compile(
+    r"(?:should I|shall I|would you like (?:me )?to|want me to|do you want (?:me )?to)"
+    r"\s+(?:also\s+)?(?:add|include|set up|register)\s+"
+    r"(?:the\s+)?(?P<name>[A-Z][A-Za-z0-9]+)",
+    re.IGNORECASE,
+)
+
+
+def _strip_fabricated_add_offers(reply: str, known_values: list[str]) -> str | None:
+    """Return cleaned reply, or None if the reply still leaks.
+
+    If the LLM asks "should I add <X>?" and <X> is already in KNOWN,
+    we strip the offending sentence. If that empties the reply, the
+    caller falls back to the deterministic template.
+    """
+    if not reply or not known_values:
+        return reply
+    known_lower = {v.lower() for v in known_values}
+    kept: list[str] = []
+    leaked = False
+    # Split on sentence boundaries cheaply; we only care about whole
+    # sentences that contain the offer.
+    parts = re.split(r"(?<=[.!?])\s+", reply.strip())
+    for part in parts:
+        m = _FABRICATED_ADD_OFFER.search(part)
+        if m and m.group("name").lower() in known_lower:
+            leaked = True
+            continue
+        kept.append(part)
+    if not leaked:
+        return reply
+    cleaned = " ".join(kept).strip()
+    return cleaned or None
+
+
+# ---------------------------------------------------------------------------
+# Meta intent: status-check
+# ---------------------------------------------------------------------------
+#
+# Unlike the build intents above, `status_check` doesn't generate
+# patterns or own a slot ontology — it answers meta-questions about
+# the current project state ("what's missing?", "summarise", "what
+# files do I still need?"). It runs per-turn before the normal
+# pipeline and never overwrites `state["intent"]`, so the
+# configurator can interleave status queries with build messages
+# without losing track of which build intent they're in.
+#
+# Deterministic tools (scan_inputs, compute_input_status,
+# build_status_report) supply the data; compose_status_reply
+# paraphrases it. The LLM is told the report is the SOLE source of
+# truth — it cannot invent slots, files, or patterns.
+
+# Phrases that strongly suggest a status meta-query rather than a
+# new build input. Matched case-insensitive against the stripped
+# message. Keep high-precision — better to miss (user rephrases)
+# than to mis-route a real config message into status mode.
+_STATUS_PHRASES: tuple[str, ...] = (
+    "what is missing", "what's missing", "whats missing",
+    "what am i missing", "what is still missing",
+    "what do i need", "what do i still need", "what else do i need",
+    "what is needed", "what's needed", "whats needed",
+    "what files do i need", "which files do i need",
+    "what's left", "whats left", "what is left",
+    "what do we have", "what have we got", "what's done",
+    "show status", "show me the status", "current status",
+    "project status", "status check", "status report",
+    "where are we", "where do we stand",
+    "summarize", "summarise",
+)
+
+# Single-token messages that count as status queries by themselves.
+# Both bare and slash forms — '/status' is the canonical slash command,
+# 'status' / 'summary' / '?' are friendly aliases.
+_STATUS_TOKENS: frozenset[str] = frozenset({
+    "status", "/status", "summary", "?",
+})
+
+
+def detect_status_query(text: str) -> bool:
+    """True iff the message looks like a meta-query about project state."""
+    lower = text.strip().lower().rstrip("?.!,").strip()
+    if not lower:
+        return False
+    if lower in _STATUS_TOKENS:
+        return True
+    return any(phrase in lower for phrase in _STATUS_PHRASES)
+
+
+def build_status_report(
+    state: dict[str, Any],
+    input_status: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """Snapshot project state for prose synthesis or diagnostic dump.
+
+    Pure function over ``state`` + ``input_status`` (the latter
+    typically produced by ``compute_input_status(scan_inputs(...))``).
+    No LLM calls, no disk I/O — safe to invoke on every turn.
+    """
+    intent_name = state.get("intent") or ""
+    intent = INTENTS.get(intent_name)
+    slots = state.get("slots") or {}
+
+    required_filled: list[str] = []
+    required_missing: list[str] = []
+    if intent:
+        for slot_name in intent.required_slots:
+            v = slots.get(slot_name)
+            if v is None or v == [] or v == "":
+                required_missing.append(slot_name)
+            else:
+                required_filled.append(slot_name)
+    optional_filled = [
+        s for s in (intent.optional_slots if intent else [])
+        if slots.get(s) not in (None, [], "")
+    ]
+
+    patterns = state.get("patterns") or []
+    pattern_names = [
+        str(p.get("pattern", "")).rsplit("/", 1)[-1] for p in patterns
+    ]
+
+    return {
+        "intent": intent_name or None,
+        "project_name": state.get("name"),
+        "filled_slots": {k: v for k, v in slots.items() if v},
+        "required_slots_filled": required_filled,
+        "required_slots_missing": required_missing,
+        "optional_slots_filled": optional_filled,
+        "patterns_count": len(patterns),
+        "patterns": pattern_names,
+        "warnings": list(state.get("warnings") or []),
+        "csvs_present": list((input_status or {}).get("csvs_present") or []),
+        "csvs_required_missing": list(
+            (input_status or {}).get("csvs_required_missing") or []
+        ),
+        "csvs_recommended_missing": list(
+            (input_status or {}).get("csvs_recommended_missing") or []
+        ),
+        "yamls_present_count": (input_status or {}).get("yamls_present_count", 0),
+        "yamls_recommended_examples": list(
+            (input_status or {}).get("yamls_recommended_examples") or []
+        ),
+        "auto_generated_yamls": list(
+            (input_status or {}).get("auto_generated_yamls") or []
+        ),
+        "ready": bool(intent) and not required_missing,
+    }
+
+
+def status_prose_fallback(report: dict[str, Any]) -> str:
+    """Deterministic prose summary — used when the LLM is unavailable."""
+    parts: list[str] = []
+    intent_name = report.get("intent")
+    if intent_name:
+        parts.append(f"Intent: {intent_name}.")
+    else:
+        parts.append(
+            "I haven't classified your project intent yet — tell me what "
+            "you want to build (e.g. 'forecasting project for the Liard "
+            "basin using Raven with HRDPS and GFS imports')."
+        )
+    if report.get("required_slots_filled"):
+        parts.append(
+            "Filled: " + ", ".join(report["required_slots_filled"]) + "."
+        )
+    if report.get("required_slots_missing"):
+        parts.append(
+            "Still need: " + ", ".join(report["required_slots_missing"]) + "."
+        )
+    if report.get("csvs_required_missing"):
+        parts.append(
+            "Missing required CSVs (drop into inputs/): "
+            + ", ".join(report["csvs_required_missing"]) + "."
+        )
+    if report.get("csvs_recommended_missing"):
+        parts.append(
+            "Recommended CSVs not yet provided: "
+            + ", ".join(report["csvs_recommended_missing"]) + "."
+        )
+    yamls = report.get("yamls_recommended_examples") or []
+    if yamls:
+        parts.append(
+            "Configurator-authored yamls you may want: "
+            + ", ".join(yamls[:4]) + "."
+        )
+    if report.get("warnings"):
+        parts.append(
+            "Open warnings: " + "; ".join(report["warnings"][:3]) + "."
+        )
+    if report.get("patterns_count"):
+        parts.append(f"Patterns resolved so far: {report['patterns_count']}.")
+    if report.get("ready") and not report.get("csvs_required_missing"):
+        parts.append("Ready to write — type 'done'.")
+    return " ".join(parts)
+
+
+def compose_status_reply(
+    user_message: str,
+    report: dict[str, Any],
+    provider: OllamaProvider | None = None,
+    model: str = "qwen2.5:7b-instruct",
+) -> str:
+    """LLM-composed prose summary of the current project state.
+
+    The ``report`` (from ``build_status_report``) is the SOLE source of
+    truth — the LLM is instructed to paraphrase it and nothing more.
+    Falls back to ``status_prose_fallback`` if the LLM is unavailable.
+    """
+    if provider is None:
+        provider = OllamaProvider(model=model)
+
+    system = (
+        "You answer a configurator's status question about a Delft-FEWS "
+        "project. You are given a STATUS REPORT — a snapshot of project "
+        "state produced by deterministic tools. Your only job is to "
+        "paraphrase its contents in prose.\n"
+        "\n"
+        "RULES:\n"
+        "1) Use ONLY values from the report. Do not invent file names, "
+        "   slot values, basins, patterns, or warnings.\n"
+        "2) 2-5 sentences, plain English. No bullet lists, no JSON in "
+        "   the reply body, no emoji.\n"
+        "3) Mention concretely what is filled and what is still needed. "
+        "   If CSVs are missing, name them. If required slots are "
+        "   missing, name them.\n"
+        "4) Never ask the configurator for any file listed under "
+        "   `auto_generated_yamls` — those are produced by the runner.\n"
+        "5) End by gently nudging the user toward the most impactful "
+        "   next step (provide a missing CSV, fill a missing slot, type "
+        "   'done', etc).\n"
+        "6) If `intent` is null, ask the user to describe what they want "
+        "   to build — don't speculate.\n"
+        "7) Output JSON {\"reply\": \"...\"}, nothing else."
+    )
+    user = (
+        f"User question: {user_message!r}\n\n"
+        f"Status report:\n{json.dumps(report, indent=2, default=str)}\n\n"
+        f"Compose the status reply."
+    )
+    schema = {
+        "type": "object",
+        "properties": {"reply": {"type": "string"}},
+        "required": ["reply"],
+    }
+    try:
+        resp = provider.generate_json(system=system, user=user, schema=schema)
+        text = (resp.data or {}).get("reply", "").strip()
+        if text:
+            return text
+    except Exception:
+        pass
+    return status_prose_fallback(report)
+
+
+# ---------------------------------------------------------------------------
+# Meta intent: help / explain-concept
+# ---------------------------------------------------------------------------
+#
+# Answers system-meta questions like "what is a slot?", "explain
+# patterns", "what does done do?". Served from a curated static
+# glossary — deterministic, no LLM, no fabrication risk. New
+# configurators don't yet know what a "slot" or "pattern" means in
+# this system; without this path they get a vacuous reply.
+#
+# Routing: this intent fires only when the message contains BOTH
+# a help phrase ("what is", "explain", "tell me about", ...) AND
+# a known concept word (slot, pattern, intent, blueprint, ...).
+# That makes it mutually exclusive with `status_check` —
+# "what is missing?" has a help phrase but no concept, so it
+# falls through to status; "what is a slot?" has both, so it
+# routes here.
+
+_HELP_PHRASES: tuple[str, ...] = (
+    "what is", "what's", "whats", "what are",
+    "what does", "what do",
+    "explain", "explain me",
+    "how do i", "how does", "how do",
+    "help me understand", "tell me about",
+    "define", "meaning of",
+)
+
+_HELP_TOKENS: frozenset[str] = frozenset({"help", "/help"})
+
+
+# Canonical concept → chat-ready explanation. Keys are normalised
+# (singular, lowercase, no punctuation). Bodies are written in 2-3
+# sentences of plain English suitable for a configurator who's
+# never seen this system before.
+_CONCEPT_ENTRIES: dict[str, dict[str, str]] = {
+    "slot": {
+        "title": "Slot",
+        "body": (
+            "A typed parameter I collect during chat — for example "
+            "basin_name, model_adapter, imports, geoDatum. Required "
+            "slots must be filled before I can write project.yaml; "
+            "optional ones are nice-to-have. I extract slot values "
+            "from your prose using deterministic regex skills first, "
+            "and only ask the LLM to fill gaps."
+        ),
+    },
+    "intent": {
+        "title": "Intent",
+        "body": (
+            "The kind of project you want to build. Three build "
+            "intents: build_forecasting_project (imports + basin "
+            "model + workflows), build_data_import_only (just data "
+            "ingest), build_basin_model_only (just the model, no "
+            "imports). Plus two meta intents that don't build "
+            "anything — status_check (summarise current state) and "
+            "help (explain concepts)."
+        ),
+    },
+    "pattern": {
+        "title": "Pattern",
+        "body": (
+            "A reusable bundle of FEWS XML files for one capability "
+            "— e.g. 'import HRDPS forecasts' or 'run a Raven basin "
+            "model'. Lives in patterns/auto/<name>/pattern.yaml. One "
+            "pattern, many instances — the Raven pattern handles "
+            "Liard, Snare, Athabasca, etc. as different values "
+            "plugged into {{ basin_name }}."
+        ),
+    },
+    "blueprint": {
+        "title": "Blueprint (project.yaml)",
+        "body": (
+            "The list of patterns to instantiate with which variable "
+            "values, plus singleton seeds. Written to your session "
+            "folder when you type 'done'. This is the only "
+            "project-level artefact you need to keep in version "
+            "control — everything else gets re-rendered from it."
+        ),
+    },
+    "session": {
+        "title": "Session folder",
+        "body": (
+            "sessions/<username>_<datetime>/ holds your chat state "
+            "(.chat_state.json), history (.chat_history.json), "
+            "markdown transcript (_conversation.md), app log "
+            "(_app.log), uploaded input files (inputs/), and the "
+            "final project.yaml once you type 'done'. Reopen the "
+            "same folder from the sidebar to resume."
+        ),
+    },
+    "inputs": {
+        "title": "Inputs folder",
+        "body": (
+            "The 'Project inputs' uploader in the sidebar drops "
+            "files into your session's inputs/ folder. The agent "
+            "scans this every turn so it knows what's still missing. "
+            "Accepted: CSV, yaml, shapefile parts "
+            "(.shp/.dbf/.shx/.prj/.cpg), json, txt."
+        ),
+    },
+    "csv": {
+        "title": "CSV files",
+        "body": (
+            "Tabular inputs the configurator provides. For a "
+            "forecasting project the required CSVs are locations.csv "
+            "(station metadata) and parameters.csv (parameter "
+            "definitions). Recommended: qualifiers.csv, "
+            "thresholdWarningLevels.csv. Drop them into the inputs/ "
+            "folder via the sidebar uploader."
+        ),
+    },
+    "yaml": {
+        "title": "YAML inputs",
+        "body": (
+            "Configurator-authored singletons that encode "
+            "project-specific policy — modifierTypes.yaml "
+            "(operator interventions), locationIcons.yaml (map "
+            "icons), modifierDisplay.yaml. Optional but recommended. "
+            "Many other yamls (filtersFile, gridsFile, idMaps, "
+            "timeSteps, ...) are auto-generated — you don't have to "
+            "author those."
+        ),
+    },
+    "shapefile": {
+        "title": "Shapefile",
+        "body": (
+            "Basin geometry (Watersheds + Extent). Loaded by FEWS "
+            "at runtime, not parsed by the agent. Upload all "
+            "components together (.shp, .dbf, .shx, .prj, .cpg) — "
+            "the agent just stages them in inputs/."
+        ),
+    },
+    "import": {
+        "title": "Import",
+        "body": (
+            "A data source the agent imports into FEWS. Known ECCC: "
+            "HRDPS, GDPS, RDPS, REPS, HRDPA, RDPA. NOAA: GFS, NAM, "
+            "SREF. Satellite precip: GPM, GSMAP. Snow: GLOBSNOW, "
+            "SNODAS. Each maps to a pattern in the library."
+        ),
+    },
+    "adapter": {
+        "title": "Model adapter",
+        "body": (
+            "Which hydrological model code FEWS calls to run the "
+            "basin simulation. Supported: raven, wflow, hbv96, mesh, "
+            "delft3d. Each basin in the project gets exactly one "
+            "adapter."
+        ),
+    },
+    "basin": {
+        "title": "Basin",
+        "body": (
+            "The watershed being modelled. Tutorial basins are Liard "
+            "and Snare; any other capitalised name is treated as a "
+            "project-specific basin (e.g. 'Mackenzie basin', "
+            "'Saskatchewan watershed')."
+        ),
+    },
+    "warning": {
+        "title": "Warning",
+        "body": (
+            "A loud failure surfaced when an input looks wrong — "
+            "e.g. an import name with no matching pattern in the "
+            "library, or a basin name that looks like an English "
+            "word. 'done' is refused while warnings are open; use "
+            "'force-done' to override or send a correction."
+        ),
+    },
+    "deriver": {
+        "title": "Deterministic deriver",
+        "body": (
+            "Code that walks already-rendered XMLs and produces a "
+            "single file (Topology, ModuleInstanceDescriptors, "
+            "WorkflowDescriptors, LocationSets stub, "
+            "sa_global.Properties) without any LLM call. Fires only "
+            "when no configurator yaml or bundled standard already "
+            "produced its target file."
+        ),
+    },
+    "done": {
+        "title": "'done' command",
+        "body": (
+            "Writes project.yaml into your session folder. Refused "
+            "if required slots are unfilled, or if warnings are "
+            "open. Use 'force-done' to write anyway."
+        ),
+    },
+    "status": {
+        "title": "'status' command",
+        "body": (
+            "Asks me to summarise the current project state — "
+            "filled vs missing slots, present vs missing CSVs, "
+            "resolved patterns, open warnings. Doesn't change "
+            "state; just reports."
+        ),
+    },
+    "edit": {
+        "title": "'/edit' command",
+        "body": (
+            "Starts an interactive editor for a yaml input file. "
+            "Example: '/edit modifierTypes.yaml'. Send '/cancel-edit' "
+            "to abort the session."
+        ),
+    },
+    "agent": {
+        "title": "What this agent does",
+        "body": (
+            "I help you author a Delft-FEWS configuration through "
+            "chat. You describe the project; I extract structured "
+            "facts (skills + LLM), pick the right patterns from the "
+            "library, and write a project.yaml blueprint. A separate "
+            "build step renders the ~50-file FEWS config "
+            "deterministically from that blueprint."
+        ),
+    },
+}
+
+# Aliases — different ways the user might refer to a concept.
+# Map alias → canonical key in _CONCEPT_ENTRIES.
+_CONCEPT_ALIASES: dict[str, str] = {
+    "slots": "slot",
+    "intents": "intent",
+    "patterns": "pattern",
+    "blueprint.yaml": "blueprint",
+    "project.yaml": "blueprint",
+    "project yaml": "blueprint",
+    "session folder": "session",
+    "sessions": "session",
+    "inputs folder": "inputs",
+    "input folder": "inputs",
+    "inputs/": "inputs",
+    "input directory": "inputs",
+    "csvs": "csv",
+    "csv files": "csv",
+    "csv file": "csv",
+    "yamls": "yaml",
+    "yaml files": "yaml",
+    "shp": "shapefile",
+    "shapefiles": "shapefile",
+    "imports": "import",
+    "model adapter": "adapter",
+    "model adapters": "adapter",
+    "adapters": "adapter",
+    "model": "adapter",
+    "basins": "basin",
+    "watershed": "basin",
+    "watersheds": "basin",
+    "warnings": "warning",
+    "derivers": "deriver",
+    "deterministic deriver": "deriver",
+    "done command": "done",
+    "status command": "status",
+    "edit command": "edit",
+    "this agent": "agent",
+    "the agent": "agent",
+    "this tool": "agent",
+    "this system": "agent",
+}
+
+
+# Short follow-up phrases that, on their own, are too weak to route to
+# help — but when the previous turn WAS a help reply, they strongly
+# signal "say more about what we were just discussing".
+_HELP_FOLLOWUP_PHRASES: tuple[str, ...] = (
+    "more", "tell me more", "say more",
+    "go on", "continue", "details", "in detail", "more detail",
+    "more details", "elaborate",
+    "example", "an example", "give an example",
+    "give me an example", "for instance", "concretely",
+    "and?", "really?", "why?", "how?",
+)
+
+# Comparative / structural words that signal a deeper question
+# (e.g. "compare slots and intents", "X vs Y", "difference between X").
+_HELP_COMPARATIVE_PHRASES: tuple[str, ...] = (
+    "difference between", "differences between",
+    "compare", "vs", "versus",
+    "how do they differ", "what's the diff",
+    "relationship between", "how does", "how do",
+    "why do", "why is", "why are",
+)
+
+
+def detect_help_query(text: str, prev_was_help: bool = False) -> bool:
+    """True iff the message asks about the system (explain / follow-up).
+
+    Three positive cases:
+      1. Help phrase + glossary concept: "what is a slot?", "explain
+         patterns". Strict — needs both signals to avoid grabbing
+         status queries like "what is missing?".
+      2. Comparative phrase + concept: "compare slots and intents",
+         "how does the model adapter work".
+      3. Follow-up in a help thread: "more", "give an example",
+         "elaborate" — only counts when ``prev_was_help`` is true,
+         so a bare "more" in a build conversation doesn't hijack.
+
+    The bare tokens "help" / "/help" always qualify.
+    """
+    lower = text.strip().lower().rstrip("?.!,").strip()
+    if not lower:
+        return False
+    if lower in _HELP_TOKENS:
+        return True
+
+    has_phrase = any(
+        lower.startswith(phrase + " ") or f" {phrase} " in lower
+        for phrase in _HELP_PHRASES
+    )
+    has_concept = lookup_concept(text) is not None
+
+    if has_phrase and has_concept:
+        return True
+
+    has_comparative = any(c in lower for c in _HELP_COMPARATIVE_PHRASES)
+    if has_comparative and has_concept:
+        return True
+
+    if prev_was_help:
+        if lower in _HELP_FOLLOWUP_PHRASES:
+            return True
+        if any(
+            lower.startswith(p + " ") or lower == p or f" {p}" in lower
+            for p in _HELP_FOLLOWUP_PHRASES
+        ):
+            return True
+        # Short concept-only follow-up: "what about patterns?",
+        # "and intents?". Cap length so a full build message
+        # mentioning a concept doesn't get pulled in.
+        if has_concept and len(lower.split()) <= 6:
+            return True
+
+    return False
+
+
+def lookup_concept(text: str) -> tuple[str, dict[str, str]] | None:
+    """Find the glossary entry the user is asking about.
+
+    Returns ``(canonical_key, entry)`` or ``None``. Aliases checked
+    first (longest first to avoid partial-match collisions like
+    'csv' inside 'csv files'); then canonical keys.
+    """
+    lower = text.lower()
+    for alias in sorted(_CONCEPT_ALIASES, key=lambda k: -len(k)):
+        if re.search(rf"(?:^|[^a-z]){re.escape(alias)}(?:$|[^a-z])", lower):
+            canonical = _CONCEPT_ALIASES[alias]
+            return canonical, _CONCEPT_ENTRIES[canonical]
+    for key in sorted(_CONCEPT_ENTRIES, key=lambda k: -len(k)):
+        if re.search(rf"\b{re.escape(key)}\b", lower):
+            return key, _CONCEPT_ENTRIES[key]
+    return None
+
+
+# Canonical command catalogue — single source of truth for the
+# bare '/help' reply. The chatter's command dispatcher recognises the
+# names + aliases listed here; if you add a new command there, mirror
+# it in this table so '/help' surfaces it. Grouped to match the
+# sidebar legend in app/web_app.py.
+COMMANDS: list[dict[str, str]] = [
+    # Project commands — drive the build pipeline
+    {
+        "name": "/done",
+        "aliases": "done, quit",
+        "group": "Project",
+        "description": (
+            "Write project.yaml and run the validation build. "
+            "Refused if required slots are unfilled, required CSVs "
+            "are missing, or warnings are open."
+        ),
+    },
+    {
+        "name": "/force-done",
+        "aliases": "force-done",
+        "group": "Project",
+        "description": (
+            "Write project.yaml even with missing CSVs or open "
+            "warnings. Still hard-refused on unfilled required slots."
+        ),
+    },
+    {
+        "name": "/preview",
+        "aliases": "preview",
+        "group": "Project",
+        "description": (
+            "Dry-run what /done would write — prints the project.yaml "
+            "as a fenced YAML block, no file created."
+        ),
+    },
+    # Inspect commands — read-only views of agent + project state
+    {
+        "name": "/help",
+        "aliases": "help",
+        "group": "Inspect",
+        "description": (
+            "Show this command list plus the glossary of concepts I "
+            "can explain. Follow up with e.g. *'what is a pattern?'*."
+        ),
+    },
+    {
+        "name": "/status",
+        "aliases": "status, summary",
+        "group": "Inspect",
+        "description": (
+            "Snapshot of the current project state — intent, filled "
+            "vs missing slots, patterns chosen, CSVs detected, "
+            "warnings, /done readiness."
+        ),
+    },
+    # State commands — roll back / clear / file edits
+    {
+        "name": "/undo",
+        "aliases": "",
+        "group": "State",
+        "description": (
+            "Roll back the last turn's state changes (intent, slots, "
+            "patterns). Up to 10 levels deep. History is not erased."
+        ),
+    },
+    {
+        "name": "/reset",
+        "aliases": "",
+        "group": "State",
+        "description": (
+            "Clear all project state but keep the session folder and "
+            "history. Asks for yes/no confirmation."
+        ),
+    },
+    {
+        "name": "/edit <file>",
+        "aliases": "",
+        "group": "State",
+        "description": (
+            "Open an interactive edit-mode against a per-spec yaml "
+            "input (e.g. modifierTypes.yaml)."
+        ),
+    },
+    {
+        "name": "/cancel-edit",
+        "aliases": "",
+        "group": "State",
+        "description": "Exit /edit mode without saving.",
+    },
+    {
+        "name": "yes / no",
+        "aliases": "",
+        "group": "State",
+        "description": (
+            "Confirm or cancel a pending action — e.g. an "
+            "agent-proposed pattern removal, or a /reset prompt."
+        ),
+    },
+]
+
+
+def _commands_section() -> str:
+    """Render COMMANDS as a grouped markdown bullet list for /help."""
+    out: list[str] = ["**Available commands**"]
+    seen_groups: list[str] = []
+    by_group: dict[str, list[dict[str, str]]] = {}
+    for cmd in COMMANDS:
+        by_group.setdefault(cmd["group"], []).append(cmd)
+        if cmd["group"] not in seen_groups:
+            seen_groups.append(cmd["group"])
+    for group in seen_groups:
+        out.append(f"\n*{group}*")
+        for cmd in by_group[group]:
+            alias_part = (
+                f" (aliases: {cmd['aliases']})" if cmd["aliases"] else ""
+            )
+            out.append(f"- `{cmd['name']}`{alias_part} — {cmd['description']}")
+    return "\n".join(out)
+
+
+def _glossary_topic_list_reply() -> str:
+    """Static reply for bare 'help' / '/help'.
+
+    Two sections: (1) the command catalogue from ``COMMANDS`` (most
+    actionable thing a fresh user needs), then (2) the glossary topic
+    list so they can ask 'what is X?' next.
+    """
+    topics = sorted(_CONCEPT_ENTRIES.keys())
+    return (
+        _commands_section()
+        + "\n\n---\n\n**Concepts I can explain**: "
+        + ", ".join(topics)
+        + ".\n\nAsk me e.g. *'what is a pattern?'*, *'explain "
+        "intents'*, *'how does the chat agent work?'*, or follow up "
+        "after any explanation with *'tell me more'*, *'give an "
+        "example'*, *'compare it to X'*."
+    )
+
+
+def _glossary_static_reply(user_message: str) -> str:
+    """Deterministic glossary reply — used as fallback when LLM is down."""
+    hit = lookup_concept(user_message)
+    if hit is None:
+        return (
+            "I don't have a glossary entry for that, and the LLM is "
+            "unavailable for a longer explanation. Try 'help' to see "
+            "what canonical concepts I can describe."
+        )
+    _key, entry = hit
+    return f"**{entry['title']}** — {entry['body']}"
+
+
+def compose_help_reply(
+    user_message: str,
+    history: list[dict] | None = None,
+    docs: str | None = None,
+    provider: OllamaProvider | None = None,
+    model: str = "qwen2.5:7b-instruct",
+) -> str:
+    """Answer an explain-the-system question.
+
+    Two paths:
+
+      1. **Bare 'help'** → static topic list. No LLM call.
+      2. **Everything else** → LLM grounded in ``docs`` (CLAUDE.md
+         content) plus the matching glossary entry as the canonical
+         seed, plus recent ``history`` for follow-up context. The
+         LLM is told to answer ONLY from the provided text — no
+         fabrication.
+
+    Falls back to the static glossary entry (or a "ask 'help' for
+    topics" stub) when ``docs`` is empty or the LLM call fails.
+    Keeping the glossary as a deterministic floor means the agent
+    still gives accurate canonical answers when Ollama is down.
+    """
+    lower = user_message.strip().lower().rstrip("?.!,").strip()
+    if lower in _HELP_TOKENS:
+        return _glossary_topic_list_reply()
+
+    if not docs:
+        return _glossary_static_reply(user_message)
+
+    if provider is None:
+        provider = OllamaProvider(model=model)
+
+    hit = lookup_concept(user_message)
+    glossary_seed = ""
+    if hit is not None:
+        _key, entry = hit
+        glossary_seed = (
+            "\n=== CANONICAL GLOSSARY ENTRY (preferred phrasing for "
+            f"this concept) ===\n{entry['title']}: {entry['body']}\n"
+        )
+
+    # Trim history to the last few turns — full history would
+    # dilute the LLM's focus and inflate the prompt. Six turns
+    # ≈ three user/agent exchanges, enough to resolve "tell me
+    # more" and "what about X" pronouns.
+    recent_turns = (history or [])[-6:]
+    recent_text = "\n".join(
+        f"{h.get('role', '?')}: {h.get('message', '')}"
+        for h in recent_turns
+    ) or "(no prior turns)"
+
+    system = (
+        "You are a documentation assistant for the Delft-FEWS "
+        "configurator agent. A configurator is asking how the system "
+        "works. Answer their question using ONLY the documentation "
+        "and glossary entry below.\n"
+        "\n"
+        "RULES:\n"
+        "1) Answer ONLY from the provided documentation. Never invent "
+        "   file paths, function names, behaviours, or examples that "
+        "   aren't in the docs. If something isn't covered, say "
+        "   'that isn't documented' — don't guess.\n"
+        "2) Be conversational and concrete. 2-6 sentences for simple "
+        "   questions; up to a substantial paragraph for nuanced "
+        "   ones. Plain English. No bullet lists unless the user "
+        "   explicitly asks. No emoji.\n"
+        "3) For canonical concepts, treat the glossary entry below as "
+        "   the preferred starting point — paraphrase it, then expand "
+        "   with docs detail if helpful.\n"
+        "4) For follow-up questions ('tell me more', 'give an "
+        "   example', 'and that?'), use the RECENT CONVERSATION to "
+        "   resolve what 'it', 'that', 'more' refer to.\n"
+        "5) For comparative questions ('X vs Y', 'difference between "
+        "   X and Y'), explain how the concepts relate using docs "
+        "   content for both.\n"
+        '6) Output JSON {"reply": "..."}, nothing else.\n'
+        f"\n=== DOCUMENTATION (CLAUDE.md) ===\n{docs}\n"
+        f"{glossary_seed}"
+    )
+    user = (
+        f"=== RECENT CONVERSATION ===\n{recent_text}\n\n"
+        f"User asks: {user_message!r}\n\n"
+        f"Compose the help reply."
+    )
+    schema = {
+        "type": "object",
+        "properties": {"reply": {"type": "string"}},
+        "required": ["reply"],
+    }
+    try:
+        resp = provider.generate_json(system=system, user=user, schema=schema)
+        text = (resp.data or {}).get("reply", "").strip()
+        if text:
+            return text
+    except Exception:
+        pass
+    return _glossary_static_reply(user_message)
+
+
 __all__ = [
+    "COMMANDS",
     "Intent",
     "INTENTS",
     "INTENT_INPUT_EXPECTATIONS",
+    "build_status_report",
     "classify_intent",
+    "compose_help_reply",
     "compose_reply",
+    "compose_status_reply",
     "compute_input_status",
     "detect_basin",
     "detect_geo_datum",
+    "detect_help_query",
     "detect_imports",
     "detect_locations_source",
     "detect_model_adapter",
+    "detect_status_query",
     "extract_skills",
     "fill_slots_from_text",
     "heuristic_intent_from_slots",
     "is_intent_ready",
+    "lookup_concept",
     "next_unfilled_question",
     "scan_inputs",
+    "status_prose_fallback",
 ]

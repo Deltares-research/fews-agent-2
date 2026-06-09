@@ -881,12 +881,28 @@ def build_from_blueprint(
         "\n".join(summary_lines), title="Build complete", border_style=border,
     ))
 
+    n_xml = len(manifest["written"]) - n_non_xml
     summary = {
-        "ok": n_xsd_ok == len(manifest["written"]),
+        # ``ok`` is the overall pass/fail. Requires every XML file to
+        # be XSD-valid AND no render-time errors (which include
+        # Pydantic model-construction failures — those don't show up
+        # in the file table because the file simply isn't written).
+        # Non-XML outputs (sa_global.Properties, mirrored assets) are
+        # excluded from the XSD denominator — they don't have an XSD
+        # to validate against.
+        "ok": n_xsd_ok == n_xml and not result.errors,
         "blueprint": bp.name,
         "output_root": str(output_root),
         "files_total": len(manifest["written"]),
+        "files_xml": n_xml,
+        "files_non_xml": n_non_xml,
         "files_xsd_ok": n_xsd_ok,
+        # Render-time errors collected during pattern expansion + per-spec
+        # render. Surfacing these alongside the XSD report lets a UI
+        # distinguish "Pydantic validation failed" (errors populated,
+        # file missing) from "XSD validation failed" (file present,
+        # xsd_ok=False).
+        "errors": list(result.errors),
         "byte_equivalent_vs_tutorial": (
             f"{n_byte_eq}/{n_compared}" if diff_against else None
         ),

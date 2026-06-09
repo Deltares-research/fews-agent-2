@@ -1,0 +1,132 @@
+# compose.azure.yml — FEWS configurator agent, Azure OpenAI backend.
+#
+# Two roles for this file:
+#
+#   1. Local pre-flight against the real Azure OpenAI deployment, before
+#      anything is pushed to Azure. Run:
+#
+#          cp .env.azure.example .env.azure   # fill in secrets
+#          docker compose -f compose.azure.yml up --build
+#          # open http://localhost:8501
+#
+#      The `.env.azure` file is read automatically (env_file: below).
+#      It is gitignored — never commit a real key.
+#
+#   2. Reference for Azure Container Apps deployment. The same image
+#      and env-var contract carry over — see the "Deploy to Azure"
+#      block at the bottom of this file for the `az` commands.
+#
+# Why no Ollama sidecar: the whole point of the Azure path is that the
+# model is hosted on Azure. Keep the container stateless and tiny.
+
+services:
+  fews-agent:
+    # Build locally for pre-flight testing. For Azure deployment, push
+    # this image to ACR (see the deploy notes below) and reference it
+    # by tag instead.
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: fews-agent:azure
+
+    container_name: fews-agent-azure
+
+    ports:
+      - "8501:8501"
+
+    # Secrets + config live here. File is gitignored; in Azure these
+    # land as Container App "secrets" + environment variables rather
+    # than a baked file (see deploy notes below).
+    env_file:
+      - .env.azure
+
+    # Belt-and-braces: pin the provider to Azure even if the env_file
+    # is missing or malformed. The image's own ENV defaults to ollama,
+    # so without this override a misconfigured .env.azure would fall
+    # back to Ollama and try to reach host.docker.internal — confusing
+    # failure mode that this prevents.
+    environment:
+      FEWS_AGENT_PROVIDER: AZURE
+
+    # Persist chat sessions + written project.yaml across restarts.
+    # In Azure these map to Azure Files mounts on the Container App.
+    volumes:
+      - ./sessions:/app/sessions
+      - ./projects:/app/projects
+
+    restart: unless-stopped
+
+    # The image already EXPOSEs 8501 and runs Streamlit headless; this
+    # healthcheck just hits Streamlit's built-in /_stcore/health
+    # endpoint so `docker compose ps` shows the right state.
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8501/_stcore/health', timeout=2).status == 200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+# =============================================================================
+# Deploy to Azure Container Apps
+# =============================================================================
+#
+# Prereqs: `az` CLI logged in (`az login`), a resource group, and an
+# Azure OpenAI resource with a deployed model (e.g. gpt-4o-mini).
+#
+# 1. Push the image to Azure Container Registry:
+#
+#       RG=fews-agent-rg
+#       LOC=westeurope
+#       ACR=fewsagentacr$(date +%s)            # globally-unique
+#       az group create -n $RG -l $LOC
+#       az acr create -n $ACR -g $RG --sku Basic
+#       az acr build -t fews-agent:latest -r $ACR .
+#
+# 2. Create the Container Apps environment + the app:
+#
+#       ENV=fews-agent-env
+#       APP=fews-agent
+#       az containerapp env create -n $ENV -g $RG -l $LOC
+#
+#       az containerapp create \
+#           -n $APP -g $RG --environment $ENV \
+#           --image $ACR.azurecr.io/fews-agent:latest \
+#           --registry-server $ACR.azurecr.io \
+#           --target-port 8501 --ingress external \
+#           --min-replicas 0 --max-replicas 2 \
+#           --secrets \
+#               azure-openai-key=$AZURE_OPENAI_API_KEY \
+#           --env-vars \
+#               FEWS_AGENT_PROVIDER=AZURE \
+#               AZURE_OPENAI_ENDPOINT=$AZURE_OPENAI_ENDPOINT \
+#               AZURE_OPENAI_DEPLOYMENT=$AZURE_OPENAI_DEPLOYMENT \
+#               AZURE_OPENAI_API_VERSION=2024-10-21 \
+#               AZURE_OPENAI_API_KEY=secretref:azure-openai-key
+#
+# 3. Persist sessions + projects across restarts (optional but
+#    recommended for a demo). Create a storage account + file share,
+#    then mount it into the Container App:
+#
+#       az storage account create -n fewsagentsa$RANDOM -g $RG -l $LOC --sku Standard_LRS
+#       SA=$(az storage account list -g $RG --query "[0].name" -o tsv)
+#       KEY=$(az storage account keys list -n $SA --query "[0].value" -o tsv)
+#       az storage share create --account-name $SA --account-key $KEY -n fews-sessions
+#       az storage share create --account-name $SA --account-key $KEY -n fews-projects
+#
+#       az containerapp env storage set -g $RG -n $ENV \
+#           --storage-name fews-sessions --azure-file-account-name $SA \
+#           --azure-file-account-key $KEY --azure-file-share-name fews-sessions \
+#           --access-mode ReadWrite
+#       # repeat for fews-projects, then update the container app with --yaml
+#       # to mount the volumes at /app/sessions and /app/projects.
+#
+# 4. Read the URL Azure assigned and open it:
+#
+#       az containerapp show -n $APP -g $RG \
+#           --query properties.configuration.ingress.fqdn -o tsv
+#
+# Scale-to-zero means the demo costs ~$0 when nobody's using it.
+# First request after idle warms a replica (~few seconds).
+#
+# To roll out a code change: `az acr build -t fews-agent:latest -r $ACR .`
+# then `az containerapp update -n $APP -g $RG --image $ACR.azurecr.io/fews-agent:latest`.

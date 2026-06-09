@@ -1,0 +1,50 @@
+# Keep the Docker build context lean. Everything listed here stays
+# out of `docker build`, which speeds up builds and prevents leaking
+# local secrets / VCS state / dev caches into the image.
+
+# Local Python toolchain
+.venv/
+venv/
+env/
+__pycache__/
+*.py[codz]
+*.egg-info/
+
+# VCS + IDE
+.git/
+.gitignore
+.idea/
+.vscode/
+.DS_Store
+
+# Test + coverage caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage*
+
+# Local secrets — all .env variants must NOT be baked into the image.
+# (Committed templates are *.example, which these rules don't match.)
+secrets/
+.env
+.env.local
+.env.azure
+.envrc
+
+# User-data: bind-mount these at run time rather than baking them in.
+sessions/
+projects/
+validation/
+
+# Regression fixtures — heavy and not needed by the running app.
+examples/
+
+# Docs / scripts not used at runtime
+tests/
+scripts/
+
+# Editor scratch
+*.swp
+*.bak
+*.log
