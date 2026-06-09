@@ -802,81 +802,80 @@ In rough priority order:
    it is **not the active workstream** on this branch. The
    pattern-agent thread is.
 
-### Azure deployment — open questions for Deltares IT/cloud team
+### Azure deployment (decided: bundled-Ollama on a GPU VM)
 
-The user wants a "quick & dirty" Azure deployment of the chat agent
-that bundles Ollama (rather than depending on Azure OpenAI). Two
-deploy paths already exist in the repo:
+**Decision made.** The "quick & dirty" deploy is a **single
+self-contained Docker image** (`Dockerfile.bundled`) that bundles
+**Ollama + the Streamlit chat UI**, built and run on **one Azure GPU
+VM** on the Deltares subscription. No Azure OpenAI, no ACR, no
+Kubernetes, no compose. The full runbook is in **`DEPLOY.md`** — read
+that first; this section is the why-and-where summary.
 
-- `Dockerfile` — Streamlit container. Defaults to `provider=ollama`
-  pointing at `host.docker.internal:11434`; switches to Azure OpenAI
-  via `FEWS_AGENT_PROVIDER=AZURE` + the four `AZURE_OPENAI_*` env
-  vars (see `fews_agent/agent/providers/factory.py`).
-- `compose.azure.yml` — local pre-flight + Azure Container Apps
-  deploy notes for the Azure OpenAI path. No GPU.
+**Why this shape.** qwen2.5:7b-instruct is 15–45 s/turn on CPU vs
+2–5 s on a T4 GPU, and Azure Container Apps has no GPU — so a fast,
+always-warm, self-hosted experience means a GPU VM. One image keeps
+the box dead simple: `git clone` → `docker build` → `docker run` →
+done. The model (~4.7 GB) downloads once into a named volume; later
+starts are instant.
 
-**Why this matters.** qwen2.5:7b-instruct on CPU is 15-45s per turn
-(memory-bandwidth bound). On a T4 GPU it's 2-5s. Azure Container
-Apps does NOT support GPU, so a bundled-Ollama deploy either accepts
-slow CPU inference or needs a GPU host (VM, AKS GPU node pool, or
-ACI with GPU). Deltares' subscription almost certainly already has
-GPU quota approved — fresh subscriptions need a quota-increase
-ticket and can take days, so reusing org infra is the path of least
-resistance.
+**Artifacts in the repo (this branch):**
 
-**Before writing any deploy code**, the user needs to ask their
-cloud team:
+- **`Dockerfile.bundled`** — all-in-one image. `FROM
+  python:3.11-slim` (NOT `ollama/ollama`, which ships Python 3.10 and
+  violates `requires-python>=3.11`). Installs `curl ca-certificates
+  zstd` (the Ollama installer extracts its payload with **zstd** —
+  slim lacks it; omitting it fails the build), then
+  `curl … ollama.com/install.sh | sh`. Installs the package +
+  `pyyaml` (pyyaml is a known gap in `pyproject.toml`). ENV pins
+  `FEWS_AGENT_PROVIDER=ollama`, `FEWS_AGENT_MODEL=qwen2.5:7b-instruct`,
+  `OLLAMA_HOST=http://127.0.0.1:11434` (read by BOTH the server bind
+  and our client, so they meet inside the container). Entrypoint =
+  `docker-entrypoint.sh`, CMD = `streamlit run app/web_app.py`.
+- **`docker-entrypoint.sh`** — starts `ollama serve &`, waits for it,
+  `ollama pull` the model (no-op if the volume already has it), then
+  `exec "$@"`. So the default CMD runs Streamlit with Ollama already
+  up; override CMD with `bash` (or `docker exec -it fews bash`) for a
+  terminal in the same container.
+- **`.gitattributes`** — forces `*.sh` + `docker-entrypoint.sh` to
+  **LF** so the entrypoint doesn't get CRLF on Windows checkout and
+  die with "bad interpreter" inside the Linux container.
+- **`DEPLOY.md`** — the runbook: prerequisites (GPU quota check), VM
+  create, build/run, colleague access, ops, CPU fallback, Bastion
+  option.
 
-1. **Is there a shared AKS cluster with a GPU node pool?** If yes,
-   the work collapses to a ~50-line k8s manifest: one Pod with two
-   containers (`ollama/ollama` + the agent), `nvidia.com/gpu: 1`
-   request, a Service, an Ingress. Localhost networking between the
-   two containers (so `OLLAMA_HOST=http://localhost:11434`).
-2. **Is there an existing ACR to push to?** Avoids spinning up a
-   new registry, plus AKS often has `imagePullSecrets` already
-   wired for the org's ACR.
-3. **Which subscription + resource group are sanctioned for
-   experiments/demos?** Many orgs have a "sandbox" subscription
-   that doesn't need approval for small workloads.
-4. **Required tags, naming conventions, networking constraints?**
-   (Private endpoints only, no public IPs, mandatory cost-centre
-   tag, etc.) Surfaces early so the deploy doesn't get rejected at
-   policy-check time.
-5. **Is there an internal ML/inference platform already serving
-   models like Llama/Qwen/Mistral?** If yes, the bundled-Ollama
-   path becomes unnecessary — point the Streamlit container at
-   their internal endpoint with `OLLAMA_HOST=<internal-url>` and
-   skip the model-bundling entirely. This is the simplest
-   end-state.
+The original agent-only **`Dockerfile`** (expects an external Ollama
+or Azure OpenAI) is still there for the cloud-PaaS path; the bundled
+one is the chosen self-hosted GPU-VM path.
 
-**Concrete deploy options ranked by expected hassle (assuming GPU
-quota exists):**
+**Security model (implemented in `DEPLOY.md`).** The app has **no
+login of its own**; access is gated by Azure identity:
 
-| Option | When it fits | Pros | Cons |
-|---|---|---|---|
-| Point at existing internal Ollama-style endpoint | IT has one | ~0 deploy work | depends on what they expose |
-| Two-container Pod on shared AKS GPU node | AKS GPU node pool exists | clean, scales | needs k8s manifest + ingress |
-| Standalone `Standard_NC4as_T4_v3` VM + docker compose | nothing shared exists | ~$0.50/hr running, $0 when deallocated; T4 16GB fits qwen2.5:7b 4-bit easily | manual VM lifecycle; install nvidia-container-toolkit |
-| ACI with GPU | demo-only, very short-lived | no infra to manage | no scale-to-zero; expensive idle; T4/V100 only in some regions |
-| Azure Container Apps (CPU only) | no GPU available at all | already drafted in `compose.azure.yml` | slow inference (15-45s per turn) |
+- Container binds `-p 127.0.0.1:8501:8501` (VM loopback only) and
+  **no NSG rule opens 8501** — the app is never on the public
+  internet.
+- VM created with `--assign-identity` + the `AADSSHLoginForLinux`
+  extension → colleagues sign in over SSH with their **Deltares Entra
+  ID** (short-lived cert, no shared keys).
+- **RBAC is the guest list:** `Virtual Machine User Login` for
+  colleagues (tunnel only), `Virtual Machine Administrator Login` for
+  the owner (sudo to build/run), scoped to the VM. Revoke = delete
+  the role assignment.
+- Access path: `az ssh vm … -- -L 8501:localhost:8501` then browse
+  `http://localhost:8501`. The SSH tunnel is the only pipe in.
 
-The CLI work, once a target is picked:
+**VM specifics:** `--image microsoft-dsvm:ubuntu-hpc:2204:latest`
+(NVIDIA driver + container toolkit preinstalled — avoids driver-install
+pain), `--size Standard_NC4as_T4_v3` (T4 16 GB, fits qwen2.5:7b 4-bit
+easily, ~$0.50/hr running and $0 when `az vm deallocate`'d). CPU
+fallback is `Standard_D8s_v5` minus `--gpus all`.
 
-- **AKS path**: write `deploy/k8s/fews-agent.yaml` (Pod + Service +
-  Ingress), push image to ACR, `kubectl apply`.
-- **VM path**: write `scripts/deploy_azure_vm.sh` (`az vm create
-  --size Standard_NC4as_T4_v3 --image Ubuntu2204 ...`, then
-  cloud-init script to install nvidia-container-toolkit, docker,
-  pull the model, run a `compose.ollama-gpu.yml` stack with
-  `ollama/ollama` + the agent container).
-- **Internal-endpoint path**: just update `compose.azure.yml` (or
-  add `compose.ollama-internal.yml`) with `FEWS_AGENT_PROVIDER=ollama`
-  + `OLLAMA_HOST=<internal>`, deploy to Container Apps as before.
-
-**When the user comes back with answers**, the next action is to
-write whichever of the three deploy files matches what IT exposed,
-then a smoke test (deploy → run a 2-turn chat → confirm it generates
-a valid project.yaml).
+**Status.** Files written; test-building `Dockerfile.bundled` locally
+on Windows Docker Desktop. First build surfaced the missing-`zstd`
+issue (now fixed). Not yet deployed to Azure — running `az`/deploy is
+billable + outward-facing, so the agent writes the scripts and the
+**user runs them**. Next after a clean local build: draft a commit
+message for the four new files (agent must not run git writes), then
+the user executes the `DEPLOY.md` steps.
 
 ### Memory anchors (from `~/.claude/projects/.../memory/`)
 

@@ -1,0 +1,86 @@
+# Dockerfile.bundled — FEWS configurator agent WITH Ollama in one image.
+#
+# Self-contained: this single container runs `ollama serve` (GPU-accelerated
+# when started with `--gpus all`) AND the Streamlit chat UI. No separate
+# Ollama process, no compose file, no external model endpoint.
+#
+# This is the "build on the VM, run it, done" image. The plain `Dockerfile`
+# (agent only, expects an external Ollama / Azure OpenAI) is still there for
+# the cloud-PaaS path; this one is for the self-hosted GPU-VM path.
+#
+# Build:
+#     docker build -f Dockerfile.bundled -t fews-agent .
+#
+# Run (GPU, persists the model across restarts via the named volume):
+#     docker run -d --gpus all -p 8501:8501 \
+#         -v ollama-models:/root/.ollama \
+#         --name fews fews-agent
+#     # open http://<host>:8501   (first start pulls ~4.7GB; later starts are instant)
+#
+# Run (CPU only — slow, drop --gpus all):
+#     docker run -d -p 8501:8501 -v ollama-models:/root/.ollama --name fews fews-agent
+#
+# Get a terminal inside the running container (Ollama already serving):
+#     docker exec -it fews bash
+#     # or start the container straight into a shell instead of Streamlit:
+#     docker run -it --gpus all -p 8501:8501 -v ollama-models:/root/.ollama fews-agent bash
+#     #   -> inside: `streamlit run app/web_app.py`
+
+# python:3.11-slim satisfies requires-python>=3.11 (the stock ollama/ollama
+# image ships Python 3.10, which doesn't). Ollama ships its own bundled CUDA
+# runtime libs, so it uses the host GPU via `--gpus all` without a CUDA
+# toolkit in this image.
+FROM python:3.11-slim
+
+# curl: to fetch the Ollama installer. zstd: the installer extracts its
+# payload with it (slim has neither). (lxml uses manylinux wheels on
+# linux/amd64, so no compiler/headers are needed here.)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        curl \
+        ca-certificates \
+        zstd \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install the Ollama binary + its bundled GPU runtime libraries.
+RUN curl -fsSL https://ollama.com/install.sh | sh
+
+WORKDIR /app
+
+# Python deps first (better layer caching). poetry-core needs the package
+# source present to resolve [project], so copy fews_agent before installing.
+# pyyaml is used by the chat/build code but isn't in pyproject (known gap) —
+# install it explicitly.
+COPY pyproject.toml README.md ./
+COPY fews_agent/ ./fews_agent/
+RUN pip install --no-cache-dir . pyyaml
+
+# Application source.
+COPY app/        ./app/
+COPY runners/    ./runners/
+COPY patterns/   ./patterns/
+COPY schemas/    ./schemas/
+COPY CLAUDE.md   ./
+
+# Bind-mount targets for chat sessions + built projects (survive restarts).
+RUN mkdir -p sessions projects
+
+ENV STREAMLIT_SERVER_HEADLESS=true \
+    STREAMLIT_SERVER_PORT=8501 \
+    STREAMLIT_SERVER_ADDRESS=0.0.0.0 \
+    STREAMLIT_BROWSER_GATHER_USAGE_STATS=false \
+    FEWS_AGENT_PROVIDER=ollama \
+    FEWS_AGENT_MODEL=qwen2.5:7b-instruct \
+    OLLAMA_HOST=http://127.0.0.1:11434
+
+# OLLAMA_HOST is read by BOTH the server (bind address) and our client, so
+# server and agent meet on 127.0.0.1:11434 inside the container.
+
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+
+EXPOSE 8501
+
+# Entrypoint starts `ollama serve`, waits, ensures the model, then runs CMD.
+# Override CMD with `bash` to drop into a terminal with Ollama already up.
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
+CMD ["streamlit", "run", "app/web_app.py"]

@@ -1,0 +1,4 @@
+id,name,lat,lon,description
+RDPS,Regional Deterministic Prediction System,18.1429,-142.8968,RDPS source grid centre
+GDPS,Global Deterministic Prediction System,-90,-180,GDPS source grid centre
+GFS,GFS Forecast,0,0,GFS reference point

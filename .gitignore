@@ -243,3 +243,5 @@ sessions/*
 
 validation/*
 !validation/.gitkeep
+
+!questions/*

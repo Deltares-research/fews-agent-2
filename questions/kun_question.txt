@@ -1,0 +1,1 @@
+Configure a NOAA GFS import for the Gulf of Guinea with wind speed, wind direction, and mean sea level pressure. Interpolate the imported gridded data to locations for visualize in the Data Viewer, and visualize the spatial data in the Spatial Display. The list of locations with coordinates is provided in the .csv file. (attach the file)
