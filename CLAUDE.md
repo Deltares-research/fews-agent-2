@@ -801,6 +801,39 @@ In rough priority order:
    typed-spec promotions + tutorial sharpening) is an older plan;
    it is **not the active workstream** on this branch. The
    pattern-agent thread is.
+6. **Support a free-form, multi-capability "import + interpolate +
+   visualize" request style.** A colleague wants the agent to handle
+   prompts shaped like:
+
+   > "Configure a NOAA GFS import for the Gulf of Guinea with wind
+   > speed, wind direction, and mean sea level pressure. Interpolate
+   > the imported gridded data to locations for visualizing in the
+   > Data Viewer, and visualize the spatial data in the Spatial
+   > Display. The list of locations with coordinates is provided in
+   > the .csv file." (+ attached locations CSV)
+
+   This is a richer intent than the current `build_data_import_only`
+   path covers. Gaps to close:
+   - **Parameter selection from prose.** Extract a *specific* NWP
+     variable subset (wind speed, wind direction, MSLP) and map each
+     to FEWS parameterIds — today's import patterns pull a fixed set,
+     not a user-chosen subset.
+   - **Region as a grid extent, not a basin.** "Gulf of Guinea" is an
+     area/grid bbox, not a Raven basin — needs a region/extent slot
+     distinct from `basin_name`.
+   - **Grid→point interpolation step.** Emit the interpolation module
+     config (gridded import → interpolated-to-locations timeseries)
+     so the data lands in the **Data Viewer**.
+   - **Spatial Display output.** Emit/extend `gridDisplay` /
+     `SpatialDisplay` config so the gridded field is viewable.
+   - **Attached locations CSV** drives `Locations.xml` /
+     `LocationSets.xml` (the interpolation targets) — wire the
+     uploaded CSV into the existing CSV-ingest layer.
+
+   Likely needs: a new intent (e.g. `build_import_interpolate_visualize`)
+   with its own resolver + `INTENT_INPUT_EXPECTATIONS`, a parameter-
+   subset skill, an extent/region slot, and possibly a new
+   interpolation pattern under `patterns/auto/`.
 
 ### Azure deployment (decided: bundled-Ollama on a GPU VM)
 
