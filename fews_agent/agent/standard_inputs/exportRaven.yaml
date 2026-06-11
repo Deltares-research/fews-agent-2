@@ -1,0 +1,5 @@
+unitConversion:
+- inputUnitType: oC
+  outputUnitType: degC
+  multiplier: '1'
+  incrementer: '0'

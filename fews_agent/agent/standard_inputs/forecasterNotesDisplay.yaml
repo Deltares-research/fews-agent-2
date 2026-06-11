@@ -1,0 +1,8 @@
+title: Forecaster Notes
+msgTemplate:
+- id: Warning for location
+  message: Warning for location ...
+eventCode:
+- id: General.info
+- id: Model.info
+- id: System.maintenance

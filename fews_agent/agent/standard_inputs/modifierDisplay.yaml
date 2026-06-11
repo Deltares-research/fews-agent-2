@@ -1,0 +1,19 @@
+showImportButton: false
+showExportButton: false
+showCreateModifierButton: true
+showApplyToButton: false
+createModifierButtons:
+  modifierId:
+  - MultiplyPC_Historic
+  - AdjustTA_Historic
+  - MultiplyPC_RDPS
+  - AdjustTA_RDPS
+  - MultiplyPC_GDPS
+  - AdjustTA_GDPS
+  - MultiplyPC_REPS
+  - AdjustTA_REPS
+timeSeriesModifiersDisplayConfig:
+  showTimeShiftModifierButtons: true
+  showTablePanel: true
+  showChartPanel: false
+  defaultOperationType: Timeseries

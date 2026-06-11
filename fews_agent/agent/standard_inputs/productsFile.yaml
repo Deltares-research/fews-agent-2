@@ -1,0 +1,37 @@
+body:
+- productCategory:
+    '@id': Meteo
+    product:
+    - '@id': RDPSForecast
+      expiryTime:
+        '@unit': day
+        '@multiplier': '7'
+      timeSeriesFilter:
+      - moduleInstanceId: ImportRDPS
+        locationId: RDPS
+      - moduleInstanceId: $MODELNAME1$RDPSForecast
+        locationId: $MODELNAME1$Grid
+      - moduleInstanceId: $MODELNAME1$RDPSForecast
+        locationSetId: $MODELNAME1$HydroStations
+    - '@id': GDPSForecast
+      expiryTime:
+        '@unit': day
+        '@multiplier': '7'
+      timeSeriesFilter:
+      - moduleInstanceId: ImportGDPS
+        locationId: GDPS
+      - moduleInstanceId: $MODELNAME1$GDPSForecast
+        locationId: $MODELNAME1$Grid
+      - moduleInstanceId: $MODELNAME1$GDPSForecast
+        locationSetId: $MODELNAME1$HydroStations
+    - '@id': REPSForecast
+      expiryTime:
+        '@unit': day
+        '@multiplier': '7'
+      timeSeriesFilter:
+      - moduleInstanceId: ImportREPS
+        locationId: REPS
+      - moduleInstanceId: $MODELNAME1$REPSForecast
+        locationId: $MODELNAME1$Grid
+      - moduleInstanceId: $MODELNAME1$REPSForecast
+        locationSetId: $MODELNAME1$HydroStations

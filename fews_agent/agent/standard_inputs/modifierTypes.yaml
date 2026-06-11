@@ -1,0 +1,267 @@
+rollbackOverlappingModifiers: false
+timeSeriesModifier:
+- id: MultiplyPC_Historic
+  name: Multiply Precipitation (Historic)
+  timeSeries:
+    moduleInstanceId: ModifyHistoricGrids
+    valueType: scalar
+    parameterId: PC.nwp.multiplier
+    locationId: $MODELNAME1$Grid
+  defaultStartTime: start run
+  defaultEndTime: time zero
+  defaultValidTime: true
+  resolveInWorkflow: true
+  resolveInPlots: false
+  editInPlots: false
+- id: AdjustTA_Historic
+  name: Add or Subtract Temperature (Historic)
+  timeSeries:
+    moduleInstanceId: ModifyHistoricGrids
+    valueType: scalar
+    parameterId: TA.nwp.incrementer
+    locationId: $MODELNAME1$Grid
+  defaultStartTime: start run
+  defaultEndTime: time zero
+  defaultValidTime: true
+  resolveInWorkflow: true
+  resolveInPlots: false
+  editInPlots: false
+- id: MultiplyPC_RDPS
+  name: Multiply Precipitation (RDPS)
+  timeSeries:
+    moduleInstanceId: ModifyRDPS
+    valueType: scalar
+    parameterId: PC.nwp.multiplier
+    locationId: $MODELNAME1$Grid
+  defaultStartTime: time zero
+  defaultEndTime: end run
+  defaultValidTime: true
+  resolveInWorkflow: true
+  resolveInPlots: false
+  editInPlots: false
+- id: MultiplyPC_GDPS
+  name: Multiply Precipitation (GDPS)
+  timeSeries:
+    moduleInstanceId: ModifyGDPS
+    valueType: scalar
+    parameterId: PC.nwp.multiplier
+    locationId: $MODELNAME1$Grid
+  defaultStartTime: time zero
+  defaultEndTime: end run
+  defaultValidTime: true
+  resolveInWorkflow: true
+  resolveInPlots: false
+  editInPlots: false
+- id: MultiplyPC_REPS
+  name: Multiply Precipitation (REPS)
+  applyToEnsemble: REPS
+  timeSeries:
+    moduleInstanceId: ModifyREPS
+    valueType: scalar
+    parameterId: PC.nwp.multiplier
+    locationId: $MODELNAME1$Grid
+  defaultStartTime: time zero
+  defaultEndTime: end run
+  defaultValidTime: true
+  resolveInWorkflow: true
+  resolveInPlots: false
+  editInPlots: false
+- id: AdjustTA_RDPS
+  name: Add or Subtract Temperature (RDPS)
+  timeSeries:
+    moduleInstanceId: ModifyRDPS
+    valueType: scalar
+    parameterId: TA.nwp.incrementer
+    locationId: $MODELNAME1$Grid
+  defaultStartTime: time zero
+  defaultEndTime: end run
+  defaultValidTime: true
+  resolveInWorkflow: true
+  resolveInPlots: false
+  editInPlots: false
+- id: AdjustTA_GDPS
+  name: Add or Subtract Temperature (GDPS)
+  timeSeries:
+    moduleInstanceId: ModifyGDPS
+    valueType: scalar
+    parameterId: TA.nwp.incrementer
+    locationId: $MODELNAME1$Grid
+  defaultStartTime: time zero
+  defaultEndTime: end run
+  defaultValidTime: true
+  resolveInWorkflow: true
+  resolveInPlots: false
+  editInPlots: false
+- id: AdjustTA_REPS
+  name: Add or Subtract Temperature (REPS)
+  applyToEnsemble: REPS
+  timeSeries:
+    moduleInstanceId: ModifyREPS
+    valueType: scalar
+    parameterId: TA.nwp.incrementer
+    locationId: $MODELNAME1$Grid
+  defaultStartTime: time zero
+  defaultEndTime: end run
+  defaultValidTime: true
+  resolveInWorkflow: true
+  resolveInPlots: false
+  editInPlots: false
+spatialCopyModifier:
+- id: RDPSSpatialCopy
+  name: RDPS Spatial Copy
+  expiryTime:
+    unit: day
+    multiplier: 2
+  timeSeries:
+  - moduleInstanceId: ImportRDPS
+    parameterId: PC.nwp
+    locationId: RDPS
+  - moduleInstanceId: ImportRDPS
+    parameterId: TA.nwp
+    locationId: RDPS
+- id: REPSSpatialCopy
+  name: REPS Spatial Copy
+  expiryTime:
+    unit: day
+    multiplier: 2
+  timeSeries:
+  - moduleInstanceId: ImportREPS
+    parameterId: PC.nwp
+    locationId: REPS
+  - moduleInstanceId: ImportREPS
+    parameterId: TA.nwp
+    locationId: REPS
+spatialProfileModifier:
+- id: RDPSSpatialProfile
+  name: RDPS Spatial Profile
+  expiryTime:
+    unit: day
+    multiplier: 2
+  userDefinedDescriptionField:
+    id: Comment
+    descriptionField: Comment
+  timeSeries:
+  - moduleInstanceId: ImportRDPS
+    parameterId: PC.nwp
+  descriptiveFunctionGroups:
+    descriptiveFunctionGroup:
+    - name: Basic statistics
+      descriptiveFunction:
+      - function: startTime
+        ignoreMissings: true
+      - function: endTime
+        ignoreMissings: true
+      - function: timeLength
+        ignoreMissings: true
+    - name: Accumulation
+      descriptiveFunction:
+      - function: movingAccumulationMax
+        ignoreMissings: true
+        timeSpan:
+        - unit: hour
+          multiplier: 1
+        - unit: hour
+          multiplier: 2
+        - unit: hour
+          multiplier: 3
+        - unit: hour
+          multiplier: 4
+        - unit: hour
+          multiplier: 6
+        - unit: hour
+          multiplier: 12
+        - unit: hour
+          multiplier: 24
+        - unit: hour
+          multiplier: 48
+      - function: sum
+        ignoreMissings: true
+- id: GDPSSpatialProfile
+  name: GDPS Spatial Profile
+  expiryTime:
+    unit: day
+    multiplier: 2
+  userDefinedDescriptionField:
+    id: Comment
+    descriptionField: Comment
+  timeSeries:
+  - moduleInstanceId: ImportGDPS
+    parameterId: PC.nwp
+  - moduleInstanceId: ImportGDPS
+    parameterId: TA.nwp
+  descriptiveFunctionGroups:
+    descriptiveFunctionGroup:
+    - name: Basic statistics
+      descriptiveFunction:
+      - function: startTime
+        ignoreMissings: true
+      - function: endTime
+        ignoreMissings: true
+      - function: timeLength
+        ignoreMissings: true
+    - name: Accumulation
+      descriptiveFunction:
+      - function: movingAccumulationMax
+        ignoreMissings: true
+        timeSpan:
+        - unit: hour
+          multiplier: 1
+        - unit: hour
+          multiplier: 2
+        - unit: hour
+          multiplier: 3
+        - unit: hour
+          multiplier: 4
+        - unit: hour
+          multiplier: 6
+        - unit: hour
+          multiplier: 12
+        - unit: hour
+          multiplier: 24
+        - unit: hour
+          multiplier: 48
+        - unit: hour
+          multiplier: 72
+        - unit: hour
+          multiplier: 96
+        - unit: hour
+          multiplier: 120
+      - function: sum
+        ignoreMissings: true
+modifiersGroup:
+- id: MultiplyPC_Historic
+  modifierId:
+  - MultiplyPC_Historic
+- id: MultiplyPC_RDPS
+  modifierId:
+  - MultiplyPC_RDPS
+- id: MultiplyPC_GDPS
+  modifierId:
+  - MultiplyPC_GDPS
+- id: MultiplyPC_REPS
+  modifierId:
+  - MultiplyPC_REPS
+- id: AdjustTA_Historic
+  modifierId:
+  - AdjustTA_Historic
+- id: AdjustTA_RDPS
+  modifierId:
+  - AdjustTA_RDPS
+- id: AdjustTA_GDPS
+  modifierId:
+  - AdjustTA_GDPS
+- id: AdjustTA_REPS
+  modifierId:
+  - AdjustTA_REPS
+- id: RDPSSpatialProfile
+  modifierId:
+  - RDPSSpatialProfile
+- id: GDPSSpatialProfile
+  modifierId:
+  - GDPSSpatialProfile
+- id: RDPSSpatialCopy
+  modifierId:
+  - RDPSSpatialCopy
+- id: REPSSpatialCopy
+  modifierId:
+  - REPSSpatialCopy

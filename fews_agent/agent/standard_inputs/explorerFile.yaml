@@ -1,0 +1,380 @@
+body:
+- systemInformation:
+    description: FEWS Basic Configuration Course
+    systemCaption: $EXPLORER_SYSTEMCAPTION$
+    systemHelpUrl: https://publicwiki.deltares.nl/display/FEWSDOC/Home
+- map:
+    geoDatum: WGS 1984
+    projection: mercator
+    defaultExtent:
+      '@id': $REGION$
+      left: '-149'
+      right: '-82'
+      top: '71'
+      bottom: '57'
+    extraExtent:
+    - '@id': $MODELNAME1$
+      left: '-121'
+      right: '-105'
+      top: '66'
+      bottom: '62.4'
+    - '@id': $MODELNAME2$
+      left: '-142'
+      right: '-105'
+      top: '64'
+      bottom: '56'
+    - '@id': Canada
+      left: '-152'
+      right: '-47'
+      top: '40'
+      bottom: '75'
+    - '@id': World
+      left: '-180'
+      right: '180'
+      top: '90'
+      bottom: '-70'
+    scaleBarVisible: 'true'
+    northArrowVisible: 'true'
+    labelsVisible: 'true'
+    backgroundColor: white
+    openStreetMapLayer:
+      '@id': Open Street Map
+      url: http://tile.openstreetmap.org
+      visible: 'true'
+      cacheDir: $MAPLAYERSCACHE_FOLDER$/OSM
+    layer:
+    - '@id': Satellite
+      className: nl.wldelft.libx.openmap.GenericTileServerLayer
+      visible: 'false'
+      properties:
+        string:
+        - '@key': tileUrlPattern
+          '@value': http://h%RIGHT(QUAD_KEY,1)%.ortho.tiles.virtualearth.net/tiles/h%QUAD_KEY%.jpeg?g=1
+        - '@key': cacheDir
+          '@value': $MAPLAYERSCACHE_FOLDER$/Satellite_Cache
+        int:
+        - '@key': minZoomLevel
+          '@value': '2'
+        - '@key': maxZoomLevel
+          '@value': '17'
+        - '@key': topZoomLevel
+          '@value': '19'
+        - '@key': tileSize
+          '@value': '256'
+    - '@id': Topografie
+      '@name': ArcGIS World Topo Map
+      className: nl.wldelft.libx.openmap.GenericTileServerLayer
+      visible: 'true'
+      properties:
+        string:
+        - '@key': tileUrlPattern
+          '@value': http://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/%ZOOM%/%ROW%/%COLUMN%
+        - '@key': cacheDir
+          '@value': $MAPLAYERSCACHE_FOLDER$/Esri_topo
+        int:
+        - '@key': minZoomLevel
+          '@value': '1'
+        - '@key': maxZoomLevel
+          '@value': '19'
+        - '@key': topZoomLevel
+          '@value': '21'
+        - '@key': tileSize
+          '@value': '256'
+    - '@id': Canvas
+      '@name': ArcGIS Canvas World LightGray Base
+      className: nl.wldelft.libx.openmap.GenericTileServerLayer
+      visible: 'false'
+      properties:
+        string:
+        - '@key': tileUrlPattern
+          '@value': http://server.arcgisonline.com/arcgis/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/%ZOOM%/%ROW%/%COLUMN%
+        - '@key': cacheDir
+          '@value': $MAPLAYERSCACHE_FOLDER$/Esri_Canvas_World_Light_Gray_Base
+        int:
+        - '@key': minZoomLevel
+          '@value': '1'
+        - '@key': maxZoomLevel
+          '@value': '19'
+        - '@key': topZoomLevel
+          '@value': '21'
+        - '@key': tileSize
+          '@value': '256'
+    - '@id': World
+      '@name': ArcGIS World Satellite Map
+      className: nl.wldelft.libx.openmap.GenericTileServerLayer
+      visible: 'true'
+      properties:
+        string:
+        - '@key': tileUrlPattern
+          '@value': http://server.arcgisonline.com/arcgis/rest/services/World_Imagery/MapServer/tile/%ZOOM%/%ROW%/%COLUMN%
+        - '@key': cacheDir
+          '@value': $MAPLAYERSCACHE_FOLDER$/World_Imagery
+        int:
+        - '@key': minZoomLevel
+          '@value': '1'
+        - '@key': maxZoomLevel
+          '@value': '19'
+        - '@key': topZoomLevel
+          '@value': '21'
+        - '@key': tileSize
+          '@value': '256'
+    - '@id': NatGeo_World_Map
+      '@name': ArcGIS Physical Map
+      className: nl.wldelft.libx.openmap.GenericTileServerLayer
+      visible: 'false'
+      properties:
+        string:
+        - '@key': tileUrlPattern
+          '@value': http://server.arcgisonline.com/ArcGIS/rest/services/NatGeo_World_Map/MapServer/tile/%ZOOM%/%ROW%/%COLUMN%
+        - '@key': cacheDir
+          '@value': $MAPLAYERSCACHE_FOLDER$/NatGeo_World_Map
+        int:
+        - '@key': minZoomLevel
+          '@value': '1'
+        - '@key': maxZoomLevel
+          '@value': '14'
+        - '@key': topZoomLevel
+          '@value': '18'
+        - '@key': tileSize
+          '@value': '256'
+    - '@id': World_Shaded_Relief
+      '@name': ArcGIS Shaded Relief
+      className: nl.wldelft.libx.openmap.GenericTileServerLayer
+      visible: 'true'
+      properties:
+        string:
+        - '@key': tileUrlPattern
+          '@value': http://server.arcgisonline.com/ArcGIS/rest/services/World_Shaded_Relief/MapServer/tile/%ZOOM%/%ROW%/%COLUMN%
+        - '@key': cacheDir
+          '@value': $MAPLAYERSCACHE_FOLDER$/World_Shaded_Relief
+        int:
+        - '@key': minZoomLevel
+          '@value': '1'
+        - '@key': maxZoomLevel
+          '@value': '14'
+        - '@key': topZoomLevel
+          '@value': '21'
+        - '@key': tileSize
+          '@value': '256'
+    - '@id': World
+      '@name': ArcGIS World Satellite Map
+      className: nl.wldelft.libx.openmap.GenericTileServerLayer
+      visible: 'true'
+      properties:
+        string:
+        - '@key': tileUrlPattern
+          '@value': http://server.arcgisonline.com/arcgis/rest/services/World_Imagery/MapServer/tile/%ZOOM%/%ROW%/%COLUMN%
+        - '@key': cacheDir
+          '@value': $MAPLAYERSCACHE_FOLDER$/World_Imagery
+        int:
+        - '@key': minZoomLevel
+          '@value': '1'
+        - '@key': maxZoomLevel
+          '@value': '19'
+        - '@key': topZoomLevel
+          '@value': '21'
+        - '@key': tileSize
+          '@value': '256'
+    esriShapeLayer:
+    - '@id': $MODELNAME1$Watersheds
+      description: $MODELNAME1$Watersheds
+      file: $MODELNAME1$Watersheds.shp
+      geoDatum: WGS 1984
+      visible: 'true'
+      lineColor: black
+      fillRgbColor: FFFFFF
+      opaquenessPercentage: '20'
+    - '@id': $MODELNAME1$Rivers
+      description: $MODELNAME1$Rivers
+      file: $MODELNAME1$Rivers.shp
+      geoDatum: WGS 1984
+      visible: 'false'
+      lineColor: blue
+      opaquenessPercentage: '20'
+    - '@id': $MODELNAME1$Lakes
+      description: Lakes
+      file: $MODELNAME1$Lakes.shp
+      geoDatum: WGS 1984
+      visible: 'false'
+      lineColor: blue
+      fillColor: blue
+      opaquenessPercentage: '20'
+    - '@id': $MODELNAME2$Watersheds
+      description: $MODELNAME2$Watersheds
+      file: $MODELNAME2$Watersheds.shp
+      geoDatum: WGS 1984
+      visible: 'true'
+      lineColor: black
+      fillRgbColor: FFFFFF
+      opaquenessPercentage: '20'
+    - '@id': $MODELNAME2$Rivers
+      description: $MODELNAME2$Rivers
+      file: $MODELNAME2$Rivers.shp
+      geoDatum: WGS 1984
+      visible: 'false'
+      lineColor: blue
+      opaquenessPercentage: '20'
+    - '@id': World Countries
+      description: World
+      file: WorldCountries.shp
+      geoDatum: WGS 1984
+      visible: 'false'
+      toolTip: '%CNTRY_NAME%'
+      lineColor: black
+      fillRgbColor: FFFFFF
+      opaquenessPercentage: '20'
+- explorerTasks:
+    explorerTask:
+    - '@name': Map Display
+      mnemonic: A
+      arguments: MapDisplay
+      taskClass: nl.wldelft.fews.gui.plugin.map.MapDisplay
+      toolbarTask: 'false'
+      menubarTask: 'true'
+      accelerator: ctrl A
+    - '@name': Data Display
+      mnemonic: D
+      taskClass: nl.wldelft.fews.gui.plugin.timeseries.EditorTimeSeriesDialog
+      toolbarTask: 'true'
+      menubarTask: 'true'
+      allowMultipleInstances: 'true'
+      accelerator: ctrl D
+      doubleClickLocationEnabled: 'false'
+      loadAtStartup: 'true'
+    - '@name': Spatial Data
+      mnemonic: G
+      arguments: GridDisplay
+      taskClass: nl.wldelft.fews.gui.plugin.grid.GridDisplay
+      toolbarTask: 'true'
+      menubarTask: 'true'
+      allowMultipleInstances: 'true'
+      accelerator: ctrl G
+      loadAtStartup: 'true'
+    - '@name': Manual Forecast
+      mnemonic: M
+      taskClass: nl.wldelft.fews.gui.plugin.manualforecast.ManualForecastDialog
+      toolbarTask: 'true'
+      menubarTask: 'true'
+    - '@name': Forecast Management
+      mnemonic: F
+      taskClass: nl.wldelft.fews.gui.plugin.forecast.ForecastDialog
+      toolbarTask: 'true'
+      menubarTask: 'true'
+      accelerator: ctrl F
+    - '@name': Workflow Navigator
+      arguments: WorkflowNavigator
+      taskClass: nl.wldelft.fews.gui.plugin.workflownavigator.WorkflowNavigator
+      toolbarTask: 'true'
+      menubarTask: 'true'
+      loadAtStartup: 'true'
+    - '@name': System Monitor
+      mnemonic: S
+      taskClass: nl.wldelft.fews.gui.plugin.systemmonitor.SystemMonitorDialog
+      toolbarTask: 'true'
+      menubarTask: 'true'
+      accelerator: ctrl S
+    - '@name': Modifiers
+      mnemonic: X
+      taskClass: nl.wldelft.fews.gui.plugin.modifiersdisplay.ModifiersPanel
+      toolbarTask: 'true'
+      menubarTask: 'true'
+      allowMultipleInstances: 'false'
+      accelerator: ctrl M
+      toolWindow: 'false'
+      loadAtStartup: 'true'
+    - '@name': Forecast Tree
+      taskClass: nl.wldelft.fews.gui.plugin.selection.SegmentSelectionDialog
+      toolbarTask: 'false'
+      menubarTask: 'false'
+      toolWindow: 'true'
+      loadAtStartup: 'true'
+    - '@name': Forecaster Product Info
+      predefinedDisplay: forecast product info
+      toolbarTask: 'false'
+      menubarTask: 'false'
+      allowMultipleInstances: 'false'
+      toolWindow: 'true'
+      loadAtStartup: 'true'
+    - '@name': Workflow Navigator
+      predefinedDisplay: workflow navigator
+      toolbarTask: 'false'
+      menubarTask: 'false'
+      toolWindow: 'false'
+      loadAtStartup: 'false'
+    - '@name': Database Lister
+      mnemonic: L
+      predefinedDisplay: time series lister
+      toolbarTask: 'true'
+      menubarTask: 'true'
+      accelerator: ctrl L
+      toolWindow: 'false'
+      loadAtStartup: 'false'
+    - '@name': Config Metadata
+      mnemonic: T
+      predefinedDisplay: tabular config files display
+      toolbarTask: 'false'
+      menubarTask: 'true'
+      accelerator: ctrl T
+      loadAtStartup: 'false'
+    - '@name': Plot Overview
+      taskClass: nl.wldelft.fews.gui.plugin.displaythumbnails.ShortcutsThumbnailsDialog
+      toolbarTask: 'false'
+      menubarTask: 'false'
+      toolWindow: 'true'
+      loadAtStartup: 'true'
+    - '@name': Web Browser
+      mnemonic: h
+      taskClass: nl.wldelft.fews.gui.plugin.webbrowser.WebBrowserDisplay
+      toolbarTask: 'false'
+      menubarTask: 'true'
+      accelerator: ctrl R
+      loadAtStartup: 'true'
+- statusBarConfig:
+    description: Standard date-time format
+    dateTimeFormat: HH:mm:ss
+    timeGMT: 'true'
+    timeCurrent: 'true'
+    timeLastRefresh: 'true'
+    statusOfSystem: 'true'
+    mouseCoordinates: 'true'
+    userName: 'true'
+- dateTime:
+    timeZoneName:
+    - $TIMEZONE$
+    - GMT
+    dateTimeFormat: EEE dd-MM-yyyy HH:mm:ss
+    cardinalTimeStep:
+      '@unit': hour
+      '@multiplier': '1'
+    adjustSystemTimeAutomatically: 'false'
+- logPanelConfig:
+    clientFilter:
+    - clientId: Stand alone
+      logFilter:
+      - level: INFO
+        eventType: system
+      - level: INFO
+        eventType: debug
+    - clientId: Operator Client
+      logFilter:
+      - level: INFO
+        eventType: system
+      - level: INFO
+        eventType: debug
+- panelSizes:
+    loggingPanelSize: '5'
+    listsPanelSize: '22'
+    filterListSize: '29'
+    locationListSize: '45'
+    parameterListSize: '25'
+    forecastListSize: '5'
+- panelHeaderLabels:
+    filterPanelHeader: Data sources
+    locationPanelHeader: Locations
+    parameterPanelHeader: Parameters
+    forecastPanelHeader: Simulations
+- notification:
+    '@enabled': 'true'
+- fileMenu:
+    exportTimeSeries:
+      '@visible': 'true'

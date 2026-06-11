@@ -1,0 +1,593 @@
+version: '1.0'
+generalDisplayConfig:
+  legendTextFunction: '%PARAMETER_NAME%'
+defaultViewPeriod:
+  unit: day
+  start: -10
+  end: 5
+classBreaks:
+  classBreaks:
+  - id: Class.Precipitation
+    color:
+    - color: white
+      lowerValue: '0'
+      opaquenessPercentage: 30
+    - color: 070268
+      lowerValue: '0.01'
+      opaquenessPercentage: 40
+    - color: 0900AE
+      lowerValue: '0.125'
+      opaquenessPercentage: 40
+    - color: 4040FF
+      lowerValue: '0.25'
+      opaquenessPercentage: 40
+    - color: 0080C0
+      lowerValue: '0.5'
+      opaquenessPercentage: 40
+    - color: 129FFE
+      lowerValue: '1.0'
+      opaquenessPercentage: 40
+    - color: 00FF40
+      lowerValue: '2.0'
+      opaquenessPercentage: 40
+    - color: FFFF00
+      lowerValue: '4.0'
+      opaquenessPercentage: 40
+    - color: FF8000
+      lowerValue: '8.0'
+      opaquenessPercentage: 40
+    - color: FF0000
+      lowerValue: '16.0'
+      opaquenessPercentage: 40
+    - color: FF0080
+      lowerValue: '32.0'
+      opaquenessPercentage: 40
+    - color: FFFFFF
+      lowerValue: '64.0'
+      opaquenessPercentage: 40
+  - id: Class.Temperature
+    segment:
+    - lowerColor: blue3
+      upperColor: light blue1
+      lowerValue:
+      - '-40'
+      - '-30'
+      - '-20'
+      - '-10'
+      - '-5'
+      - '-0.5'
+      lowerOpaquenessPercentage: 40
+      upperOpaquenessPercentage: 40
+    - lowerColor: pale green1
+      upperColor: red
+      lowerValue:
+      - '0.5'
+      - '5'
+      - '10'
+      - '15'
+      - '20'
+      - '25'
+      - '30'
+      - '35'
+      - '40'
+      lowerOpaquenessPercentage: 40
+      upperOpaquenessPercentage: 40
+  - id: Class.Evaporation
+    color:
+    - color: white
+      lowerValue: '0'
+      opaquenessPercentage: 30
+    - color: 070268
+      lowerValue: '0.01'
+    - color: 0900AE
+      lowerValue: '0.125'
+    - color: 4040FF
+      lowerValue: '0.25'
+    - color: 0080C0
+      lowerValue: '0.5'
+    - color: 129FFE
+      lowerValue: '1.0'
+    - color: 00FF40
+      lowerValue: '3.0'
+    - color: FFFF00
+      lowerValue: '4.0'
+    - color: FF8000
+      lowerValue: '5.0'
+    - color: FF0000
+      lowerValue: '6.0'
+    - color: FF0080
+      lowerValue: '7.0'
+    - color: FFFFFF
+      lowerValue: '8.0'
+  - id: Class.Discharge
+    color:
+    - color: FFFFFF
+      lowerValue: '0'
+      opaquenessPercentage: 10
+      label: '>=0'
+    - color: E2E2E2
+      lowerValue: '5'
+      opaquenessPercentage: 80
+      label: '>=5'
+    - color: DED783
+      lowerValue: '10'
+      opaquenessPercentage: 80
+      label: '>=10'
+    - color: 9BC856
+      lowerValue: '25'
+      opaquenessPercentage: 80
+      label: '>=25'
+    - color: 00C9A6
+      lowerValue: '50'
+      opaquenessPercentage: 80
+      label: '>=50'
+    - color: 00BAC3
+      lowerValue: '75'
+      opaquenessPercentage: 80
+      label: '>=75'
+    - color: 008EC4
+      lowerValue: '100'
+      opaquenessPercentage: 80
+      label: '>=1,00'
+    - color: 0065CA
+      lowerValue: '250'
+      opaquenessPercentage: 80
+      label: '>=250'
+    - color: 0040FE
+      lowerValue: '500'
+      opaquenessPercentage: 80
+      label: '>=500'
+    - color: 0022AA
+      lowerValue: '1000'
+      opaquenessPercentage: 80
+      label: '>=1000'
+  - id: Class.Runoff
+    color:
+    - color: FFFFFF
+      lowerValue: '0'
+      opaquenessPercentage: 10
+      label: '>=0'
+    - color: E2E2E2
+      lowerValue: '0.1'
+      opaquenessPercentage: 80
+      label: '>=0.1'
+    - color: DED783
+      lowerValue: '0.2'
+      opaquenessPercentage: 80
+      label: '>=0.2'
+    - color: 9BC856
+      lowerValue: '0.3'
+      opaquenessPercentage: 80
+      label: '>=0.3'
+    - color: 00C9A6
+      lowerValue: '0.4'
+      opaquenessPercentage: 80
+      label: '>=0.4'
+    - color: 00BAC3
+      lowerValue: '0.5'
+      opaquenessPercentage: 80
+      label: '>=0.5'
+    - color: 008EC4
+      lowerValue: '1'
+      opaquenessPercentage: 80
+      label: '>=1'
+    - color: 0065CA
+      lowerValue: '2.5'
+      opaquenessPercentage: 80
+      label: '>=2.5'
+    - color: 0040FE
+      lowerValue: '5'
+      opaquenessPercentage: 80
+      label: '>=5'
+    - color: 0022AA
+      lowerValue: '10'
+      opaquenessPercentage: 80
+      label: '>=10'
+  - id: Class.Windspeed
+    segment:
+    - lowerColor: green
+      upperColor: red
+      lowerValue:
+      - '0'
+      - '0.3'
+      - '1.6'
+      - '3.4'
+      - '5.5'
+      - '8.0'
+      - '10.8'
+      - '13.9'
+      - '17.2'
+      - '20.8'
+      - '24.5'
+      - '28.5'
+      - '32.6'
+      lowerOpaquenessPercentage: 20
+      upperOpaquenessPercentage: 50
+      lowerSymbolSize: 10
+      upperSymbolSize: 30
+  - id: Class.Pressure
+    segment:
+    - lowerColor: green
+      upperColor: red
+      lowerValue:
+      - '60'
+      - '65'
+      - '70'
+      - '75'
+      - '80'
+      - '85'
+      - '90'
+      - '95'
+      - '100'
+      - '105'
+      - '110'
+      lowerOpaquenessPercentage: 20
+      upperOpaquenessPercentage: 50
+  - id: Class.SpecificHumidity
+    segment:
+    - lowerColor: white
+      upperColor: blue
+      lowerValue:
+      - '0'
+      - '0.0000001'
+      - '0.00000015'
+      - '0.0000002'
+      - '0.00000025'
+      - '0.0000003'
+      - '0.00000035'
+      - '0.0000004'
+      - '0.00000045'
+      - '0.0000005'
+      lowerOpaquenessPercentage: 20
+      upperOpaquenessPercentage: 50
+  - id: Class.ShortWaveRadiation
+    segment:
+    - lowerColor: blue
+      upperColor: red
+      lowerValue:
+      - '0'
+      - '100'
+      - '200'
+      - '300'
+      - '400'
+      - '500'
+      - '600'
+      - '700'
+      - '800'
+      - '900'
+      - '1000'
+      lowerOpaquenessPercentage: 20
+      upperOpaquenessPercentage: 50
+  - id: Class.LongWaveRadiation
+    segment:
+    - lowerColor: blue
+      upperColor: red
+      lowerValue:
+      - '120'
+      - '140'
+      - '160'
+      - '180'
+      - '200'
+      - '220'
+      - '240'
+      - '260'
+      - '280'
+      - '300'
+      - '320'
+      lowerOpaquenessPercentage: 20
+      upperOpaquenessPercentage: 50
+  - id: Class.SWE
+    color:
+    - color: white
+      lowerValue: '0'
+      opaquenessPercentage: 80
+    - color: 070268
+      lowerValue: '1'
+      opaquenessPercentage: 80
+    - color: 0900AE
+      lowerValue: '2'
+      opaquenessPercentage: 80
+    - color: 4040FF
+      lowerValue: '5'
+      opaquenessPercentage: 80
+    - color: 0080C0
+      lowerValue: '10'
+      opaquenessPercentage: 80
+    - color: 129FFE
+      lowerValue: '20'
+      opaquenessPercentage: 80
+    - color: 00FF40
+      lowerValue: '50'
+      opaquenessPercentage: 80
+    - color: FFFF00
+      lowerValue: '100'
+      opaquenessPercentage: 80
+    - color: FF8000
+      lowerValue: '200'
+      opaquenessPercentage: 80
+    - color: FF0000
+      lowerValue: '300'
+      opaquenessPercentage: 80
+    - color: FF0080
+      lowerValue: '400'
+      opaquenessPercentage: 80
+    - color: 7931DF
+      lowerValue: '500'
+      opaquenessPercentage: 80
+timeMarkersDisplayConfig:
+  timeMarkerDisplayOptions:
+  - marker: systemTime
+    color: green
+    lineStyle: solid
+  - marker: timeZero
+    color: gray
+    lineStyle: dotted
+  - marker: displayTime
+    color: red
+    lineStyle: solid
+  - marker: threshold
+    color: orange
+    lineStyle: dashed
+parametersDisplayConfig:
+  parameterDisplayOptions:
+  - id: QR.obs
+    preferredColor: black
+    lineStyle: dashdot
+    markerStyle: x
+    markerSize: 2
+  - id: PC.obs
+    preferredColor: blue
+    lineStyle: bar
+    min: '0'
+    max: '2'
+    inverted: true
+  - id: PC.obs.acc
+    preferredColor: black
+    lineStyle: solid
+    min: '0'
+  - id: PC.nwp
+    preferredColor: light blue
+    lineStyle: bar
+    min: '0'
+    max: '2'
+    inverted: true
+  - id: PC.cpa
+    preferredColor: blue3
+    lineStyle: bar
+    min: '0'
+    max: '2'
+    inverted: true
+  - id: PR.cpa
+    preferredColor: blue3
+    lineStyle: bar
+    min: '0'
+    max: '2'
+    inverted: true
+  - id: PC.sim
+    preferredColor: blue violet
+    lineStyle: bar
+    min: '0'
+    max: '2'
+    inverted: true
+statisticalFunctions:
+  statisticalFunction:
+  - function: scatterPlot
+  - function: doubleMassCurve
+  - function: durationExceedence
+  - function: cumulative
+    lineStyle: solid;thick
+  - function: boxPlot
+    ignoreMissings: true
+    timeStep:
+    - id: daily
+    - id: weekly
+    - id: monthly
+  - function: calendarAggregation
+    movingAccumulationTimeSpan:
+    - unit: hour
+      multiplier: 1
+    - unit: hour
+      multiplier: 3
+    - unit: hour
+      multiplier: 6
+    - unit: hour
+      multiplier: 12
+    - unit: day
+      multiplier: 1
+    - unit: week
+      multiplier: 1
+    - unit: week
+      multiplier: 2
+    - unit: week
+      multiplier: 4
+    - unit: week
+      multiplier: 12
+    - unit: day
+      multiplier: 365
+  - function: accumulationInterval
+    movingAccumulationTimeSpan:
+    - unit: hour
+      multiplier: 1
+    - unit: hour
+      multiplier: 3
+    - unit: hour
+      multiplier: 6
+    - unit: hour
+      multiplier: 12
+    - unit: day
+      multiplier: 1
+    - unit: week
+      multiplier: 1
+    - unit: week
+      multiplier: 2
+    - unit: week
+      multiplier: 4
+    - unit: week
+      multiplier: 12
+    - unit: day
+      multiplier: 365
+  - function: accumulationAggregation
+    movingAccumulationTimeSpan:
+    - unit: hour
+      multiplier: 1
+    - unit: hour
+      multiplier: 3
+    - unit: hour
+      multiplier: 6
+    - unit: hour
+      multiplier: 12
+    - unit: day
+      multiplier: 1
+    - unit: week
+      multiplier: 1
+    - unit: week
+      multiplier: 2
+    - unit: week
+      multiplier: 4
+    - unit: week
+      multiplier: 12
+    - unit: day
+      multiplier: 365
+  - function: relativeAggregation
+    movingAccumulationTimeSpan:
+    - unit: hour
+      multiplier: 1
+    - unit: hour
+      multiplier: 3
+    - unit: hour
+      multiplier: 6
+    - unit: hour
+      multiplier: 12
+    - unit: day
+      multiplier: 1
+    - unit: week
+      multiplier: 1
+    - unit: week
+      multiplier: 2
+    - unit: week
+      multiplier: 4
+    - unit: week
+      multiplier: 12
+    - unit: day
+      multiplier: 365
+  - function: movingAverage
+    movingAccumulationTimeSpan:
+    - unit: hour
+      multiplier: 1
+    - unit: hour
+      multiplier: 3
+    - unit: hour
+      multiplier: 6
+    - unit: hour
+      multiplier: 12
+    - unit: day
+      multiplier: 1
+    - unit: week
+      multiplier: 1
+    - unit: week
+      multiplier: 2
+    - unit: week
+      multiplier: 4
+    - unit: week
+      multiplier: 12
+    - unit: day
+      multiplier: 365
+  - function: centralMovingAverage
+    movingAccumulationTimeSpan:
+    - unit: hour
+      multiplier: 1
+    - unit: hour
+      multiplier: 3
+    - unit: hour
+      multiplier: 6
+    - unit: hour
+      multiplier: 12
+    - unit: day
+      multiplier: 1
+    - unit: week
+      multiplier: 1
+    - unit: week
+      multiplier: 2
+    - unit: week
+      multiplier: 4
+    - unit: week
+      multiplier: 12
+    - unit: day
+      multiplier: 365
+descriptiveFunctionGroups:
+  descriptiveFunctionGroup:
+  - name: Basic statistics
+    descriptiveFunction:
+    - function: infoLocationId
+      ignoreMissings: true
+    - function: infoLocationName
+      ignoreMissings: true
+    - function: infoParameterId
+      ignoreMissings: true
+    - function: infoParameterName
+      ignoreMissings: true
+    - function: startTime
+      ignoreMissings: true
+    - function: endTime
+      ignoreMissings: true
+    - function: mean
+      ignoreMissings: true
+    - function: min
+      ignoreMissings: true
+    - function: max
+      ignoreMissings: true
+    - function: sum
+      ignoreMissings: true
+    - function: missings
+      ignoreMissings: true
+    - function: unreliables
+      ignoreMissings: true
+    - function: doubtfuls
+      ignoreMissings: true
+    - function: completed
+      ignoreMissings: true
+    - function: corrected
+      ignoreMissings: true
+    - function: count
+      ignoreMissings: true
+    - function: standardDeviation
+      ignoreMissings: true
+defaultGraphicalEditMode: adjustShapeTimeSeriesByDragging
+buttonSettings:
+  showDisplayGroups: {}
+  showTable: {}
+  showTwentyFourHour:
+    visible: false
+  showChart: {}
+  showStatistics: {}
+  rotateChartAndTable: {}
+  zoomIn: {}
+  zoomOut: {}
+  zoomToDefault: {}
+  selectPreviousZoomLevel: {}
+  selectNextZoomLevel: {}
+  moveBackOneViewPeriod: {}
+  moveBackHalfViewPeriod: {}
+  moveForwardHalfViewPeriod: {}
+  moveForwardOneViewPeriod: {}
+  showAllData: {}
+  switchReferenceLevel: {}
+  setViewPeriod: {}
+  copyTimeSeries: {}
+  pasteTimeSeries: {}
+  lockSelection: {}
+  runWorkflow:
+    visible: false
+  undoTimeSeriesChanges:
+    visible: false
+  saveTimeSeriesChanges: {}
+  setTimeSeriesEditableByClicking:
+    visible: false
+  showThresholdWarningLevels: {}
+  printChart: {}
+  saveChartAsPicture: {}
+  showLongTermScroller: {}
+  searchAndSelectForecasts: {}
+  setTimeSeriesVisibility: {}
+  showValidationRules:
+    visible: false

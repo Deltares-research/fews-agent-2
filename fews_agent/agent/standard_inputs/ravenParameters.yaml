@@ -1,0 +1,11 @@
+version: '1.5'
+modifierType: weightingFactors
+group:
+- id: UBCWMparameters_rvi
+  name: UBCWM rvi parameters
+  model: $MODELNAME2$
+  parameter:
+  - id: BlockRavenCustomOutput
+    boolValue: '@BlockRavenCustomOutput@'
+  - id: BlockRavenWarnings
+    boolValue: '@BlockRavenWarnings@'

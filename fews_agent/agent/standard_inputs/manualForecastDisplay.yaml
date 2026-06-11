@@ -1,0 +1,4 @@
+runningPredefined:
+  description: Run pre-defined forecasts
+  directory: '%REGION_HOME%\BatchRuns'
+  buttonVisible: true

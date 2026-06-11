@@ -1,0 +1,8 @@
+rootDir: icons
+locationIcon:
+- description: Meteo Stations
+  iconId: rain.png
+  locationSetId: ECCCStations
+- description: Hydro Stations
+  iconId: hydro_site_data
+  locationSetId: WSCStations

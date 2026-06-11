@@ -1,0 +1,12 @@
+externalForecastTimeSeries:
+  moduleInstanceId: $FORECASTMODULEINSTANCE$
+  valueType: grid
+  parameterId: PC.nwp
+  locationId: $MODELNAME1$Extent
+  timeSeriesType: external forecasting
+  timeStep:
+    id: $DAY_TIMESTEP$
+  readWriteMode: read complete forecast
+minForecastLength:
+  unit: day
+  multiplier: 1

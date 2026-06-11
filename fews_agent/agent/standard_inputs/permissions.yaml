@@ -1,0 +1,4 @@
+permission:
+- id: NotVisible
+  userGroup:
+  - id: InVisible

@@ -1,0 +1,35 @@
+thresholdValueSet:
+- id: H
+  name: Level
+  levelThresholdValue:
+  - levelThresholdId: Alert Level
+    valueFunction: '5'
+  - levelThresholdId: Major Flood Level
+    valueFunction: '10'
+  timeSeriesSet:
+  - moduleInstanceId: ImportWSC
+    valueType: scalar
+    parameterId: HG.obs
+    locationSetId: WSCStations
+    timeSeriesType: external historical
+    timeStep:
+      unit: day
+    relativeViewPeriod:
+      unit: day
+      start: -10
+      end: 0
+    readWriteMode: read only
+  - moduleInstanceId: ImportWSC
+    valueType: scalar
+    parameterId: QR.obs
+    locationSetId: WSCStations
+    timeSeriesType: external historical
+    timeStep:
+      unit: day
+    relativeViewPeriod:
+      unit: day
+      start: -10
+      end: 0
+    readWriteMode: read only
+  stageDischargeConversion:
+    dischargeParameterId: QR.obs
