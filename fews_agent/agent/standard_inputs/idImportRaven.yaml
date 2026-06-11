@@ -1,0 +1,18 @@
+function:
+- internalLocationSet: $MODELNAME2$SubBasins
+  externalLocationFunction: '@SubBasin@'
+  externalParameterFunction: q_sim
+  internalParameter: QR.sim
+- internalLocationSet: $MODELNAME2$SubBasins
+  externalLocationFunction: '@RavenBasin@'
+  externalParameterFunction: Average_SNOW
+  internalParameter: SWE.sim
+- internalLocationSet: $MODELNAME2$SubBasins
+  externalLocationFunction: '@RavenBasin@'
+  externalParameterFunction: Average_SNOW_LIQ
+  internalParameter: SWE.mlt
+- internalLocationSet: $MODELNAME2$SubBasins
+  externalLocationFunction: '@RavenBasin@'
+  externalParameterFunction: Average_SOIL[0]
+  internalParameter: SMI.sim
+enableOneToOneMapping: true

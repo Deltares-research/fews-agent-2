@@ -1,0 +1,6 @@
+map:
+- internalParameter: SWE.sim
+  internalLocation: GLOBSNOW
+  externalParameter: SWE
+  externalLocation: none
+enableOneToOneMapping: true

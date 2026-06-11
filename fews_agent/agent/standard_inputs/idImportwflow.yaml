@@ -1,0 +1,21 @@
+map:
+- internalParameter: QR.sim
+  internalLocation: $MODELNAME1$Grid
+  externalParameter: run
+  externalLocation: run
+- internalParameter: SWE.sim
+  internalLocation: $MODELNAME1$Grid
+  externalParameter: ds
+  externalLocation: ds
+- internalParameter: PC.sim
+  internalLocation: $MODELNAME1$Grid
+  externalParameter: pre
+  externalLocation: pre
+- internalParameter: TA.sim
+  internalLocation: $MODELNAME1$Grid
+  externalParameter: temp
+  externalLocation: temp
+- internalParameter: PET.sim
+  internalLocation: $MODELNAME1$Grid
+  externalParameter: PET
+  externalLocation: PET

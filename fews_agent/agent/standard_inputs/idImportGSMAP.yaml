@@ -1,0 +1,5 @@
+map:
+- internalParameter: PC.obs
+  internalLocation: GSMAP_world
+  externalParameter: PC.obs
+  externalLocation: GSMAP_world

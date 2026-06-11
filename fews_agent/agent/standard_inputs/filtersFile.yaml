@@ -1,0 +1,320 @@
+body:
+- defaultFilterId: HydroStations
+- timeSeriesSets:
+    '@id': HydroStations
+    timeSeriesSet:
+    - moduleInstanceId: ImportWSC
+      valueType: scalar
+      parameterId: HG.obs
+      locationSetId: DisplayHydroStations
+      timeSeriesType: external historical
+      timeStep:
+        '@unit': minute
+        '@multiplier': '5'
+      relativeViewPeriod:
+        '@unit': day
+        '@start': '-5'
+        '@end': '0'
+      readWriteMode: add originals
+      synchLevel: '5'
+    - moduleInstanceId: ImportWSC
+      valueType: scalar
+      parameterId: QR.obs
+      locationSetId: DisplayHydroStations
+      timeSeriesType: external historical
+      timeStep:
+        '@unit': minute
+        '@multiplier': '5'
+      relativeViewPeriod:
+        '@unit': day
+        '@start': '-5'
+        '@end': '0'
+      readWriteMode: add originals
+      synchLevel: '5'
+- timeSeriesSets:
+    '@id': MeteoStations
+    timeSeriesSet:
+    - moduleInstanceId: ImportECCCScalar
+      valueType: scalar
+      parameterId: PC.obs
+      locationSetId: DisplayMeteoStations
+      timeSeriesType: external historical
+      timeStep:
+        '@id': $DAY_TIMESTEP$
+      relativeViewPeriod:
+        '@unit': day
+        '@start': '-5'
+        '@end': '0'
+      readWriteMode: add originals
+      synchLevel: '5'
+    - moduleInstanceId: ImportECCCScalar
+      valueType: scalar
+      parameterId: TA.obs
+      qualifierId: max
+      locationSetId: DisplayMeteoStations
+      timeSeriesType: external historical
+      timeStep:
+        '@id': $DAY_TIMESTEP$
+      relativeViewPeriod:
+        '@unit': day
+        '@start': '-5'
+        '@end': '0'
+      readWriteMode: add originals
+      synchLevel: '5'
+    - moduleInstanceId: ImportECCCScalar
+      valueType: scalar
+      parameterId: TA.obs
+      qualifierId: min
+      locationSetId: DisplayMeteoStations
+      timeSeriesType: external historical
+      timeStep:
+        '@id': $DAY_TIMESTEP$
+      relativeViewPeriod:
+        '@unit': day
+        '@start': '-5'
+        '@end': '0'
+      readWriteMode: add originals
+      synchLevel: '5'
+    - moduleInstanceId: ImportECCCScalar
+      valueType: scalar
+      parameterId: TA.obs
+      locationSetId: DisplayMeteoStations
+      timeSeriesType: external historical
+      timeStep:
+        '@unit': hour
+        '@multiplier': '1'
+      relativeViewPeriod:
+        '@unit': day
+        '@start': '-5'
+        '@end': '0'
+      readWriteMode: add originals
+      synchLevel: '5'
+- timeSeriesSets:
+    '@id': RDPABasins
+    timeSeriesSet:
+      moduleInstanceId: PreprocessRDPA
+      valueType: scalar
+      parameterId: PC.sim
+      locationSetId: ModelBasins
+      timeSeriesType: external historical
+      timeStep:
+        '@unit': hour
+        '@multiplier': '1'
+      readWriteMode: read complete forecast
+- timeSeriesSets:
+    '@id': RDPSBasins
+    timeSeriesSet:
+    - moduleInstanceId: PreprocessRDPS
+      valueType: scalar
+      parameterId: PC.nwp
+      locationSetId: ModelBasins
+      timeSeriesType: external forecasting
+      timeStep:
+        '@unit': hour
+        '@multiplier': '1'
+      readWriteMode: read complete forecast
+    - moduleInstanceId: PreprocessRDPS
+      valueType: scalar
+      parameterId: TA.nwp
+      locationSetId: ModelBasins
+      timeSeriesType: external forecasting
+      timeStep:
+        '@unit': hour
+        '@multiplier': '1'
+      readWriteMode: read complete forecast
+- timeSeriesSets:
+    '@id': GDPSBasins
+    timeSeriesSet:
+    - moduleInstanceId: PreprocessGDPS
+      valueType: scalar
+      parameterId: PC.nwp
+      locationSetId: ModelBasins
+      timeSeriesType: external forecasting
+      timeStep:
+        '@unit': hour
+        '@multiplier': '3'
+      readWriteMode: read complete forecast
+    - moduleInstanceId: PreprocessGDPS
+      valueType: scalar
+      parameterId: TA.nwp
+      locationSetId: ModelBasins
+      timeSeriesType: external forecasting
+      timeStep:
+        '@unit': hour
+        '@multiplier': '3'
+      readWriteMode: read complete forecast
+- timeSeriesSets:
+    '@id': REPSBasins
+    timeSeriesSet:
+    - moduleInstanceId: PreprocessREPS
+      valueType: scalar
+      parameterId: PC.nwp
+      locationSetId: ModelBasins
+      timeSeriesType: external forecasting
+      timeStep:
+        '@unit': hour
+        '@multiplier': '3'
+      readWriteMode: read complete forecast
+      ensembleId: REPS
+    - moduleInstanceId: PreprocessREPS
+      valueType: scalar
+      parameterId: TA.nwp
+      locationSetId: ModelBasins
+      timeSeriesType: external forecasting
+      timeStep:
+        '@unit': hour
+        '@multiplier': '3'
+      readWriteMode: read complete forecast
+      ensembleId: REPS
+- timeSeriesSets:
+    '@id': RDPAStations
+    timeSeriesSet:
+      moduleInstanceId: PreprocessRDPA
+      valueType: scalar
+      parameterId: PC.sim
+      locationSetId: DisplayMeteoStations
+      timeSeriesType: external historical
+      timeStep:
+        '@unit': hour
+        '@multiplier': '1'
+      readWriteMode: read complete forecast
+- timeSeriesSets:
+    '@id': RDPSStations
+    timeSeriesSet:
+    - moduleInstanceId: PreprocessRDPS
+      valueType: scalar
+      parameterId: PC.nwp
+      locationSetId: DisplayMeteoStations
+      timeSeriesType: external forecasting
+      timeStep:
+        '@unit': hour
+        '@multiplier': '1'
+      readWriteMode: read complete forecast
+    - moduleInstanceId: PreprocessRDPS
+      valueType: scalar
+      parameterId: TA.nwp
+      locationSetId: DisplayMeteoStations
+      timeSeriesType: external forecasting
+      timeStep:
+        '@unit': hour
+        '@multiplier': '1'
+      readWriteMode: read complete forecast
+- timeSeriesSets:
+    '@id': GDPSStations
+    timeSeriesSet:
+    - moduleInstanceId: PreprocessGDPS
+      valueType: scalar
+      parameterId: PC.nwp
+      locationSetId: DisplayMeteoStations
+      timeSeriesType: external forecasting
+      timeStep:
+        '@unit': hour
+        '@multiplier': '3'
+      readWriteMode: read complete forecast
+    - moduleInstanceId: PreprocessGDPS
+      valueType: scalar
+      parameterId: TA.nwp
+      locationSetId: DisplayMeteoStations
+      timeSeriesType: external forecasting
+      timeStep:
+        '@unit': hour
+        '@multiplier': '3'
+      readWriteMode: read complete forecast
+- timeSeriesSets:
+    '@id': REPSStations
+    timeSeriesSet:
+    - moduleInstanceId: PreprocessREPS
+      valueType: scalar
+      parameterId: PC.nwp
+      locationSetId: DisplayMeteoStations
+      timeSeriesType: external forecasting
+      timeStep:
+        '@unit': hour
+        '@multiplier': '3'
+      readWriteMode: read complete forecast
+      ensembleId: REPS
+    - moduleInstanceId: PreprocessREPS
+      valueType: scalar
+      parameterId: TA.nwp
+      locationSetId: DisplayMeteoStations
+      timeSeriesType: external forecasting
+      timeStep:
+        '@unit': hour
+        '@multiplier': '3'
+      readWriteMode: read complete forecast
+      ensembleId: REPS
+- filter:
+    '@id': MeasuredData
+    '@name': Measured Data
+    mapExtentId: $REGION$
+    child:
+    - '@foreignKey': HydroStations
+    - '@foreignKey': MeteoStations
+- filter:
+    '@id': ForecastDataStation
+    '@name': Forecast Data - By Station
+    mapExtentId: $REGION$
+    child:
+    - '@foreignKey': RDPAStations
+    - '@foreignKey': RDPSStations
+    - '@foreignKey': GDPSStations
+    - '@foreignKey': REPSStations
+- filter:
+    '@id': ForecastDataBasin
+    '@name': Forecast Data - By Basin
+    mapExtentId: $REGION$
+    child:
+    - '@foreignKey': RDPABasins
+    - '@foreignKey': RDPSBasins
+    - '@foreignKey': GDPSBasins
+    - '@foreignKey': REPSBasins
+- filter:
+    '@id': HydroStations
+    '@name': Hydro Stations
+    validationIconsVisible: 'false'
+    timeSeriesSetsId: HydroStations
+- filter:
+    '@id': MeteoStations
+    '@name': Meteo Stations
+    validationIconsVisible: 'false'
+    timeSeriesSetsId: MeteoStations
+- filter:
+    '@id': RDPAStations
+    '@name': RDPA @ Stations
+    validationIconsVisible: 'false'
+    timeSeriesSetsId: GDPSStations
+- filter:
+    '@id': RDPSStations
+    '@name': RDPS @ Stations
+    validationIconsVisible: 'false'
+    timeSeriesSetsId: RDPSStations
+- filter:
+    '@id': GDPSStations
+    '@name': GDPS @ Stations
+    validationIconsVisible: 'false'
+    timeSeriesSetsId: GDPSStations
+- filter:
+    '@id': REPSStations
+    '@name': REPS @ Stations
+    validationIconsVisible: 'false'
+    timeSeriesSetsId: REPSStations
+- filter:
+    '@id': RDPABasins
+    '@name': RDPA @ Basins
+    validationIconsVisible: 'false'
+    timeSeriesSetsId: GDPSBasins
+- filter:
+    '@id': RDPSBasins
+    '@name': RDPS @ Basins
+    validationIconsVisible: 'false'
+    timeSeriesSetsId: RDPSBasins
+- filter:
+    '@id': GDPSBasins
+    '@name': GDPS @ Basins
+    validationIconsVisible: 'false'
+    timeSeriesSetsId: GDPSBasins
+- filter:
+    '@id': REPSBasins
+    '@name': REPS @ Basins
+    validationIconsVisible: 'false'
+    timeSeriesSetsId: REPSBasins

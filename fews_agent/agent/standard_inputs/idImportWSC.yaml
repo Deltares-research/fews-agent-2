@@ -1,0 +1,8 @@
+parameter:
+- internal: HG.obs
+  external: Water Level / Niveau d'eau (m)
+- internal: QR.obs
+  external: "Discharge / D\uFFFDbit (cms)"
+- internal: QR.obs
+  external: Discharge
+enableOneToOneMapping: true

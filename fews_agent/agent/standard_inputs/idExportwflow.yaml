@@ -1,0 +1,21 @@
+map:
+- internalParameter: PC.obs
+  internalLocation: $MODELNAME1$Grid
+  externalParameter: P
+  externalLocation: $MODELNAME1$Grid
+- internalParameter: TA.obs
+  internalLocation: $MODELNAME1$Grid
+  externalParameter: TEMP
+  externalLocation: $MODELNAME1$Grid
+- internalParameter: PET.obs
+  internalLocation: $MODELNAME1$Grid
+  externalParameter: PET
+  externalLocation: $MODELNAME1$Grid
+- internalParameter: PC.nwp
+  internalLocation: $MODELNAME1$Grid
+  externalParameter: P
+  externalLocation: $MODELNAME1$Grid
+- internalParameter: TA.nwp
+  internalLocation: $MODELNAME1$Grid
+  externalParameter: TEMP
+  externalLocation: $MODELNAME1$Grid

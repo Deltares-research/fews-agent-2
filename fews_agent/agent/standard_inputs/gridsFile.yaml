@@ -1,0 +1,143 @@
+body:
+- regular:
+    '@locationId': $MODELNAME1$Grid
+    rows: '223'
+    columns: '502'
+    geoDatum: WGS 1984
+    firstCellCenter:
+      x: '-116.2455464781670'
+      y: ' 65.2455464781665'
+    xCellSize: '0.00897043667'
+    yCellSize: '0.00897043667'
+- regular:
+    '@locationId': RDPA
+    rows: '824'
+    columns: '935'
+    polarStereographic:
+      originLatitude: '90.0'
+      originLongitude: '249.0'
+      scaleAtOrigin: '0.9330127018922193'
+      equatorRadius: '6371229.0'
+      poleRadius: '6371229.0'
+    gridCorners:
+      geoDatum: WGS 1984
+      upperLeft:
+        x: '147.57653032124486'
+        y: '47.289183285578574'
+        z: '0.0'
+      lowerRight:
+        x: '-77.77846054786623'
+        y: '17.299437426457636'
+        z: '0.0'
+- regular:
+    '@locationId': RDPS
+    rows: '824'
+    columns: '935'
+    polarStereographic:
+      originLatitude: '90.0'
+      originLongitude: '249.0'
+      scaleAtOrigin: '0.9330127018922193'
+      equatorRadius: '6371229.0'
+      poleRadius: '6371229.0'
+    gridCorners:
+      geoDatum: WGS 1984
+      upperLeft:
+        x: '147.57653032124486'
+        y: '47.289183285578574'
+        z: '0.0'
+      lowerRight:
+        x: '-77.77846054786623'
+        y: '17.299437426457636'
+        z: '0.0'
+- regular:
+    '@locationId': GDPS
+    rows: '54'
+    columns: '162'
+    geoDatum: WGS 1984
+    firstCellCenter:
+      x: '-140.87962962962962'
+      y: '69.87962962962963'
+      z: '0.0'
+    xCellSize: '0.24074074'
+    yCellSize: '0.24074074'
+- regular:
+    '@locationId': REPS
+    rows: '93'
+    columns: '65'
+    geoDatum: WGS 1984
+    firstCellCenter:
+      x: '-140.7'
+      y: '69.93010752688173'
+      z: '0.0'
+    xCellSize: '0.6'
+    yCellSize: '0.13978495'
+- regular:
+    '@locationId': GEPS
+    rows: '361'
+    columns: '720'
+    geoDatum: WGS 1984
+    firstCellCenter:
+      x: '0.0'
+      y: '90.0'
+      z: '0.0'
+    xCellSize: '0.5'
+    yCellSize: '0.5'
+- irregular:
+    '@locationId': GLOBSNOW
+    rows: '721'
+    columns: '721'
+    csvFile:
+      file: GlobSnow_SWE_L3A_v.1.0.csv
+      geoDatum: WGS 1984
+      x: '%X%'
+      y: '%Y%'
+- regular:
+    '@locationId': GFS
+    rows: '140'
+    columns: '420'
+    geoDatum: WGS 1984
+    firstCellCenter:
+      x: '-152'
+      y: '75'
+    xCellSize: '0.25'
+    yCellSize: '0.25'
+- regular:
+    '@locationId': GSMAP_world
+    rows: '1200'
+    columns: '3600'
+    geoDatum: WGS 1984
+    firstCellCenter:
+      x: '0.05'
+      y: '59.95'
+    xCellSize: '0.1'
+    yCellSize: '0.1'
+- regular:
+    '@locationId': GSMAP
+    rows: '350'
+    columns: '1050'
+    geoDatum: WGS 1984
+    firstCellCenter:
+      x: '-151.95'
+      y: '75.05'
+    xCellSize: '0.1'
+    yCellSize: '0.1'
+- regular:
+    '@locationId': E2O_25
+    rows: '140'
+    columns: '420'
+    geoDatum: WGS 1984
+    firstCellCenter:
+      x: '-151.875'
+      y: '75.125'
+    xCellSize: '0.25'
+    yCellSize: '0.25'
+- regular:
+    '@locationId': E2O_5
+    rows: '70'
+    columns: '210'
+    geoDatum: WGS 1984
+    firstCellCenter:
+      x: '-151.75'
+      y: '75.25'
+    xCellSize: '0.5'
+    yCellSize: '0.5'

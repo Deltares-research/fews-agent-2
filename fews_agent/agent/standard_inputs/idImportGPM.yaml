@@ -1,0 +1,5 @@
+map:
+- internalParameter: PC.obs
+  internalLocation: IMERG_world
+  externalParameter: Grid/precipitationCal
+  externalLocation: IMERG_world

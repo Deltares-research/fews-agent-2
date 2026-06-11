@@ -1,0 +1,19 @@
+parameter:
+- internal: QR.sim
+  external: run
+- internal: QR.sim
+  external: inw
+- internal: HG.sim
+  external: lev
+- internal: PC.obs
+  external: P
+- internal: PC.obs
+  external: Rainf
+- internal: PC.obs
+  external: Snowf
+- internal: PET.obs
+  external: PET
+- internal: TA.obs
+  external: TEMP
+- internal: TA.obs
+  external: Tair

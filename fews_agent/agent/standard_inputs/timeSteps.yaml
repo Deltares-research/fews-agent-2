@@ -1,0 +1,28 @@
+timeStep:
+- id: daily
+  unit: day
+  timeZone: GMT
+- id: weekly
+  unit: week
+  timeZone: GMT
+- id: monthly
+  unit: month
+  timeZone: GMT
+- id: $DAY_TIMESTEP$
+  unit: day
+  timeZone: $TIMEZONE$
+- id: GMT_3hourly
+  times: 00:00 03:00 06:00 09:00 12:00 15:00 18:00 21:00
+  timeZone: GMT
+- id: GMT_6hourly
+  times: 00:00 06:00 12:00 18:00
+  timeZone: GMT
+- id: GMT_12hourly
+  times: 00:00 12:00
+  timeZone: GMT
+- id: $MODELNAME1$
+  unit: day
+  timeZone: $TIMEZONE$
+- id: $MODELNAME2$
+  unit: day
+  timeZone: $TIMEZONE$

@@ -1,0 +1,17 @@
+unitConversion:
+- inputUnitType: kPa
+  outputUnitType: Pa
+  multiplier: '1000'
+  incrementer: '0'
+- inputUnitType: oC
+  outputUnitType: K
+  multiplier: '1'
+  incrementer: '273.15'
+- inputUnitType: mm
+  outputUnitType: kg_m2s-1
+  multiplier: '2.77777E-4'
+  incrementer: '0'
+- inputUnitType: J/m2
+  outputUnitType: W/m2
+  multiplier: '2.77777E-4'
+  incrementer: '0'

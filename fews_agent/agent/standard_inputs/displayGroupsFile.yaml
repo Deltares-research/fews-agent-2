@@ -1,0 +1,426 @@
+body:
+- plot:
+    '@id': WSCHourlyTemplate
+    visibilityGroup:
+    - Discharge
+    - WaterLevel
+    subplot:
+      line:
+      - visibilityGroup: Discharge
+        color: blue
+        lineStyle: constant
+        axis: left
+        visibleInLegend: 'true'
+        visibleInTable: 'true'
+        visibleInPlot: 'true'
+        timeSeriesSet:
+          moduleInstanceId: ImportWSC
+          valueType: scalar
+          parameterId: QR.obs
+          locationSetId: $MODELNAME1$HydroStations
+          timeSeriesType: external historical
+          timeStep:
+            '@unit': minute
+            '@multiplier': '5'
+          readWriteMode: read complete forecast
+      - visibilityGroup: WaterLevel
+        color: red
+        lineStyle: dashdot
+        axis: right
+        visibleInLegend: 'true'
+        visibleInTable: 'false'
+        visibleInPlot: 'true'
+        timeSeriesSet:
+          moduleInstanceId: ImportWSC
+          valueType: scalar
+          parameterId: HG.obs
+          locationSetId: $MODELNAME1$HydroStations
+          timeSeriesType: external historical
+          timeStep:
+            '@unit': minute
+            '@multiplier': '5'
+          readWriteMode: read complete forecast
+- plot:
+    '@id': RDPATemplate
+    subplot:
+      line:
+        color: red
+        lineStyle: bar
+        axis: left
+        label: RDPA Basin Precip -  hourly [mm]
+        timeSeriesSet:
+          moduleInstanceId: PreprocessRDPA
+          valueType: scalar
+          parameterId: PC.sim
+          locationSetId: $MODELNAME1$Basins
+          timeSeriesType: external historical
+          timeStep:
+            '@unit': hour
+            '@multiplier': '6'
+          relativeViewPeriod:
+            '@unit': day
+            '@start': '-14'
+            '@end': '0'
+          readWriteMode: add originals
+- plot:
+    '@id': RDPSTemplate
+    subplot:
+    - line:
+        timeSeriesSet:
+          moduleInstanceId: PreprocessRDPS
+          valueType: scalar
+          parameterId: PC.nwp
+          locationSetId: $MODELNAME1$Basins
+          timeSeriesType: external forecasting
+          timeStep:
+            '@unit': hour
+            '@multiplier': '3'
+          readWriteMode: read only
+    - line:
+        timeSeriesSet:
+          moduleInstanceId: PreprocessRDPS
+          valueType: scalar
+          parameterId: TA.nwp
+          locationSetId: $MODELNAME1$Basins
+          timeSeriesType: external forecasting
+          timeStep:
+            '@unit': hour
+            '@multiplier': '3'
+          readWriteMode: read only
+- plot:
+    '@id': HRDPSTemplate
+    subplot:
+    - line:
+        timeSeriesSet:
+          moduleInstanceId: PreprocessHRDPS
+          valueType: scalar
+          parameterId: PC.nwp
+          locationSetId: $MODELNAME1$Basins
+          timeSeriesType: external forecasting
+          timeStep:
+            '@unit': hour
+            '@multiplier': '1'
+          readWriteMode: read only
+    - line:
+        timeSeriesSet:
+          moduleInstanceId: PreprocessHRDPS
+          valueType: scalar
+          parameterId: TA.nwp
+          locationSetId: $MODELNAME1$Basins
+          timeSeriesType: external forecasting
+          timeStep:
+            '@unit': hour
+            '@multiplier': '1'
+          readWriteMode: read only
+- plot:
+    '@id': GDPSTemplate
+    subplot:
+    - line:
+        timeSeriesSet:
+          moduleInstanceId: PreprocessGDPS
+          valueType: scalar
+          parameterId: PC.nwp
+          locationSetId: $MODELNAME1$Basins
+          timeSeriesType: external forecasting
+          timeStep:
+            '@unit': hour
+            '@multiplier': '3'
+          readWriteMode: read only
+    - line:
+        timeSeriesSet:
+          moduleInstanceId: PreprocessGDPS
+          valueType: scalar
+          parameterId: TA.nwp
+          locationSetId: $MODELNAME1$Basins
+          timeSeriesType: external forecasting
+          timeStep:
+            '@unit': hour
+            '@multiplier': '3'
+          readWriteMode: read only
+- plot:
+    '@id': REPSPCTemplate
+    subplot:
+    - line:
+        color: blue
+        lineStyle: solid
+        axis: right
+        timeSeriesSet:
+          moduleInstanceId: PreprocessREPS
+          valueType: scalar
+          parameterId: PC.nwp.acc
+          locationSetId: $MODELNAME1$Basins
+          timeSeriesType: external forecasting
+          timeStep:
+            '@unit': hour
+            '@multiplier': '3'
+          readWriteMode: read only
+          ensembleId: REPS
+    - line:
+        color: blue
+        lineStyle: solid;thick
+        axis: left
+        label: mean
+        timeSeriesSet:
+          moduleInstanceId: PreprocessREPS
+          valueType: scalar
+          parameterId: PC.nwp.acc
+          qualifierId: mean
+          locationSetId: $MODELNAME1$Basins
+          timeSeriesType: external forecasting
+          timeStep:
+            '@unit': hour
+            '@multiplier': '3'
+          readWriteMode: read complete forecast
+      area:
+      - color: blue
+        opaquenessPercentage: '50'
+        label: 25%-75%
+        timeSeriesSet:
+        - moduleInstanceId: PreprocessREPS
+          valueType: scalar
+          parameterId: PC.nwp.acc
+          qualifierId: 25%
+          locationSetId: $MODELNAME1$Basins
+          timeSeriesType: external forecasting
+          timeStep:
+            '@unit': hour
+            '@multiplier': '3'
+          readWriteMode: read complete forecast
+        - moduleInstanceId: PreprocessREPS
+          valueType: scalar
+          parameterId: PC.nwp.acc
+          qualifierId: 75%
+          locationSetId: $MODELNAME1$Basins
+          timeSeriesType: external forecasting
+          timeStep:
+            '@unit': hour
+            '@multiplier': '3'
+          readWriteMode: read complete forecast
+      - color: light blue
+        opaquenessPercentage: '50'
+        label: Min-Max
+        timeSeriesSet:
+        - moduleInstanceId: PreprocessREPS
+          valueType: scalar
+          parameterId: PC.nwp.acc
+          qualifierId: min
+          locationSetId: $MODELNAME1$Basins
+          timeSeriesType: external forecasting
+          timeStep:
+            '@unit': hour
+            '@multiplier': '3'
+          readWriteMode: read complete forecast
+        - moduleInstanceId: PreprocessREPS
+          valueType: scalar
+          parameterId: PC.nwp.acc
+          qualifierId: max
+          locationSetId: $MODELNAME1$Basins
+          timeSeriesType: external forecasting
+          timeStep:
+            '@unit': hour
+            '@multiplier': '3'
+          readWriteMode: read complete forecast
+- plot:
+    '@id': REPSTATemplate
+    subplot:
+    - line:
+        color: green
+        lineStyle: solid
+        axis: right
+        timeSeriesSet:
+          moduleInstanceId: PreprocessREPS
+          valueType: scalar
+          parameterId: TA.nwp
+          locationSetId: $MODELNAME1$Basins
+          timeSeriesType: external forecasting
+          timeStep:
+            '@unit': hour
+            '@multiplier': '3'
+          readWriteMode: read only
+          ensembleId: REPS
+    - line:
+        color: green
+        lineStyle: solid;thick
+        axis: left
+        label: mean
+        timeSeriesSet:
+          moduleInstanceId: PreprocessREPS
+          valueType: scalar
+          parameterId: TA.nwp
+          qualifierId: mean
+          locationSetId: $MODELNAME1$Basins
+          timeSeriesType: external forecasting
+          timeStep:
+            '@unit': hour
+            '@multiplier': '3'
+          readWriteMode: read complete forecast
+      area:
+      - color: green
+        opaquenessPercentage: '50'
+        label: 25%-75%
+        timeSeriesSet:
+        - moduleInstanceId: PreprocessREPS
+          valueType: scalar
+          parameterId: TA.nwp
+          qualifierId: 25%
+          locationSetId: $MODELNAME1$Basins
+          timeSeriesType: external forecasting
+          timeStep:
+            '@unit': hour
+            '@multiplier': '3'
+          readWriteMode: read complete forecast
+        - moduleInstanceId: PreprocessREPS
+          valueType: scalar
+          parameterId: TA.nwp
+          qualifierId: 75%
+          locationSetId: $MODELNAME1$Basins
+          timeSeriesType: external forecasting
+          timeStep:
+            '@unit': hour
+            '@multiplier': '3'
+          readWriteMode: read complete forecast
+      - color: green1
+        opaquenessPercentage: '50'
+        label: Min-Max
+        timeSeriesSet:
+        - moduleInstanceId: PreprocessREPS
+          valueType: scalar
+          parameterId: TA.nwp
+          qualifierId: min
+          locationSetId: $MODELNAME1$Basins
+          timeSeriesType: external forecasting
+          timeStep:
+            '@unit': hour
+            '@multiplier': '3'
+          readWriteMode: read complete forecast
+        - moduleInstanceId: PreprocessREPS
+          valueType: scalar
+          parameterId: TA.nwp
+          qualifierId: max
+          locationSetId: $MODELNAME1$Basins
+          timeSeriesType: external forecasting
+          timeStep:
+            '@unit': hour
+            '@multiplier': '3'
+          readWriteMode: read complete forecast
+- plot:
+    '@id': $MODELNAME1$HistoricTemplate
+    subplot:
+      line:
+      - timeSeriesSet:
+          moduleInstanceId: $MODELNAME1$Historic
+          valueType: scalar
+          parameterId: QR.sim
+          locationSetId: $MODELNAME1$HydroStations
+          timeSeriesType: simulated historical
+          timeStep:
+            '@id': $MODEL1_TIMESTEP$
+          readWriteMode: read complete forecast
+      - timeSeriesSet:
+          moduleInstanceId: ImportWSC
+          valueType: scalar
+          parameterId: QR.obs
+          locationSetId: $MODELNAME1$HydroStations
+          timeSeriesType: external historical
+          timeStep:
+            '@unit': minute
+            '@multiplier': '5'
+          readWriteMode: read complete forecast
+          synchLevel: '5'
+      - timeSeriesSet:
+          moduleInstanceId: ImportWSC
+          valueType: scalar
+          parameterId: QR.obs
+          locationSetId: $MODELNAME1$HydroStations
+          timeSeriesType: external historical
+          timeStep:
+            '@id': $MODEL1_TIMESTEP$
+          readWriteMode: read complete forecast
+          synchLevel: '5'
+- plot:
+    '@id': $MODELNAME1$RDPSForecastTemplate
+    subplot:
+      line:
+      - timeSeriesSet:
+          moduleInstanceId: $MODELNAME1$RDPSForecast
+          valueType: scalar
+          parameterId: QR.sim
+          locationSetId: $MODELNAME1$HydroStations
+          timeSeriesType: simulated forecasting
+          timeStep:
+            '@id': $MODEL1_TIMESTEP$
+          readWriteMode: read complete forecast
+      - timeSeriesSet:
+          moduleInstanceId: ImportWSC
+          valueType: scalar
+          parameterId: QR.obs
+          locationSetId: $MODELNAME1$HydroStations
+          timeSeriesType: external historical
+          timeStep:
+            '@unit': minute
+            '@multiplier': '5'
+          readWriteMode: read complete forecast
+          synchLevel: '5'
+- displayGroup:
+    '@id': ImportWSCHourly
+    '@name': WSC Stations Hourly
+    nodeId: ImportWSCHourly
+    singleLocationDisplays:
+      locationSetId: $MODELNAME1$HydroStations
+      plotId: WSCHourlyTemplate
+- displayGroup:
+    '@name': RDPA
+    nodeId: RDPA
+    displayGroup:
+      '@id': RDPA
+      '@name': RDPA
+      nodeId: ImportRDPA
+      singleLocationDisplays:
+        locationSetId: $MODELNAME1$Basins
+        plotId: RDPATemplate
+- displayGroup:
+    '@name': RDPS
+    nodeId: RDPS
+    displayGroup:
+      '@id': RDPS
+      '@name': RDPS
+      nodeId: ImportRDPS
+      singleLocationDisplays:
+        locationSetId: $MODELNAME1$Basins
+        plotId: RDPSTemplate
+- displayGroup:
+    '@name': GDPS
+    nodeId: GDPS
+    displayGroup:
+      '@id': GDPS
+      '@name': GDPS
+      nodeId: ImportGDPS
+      singleLocationDisplays:
+        locationSetId: $MODELNAME1$Basins
+        plotId: GDPSTemplate
+- displayGroup:
+    '@name': REPSEnsemble
+    nodeId: REPSEnsemble
+    displayGroup:
+      '@id': REPSEnsemble
+      '@name': REPSEnsemble
+      nodeId: ImportREPS
+      singleLocationDisplays:
+      - locationSetId: $MODELNAME1$Basins
+        plotId: REPSPCTemplate
+      - locationSetId: $MODELNAME1$Basins
+        plotId: REPSTATemplate
+- displayGroup:
+    '@id': ModelHistoric
+    '@name': ModelHistoric
+    nodeId: $MODELNAME1$Historic
+    singleLocationDisplays:
+      locationSetId: $MODELNAME1$HydroStations
+      plotId: $MODELNAME1$HistoricTemplate
+- displayGroup:
+    '@id': ModelForecastRDPS
+    '@name': ModelForecastRDPS
+    nodeId: $MODELNAME1$RDPSForecast
+    singleLocationDisplays:
+      locationSetId: $MODELNAME1$HydroStations
+      plotId: $MODELNAME1$RDPSForecastTemplate

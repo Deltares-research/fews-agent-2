@@ -1,0 +1,27 @@
+function:
+- internalLocationSet: $MODELNAME2$HydroStations
+  externalLocationFunction: '@ID@'
+  externalParameterFunction: HYDROGRAPH
+  internalParameter: QR.obs
+- internalLocationSet: $MODELNAME2$MeteoStations
+  externalLocationFunction: '@StationIdx@'
+  externalParameterFunction: PRECIP
+  internalParameter: PC.obs
+- internalLocationSet: $MODELNAME2$MeteoStations
+  externalLocationFunction: '@StationIdx@'
+  externalParameterFunction: TEMP_AVE
+  internalParameter: TA.obs
+- internalLocationSet: $MODELNAME2$Basins
+  externalLocationFunction: '@RavenBasin@'
+  externalParameterFunction: PRECIP
+  internalParameter: PC.nwp
+- internalLocationSet: $MODELNAME2$Basins
+  externalLocationFunction: '@RavenBasin@'
+  externalParameterFunction: MAX_TEMPERATURE
+  internalParameter: TA.nwp
+  internalQualifier: max
+- internalLocationSet: $MODELNAME2$Basins
+  externalLocationFunction: '@RavenBasin@'
+  externalParameterFunction: MIN_TEMPERATURE
+  internalParameter: TA.nwp
+  internalQualifier: min

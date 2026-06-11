@@ -1,0 +1,11 @@
+parameter:
+- internal: TA.obs
+  external: air_temperature
+- internal: PC.obs
+  external: total_precipitation
+- internal: TA.obs
+  internalQualifier: max
+  external: air_temperature_yesterday_high
+- internal: TA.obs
+  internalQualifier: min
+  external: air_temperature_yesterday_low

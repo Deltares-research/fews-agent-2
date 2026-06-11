@@ -222,6 +222,13 @@ __marimo__/
 !CLAUDE.MD
 !README.md
 
+# Bundled standard inputs are a hard dependency of the build path
+# (timeSteps, idMaps, grids, displayGroups, unit conversions). The
+# blanket *.yaml ignore above would otherwise drop them, which is why
+# they were missing on the deploy branch. Keep them tracked.
+!fews_agent/agent/standard_inputs/
+!fews_agent/agent/standard_inputs/*.yaml
+
 secrets/*
 !secrets/.env.example
 

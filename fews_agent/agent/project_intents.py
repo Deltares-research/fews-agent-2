@@ -464,11 +464,11 @@ def _resolve_import_patterns(
     noaa_imports = {"GFS", "NAM", "SREF"}
     if (
         any(imp in noaa_imports for imp in (imports or []))
-        and "auto/wf_noaa_grids_aggregator" in catalog_paths
+        and "auto/wf_import_noaa_grids" in catalog_paths
     ):
         out.append({
-            "pattern": "auto/wf_noaa_grids_aggregator",
-            "instances": [{}],
+            "pattern": "auto/wf_import_noaa_grids",
+            "instances": [{"template_name": "ImportNOAAGrids"}],
         })
     return out
 
