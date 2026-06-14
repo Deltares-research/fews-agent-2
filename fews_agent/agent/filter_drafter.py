@@ -79,7 +79,8 @@ def draft_filters_yaml(
     fails or the output can't be made valid.
     """
     if provider is None:
-        provider = OllamaProvider(model=model)
+        from .providers.factory import get_provider_or_ollama
+        provider = get_provider_or_ollama(model)
 
     module_ids = context.get("moduleInstanceIds", [])
     param_ids = context.get("parameterIds", [])

@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import json
 import re
+import sys
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
@@ -350,6 +351,82 @@ def detect_locations_source(text: str) -> str | None:
     return None
 
 
+# Free-text phrases that signal which meteorological variables the
+# user wants imported. Listed longest-first so multi-word phrases are
+# detected before their substring single-words (e.g. "wind speed"
+# matches before bare "wind"). The returned strings are normalised
+# back to the longest matching key from _DATA_TYPE_TO_PARAMETER so the
+# resolver can look them up directly.
+_DATA_TYPE_PHRASES: tuple[str, ...] = (
+    "mean sea level pressure",
+    "air temperature",
+    "wind direction",
+    "wind speed",
+    "temperature",
+    "precipitation",
+    "pressure",
+    "mslp",
+    "precip",
+)
+
+
+# Phrases signalling the user wants the imported grids interpolated to
+# point locations (Data Viewer) and/or visualized as gridded layers
+# (Spatial Display). When any of these match, the resolver wires in the
+# postprocess-template + interpolation workflow patterns so the build
+# emits an end-to-end grid→station path instead of a bare import.
+_INTERPOLATION_PHRASES: tuple[str, ...] = (
+    "interpolate the grid",
+    "interpolate the gridded",
+    "interpolate gridded",
+    "interpolate to locations",
+    "interpolate to stations",
+    "interpolate to points",
+    "interpolate to a location",
+    "interpolate to a station",
+    "data viewer",
+    "spatial display",
+)
+
+
+def detect_wants_interpolation(text: str) -> bool | None:
+    """Return True when prose asks for grid→point interpolation or viewing.
+
+    Returns ``None`` (not ``False``) when no phrase matches so the
+    chat_step merge logic — which skips ``None`` — won't lock in a
+    negative on turn 1 and shadow a real signal on turn 2.
+    """
+    lower = (text or "").lower()
+    return True if any(p in lower for p in _INTERPOLATION_PHRASES) else None
+
+
+def detect_data_types(text: str) -> list[str]:
+    """Return canonical data_type phrases mentioned in the text.
+
+    Substring match, case-insensitive. Each phrase is reported at
+    most once; longer phrases shadow their substrings (so "wind
+    speed" does not also yield a phantom "wind speed" + bare hit).
+    """
+    lower = (text or "").lower()
+    found: list[str] = []
+    consumed_spans: list[tuple[int, int]] = []
+    for phrase in _DATA_TYPE_PHRASES:
+        start = 0
+        while True:
+            i = lower.find(phrase, start)
+            if i < 0:
+                break
+            end = i + len(phrase)
+            # Skip if this span overlaps a previously consumed (longer) span.
+            if not any(cs <= i < ce or cs < end <= ce
+                       for cs, ce in consumed_spans):
+                consumed_spans.append((i, end))
+                if phrase not in found:
+                    found.append(phrase)
+            start = end
+    return found
+
+
 # ---------------------------------------------------------------------------
 # Composite: extract everything the skills can find
 # ---------------------------------------------------------------------------
@@ -372,6 +449,8 @@ def extract_skills(text: str) -> dict[str, Any]:
         "imports": detect_imports(text),
         "geoDatum": detect_geo_datum(text),
         "locations_source": detect_locations_source(text),
+        "data_types": detect_data_types(text),
+        "wants_interpolation": detect_wants_interpolation(text),
     }
 
 
@@ -435,11 +514,94 @@ _ADAPTER_PATTERN_MAP = {
 }
 
 
+# Free-text data_type slot → canonical FEWS parameter row consumed by
+# the NWP pattern's `parameters` variable. Keys are lower-cased; the
+# resolver matches by `.lower()` substring/exact comparison.
+#
+# `startTimeShiftHours` is only set on accumulated quantities (precip):
+# FEWS' TimeSeriesImportRun supports a single startTimeShift block per
+# <import>, so the pattern picks the first parameter that declares one.
+_DATA_TYPE_TO_PARAMETER: dict[str, dict[str, Any]] = {
+    "precipitation": {
+        "id": "PC.nwp", "unit": "mm",
+        "cumulativeSum": True, "startTimeShiftHours": -3,
+    },
+    "precip": {
+        "id": "PC.nwp", "unit": "mm",
+        "cumulativeSum": True, "startTimeShiftHours": -3,
+    },
+    "temperature": {"id": "TA.nwp", "unit": "K"},
+    "air temperature": {"id": "TA.nwp", "unit": "K"},
+    "temp": {"id": "TA.nwp", "unit": "K"},
+    "wind speed": {"id": "WS10.nwp", "unit": "m/s"},
+    "wind direction": {"id": "WD10.nwp", "unit": "degree"},
+    "mean sea level pressure": {"id": "PA.nwp", "unit": "hPa"},
+    "mslp": {"id": "PA.nwp", "unit": "hPa"},
+    "pressure": {"id": "PA.nwp", "unit": "hPa"},
+}
+
+
+# Patterns whose template accepts a `parameters` variable. When the
+# chat agent has filled the `data_types` slot, the resolver injects the
+# translated parameter list into instances of these patterns. Other
+# patterns keep their hardcoded behaviour.
+_PARAMETERIZED_NWP_PATTERNS: frozenset[str] = frozenset({
+    "auto/nwp_grid_noaa",
+})
+
+
+def _data_types_to_parameter_rows(
+    data_types: list[str] | None,
+) -> tuple[list[dict[str, Any]], list[str]]:
+    """Translate the free-text data_types slot into FEWS parameter rows.
+
+    Returns (rows, unrecognised). Empty `rows` means the resolver
+    should NOT inject ``parameters`` — patterns then fall back to
+    their own default.
+    """
+    rows: list[dict[str, Any]] = []
+    seen_ids: set[str] = set()
+    unrecognised: list[str] = []
+    for raw in data_types or []:
+        key = (raw or "").strip().lower()
+        row = _DATA_TYPE_TO_PARAMETER.get(key)
+        if not row:
+            unrecognised.append(raw)
+            continue
+        if row["id"] in seen_ids:
+            continue
+        seen_ids.add(row["id"])
+        rows.append(dict(row))
+    return rows, unrecognised
+
+
 def _resolve_import_patterns(
     imports: list[str], catalog_paths: set[str],
+    data_types: list[str] | None = None,
+    wants_interpolation: bool = False,
 ) -> list[dict]:
     """Map import names to pattern instances using each pattern's own
-    label variable name. Dedups by path."""
+    label variable name. Dedups by path.
+
+    When ``data_types`` is non-empty and they translate to known FEWS
+    parameter rows, each instance whose pattern accepts a ``parameters``
+    variable receives ``parameters: [rows]``. Otherwise the pattern's
+    own default list is used (preserves existing builds verbatim).
+
+    When ``wants_interpolation`` is True (user asked for grid→point
+    interpolation or Data Viewer / Spatial Display output), the resolver
+    also emits the postprocess template and one interpolation workflow
+    per NWP import so the gridded data lands as point time series."""
+    param_rows, unrecognised = _data_types_to_parameter_rows(data_types)
+    if unrecognised:
+        # Surface to stderr so the configurator notices; the chat agent
+        # picks this up via its turn log. Not raising — graceful
+        # degradation is better than refusing the whole resolve.
+        print(
+            f"warning: unrecognised data_types skipped: {unrecognised}",
+            file=sys.stderr,
+        )
+
     out: list[dict] = []
     for imp in imports or []:
         entry = _IMPORT_PATTERN_MAP.get(imp)
@@ -452,7 +614,13 @@ def _resolve_import_patterns(
         # filename root (e.g. NAM → ImportNAMGrids), not the import name
         # itself. Apply override map when present.
         value = _IMPORT_VALUE_OVERRIDES.get(imp, imp)
-        instance = {label_var: value}
+        instance: dict[str, Any] = {label_var: value}
+        if param_rows and path in _PARAMETERIZED_NWP_PATTERNS:
+            instance["parameters"] = list(param_rows)
+            # Tell the pattern to also contribute these parameter rows
+            # to Parameters.xml — without this the new IDs would be
+            # referenced in timeSeriesSet but not declared anywhere.
+            instance["contribute_parameters"] = True
         existing = next((p for p in out if p["pattern"] == path), None)
         if existing:
             existing["instances"].append(instance)
@@ -470,6 +638,36 @@ def _resolve_import_patterns(
             "pattern": "auto/wf_import_noaa_grids",
             "instances": [{"template_name": "ImportNOAAGrids"}],
         })
+
+    # Interpolation path. The user asked to land the gridded data as
+    # point time series (Data Viewer) — emit the postprocess template
+    # plus one interpolation workflow per NWP import. Currently scoped
+    # to NOAA GFS because that's the only NWP whose nwp_grid_* pattern
+    # accepts user-selected parameters. Future ECCC parameterization
+    # widens this set.
+    if wants_interpolation and param_rows:
+        nwp_imports = [imp for imp in (imports or [])
+                       if imp in {"GFS"}]
+        if nwp_imports:
+            if "auto/tpl_postprocess_to_station" in catalog_paths:
+                # Override the locationId to match the bare NWP import
+                # (which writes locationId=<NWP>, not $MODELNAME1$Grid).
+                out.append({
+                    "pattern": "auto/tpl_postprocess_to_station",
+                    "instances": [{
+                        "template_name":
+                            "PostprocessModelOutputToStationTemplate",
+                        "grid_locationid": nwp_imports[0],
+                    }],
+                })
+            if "auto/wf_interpolate_nwp_to_stations" in catalog_paths:
+                out.append({
+                    "pattern": "auto/wf_interpolate_nwp_to_stations",
+                    "instances": [
+                        {"nwp_name": imp, "parameters": list(param_rows)}
+                        for imp in nwp_imports
+                    ],
+                })
     return out
 
 
@@ -538,7 +736,11 @@ def _resolve_forecasting_patterns(
     slots: dict[str, Any], catalog_paths: set[str],
 ) -> list[dict]:
     """Forecasting project = imports + N basin models + shared templates."""
-    out = _resolve_import_patterns(slots.get("imports", []), catalog_paths)
+    out = _resolve_import_patterns(
+        slots.get("imports", []), catalog_paths,
+        data_types=slots.get("data_types"),
+        wants_interpolation=bool(slots.get("wants_interpolation")),
+    )
     for b in _basins_list(slots):
         out.extend(
             _resolve_basin_pattern(
@@ -557,7 +759,11 @@ def _resolve_data_import_only_patterns(
     slots: dict[str, Any], catalog_paths: set[str],
 ) -> list[dict]:
     """Data-import-only project = just the import patterns. No basin, no model."""
-    return _resolve_import_patterns(slots.get("imports", []), catalog_paths)
+    return _resolve_import_patterns(
+        slots.get("imports", []), catalog_paths,
+        data_types=slots.get("data_types"),
+        wants_interpolation=bool(slots.get("wants_interpolation")),
+    )
 
 
 def _resolve_basin_only_patterns(
@@ -693,7 +899,8 @@ def classify_intent(
     missing entities (e.g. basin name for an unrecognised basin).
     """
     if provider is None:
-        provider = OllamaProvider(model=model)
+        from .providers.factory import get_provider_or_ollama
+        provider = get_provider_or_ollama(model)
 
     intent_descriptions = "\n".join(
         f"- {i.name}: {i.description}\n  keywords: {', '.join(i.keywords)}"
@@ -714,6 +921,14 @@ def classify_intent(
         "  'imports only', 'model only', 'no imports yet', 'without a "
         "  model', 'just data ingestion'. A mention of a basin without "
         "  imports is NOT enough to pick the narrower intent.\n"
+        "- ALSO prefer build_data_import_only when the user describes a "
+        "  pure data pipeline — they mention interpolating gridded data "
+        "  to locations/stations/points, viewing imported series in the "
+        "  Data Viewer, or displaying grids in the Spatial Display — "
+        "  AND they do NOT mention a hydrological model, basin, "
+        "  watershed, forecast workflow, or model adapter (raven, wflow, "
+        "  hbv96). Visualization + interpolation in the absence of any "
+        "  model reference signals data engineering, not forecasting.\n"
         "- The deterministic skills already found the entities listed; "
         "if you spot any the skills missed, add them. Don't override "
         "what the skills found unless the user explicitly contradicted.\n"
@@ -785,6 +1000,15 @@ _NARROWING_PHRASES: tuple[str, ...] = (
     "model only", "model-only", "imports only", "import only",
     "import-only", "model only.", "model only,",
     "data only", "data ingestion only",
+    # Phrases that imply a pure data pipeline (import + view) with no
+    # basin model in scope. Mentioning the FEWS Data Viewer or Spatial
+    # Display panels, or a grid → point interpolation step, is a strong
+    # signal the user wants build_data_import_only even when they don't
+    # say "only" explicitly.
+    "data viewer", "spatial display",
+    "interpolate the grid", "interpolate the gridded",
+    "interpolate gridded", "interpolate to locations",
+    "interpolate to stations", "interpolate to points",
 )
 
 
@@ -1008,7 +1232,8 @@ def compose_reply(
     Style: 1-3 sentences, plain English, no JSON, no bullet lists.
     """
     if provider is None:
-        provider = OllamaProvider(model=model)
+        from .providers.factory import get_provider_or_ollama
+        provider = get_provider_or_ollama(model)
 
     intent_name = intent.name if intent else "(none)"
 
@@ -1479,7 +1704,8 @@ def compose_status_reply(
     Falls back to ``status_prose_fallback`` if the LLM is unavailable.
     """
     if provider is None:
-        provider = OllamaProvider(model=model)
+        from .providers.factory import get_provider_or_ollama
+        provider = get_provider_or_ollama(model)
 
     system = (
         "You answer a configurator's status question about a Delft-FEWS "
@@ -2060,7 +2286,8 @@ def compose_help_reply(
         return _glossary_static_reply(user_message)
 
     if provider is None:
-        provider = OllamaProvider(model=model)
+        from .providers.factory import get_provider_or_ollama
+        provider = get_provider_or_ollama(model)
 
     hit = lookup_concept(user_message)
     glossary_seed = ""

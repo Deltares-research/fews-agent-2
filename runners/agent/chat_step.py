@@ -56,6 +56,19 @@ PATTERNS_ROOT = REPO_ROOT / "patterns"
 OUTPUT_ROOT = REPO_ROOT / "projects"
 
 
+def _resolve_provider(model: str):
+    """Pick the LLM provider for this turn.
+
+    Honors ``FEWS_AGENT_PROVIDER`` (read by the factory) so a user can
+    swap the chat-agent backend from Ollama to HF / Anthropic / Azure
+    by setting one env var, without touching this file. Falls back to
+    Ollama with the CLI ``--model`` arg when no env var is set — keeps
+    the existing local-only workflow working unchanged.
+    """
+    from fews_agent.agent.providers.factory import get_provider_or_ollama
+    return get_provider_or_ollama(model)
+
+
 def _resolve_project_dir(project_name: str) -> Path:
     """Find or create the active datetime-stamped instance for a project.
 
@@ -377,7 +390,7 @@ def main(argv: list[str] | None = None) -> int:
     llm_entities: dict | None = None
     chosen_intent: str | None = state.get("intent")
     if state.get("intent") is None:
-        provider = OllamaProvider(model=args.model)
+        provider = _resolve_provider(args.model)
         try:
             cls = classify_intent(
                 args.message, skill_results, provider=provider,
@@ -533,7 +546,7 @@ def main(argv: list[str] | None = None) -> int:
     intent = INTENTS.get(state.get("intent") or "")
     next_q = next_unfilled_question(intent, slots) if intent else None
     ready = bool(intent) and is_intent_ready(intent, slots)
-    provider = OllamaProvider(model=args.model)
+    provider = _resolve_provider(args.model)
     agent_msg = compose_reply(
         user_message=args.message,
         state=state,

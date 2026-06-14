@@ -270,6 +270,129 @@ def _filter_displaygroups_content(
     return {**data, "body": kept}
 
 
+_BASIN_PATTERNS = frozenset({"auto/raven_basin", "auto/wflow_basin"})
+
+
+def _count_basin_instances(bp) -> int:
+    """Count basin pattern instances in the blueprint. Drives MODELNAME1/2
+    placeholder gating in the SpatialDisplay trim — a $MODELNAME2$ panel
+    is only "alive" if the project has >=2 basins."""
+    n = 0
+    for p in bp.patterns:
+        if p.pattern in _BASIN_PATTERNS:
+            n += len(p.instances)
+    return n
+
+
+def _plot_is_alive(
+    plot: Any, alive_modules: set[str], basin_count: int,
+) -> bool:
+    """A gridPlot is alive if any of its moduleInstanceId references
+    resolves: literal in the project's rendered module set, or a
+    $MODELNAME1$/$MODELNAME2$ placeholder whose basin slot is filled."""
+    ids: list[str] = []
+
+    def collect(obj: Any) -> None:
+        if isinstance(obj, dict):
+            for k, v in obj.items():
+                if k == "moduleInstanceId" and isinstance(v, str):
+                    ids.append(v)
+                else:
+                    collect(v)
+        elif isinstance(obj, list):
+            for x in obj:
+                collect(x)
+
+    collect(plot)
+    for mid in ids:
+        if mid in alive_modules:
+            return True
+        if "$MODELNAME1$" in mid and basin_count >= 1:
+            return True
+        if "$MODELNAME2$" in mid and basin_count >= 2:
+            return True
+    return False
+
+
+def _trim_spatial_group(
+    group: dict, alive_modules: set[str], basin_count: int,
+) -> dict | None:
+    """Recursively prune a gridPlotGroup. Returns None if the group
+    becomes empty (no subgroups, no plots). Mutation-free: returns a
+    new dict with kept children."""
+    out = {k: v for k, v in group.items() if k not in ("gridPlotGroup", "gridPlot")}
+
+    # Recurse into nested gridPlotGroup (singular dict or list).
+    nested = group.get("gridPlotGroup")
+    if isinstance(nested, list):
+        kept_subs = [
+            t for sub in nested
+            if (t := _trim_spatial_group(sub, alive_modules, basin_count))
+            is not None
+        ]
+        if kept_subs:
+            out["gridPlotGroup"] = kept_subs
+    elif isinstance(nested, dict):
+        trimmed = _trim_spatial_group(nested, alive_modules, basin_count)
+        if trimmed is not None:
+            out["gridPlotGroup"] = trimmed
+
+    # Filter own gridPlot (singular dict or list).
+    plot = group.get("gridPlot")
+    if isinstance(plot, list):
+        kept_plots = [
+            p for p in plot
+            if _plot_is_alive(p, alive_modules, basin_count)
+        ]
+        if kept_plots:
+            out["gridPlot"] = kept_plots
+    elif isinstance(plot, dict):
+        if _plot_is_alive(plot, alive_modules, basin_count):
+            out["gridPlot"] = plot
+
+    if "gridPlotGroup" not in out and "gridPlot" not in out:
+        return None
+    return out
+
+
+def _filter_spatial_display_content(
+    data: dict, alive_modules: set[str], basin_count: int,
+    allow_empty: bool = False,
+) -> dict:
+    """Drop SpatialDisplay body entries whose moduleInstanceId
+    references the project doesn't have. Pass through non-group
+    entries (title, defaults). Default behavior is to keep the
+    original when every panel would be dropped (FEWS prefers a
+    redundant panel to no panel). Set ``allow_empty=True`` when
+    pattern contributions will append project-specific panels after
+    this trim — in that case an empty-after-trim body is correct."""
+    if not isinstance(data, dict) or "body" not in data:
+        return data
+    body = data.get("body") or []
+    if not body:
+        return data
+
+    kept: list = []
+    dropped_any_panel = False
+    kept_any_panel = False
+    for entry in body:
+        if not isinstance(entry, dict) or "gridPlotGroup" not in entry:
+            kept.append(entry)
+            continue
+        trimmed = _trim_spatial_group(
+            entry["gridPlotGroup"], alive_modules, basin_count,
+        )
+        if trimmed is None:
+            dropped_any_panel = True
+            continue
+        kept_any_panel = True
+        kept.append({"gridPlotGroup": trimmed})
+
+    if dropped_any_panel and not kept_any_panel and not allow_empty:
+        return data
+    return {**data, "body": kept}
+
+
 def _filter_grids_content(
     data: dict, project_location_ids: set[str],
 ) -> dict:
@@ -350,6 +473,7 @@ def _idmap_is_referenced(
 def _render_yaml_inputs(
     inputs_dir: Path, result: object, label: str = "yaml",
     filter_idmaps_by_ref: bool = False,
+    basin_count: int = 0,
 ) -> int:
     """Walk ``inputs_dir`` for *.yaml and *.yml files, render each as a spec.
 
@@ -426,6 +550,20 @@ def _render_yaml_inputs(
                     _collect_referenced_module_instances(result.rendered_files)
                 )
                 data = _filter_displaygroups_content(data, project_module_ids)
+            # Trim SpatialDisplay body to project-used modules / declared
+            # basin slots. Fires only on the standard-inputs fallback —
+            # if a pattern contributed to SpatialDisplay, the merger
+            # already produced it (and pre-seed handled the trim there).
+            if (
+                filter_idmaps_by_ref
+                and spec_name == "spatialDisplayFile"
+            ):
+                project_module_ids = (
+                    _collect_referenced_module_instances(result.rendered_files)
+                )
+                data = _filter_spatial_display_content(
+                    data, project_module_ids, basin_count,
+                )
             model = spec.model_class.model_validate(data)
             xml = render_template(spec.template_name, model)
             result.rendered_files.append(
@@ -524,6 +662,54 @@ def build_from_blueprint(
     #   2) CSV-derived data — the configurator's tabular inputs
     #   3) pattern contributions — added by the merger itself
     merged_base: dict[str, dict] = {}
+    # Pre-seed bundled-standard bodies for any spec class that a pattern
+    # contributes to. Without this, the merger emits a singleton XML
+    # whose body contains ONLY the pattern contribution — and because
+    # the file is already produced, the standard-inputs fallback later
+    # skips it. The bundled body would be lost. By pre-loading the
+    # bundled yaml into merged_base, contributions APPEND to the
+    # standard body instead of replacing it.
+    contrib_target_classes = {
+        c.target_file.split("::", 1)[0]
+        for c in result.contributions
+        if "::" in c.target_file
+    }
+    if contrib_target_classes and STANDARD_INPUTS_DIR.is_dir():
+        import yaml as _yaml_seed
+        from fews_agent.generators import SPECS as _SPECS_seed
+        spec_by_cls = {s.model_class.__name__: s for s in _SPECS_seed}
+        # Module IDs already in the rendered pattern files — used to
+        # trim bundled SpatialDisplay panels referencing absent modules.
+        pre_seed_module_ids = _collect_referenced_module_instances(
+            result.rendered_files
+        )
+        basin_count = _count_basin_instances(bp)
+        for cls_name in contrib_target_classes:
+            spec = spec_by_cls.get(cls_name)
+            if spec is None:
+                continue
+            std_path = STANDARD_INPUTS_DIR / f"{spec.input_key}.yaml"
+            if not std_path.is_file():
+                continue
+            try:
+                data = _yaml_seed.safe_load(
+                    std_path.read_text(encoding="utf-8")
+                )
+            except Exception:  # noqa: BLE001
+                continue
+            if not isinstance(data, dict):
+                continue
+            # Spec-specific trim of the pre-seeded body so contributions
+            # append onto a project-relevant base (not the full bundled
+            # smorgasbord of dead panels).
+            if spec.name == "spatialDisplayFile":
+                data = _filter_spatial_display_content(
+                    data, pre_seed_module_ids, basin_count,
+                    allow_empty=True,
+                )
+            merged_base.setdefault(cls_name, {})
+            for field_name, field_val in data.items():
+                merged_base[cls_name].setdefault(field_name, field_val)
     for source in (bp.singleton_seeds, csv_base_data):
         for cls_name, fields in source.items():
             merged_base.setdefault(cls_name, {}).update(fields)
@@ -639,6 +825,7 @@ def build_from_blueprint(
         n_std = _render_yaml_inputs(
             STANDARD_INPUTS_DIR, result, label="standard",
             filter_idmaps_by_ref=True,
+            basin_count=_count_basin_instances(bp),
         )
         if n_std:
             console.print(

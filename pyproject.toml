@@ -13,6 +13,8 @@ dependencies = [
     "openai>=1.54.0",
     "ollama>=0.4.0",
     "google-genai>=0.3.0",
+    # Unified router for the litellm/hf provider
+    "litellm>=1.55.0",
 
     # XML generation + validation (per CLAUDE.md)
     "jinja2>=3.1.0",

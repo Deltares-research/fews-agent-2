@@ -26,6 +26,13 @@ if TYPE_CHECKING:
 
 _PLACEHOLDER_RE = re.compile(r"\$[A-Z0-9_]+\$")
 
+# Workflow `<string key="..." value="..."/>` properties whose value is
+# always a locationSet id. The interpolation workflow binds the
+# postprocess template's `$STATIONLOCATIONS$` placeholder via this key,
+# so the value must declare a real set even though no `<locationSetId>`
+# element carries the literal id directly.
+_LOCSET_PROPERTY_KEYS: frozenset[str] = frozenset({"STATIONLOCATIONS"})
+
 
 def _is_placeholder(value: str) -> bool:
     return bool(_PLACEHOLDER_RE.search(value or ""))
@@ -44,6 +51,15 @@ def _collect_referenced_set_ids(
             text = (el.text or "").strip()
             if text and not _is_placeholder(text):
                 ids.add(text)
+        for el in tree.iter("{*}string"):
+            key = el.get("key", "")
+            value = (el.get("value") or "").strip()
+            if (
+                key in _LOCSET_PROPERTY_KEYS
+                and value
+                and not _is_placeholder(value)
+            ):
+                ids.add(value)
     return ids
 
 

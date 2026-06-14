@@ -44,7 +44,8 @@ def polish_variable_names(
     behavior but semantic names.
     """
     if provider is None:
-        provider = OllamaProvider(model=model)
+        from .providers.factory import get_provider_or_ollama
+        provider = get_provider_or_ollama(model)
 
     # Build the LLM input: list of mechanical vars with their values.
     mechanical_vars = [
@@ -235,7 +236,8 @@ def identify_discriminators(
         return pattern, var_values_per_instance
 
     if provider is None:
-        provider = OllamaProvider(model=model)
+        from .providers.factory import get_provider_or_ollama
+        provider = get_provider_or_ollama(model)
 
     # Format the review items with per-instance content at each path.
     # We scan all outputs to find the one whose dicts have content at

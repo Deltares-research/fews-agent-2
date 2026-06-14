@@ -93,7 +93,8 @@ def run_chat(
     catalog = build_pattern_catalog(PATTERNS_ROOT)
     console.print(f"[dim]Loaded {len(catalog)} patterns from catalog.[/dim]")
 
-    provider = OllamaProvider(model=model)
+    from fews_agent.agent.providers.factory import get_provider_or_ollama
+    provider = get_provider_or_ollama(model)
     state = initial_state(project_name)
     history: list[dict[str, str]] = []
 

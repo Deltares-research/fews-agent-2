@@ -4,6 +4,34 @@ variables:
   nwp_name:
     type: str
     required: true
+  # Optional list of parameter rows to import. Each entry:
+  #   id (FEWS parameterId)
+  #   unit (string FEWS expects on the wire)
+  #   cumulativeSum (bool, optional — defaults false)
+  #   startTimeShiftHours (int, optional — if set, the FIRST parameter
+  #     with this value provides the single <startTimeShift> block;
+  #     omit for instantaneous parameters like wind / pressure)
+  # Default reproduces today's PC.nwp + TA.nwp behaviour so existing
+  # blueprints keep emitting identical XML.
+  parameters:
+    type: list
+    required: false
+    default:
+      - id: PC.nwp
+        unit: mm
+        cumulativeSum: true
+        startTimeShiftHours: -3
+      - id: TA.nwp
+        unit: K
+  # When true, the pattern contributes one ParameterGroup row per entry
+  # in `parameters` to Parameters.xml. The resolver flips this on only
+  # when it supplied non-default parameters (because the configurator's
+  # data_types slot was filled). Default builds keep emitting the exact
+  # same file set as before.
+  contribute_parameters:
+    type: bool
+    required: false
+    default: false
 outputs:
 - schema: TimeSeriesImportRun
   output: ModuleConfigFiles/Import/NOAA/Import{{ nwp_name }}.xml
@@ -18,16 +46,20 @@ outputs:
         importTimeZone:
           timeZoneName: GMT
         dataFeedId: GFS.Server
+{% set shifted = (parameters | selectattr('startTimeShiftHours', 'defined') | list) %}
+{% if shifted %}
       startTimeShift:
-        parameterId: PC.nwp
+        parameterId: {{ shifted[0].id }}
         relativePeriod:
           unit: hour
-          start: -3
+          start: {{ shifted[0].startTimeShiftHours }}
           end: 0
+{% endif %}
       timeSeriesSet:
+{% for p in parameters %}
       - moduleInstanceId: ImportGFS
         valueType: grid
-        parameterId: PC.nwp
+        parameterId: {{ p.id }}
         locationId: GFS
         timeSeriesType: external forecasting
         timeStep:
@@ -35,22 +67,15 @@ outputs:
           multiplier: 3
         readWriteMode: add originals
         synchLevel: 6
-      - moduleInstanceId: ImportGFS
-        valueType: grid
-        parameterId: TA.nwp
-        locationId: GFS
-        timeSeriesType: external forecasting
-        timeStep:
-          unit: hour
-          multiplier: 3
-        readWriteMode: add originals
-        synchLevel: 6
+{% endfor %}
       externUnit:
-      - parameterId: PC.nwp
-        unit: mm
+{% for p in parameters %}
+      - parameterId: {{ p.id }}
+        unit: {{ p.unit }}
+{% if p.get('cumulativeSum') %}
         cumulativeSum: true
-      - parameterId: TA.nwp
-        unit: K
+{% endif %}
+{% endfor %}
 - schema: Workflow
   output: WorkflowFiles/Import/NOAA/Import{{ nwp_name }}Grids.xml
   data:
@@ -58,4 +83,52 @@ outputs:
     activity:
     - runIndependent: true
       moduleInstanceId: ImportGFS
+{% if contribute_parameters %}
+contributions:
+  - target: Parameters
+    field: parameterGroup
+    items:
+{% for p in parameters %}
+      - id: nwp_{{ p.id }}
+        parameterType: instantaneous
+        unit: {{ p.unit }}
+        parameter:
+          - id: {{ p.id }}
+            shortName: {{ p.id }}
+{% endfor %}
+  # Spatial Display panel for this NWP source: one gridPlot per
+  # imported parameter. Picks a Class.Precipitation / Class.Temperature
+  # break only for the obvious PC.*/TA.* ids; other parameters render
+  # without classBreaksId (XSD allows it as optional). The configurator
+  # can drop in their own classBreaksId per parameter later.
+  - target: SpatialDisplay
+    field: body
+    items:
+      - gridPlotGroup:
+          '@id': {{ nwp_name }}_Forecast
+          '@name': '{{ nwp_name }} Forecast'
+          gridPlot:
+{% for p in parameters %}
+          - '@id': '{{ nwp_name }}_{{ p.id }}'
+            '@name': '{{ p.id }}'
+            timeSeriesSet:
+              moduleInstanceId: Import{{ nwp_name }}
+              valueType: grid
+              parameterId: {{ p.id }}
+              locationId: {{ nwp_name }}
+              timeSeriesType: external forecasting
+              timeStep:
+                '@unit': hour
+                '@multiplier': '3'
+              readWriteMode: read complete forecast
+            showThumbnailsPanel: 'true'
+            numberOfRecentForecasts: '3'
+{% if p.id.startswith('PC') %}
+            classBreaksId: Class.Precipitation
+{% elif p.id.startswith('TA') %}
+            classBreaksId: Class.Temperature
+{% endif %}
+{% endfor %}
+{% else %}
 contributions: []
+{% endif %}

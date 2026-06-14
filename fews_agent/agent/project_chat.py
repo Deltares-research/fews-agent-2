@@ -21,6 +21,7 @@ from pathlib import Path
 from typing import Any
 
 import yaml
+from jinja2 import Environment
 
 from .providers.ollama_provider import OllamaProvider
 
@@ -49,11 +50,18 @@ def build_pattern_catalog(patterns_root: Path) -> list[PatternSummary]:
     easier. Either way, the description + keywords carry the semantic
     weight.
     """
+    # Permissive env: pattern.yaml may contain {% if %}/{% for %} blocks
+    # (for the per-instance render). Empty-context rendering strips them
+    # so yaml.safe_load can parse the surrounding metadata.
+    discovery_env = Environment(keep_trailing_newline=True)
+
     out: list[PatternSummary] = []
     for pat_yaml in sorted(patterns_root.rglob("pattern.yaml")):
         rel = pat_yaml.parent.relative_to(patterns_root).as_posix()
         try:
-            data = yaml.safe_load(pat_yaml.read_text(encoding="utf-8"))
+            raw_text = pat_yaml.read_text(encoding="utf-8")
+            stripped = discovery_env.from_string(raw_text).render()
+            data = yaml.safe_load(stripped)
         except Exception:
             continue
         if not isinstance(data, dict):
@@ -126,7 +134,8 @@ def propose_updates(
       - ``reasoning``: str — why qwen made these picks (for the log)
     """
     if provider is None:
-        provider = OllamaProvider(model=model)
+        from .providers.factory import get_provider_or_ollama
+        provider = get_provider_or_ollama(model)
 
     catalog_text = catalog_to_prompt_text(catalog)
     state_text = yaml.safe_dump(state, sort_keys=False, width=200)
@@ -352,7 +361,8 @@ def propose_slot_fills(
         from the pattern catalog (no LLM judgment needed).
     """
     if provider is None:
-        provider = OllamaProvider(model=model)
+        from .providers.factory import get_provider_or_ollama
+        provider = get_provider_or_ollama(model)
 
     catalog_text = catalog_to_prompt_text(catalog)
     state_text = yaml.safe_dump(state, sort_keys=False, width=200)
