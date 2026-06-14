@@ -396,14 +396,22 @@ Turn-by-turn driver that composes a `project.yaml` from natural-
 language conversation. The flow per turn:
 
 1. **Skills** (deterministic regex extractors): `extract_skills(text)`
-   pulls structured facts — basins (any capitalised name, including
-   multi-word like "Mackenzie River basin"), model adapters
-   (raven/wflow/hbv96), imports (HRDPS/GFS/...), geo datum, locations
-   source.
-2. **Intent classification** (LLM, only on first turn): qwen2.5
+   pulls structured facts — basins, model adapters (raven/wflow/hbv96),
+   imports (HRDPS/GFS/...), geo datum, locations source, plus the
+   prose-driven NWP slots: `data_types` (wind speed → WS10.nwp etc.),
+   `wants_interpolation`, `region` (gazetteer of named regions),
+   `custom_bbox` (free-form lat/lon with hemisphere markers),
+   `grid_resolution` (NOAA 0p25/0p50/1p00), `forecast_horizon_hours`.
+2. **Intent classification** (LLM, only on first turn): qwen2.5/HF
    picks one of `build_forecasting_project`, `build_data_import_only`,
    `build_basin_model_only` based on the user's prose. Falls back to
    a heuristic on filled slots if the LLM output is unparseable.
+   **Mid-conversation override**: subsequent turns can re-classify the
+   intent if the user types a strong intent-naming phrase ("data
+   import only", "no basin model", "no model"). The override clears
+   `state["patterns"]` so the resolver rebuilds from current slots.
+   Without this, an early misclassify locks the conversation onto the
+   wrong template set.
 3. **Slot filling** (additive): merges skill output into project state
    without overwriting explicit user-set values. Includes cross-turn
    promotion: if `basin_name` and `model_adapter` were filled in
@@ -556,34 +564,70 @@ when the *shape* of the output files changes (Raven vs Wflow, ECCC
 grid vs NOAA grid). Within a shape, instances are just different
 values plugged into `{{ basin_name }}` or `{{ nwp_name }}`.
 
-### Uncommitted local changes (worth committing once verified)
+### Prose-driven NWP slots (shipped during the Kun-prompt work)
 
-Two files are dirty on this branch:
+A batch of skills added to close gaps surfaced by Kun's prose prompt
+("Configure a NOAA GFS import for the Gulf of Guinea with wind speed,
+wind direction, and mean sea level pressure. Interpolate to locations
+for the Data Viewer. 7-day forecast, half-degree resolution."). All
+generic — nothing Gulf-of-Guinea-specific in the code.
 
-- **`fews_agent/agent/project_intents.py`** — adds
-  `ENGLISH_WORD_BLOCKLIST` (frozenset) and `_is_blocked_basin(name)`
-  helper. Applied at all four basin-extraction sites in
-  `extract_skills` and the LLM-intent fallback path. Fixes a
-  false-positive where common English words ("We", "It", "Next", "Hi",
-  "Our", "Imports", ...) leaked through the capitalised-name regex
-  and became phantom basins. The blocklist is the single source of
-  truth — `chat_step.py` imports it rather than maintaining a parallel
-  set.
-- **`runners/agent/chat_step.py`** — two changes:
-  1. Replaces the local `bad_basin_tokens` literal with an import of
-     `ENGLISH_WORD_BLOCKLIST` from `project_intents`.
-  2. Hardens the "no pattern in library" warning detector. Previously
-     it only matched `mentioned_imports` against instance-variable
-     values like `nwp_name` or `template_name`, which caused
-     false-positive warnings for sources like `NAM` and `SREF` whose
-     patterns expose `template_name: ImportNAMGrids` (a workflow
-     name, not the source name). The detector now also checks the
-     pattern names themselves by substring:
-     `if not any(m.lower() in pn for pn in pattern_names_lower)`.
+- **`region`** — `detect_region` matches a small gazetteer
+  (`REGION_BBOX`: Gulf of Guinea, North Sea, Mediterranean, Baltic
+  Sea, Gulf of Mexico, Caribbean, Bay of Bengal, South China Sea).
+  Slot lands in `singleton_seeds.Locations.region` →
+  `sa_global.Properties` gets `REGION=<name>` (resolves `$REGION$` at
+  FEWS startup) and the bundled `spatialDisplayFile.yaml`
+  `defaultExtent` is rewritten with the region's bbox. Extend by
+  adding a row to `REGION_BBOX`.
+- **`custom_bbox`** — `detect_custom_bbox` parses freeform lat/lon
+  prose with hemisphere markers ("from 8N to -5N, -10E to 10E").
+  Explicit sign wins over hemisphere letter so `-10E` reads as 10W.
+  Lands in `singleton_seeds.Locations.regionBbox`. Overrides the
+  gazetteer when both are set so a configurator can name a region
+  but tighten the bbox.
+- **`grid_resolution`** — `detect_grid_resolution` maps prose like
+  "half-degree GFS" to NOAA URL slugs (`0p25`/`0p50`/`1p00`). Slot
+  flows onto the NOAA pattern instance, parameterising the DODS URL
+  twice; at build time `_apply_nwp_resolutions_to_grids` overrides
+  the bundled gridsFile `xCellSize`/`yCellSize` and the region-bbox
+  crop recomputes rows/columns from the chosen cell size.
+- **`forecast_horizon_hours`** — `detect_forecast_horizon_hours`
+  parses "N days", "N hours", "weekly", "two-week", etc. Slot lands
+  on the NOAA pattern instance; pattern.yaml conditionally emits a
+  `relativeViewPeriod` in each SpatialDisplay timeSeriesSet so the
+  plot shows just the requested window.
+- **`data_types`** — `detect_data_types` expanded vocab (relative
+  humidity → RH.nwp, dewpoint → TD.nwp, ...). LLM-extracted
+  data_types are merged in when the regex pass returns `[]` (empty
+  list no longer shadows the LLM). Phrases the parameter mapper
+  can't translate surface as a user-visible warning via
+  `unrecognised_data_types`.
 
-Untracked: **`scripts/draw_ux_flow_pdf.py`** — a presentation helper
-that emits a UX-flow PDF. Not on any build path; safe to keep or
-discard.
+The intent register also gained:
+- **Mid-conversation intent override** in `chat_step.py`: strong
+  intent-naming phrases ("data import only", "no basin model")
+  re-classify mid-run and clear `state["patterns"]` so the resolver
+  rebuilds from current slots.
+- **Slot-conditional reminders** in `compute_input_status`: when
+  `wants_interpolation` is true → tell the configurator
+  `locations.csv` carries the interpolation targets; when imports
+  are present without a region → nudge toward setting one.
+
+Build-side wiring lives in `runners/agent/build_from_blueprint.py`:
+- `_resolve_region_bbox` picks the bbox (custom_bbox wins over
+  gazetteer), used by both `_apply_region_extent` (SpatialDisplay
+  defaultExtent) and `_apply_region_to_grids` (NWP grid crop).
+- `_apply_nwp_resolutions_to_grids` runs BEFORE the region crop so
+  rows/columns recompute from the new cell size.
+- `_nwp_location_ids_from_blueprint` and
+  `_nwp_resolutions_from_blueprint` walk the blueprint's
+  `nwp_grid_*` instances to extract names and resolutions for the
+  rewriters.
+
+Today the bbox/resolution/horizon plumbing is NOAA-only (the only
+pattern hard-wired into `_PARAMETERIZED_NWP_PATTERNS`). Extending to
+ECCC (HRDPS/GDPS/RDPS/REPS) is symmetric work if anyone wants it.
 
 ### Demo / experiment projects on disk (reference fixtures, not regression oracles)
 
@@ -611,6 +655,23 @@ behaviour you may want to inspect or rerun:
   HARMONIE/ICON warning (no pattern in library); `done` is refused on
   turn 2; turn 3 drops them; turn 4's `done` succeeds. 47 files,
   46/46 XSD-valid + 1 non-XML.
+- **`projects/gulf-of-guinea-demo/gulf-of-guinea-demo_2026-06-15_120000/`**
+  — hand-authored fixture exercising every prose-driven NWP slot we
+  shipped: `region: Gulf of Guinea`, `regionBbox` override,
+  `grid_resolution: 0p50`, `forecast_horizon_hours: 168`, custom
+  `parameters` list, interpolation patterns. 36 files / 35-of-35
+  XSD-valid. Use this to spot regressions in any of region/bbox/
+  resolution/horizon — drift on this single project covers all four.
+- **`projects/kun-hf-full/kun-hf-full_2026-06-15_002841/`** — single
+  HF-driven turn exercising the same slots from one prose prompt.
+  Demonstrates the LLM extraction + slot fill path end-to-end. Same
+  build artefacts as gulf-of-guinea-demo.
+- **`projects/kun-stepwise/kun-stepwise_2026-06-15_004449/`** — same
+  prompt **drip-fed across 4 chat turns** instead of one. Surfaced
+  and validates the mid-conversation intent override: turn 1
+  misclassifies as `build_forecasting_project`; turn 2 ("Just data
+  import, no basin model") re-classifies to `build_data_import_only`
+  and drops 16 stale template patterns. Same 36/35 build.
 
 None of these are the regression oracle — that's still
 `projects/tutorial/tutorial_2026-05-07_120000/` (120 files,
@@ -642,12 +703,7 @@ regression worth investigating before doing anything else.
 ```
 # 1. Branch state
 git status --short
-   # expect: M fews_agent/agent/project_intents.py
-   #         M runners/agent/chat_step.py
-   #         ?? scripts/draw_ux_flow_pdf.py
-
 git log --oneline -5
-   # expect HEAD: a227062 (or later if you committed the dirty files)
 
 # 2. Tutorial regression oracle (byte-equivalent)
 python -m runners.agent.build_from_blueprint \
@@ -661,12 +717,20 @@ python -m runners.agent.build_from_blueprint \
     --blueprint projects/small/small_2026-05-07_120000/project.yaml
    # expect: 29 files, XSD 28/28 + 1 non-XML sa_global.Properties
 
-# 4. Full-demo rebuild (proves the new chat agent + build path)
+# 4. Gulf-of-Guinea fixture (covers all prose-driven NWP slots)
+python -m runners.agent.build_from_blueprint \
+    --blueprint projects/gulf-of-guinea-demo/gulf-of-guinea-demo_2026-06-15_120000/project.yaml
+   # expect: 36 files, 35/35 XSD-valid + 1 non-XML.
+   # Spot-check the URL points at gfs_0p50, GFS grid is 48x30 at
+   # firstCellCenter (-11.75, 8.75), defaultExtent id="Gulf of Guinea",
+   # three relativeViewPeriod end="168" blocks, REGION=Gulf of Guinea.
+
+# 5. Full-demo rebuild (proves the chat agent + build path)
 python -m runners.agent.build_from_blueprint \
     --blueprint projects/full-demo/full-demo_2026-05-12_111230/project.yaml
    # expect: 57 files, all XSD-valid
 
-# 5. Tutorial-from-CSVs-only rebuild (the "minimum input" demo)
+# 6. Tutorial-from-CSVs-only rebuild (the "minimum input" demo)
 python -m runners.agent.build_from_blueprint \
     --blueprint projects/tutorial-csv-only/tutorial-csv-only_2026-05-13_085951/project.yaml
    # expect: 100 files, 99/99 XSD-valid (1 non-XML)

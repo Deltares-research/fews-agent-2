@@ -390,6 +390,35 @@ def main(argv: list[str] | None = None) -> int:
     llm_picked: str | None = None
     llm_entities: dict | None = None
     chosen_intent: str | None = state.get("intent")
+
+    # Mid-conversation override: if the user explicitly names an intent
+    # different from the current one, switch and force re-resolution.
+    # Phrases must be strong (whole-phrase match) so casual mentions
+    # don't flip-flop the intent. Without this, an early misclassify
+    # locks the conversation onto the wrong template set.
+    _INTENT_OVERRIDE_PHRASES = {
+        "build_data_import_only": (
+            "data import only", "import only", "imports only",
+            "no basin model", "no basin", "no model",
+            "without a basin", "without a model", "just imports",
+        ),
+        "build_basin_model_only": (
+            "model only", "basin model only", "no imports",
+            "without imports", "just the model",
+        ),
+    }
+    if state.get("intent"):
+        _lower = args.message.lower()
+        for _target, _phrases in _INTENT_OVERRIDE_PHRASES.items():
+            if any(p in _lower for p in _phrases) and state["intent"] != _target:
+                notes.append(
+                    f"intent re-classified: {state['intent']} → {_target}"
+                )
+                state["intent"] = _target
+                state["patterns"] = []  # resolver will rebuild from slots
+                chosen_intent = _target
+                break
+
     if state.get("intent") is None:
         provider = _resolve_provider(args.model)
         try:
