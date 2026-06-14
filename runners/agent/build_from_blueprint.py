@@ -486,6 +486,67 @@ def _nwp_location_ids_from_blueprint(bp) -> set[str]:
     return out
 
 
+# NOAA URL slug → degrees. Other NWP patterns can extend this map as
+# they add their own slugs (ECCC HRDPS, GDPS, etc.).
+_GRID_RESOLUTION_DEGREES: dict[str, float] = {
+    "0p25": 0.25,
+    "0p50": 0.5,
+    "1p00": 1.0,
+}
+
+
+def _nwp_resolutions_from_blueprint(bp) -> dict[str, float]:
+    """Walk blueprint NWP instances; return {locationId: cell_size_deg}.
+
+    Only entries whose ``grid_resolution`` resolves to a known slug are
+    returned. Instances without the field (or with an unknown slug) are
+    skipped so the bundled defaults stay.
+    """
+    out: dict[str, float] = {}
+    for p in bp.patterns:
+        if not any(p.pattern.startswith(pref) for pref in _NWP_PATTERN_PREFIXES):
+            continue
+        for inst in p.instances:
+            if not isinstance(inst, dict):
+                continue
+            name = inst.get("nwp_name") or inst.get("source_name")
+            slug = inst.get("grid_resolution")
+            if not isinstance(name, str) or not isinstance(slug, str):
+                continue
+            deg = _GRID_RESOLUTION_DEGREES.get(slug)
+            if deg is not None:
+                out[name] = deg
+    return out
+
+
+def _apply_nwp_resolutions_to_grids(
+    data: dict, nwp_resolutions: dict[str, float],
+) -> dict:
+    """Override xCellSize/yCellSize on bundled gridsFile entries whose
+    ``@locationId`` matches an NWP instance that asked for a non-default
+    resolution. Runs BEFORE the region-bbox crop so rows/columns are
+    recomputed from the new cell size."""
+    if not nwp_resolutions or not isinstance(data, dict):
+        return data
+    body = data.get("body") or []
+    if not body:
+        return data
+    rewritten = []
+    for entry in body:
+        if not isinstance(entry, dict) or "regular" not in entry:
+            rewritten.append(entry)
+            continue
+        inner = entry["regular"]
+        loc_id = inner.get("@locationId") if isinstance(inner, dict) else None
+        if not isinstance(loc_id, str) or loc_id not in nwp_resolutions:
+            rewritten.append(entry)
+            continue
+        deg = nwp_resolutions[loc_id]
+        new_inner = {**inner, "xCellSize": str(deg), "yCellSize": str(deg)}
+        rewritten.append({"regular": new_inner})
+    return {**data, "body": rewritten}
+
+
 def _apply_region_to_grids(
     data: dict,
     region: str | None,
@@ -622,6 +683,7 @@ def _render_yaml_inputs(
     region: str | None = None,
     nwp_location_ids: set[str] | None = None,
     custom_bbox: tuple[float, float, float, float] | list | None = None,
+    nwp_resolutions: dict[str, float] | None = None,
 ) -> int:
     """Walk ``inputs_dir`` for *.yaml and *.yml files, render each as a spec.
 
@@ -682,14 +744,19 @@ def _render_yaml_inputs(
                 and project_parameter_ids
             ):
                 data = _filter_idmap_content(data, project_parameter_ids)
-            # Trim gridsFile content to project-used locations, then
-            # crop NWP grid entries to the project region's bbox.
+            # Trim gridsFile content to project-used locations, override
+            # NWP cell sizes per the blueprint, then crop to the region
+            # bbox. Resolution rewrite runs BEFORE the crop so the
+            # rows/columns recompute from the user-chosen cell size.
             if (
                 filter_idmaps_by_ref
                 and spec_name == "gridsFile"
                 and project_location_ids
             ):
                 data = _filter_grids_content(data, project_location_ids)
+                data = _apply_nwp_resolutions_to_grids(
+                    data, nwp_resolutions or {},
+                )
                 data = _apply_region_to_grids(
                     data, region, nwp_location_ids or set(),
                     custom_bbox=custom_bbox,
@@ -998,6 +1065,7 @@ def build_from_blueprint(
             region=_region_seed,
             nwp_location_ids=_nwp_location_ids_from_blueprint(bp),
             custom_bbox=_bbox_seed,
+            nwp_resolutions=_nwp_resolutions_from_blueprint(bp),
         )
         if n_std:
             console.print(

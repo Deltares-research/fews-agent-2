@@ -4,6 +4,14 @@ variables:
   nwp_name:
     type: str
     required: true
+  # NOAA GFS publishes at 0p25 (0.25°), 0p50 (0.5°), and 1p00 (1°).
+  # The slug is embedded in the DODS URL twice; the bundled gridsFile
+  # also reads this off the blueprint at build time to override
+  # xCellSize/yCellSize on the matching grid entry.
+  grid_resolution:
+    type: str
+    required: false
+    default: 0p25
   # Optional list of parameter rows to import. Each entry:
   #   id (FEWS parameterId)
   #   unit (string FEWS expects on the wire)
@@ -39,7 +47,7 @@ outputs:
     import:
     - general:
         importType: NETCDF-CF_GRID
-        serverUrl: https://nomads.ncep.noaa.gov:9090/dods/gfs_0p25/gfs%TIME_ZERO(yyyyMMdd)%/gfs_0p25_%TIME_ZERO(HH)%z
+        serverUrl: https://nomads.ncep.noaa.gov:9090/dods/gfs_{{ grid_resolution }}/gfs%TIME_ZERO(yyyyMMdd)%/gfs_{{ grid_resolution }}_%TIME_ZERO(HH)%z
         idMapId: IdImportGFS
         unitConversionsId: ImportUnitConversions
         missingValue: -3.402823E38

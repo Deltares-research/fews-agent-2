@@ -399,6 +399,38 @@ _COORD_RE = re.compile(
 )
 
 
+# Grid resolution: NOAA GFS publishes 0.25°, 0.5°, 1° flavours. The slug
+# embedded in the DODS URL uses underscored / lowercase form (0p25 etc.)
+# so we normalise to that here.
+_GRID_RESOLUTION_PHRASES: tuple[tuple[str, str], ...] = (
+    ("0.25 degree", "0p25"),
+    ("0.25-degree", "0p25"),
+    ("quarter-degree", "0p25"),
+    ("quarter degree", "0p25"),
+    ("0.5 degree", "0p50"),
+    ("0.5-degree", "0p50"),
+    ("half-degree", "0p50"),
+    ("half degree", "0p50"),
+    ("1 degree", "1p00"),
+    ("1-degree", "1p00"),
+    ("one-degree", "1p00"),
+    ("one degree", "1p00"),
+)
+
+
+def detect_grid_resolution(text: str) -> str | None:
+    """Map prose like "half-degree GFS" to a NOAA URL slug (0p25/0p50/1p00).
+
+    Returns None when no phrase matches so the resolver doesn't force
+    a value on patterns that already default sensibly.
+    """
+    lower = (text or "").lower()
+    for phrase, slug in _GRID_RESOLUTION_PHRASES:
+        if phrase in lower:
+            return slug
+    return None
+
+
 def detect_custom_bbox(
     text: str,
 ) -> tuple[float, float, float, float] | None:
@@ -551,6 +583,7 @@ def extract_skills(text: str) -> dict[str, Any]:
         "wants_interpolation": detect_wants_interpolation(text),
         "region": detect_region(text),
         "custom_bbox": detect_custom_bbox(text),
+        "grid_resolution": detect_grid_resolution(text),
     }
 
 
@@ -701,6 +734,7 @@ def _resolve_import_patterns(
     imports: list[str], catalog_paths: set[str],
     data_types: list[str] | None = None,
     wants_interpolation: bool = False,
+    grid_resolution: str | None = None,
 ) -> list[dict]:
     """Map import names to pattern instances using each pattern's own
     label variable name. Dedups by path.
@@ -743,6 +777,11 @@ def _resolve_import_patterns(
             # to Parameters.xml — without this the new IDs would be
             # referenced in timeSeriesSet but not declared anywhere.
             instance["contribute_parameters"] = True
+        # NOAA GFS publishes at 0p25/0p50/1p00; plumb the configurator's
+        # choice into the pattern instance so the DODS URL points at the
+        # right dataset.
+        if grid_resolution and path == "auto/nwp_grid_noaa":
+            instance["grid_resolution"] = grid_resolution
         existing = next((p for p in out if p["pattern"] == path), None)
         if existing:
             existing["instances"].append(instance)
@@ -862,6 +901,7 @@ def _resolve_forecasting_patterns(
         slots.get("imports", []), catalog_paths,
         data_types=slots.get("data_types"),
         wants_interpolation=bool(slots.get("wants_interpolation")),
+        grid_resolution=slots.get("grid_resolution"),
     )
     for b in _basins_list(slots):
         out.extend(
@@ -885,6 +925,7 @@ def _resolve_data_import_only_patterns(
         slots.get("imports", []), catalog_paths,
         data_types=slots.get("data_types"),
         wants_interpolation=bool(slots.get("wants_interpolation")),
+        grid_resolution=slots.get("grid_resolution"),
     )
 
 
@@ -2523,6 +2564,7 @@ __all__ = [
     "detect_help_query",
     "detect_imports",
     "detect_custom_bbox",
+    "detect_grid_resolution",
     "detect_locations_source",
     "detect_model_adapter",
     "detect_region",
