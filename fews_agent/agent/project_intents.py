@@ -869,6 +869,11 @@ _COMMON_SLOT_QUESTIONS = {
         "How are you providing station data? "
         "(csv | yaml | I'll add later)"
     ),
+    "region": (
+        "Which geographic region or area is this project for? "
+        "(e.g. Gulf of Guinea, North Sea, Mediterranean — used to crop "
+        "imported grids and orient the Spatial Display map.)"
+    ),
 }
 
 
@@ -882,7 +887,7 @@ INTENTS: dict[str, Intent] = {
             "operational", "daily forecast", "predict",
         ],
         required_slots=["basins", "imports"],
-        optional_slots=["geoDatum", "locations_source"],
+        optional_slots=["geoDatum", "locations_source", "region"],
         slot_questions=dict(_COMMON_SLOT_QUESTIONS),
         resolver=_resolve_forecasting_patterns,
     ),
@@ -898,7 +903,7 @@ INTENTS: dict[str, Intent] = {
             "no model", "without model",
         ],
         required_slots=["imports"],
-        optional_slots=["geoDatum", "locations_source"],
+        optional_slots=["geoDatum", "locations_source", "region"],
         slot_questions=dict(_COMMON_SLOT_QUESTIONS),
         resolver=_resolve_data_import_only_patterns,
     ),
@@ -1263,6 +1268,13 @@ def compute_input_status(
             "stations (with lat/lon) where the gridded data should be "
             "interpolated TO. Without it the interpolation step has no "
             "targets."
+        )
+    if (slots and slots.get("imports") and not slots.get("region")):
+        extra_notes.append(
+            "No region set. Imported grids will use the bundled default "
+            "extent (MacKenzie-shaped). Mention a region (Gulf of "
+            "Guinea, North Sea, Mediterranean, ...) to crop the NWP "
+            "grids and orient the Spatial Display map for this project."
         )
 
     return {
