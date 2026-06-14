@@ -48,6 +48,7 @@ from fews_agent.agent.project_intents import (
     next_unfilled_question,
     scan_inputs,
     status_prose_fallback,
+    unrecognised_data_types,
 )
 from fews_agent.agent.providers.factory import get_provider
 from runners.agent.build_from_blueprint import build_from_blueprint
@@ -519,7 +520,7 @@ class ChatSession:
             inputs_dir = self.session_dir / "inputs"
             input_scan = scan_inputs(inputs_dir)
             input_status = compute_input_status(
-                self.state.get("intent"), input_scan,
+                self.state.get("intent"), input_scan, slots,
             )
             missing_csvs = list(input_status.get("csvs_required_missing", []))
             warnings = list(self.state.get("warnings") or [])
@@ -831,6 +832,7 @@ class ChatSession:
             input_scan = scan_inputs(inputs_dir)
             input_status = compute_input_status(
                 self.state.get("intent"), input_scan,
+                self.state.get("slots") or {},
             )
             report = build_status_report(self.state, input_status)
             llm_err = check_ollama_for_model(self.model)
@@ -960,6 +962,11 @@ class ChatSession:
                 "Locations", {}
             )["geoDatum"] = slots["geoDatum"]
 
+        if slots.get("region"):
+            self.state.setdefault("singleton_seeds", {}).setdefault(
+                "Locations", {}
+            )["region"] = slots["region"]
+
         if (
             not slots.get("basins")
             and slots.get("basin_name")
@@ -1029,12 +1036,26 @@ class ChatSession:
                     f"confirm or correct before continuing."
                 )
 
+        if isinstance(slots.get("data_types"), list):
+            unmapped_dt = unrecognised_data_types(slots["data_types"])
+            if unmapped_dt:
+                warnings.append(
+                    "No FEWS parameterId mapping for: "
+                    + ", ".join(unmapped_dt)
+                    + ". These will be skipped — the import will use the "
+                      "pattern's default parameter list. Edit the pattern's "
+                      "`parameters` variable or rename to a recognised phrase."
+                )
+
         self.state["warnings"] = warnings
 
         # Phase 4.5: inputs scan ----------------------------------------------
         inputs_dir = self.session_dir / "inputs"
         input_scan = scan_inputs(inputs_dir)
-        input_status = compute_input_status(self.state.get("intent"), input_scan)
+        input_status = compute_input_status(
+            self.state.get("intent"), input_scan,
+            self.state.get("slots") or {},
+        )
 
         # Suppress the missing-CSV / missing-yaml block from input_status
         # once it's been raised. Otherwise the LLM keeps asking about the

@@ -48,6 +48,7 @@ from fews_agent.agent.project_intents import (
     is_intent_ready,
     next_unfilled_question,
     scan_inputs,
+    unrecognised_data_types,
 )
 from fews_agent.agent.providers.ollama_provider import OllamaProvider
 
@@ -398,8 +399,12 @@ def main(argv: list[str] | None = None) -> int:
             llm_picked = cls.get("intent")
             llm_entities = cls.get("entities", {}) or {}
             # Merge LLM-supplied entities into skill results (skills win).
+            # Empty-list slots (data_types) are treated as missing so the
+            # LLM extraction isn't shadowed by a zero-result regex pass.
             for k, v in llm_entities.items():
-                if k not in skill_results or skill_results[k] is None:
+                existing = skill_results.get(k)
+                if (k not in skill_results or existing is None
+                        or (isinstance(existing, list) and not existing)):
                     skill_results[k] = v
                     notes.append(f"LLM filled {k}={v}")
         except Exception as exc:  # noqa: BLE001
@@ -453,6 +458,15 @@ def main(argv: list[str] | None = None) -> int:
         state.setdefault("singleton_seeds", {}).setdefault(
             "Locations", {}
         )["geoDatum"] = slots["geoDatum"]
+
+    # Sync settings: region slot → Locations.region. This populates the
+    # REGION property in sa_global.Properties so FEWS resolves $REGION$
+    # at startup, and lets the build path override the bundled
+    # spatialDisplay defaultExtent if the region has a known bbox.
+    if slots.get("region"):
+        state.setdefault("singleton_seeds", {}).setdefault(
+            "Locations", {}
+        )["region"] = slots["region"]
 
     # Cross-turn promotion: if singular basin_name + model_adapter were
     # filled in different turns, synthesise the canonical `basins` pair.
@@ -535,12 +549,27 @@ def main(argv: list[str] | None = None) -> int:
                 f"confirm or correct before continuing."
             )
 
+    # Mentioned data_types that the parameter mapper can't translate to a
+    # FEWS parameterId. Without this, the resolver drops them silently
+    # (stderr only) and the user gets the pattern's default subset (PC.nwp
+    # + TA.nwp) — wrong output, no signal.
+    if isinstance(slots.get("data_types"), list):
+        unmapped_dt = unrecognised_data_types(slots["data_types"])
+        if unmapped_dt:
+            warnings.append(
+                "No FEWS parameterId mapping for: "
+                + ", ".join(unmapped_dt)
+                + ". These will be skipped — the import will use the "
+                  "pattern's default parameter list. Edit the pattern's "
+                  "`parameters` variable or rename to a recognised phrase."
+            )
+
     state["warnings"] = warnings
 
     # Phase 4.5: scan the inputs/ directory and compute presence/missing.
     inputs_dir = project_dir / "inputs"
     input_scan = scan_inputs(inputs_dir)
-    input_status = compute_input_status(state.get("intent"), input_scan)
+    input_status = compute_input_status(state.get("intent"), input_scan, slots)
 
     # Phase 5: LLM composes the user-facing reply.
     intent = INTENTS.get(state.get("intent") or "")

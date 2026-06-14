@@ -351,6 +351,47 @@ def detect_locations_source(text: str) -> str | None:
     return None
 
 
+# ---------------------------------------------------------------------------
+# Skill 6: region detection (named geographic region → REGION + bbox)
+# ---------------------------------------------------------------------------
+
+# Region gazetteer: canonical name → (left, right, top, bottom) in
+# WGS84 degrees. Used to (a) populate the REGION property in
+# sa_global.Properties so $REGION$ resolves at FEWS startup and (b)
+# override the bundled spatialDisplay defaultExtent so the demo map
+# opens on the right part of the world. Bboxes are coarse — the
+# configurator can override either via singleton_seeds or by editing
+# spatialDisplay later.
+REGION_BBOX: dict[str, tuple[float, float, float, float]] = {
+    "Gulf of Guinea": (-10.0, 10.0, 8.0, -5.0),
+    "North Sea": (-5.0, 12.0, 60.0, 50.0),
+    "Mediterranean": (-10.0, 40.0, 47.0, 30.0),
+    "Baltic Sea": (10.0, 30.0, 66.0, 53.0),
+    "Gulf of Mexico": (-100.0, -80.0, 32.0, 17.0),
+    "Caribbean": (-90.0, -60.0, 25.0, 9.0),
+    "Bay of Bengal": (78.0, 100.0, 23.0, 5.0),
+    "South China Sea": (105.0, 122.0, 25.0, 0.0),
+}
+
+# Lowercased lookup; multi-word phrases get matched longest-first so
+# "gulf of mexico" wins over a bare "gulf of guinea" substring miss.
+_REGION_PHRASES: tuple[tuple[str, str], ...] = tuple(
+    sorted(
+        ((name.lower(), name) for name in REGION_BBOX),
+        key=lambda kv: -len(kv[0]),
+    )
+)
+
+
+def detect_region(text: str) -> str | None:
+    """Return the canonical region name if any gazetteer entry matches."""
+    lower = (text or "").lower()
+    for phrase, canonical in _REGION_PHRASES:
+        if phrase in lower:
+            return canonical
+    return None
+
+
 # Free-text phrases that signal which meteorological variables the
 # user wants imported. Listed longest-first so multi-word phrases are
 # detected before their substring single-words (e.g. "wind speed"
@@ -359,9 +400,14 @@ def detect_locations_source(text: str) -> str | None:
 # resolver can look them up directly.
 _DATA_TYPE_PHRASES: tuple[str, ...] = (
     "mean sea level pressure",
+    "relative humidity",
+    "dewpoint temperature",
     "air temperature",
     "wind direction",
     "wind speed",
+    "dew point",
+    "dewpoint",
+    "humidity",
     "temperature",
     "precipitation",
     "pressure",
@@ -451,6 +497,7 @@ def extract_skills(text: str) -> dict[str, Any]:
         "locations_source": detect_locations_source(text),
         "data_types": detect_data_types(text),
         "wants_interpolation": detect_wants_interpolation(text),
+        "region": detect_region(text),
     }
 
 
@@ -538,7 +585,29 @@ _DATA_TYPE_TO_PARAMETER: dict[str, dict[str, Any]] = {
     "mean sea level pressure": {"id": "PA.nwp", "unit": "hPa"},
     "mslp": {"id": "PA.nwp", "unit": "hPa"},
     "pressure": {"id": "PA.nwp", "unit": "hPa"},
+    "relative humidity": {"id": "RH.nwp", "unit": "%"},
+    "humidity": {"id": "RH.nwp", "unit": "%"},
+    "dewpoint temperature": {"id": "TD.nwp", "unit": "K"},
+    "dew point": {"id": "TD.nwp", "unit": "K"},
+    "dewpoint": {"id": "TD.nwp", "unit": "K"},
 }
+
+
+def unrecognised_data_types(data_types: list[str] | None) -> list[str]:
+    """Return data_type phrases the parameter mapper can't translate.
+
+    Mirrors the dispatch logic in ``_data_types_to_parameter_rows`` so
+    callers (chat_step warning surface) can flag silent drops to the
+    configurator without re-implementing the lookup.
+    """
+    if not data_types:
+        return []
+    out: list[str] = []
+    for raw in data_types:
+        key = (raw or "").strip().lower()
+        if key and key not in _DATA_TYPE_TO_PARAMETER:
+            out.append(raw)
+    return out
 
 
 # Patterns whose template accepts a `parameters` variable. When the
@@ -1168,6 +1237,7 @@ def scan_inputs(inputs_dir: Any) -> dict[str, list[str]]:
 def compute_input_status(
     intent_name: str | None,
     scan: dict[str, list[str]],
+    slots: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Compare scan against intent's expectations. Return a status dict.
 
@@ -1177,12 +1247,23 @@ def compute_input_status(
       - csvs_recommended_missing: list[str]
       - yamls_present_count: int
       - yamls_recommended_examples: list[str]  # for hints in the reply
+      - extra_notes: list[str]                 # slot-conditional reminders
     """
     expectations = INTENT_INPUT_EXPECTATIONS.get(intent_name or "", {})
     required = set(expectations.get("required_csvs", []))
     recommended = set(expectations.get("recommended_csvs", []))
     present_csvs = set(scan.get("csvs", []))
     present_yamls = scan.get("yamls", [])
+
+    # Slot-conditional reminders the reply LLM should surface.
+    extra_notes: list[str] = []
+    if slots and slots.get("wants_interpolation"):
+        extra_notes.append(
+            "Interpolation requested: locations.csv must list the "
+            "stations (with lat/lon) where the gridded data should be "
+            "interpolated TO. Without it the interpolation step has no "
+            "targets."
+        )
 
     return {
         "csvs_present": sorted(present_csvs),
@@ -1195,6 +1276,7 @@ def compute_input_status(
         "auto_generated_yamls": list(
             expectations.get("auto_generated_yamls", [])
         ),
+        "extra_notes": extra_notes,
     }
 
 
@@ -1318,6 +1400,9 @@ def compose_reply(
                 f"  AUTO-GENERATED (don't ask user for these): "
                 f"{', '.join(auto_yamls[:5])}{'...' if len(auto_yamls) > 5 else ''}\n"
             )
+        extra_notes = input_status.get("extra_notes") or []
+        for note in extra_notes:
+            input_text += f"  Note: {note}\n"
     else:
         input_text = "  (input directory not scanned)\n"
 
@@ -2361,6 +2446,7 @@ __all__ = [
     "Intent",
     "INTENTS",
     "INTENT_INPUT_EXPECTATIONS",
+    "REGION_BBOX",
     "build_status_report",
     "classify_intent",
     "compose_help_reply",
@@ -2373,6 +2459,7 @@ __all__ = [
     "detect_imports",
     "detect_locations_source",
     "detect_model_adapter",
+    "detect_region",
     "detect_status_query",
     "extract_skills",
     "fill_slots_from_text",
@@ -2382,4 +2469,5 @@ __all__ = [
     "next_unfilled_question",
     "scan_inputs",
     "status_prose_fallback",
+    "unrecognised_data_types",
 ]

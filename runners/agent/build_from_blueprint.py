@@ -355,6 +355,44 @@ def _trim_spatial_group(
     return out
 
 
+def _apply_region_extent(data: dict, region: str | None) -> dict:
+    """Override SpatialDisplay defaults.geoMap.defaultExtent for a known
+    region. No-op if ``region`` is unset or not in REGION_BBOX. The bbox
+    keeps the bundled (MacKenzie-shaped) defaults otherwise — wrong for
+    any non-tutorial project."""
+    from fews_agent.agent.project_intents import REGION_BBOX
+
+    if not region or region not in REGION_BBOX or not isinstance(data, dict):
+        return data
+    body = data.get("body") or []
+    if not body:
+        return data
+    left, right, top, bottom = REGION_BBOX[region]
+    rewritten = []
+    for entry in body:
+        if (isinstance(entry, dict) and "defaults" in entry
+                and isinstance(entry["defaults"], dict)
+                and isinstance(entry["defaults"].get("geoMap"), dict)
+                and isinstance(
+                    entry["defaults"]["geoMap"].get("defaultExtent"), dict)):
+            new_entry = {**entry}
+            new_defaults = {**entry["defaults"]}
+            new_geomap = {**new_defaults["geoMap"]}
+            new_geomap["defaultExtent"] = {
+                "@id": region,
+                "left": str(left),
+                "right": str(right),
+                "top": str(top),
+                "bottom": str(bottom),
+            }
+            new_defaults["geoMap"] = new_geomap
+            new_entry["defaults"] = new_defaults
+            rewritten.append(new_entry)
+        else:
+            rewritten.append(entry)
+    return {**data, "body": rewritten}
+
+
 def _filter_spatial_display_content(
     data: dict, alive_modules: set[str], basin_count: int,
     allow_empty: bool = False,
@@ -391,6 +429,82 @@ def _filter_spatial_display_content(
     if dropped_any_panel and not kept_any_panel and not allow_empty:
         return data
     return {**data, "body": kept}
+
+
+_NWP_PATTERN_PREFIXES: tuple[str, ...] = (
+    "auto/nwp_grid_",
+)
+
+
+def _nwp_location_ids_from_blueprint(bp) -> set[str]:
+    """Collect NWP source names declared by NWP patterns in the blueprint.
+
+    These match the ``@locationId`` values in gridsFile entries (e.g.
+    GFS, HRDPS, RDPS) so the region-bbox rewriter knows which grids to
+    crop.
+    """
+    out: set[str] = set()
+    for p in bp.patterns:
+        if not any(p.pattern.startswith(pref) for pref in _NWP_PATTERN_PREFIXES):
+            continue
+        for inst in p.instances:
+            if not isinstance(inst, dict):
+                continue
+            name = inst.get("nwp_name") or inst.get("source_name")
+            if isinstance(name, str) and name:
+                out.add(name)
+    return out
+
+
+def _apply_region_to_grids(
+    data: dict, region: str | None, nwp_location_ids: set[str],
+) -> dict:
+    """Crop NWP grid entries to the project's region bbox.
+
+    Only rewrites ``regular`` grid entries whose ``@locationId`` is in
+    ``nwp_location_ids`` (so user-authored grid entries are left alone).
+    Recomputes rows/columns from xCellSize/yCellSize; falls back to the
+    original entry if cell size is missing or non-numeric.
+    """
+    from fews_agent.agent.project_intents import REGION_BBOX
+
+    if (not region or region not in REGION_BBOX
+            or not isinstance(data, dict) or not nwp_location_ids):
+        return data
+    left, right, top, bottom = REGION_BBOX[region]
+    body = data.get("body") or []
+    if not body:
+        return data
+    rewritten = []
+    for entry in body:
+        if not isinstance(entry, dict) or "regular" not in entry:
+            rewritten.append(entry)
+            continue
+        inner = entry["regular"]
+        if (not isinstance(inner, dict)
+                or inner.get("@locationId") not in nwp_location_ids):
+            rewritten.append(entry)
+            continue
+        try:
+            x_cell = float(inner.get("xCellSize", ""))
+            y_cell = float(inner.get("yCellSize", ""))
+        except (TypeError, ValueError):
+            rewritten.append(entry)
+            continue
+        if x_cell <= 0 or y_cell <= 0:
+            rewritten.append(entry)
+            continue
+        cols = max(1, int(round((right - left) / x_cell)))
+        rows = max(1, int(round((top - bottom) / y_cell)))
+        new_inner = {**inner}
+        new_inner["rows"] = str(rows)
+        new_inner["columns"] = str(cols)
+        new_inner["firstCellCenter"] = {
+            "x": str(left + x_cell / 2),
+            "y": str(top - y_cell / 2),
+        }
+        rewritten.append({"regular": new_inner})
+    return {**data, "body": rewritten}
 
 
 def _filter_grids_content(
@@ -474,6 +588,8 @@ def _render_yaml_inputs(
     inputs_dir: Path, result: object, label: str = "yaml",
     filter_idmaps_by_ref: bool = False,
     basin_count: int = 0,
+    region: str | None = None,
+    nwp_location_ids: set[str] | None = None,
 ) -> int:
     """Walk ``inputs_dir`` for *.yaml and *.yml files, render each as a spec.
 
@@ -534,13 +650,17 @@ def _render_yaml_inputs(
                 and project_parameter_ids
             ):
                 data = _filter_idmap_content(data, project_parameter_ids)
-            # Trim gridsFile content to project-used locations.
+            # Trim gridsFile content to project-used locations, then
+            # crop NWP grid entries to the project region's bbox.
             if (
                 filter_idmaps_by_ref
                 and spec_name == "gridsFile"
                 and project_location_ids
             ):
                 data = _filter_grids_content(data, project_location_ids)
+                data = _apply_region_to_grids(
+                    data, region, nwp_location_ids or set(),
+                )
             # Trim displayGroups body to project-used module instances.
             if (
                 filter_idmaps_by_ref
@@ -564,6 +684,7 @@ def _render_yaml_inputs(
                 data = _filter_spatial_display_content(
                     data, project_module_ids, basin_count,
                 )
+                data = _apply_region_extent(data, region)
             model = spec.model_class.model_validate(data)
             xml = render_template(spec.template_name, model)
             result.rendered_files.append(
@@ -707,6 +828,11 @@ def build_from_blueprint(
                     data, pre_seed_module_ids, basin_count,
                     allow_empty=True,
                 )
+                _region_seed = (
+                    (bp.singleton_seeds.get("Locations") or {}).get("region")
+                    if bp.singleton_seeds else None
+                )
+                data = _apply_region_extent(data, _region_seed)
             merged_base.setdefault(cls_name, {})
             for field_name, field_val in data.items():
                 merged_base[cls_name].setdefault(field_name, field_val)
@@ -822,10 +948,16 @@ def build_from_blueprint(
     # of. Configurator-provided files always win; standards only fill
     # gaps.
     if STANDARD_INPUTS_DIR.is_dir():
+        _region_seed = (
+            (bp.singleton_seeds.get("Locations") or {}).get("region")
+            if bp.singleton_seeds else None
+        )
         n_std = _render_yaml_inputs(
             STANDARD_INPUTS_DIR, result, label="standard",
             filter_idmaps_by_ref=True,
             basin_count=_count_basin_instances(bp),
+            region=_region_seed,
+            nwp_location_ids=_nwp_location_ids_from_blueprint(bp),
         )
         if n_std:
             console.print(

@@ -252,7 +252,7 @@ _intent_obj = INTENTS.get(state.get("intent") or "")
 _slots = slots
 _input_scan_for_button = scan_inputs(chat.session_dir / "inputs")
 _input_status_for_button = compute_input_status(
-    state.get("intent"), _input_scan_for_button,
+    state.get("intent"), _input_scan_for_button, _slots,
 )
 _missing_required_csvs = list(
     _input_status_for_button.get("csvs_required_missing") or []
