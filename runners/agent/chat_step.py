@@ -468,6 +468,16 @@ def main(argv: list[str] | None = None) -> int:
             "Locations", {}
         )["region"] = slots["region"]
 
+    # Free-form bbox parsed from prose (e.g. "from 5N to 10S, 15W to
+    # 5E") — stored as a 4-tuple so the runner can crop NWP grids and
+    # rewrite the SpatialDisplay defaultExtent without needing a
+    # gazetteer match. Stored as a list for yaml round-trip.
+    if slots.get("custom_bbox"):
+        bbox = list(slots["custom_bbox"])
+        state.setdefault("singleton_seeds", {}).setdefault(
+            "Locations", {}
+        )["regionBbox"] = bbox
+
     # Cross-turn promotion: if singular basin_name + model_adapter were
     # filled in different turns, synthesise the canonical `basins` pair.
     # Without this, `is_intent_ready` blocks indefinitely because the

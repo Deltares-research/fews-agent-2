@@ -392,6 +392,58 @@ def detect_region(text: str) -> str | None:
     return None
 
 
+# Coordinate phrase: signed decimal followed by a hemisphere letter, with
+# optional degree marker. Examples: "5N", "10.5 S", "-12°W", "+3 e".
+_COORD_RE = re.compile(
+    r"([+-]?\d+(?:\.\d+)?)\s*(?:°|deg(?:rees?)?)?\s*([NSEWnsew])\b"
+)
+
+
+def detect_custom_bbox(
+    text: str,
+) -> tuple[float, float, float, float] | None:
+    """Extract a freeform bbox from prose with N/S/E/W coordinate markers.
+
+    Returns ``(left, right, top, bottom)`` in WGS84 degrees if the text
+    contains at least one latitude (N/S) AND one longitude (E/W) — and
+    enough coords to define a range on each axis. Single-point input
+    (one lat, one lon, no range) returns None: a 0-area extent is
+    useless.
+
+    The hemisphere letter sets the sign (S/W → negative). Returns None
+    when nothing useful is found, so the caller can fall back to the
+    gazetteer.
+    """
+    matches = _COORD_RE.findall(text or "")
+    if not matches:
+        return None
+    lats: list[float] = []
+    lons: list[float] = []
+    for raw_num, letter in matches:
+        try:
+            val = float(raw_num)
+        except ValueError:
+            continue
+        hem = letter.upper()
+        # Explicit sign on the number wins (configurator typed -5N
+        # because they meant 5S). When unsigned, hemisphere sets sign.
+        if raw_num.startswith(("+", "-")):
+            pass  # keep as-is
+        elif hem in ("S", "W"):
+            val = -abs(val)
+        if hem in ("N", "S"):
+            lats.append(val)
+        else:
+            lons.append(val)
+    if not lats or not lons:
+        return None
+    top, bottom = max(lats), min(lats)
+    left, right = min(lons), max(lons)
+    if top == bottom or left == right:
+        return None
+    return (left, right, top, bottom)
+
+
 # Free-text phrases that signal which meteorological variables the
 # user wants imported. Listed longest-first so multi-word phrases are
 # detected before their substring single-words (e.g. "wind speed"
@@ -498,6 +550,7 @@ def extract_skills(text: str) -> dict[str, Any]:
         "data_types": detect_data_types(text),
         "wants_interpolation": detect_wants_interpolation(text),
         "region": detect_region(text),
+        "custom_bbox": detect_custom_bbox(text),
     }
 
 
@@ -2469,6 +2522,7 @@ __all__ = [
     "detect_geo_datum",
     "detect_help_query",
     "detect_imports",
+    "detect_custom_bbox",
     "detect_locations_source",
     "detect_model_adapter",
     "detect_region",

@@ -355,19 +355,49 @@ def _trim_spatial_group(
     return out
 
 
-def _apply_region_extent(data: dict, region: str | None) -> dict:
-    """Override SpatialDisplay defaults.geoMap.defaultExtent for a known
-    region. No-op if ``region`` is unset or not in REGION_BBOX. The bbox
-    keeps the bundled (MacKenzie-shaped) defaults otherwise — wrong for
-    any non-tutorial project."""
+def _resolve_region_bbox(
+    region: str | None,
+    custom_bbox: tuple[float, float, float, float] | list | None = None,
+) -> tuple[str, tuple[float, float, float, float]] | None:
+    """Pick the bbox to use for SpatialDisplay / NWP grid cropping.
+
+    Free-form ``custom_bbox`` (parsed from prose) wins over the gazetteer
+    lookup so the user can override a named region's default extent or
+    specify an area the gazetteer doesn't know about. Returns the label
+    to stamp on the extent's ``@id`` and the bbox tuple, or None if
+    nothing usable is set.
+    """
     from fews_agent.agent.project_intents import REGION_BBOX
 
-    if not region or region not in REGION_BBOX or not isinstance(data, dict):
+    if custom_bbox is not None:
+        try:
+            left, right, top, bottom = (float(v) for v in custom_bbox)
+        except (TypeError, ValueError):
+            pass
+        else:
+            label = region if region else "Custom Region"
+            return label, (left, right, top, bottom)
+    if region and region in REGION_BBOX:
+        return region, REGION_BBOX[region]
+    return None
+
+
+def _apply_region_extent(
+    data: dict,
+    region: str | None,
+    custom_bbox: tuple[float, float, float, float] | list | None = None,
+) -> dict:
+    """Override SpatialDisplay defaults.geoMap.defaultExtent for the
+    project region. No-op if neither ``region`` nor ``custom_bbox``
+    resolves to a known bbox — the bundled defaults stay (MacKenzie-
+    shaped, wrong for any non-tutorial project but at least valid)."""
+    resolved = _resolve_region_bbox(region, custom_bbox)
+    if resolved is None or not isinstance(data, dict):
         return data
     body = data.get("body") or []
     if not body:
         return data
-    left, right, top, bottom = REGION_BBOX[region]
+    label, (left, right, top, bottom) = resolved
     rewritten = []
     for entry in body:
         if (isinstance(entry, dict) and "defaults" in entry
@@ -379,7 +409,7 @@ def _apply_region_extent(data: dict, region: str | None) -> dict:
             new_defaults = {**entry["defaults"]}
             new_geomap = {**new_defaults["geoMap"]}
             new_geomap["defaultExtent"] = {
-                "@id": region,
+                "@id": label,
                 "left": str(left),
                 "right": str(right),
                 "top": str(top),
@@ -457,7 +487,10 @@ def _nwp_location_ids_from_blueprint(bp) -> set[str]:
 
 
 def _apply_region_to_grids(
-    data: dict, region: str | None, nwp_location_ids: set[str],
+    data: dict,
+    region: str | None,
+    nwp_location_ids: set[str],
+    custom_bbox: tuple[float, float, float, float] | list | None = None,
 ) -> dict:
     """Crop NWP grid entries to the project's region bbox.
 
@@ -466,12 +499,10 @@ def _apply_region_to_grids(
     Recomputes rows/columns from xCellSize/yCellSize; falls back to the
     original entry if cell size is missing or non-numeric.
     """
-    from fews_agent.agent.project_intents import REGION_BBOX
-
-    if (not region or region not in REGION_BBOX
-            or not isinstance(data, dict) or not nwp_location_ids):
+    resolved = _resolve_region_bbox(region, custom_bbox)
+    if resolved is None or not isinstance(data, dict) or not nwp_location_ids:
         return data
-    left, right, top, bottom = REGION_BBOX[region]
+    _label, (left, right, top, bottom) = resolved
     body = data.get("body") or []
     if not body:
         return data
@@ -590,6 +621,7 @@ def _render_yaml_inputs(
     basin_count: int = 0,
     region: str | None = None,
     nwp_location_ids: set[str] | None = None,
+    custom_bbox: tuple[float, float, float, float] | list | None = None,
 ) -> int:
     """Walk ``inputs_dir`` for *.yaml and *.yml files, render each as a spec.
 
@@ -660,6 +692,7 @@ def _render_yaml_inputs(
                 data = _filter_grids_content(data, project_location_ids)
                 data = _apply_region_to_grids(
                     data, region, nwp_location_ids or set(),
+                    custom_bbox=custom_bbox,
                 )
             # Trim displayGroups body to project-used module instances.
             if (
@@ -684,7 +717,7 @@ def _render_yaml_inputs(
                 data = _filter_spatial_display_content(
                     data, project_module_ids, basin_count,
                 )
-                data = _apply_region_extent(data, region)
+                data = _apply_region_extent(data, region, custom_bbox)
             model = spec.model_class.model_validate(data)
             xml = render_template(spec.template_name, model)
             result.rendered_files.append(
@@ -828,11 +861,15 @@ def build_from_blueprint(
                     data, pre_seed_module_ids, basin_count,
                     allow_empty=True,
                 )
-                _region_seed = (
-                    (bp.singleton_seeds.get("Locations") or {}).get("region")
-                    if bp.singleton_seeds else None
+                _locations_seed_2 = (
+                    (bp.singleton_seeds.get("Locations") or {})
+                    if bp.singleton_seeds else {}
                 )
-                data = _apply_region_extent(data, _region_seed)
+                data = _apply_region_extent(
+                    data,
+                    _locations_seed_2.get("region"),
+                    _locations_seed_2.get("regionBbox"),
+                )
             merged_base.setdefault(cls_name, {})
             for field_name, field_val in data.items():
                 merged_base[cls_name].setdefault(field_name, field_val)
@@ -948,16 +985,19 @@ def build_from_blueprint(
     # of. Configurator-provided files always win; standards only fill
     # gaps.
     if STANDARD_INPUTS_DIR.is_dir():
-        _region_seed = (
-            (bp.singleton_seeds.get("Locations") or {}).get("region")
-            if bp.singleton_seeds else None
+        _locations_seed = (
+            (bp.singleton_seeds.get("Locations") or {})
+            if bp.singleton_seeds else {}
         )
+        _region_seed = _locations_seed.get("region")
+        _bbox_seed = _locations_seed.get("regionBbox")
         n_std = _render_yaml_inputs(
             STANDARD_INPUTS_DIR, result, label="standard",
             filter_idmaps_by_ref=True,
             basin_count=_count_basin_instances(bp),
             region=_region_seed,
             nwp_location_ids=_nwp_location_ids_from_blueprint(bp),
+            custom_bbox=_bbox_seed,
         )
         if n_std:
             console.print(

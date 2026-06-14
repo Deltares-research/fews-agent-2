@@ -967,6 +967,11 @@ class ChatSession:
                 "Locations", {}
             )["region"] = slots["region"]
 
+        if slots.get("custom_bbox"):
+            self.state.setdefault("singleton_seeds", {}).setdefault(
+                "Locations", {}
+            )["regionBbox"] = list(slots["custom_bbox"])
+
         if (
             not slots.get("basins")
             and slots.get("basin_name")
