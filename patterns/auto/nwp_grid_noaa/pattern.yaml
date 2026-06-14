@@ -12,6 +12,15 @@ variables:
     type: str
     required: false
     default: 0p25
+  # Forecast horizon in hours — when set (e.g. 168 for a 7-day
+  # forecast), the SpatialDisplay timeSeriesSet emits a
+  # relativeViewPeriod so the plot shows just that window. When unset,
+  # `readWriteMode: read complete forecast` keeps today's behaviour
+  # (whole available horizon).
+  forecast_horizon_hours:
+    type: int
+    required: false
+    default: null
   # Optional list of parameter rows to import. Each entry:
   #   id (FEWS parameterId)
   #   unit (string FEWS expects on the wire)
@@ -128,6 +137,12 @@ contributions:
               timeStep:
                 '@unit': hour
                 '@multiplier': '3'
+{% if forecast_horizon_hours %}
+              relativeViewPeriod:
+                '@unit': hour
+                '@start': '0'
+                '@end': '{{ forecast_horizon_hours }}'
+{% endif %}
               readWriteMode: read complete forecast
             showThumbnailsPanel: 'true'
             numberOfRecentForecasts: '3'

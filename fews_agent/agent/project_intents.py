@@ -431,6 +431,53 @@ def detect_grid_resolution(text: str) -> str | None:
     return None
 
 
+# Forecast horizon phrases. Patterns like "N-day", "N days", "N hours",
+# "weekly", etc. Returns hours so the consumer can drop straight into a
+# relativeViewPeriod block. Matches are ordered so word phrases are
+# tried first; numeric expressions are caught by a fall-through regex.
+_HORIZON_WORD_PHRASES: tuple[tuple[str, int], ...] = (
+    ("weekly forecast", 168),
+    ("two-week forecast", 336),
+    ("daily forecast", 24),
+    ("hourly forecast", 1),
+)
+_HORIZON_DAYS_RE = re.compile(
+    r"\b(\d+(?:\.\d+)?)\s*-?\s*day(?:s)?\b", re.IGNORECASE
+)
+_HORIZON_HOURS_RE = re.compile(
+    r"\b(\d+)\s*-?\s*hour(?:s)?\b", re.IGNORECASE
+)
+
+
+def detect_forecast_horizon_hours(text: str) -> int | None:
+    """Parse forecast horizon prose to an integer hour count.
+
+    Examples:
+        "7-day forecast"   -> 168
+        "120 hours"        -> 120
+        "weekly forecast"  -> 168
+        "10 day"           -> 240
+    Returns None when no recognised phrase matches.
+    """
+    lower = (text or "").lower()
+    for phrase, hours in _HORIZON_WORD_PHRASES:
+        if phrase in lower:
+            return hours
+    m = _HORIZON_DAYS_RE.search(lower)
+    if m:
+        try:
+            return int(round(float(m.group(1)) * 24))
+        except ValueError:
+            pass
+    m = _HORIZON_HOURS_RE.search(lower)
+    if m:
+        try:
+            return int(m.group(1))
+        except ValueError:
+            pass
+    return None
+
+
 def detect_custom_bbox(
     text: str,
 ) -> tuple[float, float, float, float] | None:
@@ -584,6 +631,7 @@ def extract_skills(text: str) -> dict[str, Any]:
         "region": detect_region(text),
         "custom_bbox": detect_custom_bbox(text),
         "grid_resolution": detect_grid_resolution(text),
+        "forecast_horizon_hours": detect_forecast_horizon_hours(text),
     }
 
 
@@ -735,6 +783,7 @@ def _resolve_import_patterns(
     data_types: list[str] | None = None,
     wants_interpolation: bool = False,
     grid_resolution: str | None = None,
+    forecast_horizon_hours: int | None = None,
 ) -> list[dict]:
     """Map import names to pattern instances using each pattern's own
     label variable name. Dedups by path.
@@ -782,6 +831,11 @@ def _resolve_import_patterns(
         # right dataset.
         if grid_resolution and path == "auto/nwp_grid_noaa":
             instance["grid_resolution"] = grid_resolution
+        # Forecast horizon (hours) — when set, the NOAA pattern emits a
+        # relativeViewPeriod on the SpatialDisplay timeSeriesSet so the
+        # plot shows just that window instead of the full forecast.
+        if forecast_horizon_hours and path == "auto/nwp_grid_noaa":
+            instance["forecast_horizon_hours"] = forecast_horizon_hours
         existing = next((p for p in out if p["pattern"] == path), None)
         if existing:
             existing["instances"].append(instance)
@@ -902,6 +956,7 @@ def _resolve_forecasting_patterns(
         data_types=slots.get("data_types"),
         wants_interpolation=bool(slots.get("wants_interpolation")),
         grid_resolution=slots.get("grid_resolution"),
+        forecast_horizon_hours=slots.get("forecast_horizon_hours"),
     )
     for b in _basins_list(slots):
         out.extend(
@@ -926,6 +981,7 @@ def _resolve_data_import_only_patterns(
         data_types=slots.get("data_types"),
         wants_interpolation=bool(slots.get("wants_interpolation")),
         grid_resolution=slots.get("grid_resolution"),
+        forecast_horizon_hours=slots.get("forecast_horizon_hours"),
     )
 
 
@@ -2564,6 +2620,7 @@ __all__ = [
     "detect_help_query",
     "detect_imports",
     "detect_custom_bbox",
+    "detect_forecast_horizon_hours",
     "detect_grid_resolution",
     "detect_locations_source",
     "detect_model_adapter",
