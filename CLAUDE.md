@@ -449,6 +449,87 @@ Three pieces:
    auto-generated yamls. The reply LLM uses this to know what to
    ask the user for and what NOT to ask for.
 
+## Module-by-module building (enforced flow)
+
+The agent does **not** build the whole project in one shot. It guides
+the configurator through one **capability group ("phase")** at a time:
+
+```
+imports  →  process  →  model  →  visualize
+```
+
+A phase is a coarse grouping of patterns by what the configurator is
+doing at that step. Each phase is rendered and XSD-validated on its own
+(just that phase's pattern outputs) so the user sees concrete, valid
+files for one capability before moving to the next. The full cross-file
+assembly (singleton merge, bundled standards, derivers, semantic
+cross-reference check) is deferred to **final assembly** (`done`).
+
+Pieces:
+
+- **`fews_agent/agent/phases.py`** — the phase taxonomy. `classify_phase`
+  (deterministic, name-based) maps a pattern path to a phase;
+  `PHASE_ORDER`, `phase_plan`, `next_unbuilt_phase`, `normalize_phase`.
+  This is the single source of truth for which pattern belongs to which
+  phase.
+- **`build_phase()`** in `runners/agent/build_from_blueprint.py` — the
+  scoped build. Renders + XSD-validates ONLY the patterns in one phase
+  into the shared output tree. Deliberately skips the singleton merge,
+  bundled standards, and derivers (those need the whole project). Also
+  exposed as `--phase imports|process|model|visualize` on the build CLI.
+- **Chat commands** (`chat_step.py`): `/phases` (show the plan with
+  built/ready marks), `/build <phase>` (build one phase), `/build`
+  (build the next unbuilt phase). `state["built_phases"]` tracks
+  progress; a deterministic next-phase nudge is appended after every
+  reply (not LLM-composed, so it never drifts).
+- **`done`** is still the full one-shot assembly via
+  `build_from_blueprint` — kept as the final step, framed as "assemble
+  the modules you've built" (singletons + derivers + cross-file check),
+  not "generate everything at once."
+
+When extending: a new pattern is auto-classified by `classify_phase`
+on its folder name — add a name rule there if a new capability shape
+doesn't fall into an existing phase. Do **not** reintroduce a path that
+silently resolves and builds every pattern at once.
+
+### The `visualize` phase pattern (`spatial_display_grid`)
+
+The `visualize` phase used to resolve empty for most projects — nothing
+emitted a standalone display config. `patterns/auto/spatial_display_grid/`
+is its first-class pattern. It makes "view the imported grids in the
+Spatial Display / Data Viewer" an explicit module the configurator adds,
+rather than a side-effect of an import pattern.
+
+- **Shape.** One `<gridDisplay>` root per gridded source, written to a
+  per-source filename `DisplayConfigFiles/GridDisplay_<source_name>.xml`
+  so multiple visualize instances never silently overwrite each other (and
+  never clobber a contribution-merged `SpatialDisplay.xml`). It emits one
+  `<gridPlot>` per requested parameter, each pointing at
+  `moduleInstanceId=Import<source_name>` / `locationId=<source_name>` —
+  the ids a bare `nwp_grid_*` import reliably registers.
+- **Variables.** `source_name` (required; match an import's `nwp_name`),
+  `parameters` (list of `{id}`; defaults to precip + temperature),
+  `forecast_horizon_hours` (optional → emits a `relativeViewPeriod` window
+  per plot), `time_step_hours` (default 3), `time_series_type` (default
+  `external forecasting`). `PC*` parameters get `classBreaksId
+  Class.Precipitation`, `TA*` get `Class.Temperature`.
+- **Generic-body, not typed.** It uses `schema: SpatialDisplay` (the
+  generic-body render path) **on purpose**: the typed `GridDisplay`
+  template hardcodes `<gridPlotGroup>` and `_dict_to_xml` drops root-level
+  `@`-keys, so the required `@id` on the group would be lost. The
+  SpatialDisplay path renders `@id` correctly. Root element is still
+  `<gridDisplay>`.
+- **How it gets resolved.** The `detect_wants_visualization` skill (in
+  `project_intents.py`) sets the `wants_visualization` slot from prose
+  ("visualize", "spatial display", "view the grids", "Data Viewer", ...).
+  Both `_resolve_forecasting_patterns` and
+  `_resolve_data_import_only_patterns` pass it to `_resolve_import_patterns`,
+  which appends one `spatial_display_grid` instance per `auto/nwp_grid_*`
+  import (carrying the selected `parameters` and `forecast_horizon_hours`).
+  Like `wants_interpolation`, `wants_visualization` is **not** in any
+  intent's `optional_slots` — it flows through chat_step's additive slot
+  merge.
+
 ## Configurator inputs (what the user provides)
 
 For a single-basin forecasting project, the configurator's minimum-
@@ -603,6 +684,16 @@ generic — nothing Gulf-of-Guinea-specific in the code.
   list no longer shadows the LLM). Phrases the parameter mapper
   can't translate surface as a user-visible warning via
   `unrecognised_data_types`.
+- **`wants_visualization`** — `detect_wants_visualization` matches
+  visualization prose ("visualize", "spatial display", "view/plot
+  the grids", "Data Viewer", ...). When true, the resolver appends one
+  `auto/spatial_display_grid` instance per `auto/nwp_grid_*` import,
+  carrying the selected `parameters` and `forecast_horizon_hours`. This
+  is what populates the `visualize` phase (see "The `visualize` phase
+  pattern" above). Like `wants_interpolation`, it returns `None` on no
+  match (not `False`) so a turn-1 miss doesn't shadow a later turn, and
+  it is not in any intent's `optional_slots` — it rides chat_step's
+  additive slot merge.
 
 The intent register also gained:
 - **Mid-conversation intent override** in `chat_step.py`: strong

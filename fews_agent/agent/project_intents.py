@@ -565,6 +565,26 @@ _INTERPOLATION_PHRASES: tuple[str, ...] = (
     "spatial display",
 )
 
+# Prose asking to view/plot the imported gridded fields. Triggers the
+# standalone `spatial_display_grid` visualize pattern (one display config
+# per NWP grid source). Kept distinct from interpolation so a request can
+# do either or both ("interpolate to stations AND visualize the grids").
+_VISUALIZATION_PHRASES: tuple[str, ...] = (
+    "visualize",
+    "visualise",
+    "visualization",
+    "visualisation",
+    "spatial display",
+    "data viewer",
+    "grid display",
+    "view the grid",
+    "view the gridded",
+    "display the grid",
+    "display the gridded",
+    "plot the grid",
+    "show the grid",
+)
+
 
 def detect_wants_interpolation(text: str) -> bool | None:
     """Return True when prose asks for grid→point interpolation or viewing.
@@ -575,6 +595,17 @@ def detect_wants_interpolation(text: str) -> bool | None:
     """
     lower = (text or "").lower()
     return True if any(p in lower for p in _INTERPOLATION_PHRASES) else None
+
+
+def detect_wants_visualization(text: str) -> bool | None:
+    """Return True when prose asks to visualize/plot the imported grids.
+
+    Returns ``None`` (not ``False``) when no phrase matches, mirroring
+    ``detect_wants_interpolation`` so a turn-1 miss can't shadow a real
+    signal on a later turn.
+    """
+    lower = (text or "").lower()
+    return True if any(p in lower for p in _VISUALIZATION_PHRASES) else None
 
 
 def detect_data_types(text: str) -> list[str]:
@@ -628,6 +659,7 @@ def extract_skills(text: str) -> dict[str, Any]:
         "locations_source": detect_locations_source(text),
         "data_types": detect_data_types(text),
         "wants_interpolation": detect_wants_interpolation(text),
+        "wants_visualization": detect_wants_visualization(text),
         "region": detect_region(text),
         "custom_bbox": detect_custom_bbox(text),
         "grid_resolution": detect_grid_resolution(text),
@@ -784,6 +816,7 @@ def _resolve_import_patterns(
     wants_interpolation: bool = False,
     grid_resolution: str | None = None,
     forecast_horizon_hours: int | None = None,
+    wants_visualization: bool = False,
 ) -> list[dict]:
     """Map import names to pattern instances using each pattern's own
     label variable name. Dedups by path.
@@ -883,6 +916,33 @@ def _resolve_import_patterns(
                         for imp in nwp_imports
                     ],
                 })
+
+    # Visualization path. The user asked to view/plot the imported grids
+    # (Spatial Display / Data Viewer). Emit one standalone display config
+    # per NWP grid import — these reliably register locationId=<name> and
+    # moduleInstanceId=Import<name>, which the visualize pattern points at.
+    if wants_visualization and "auto/spatial_display_grid" in catalog_paths:
+        viz_instances: list[dict] = []
+        for imp in (imports or []):
+            entry = _IMPORT_PATTERN_MAP.get(imp)
+            if not entry:
+                continue
+            path, _ = entry
+            if not path.startswith("auto/nwp_grid_"):
+                continue
+            inst: dict[str, Any] = {"source_name": imp}
+            if param_rows:
+                # Pass the selected parameter rows through; the visualize
+                # pattern reads only `id` from each (extra keys ignored).
+                inst["parameters"] = [{"id": r["id"]} for r in param_rows]
+            if forecast_horizon_hours:
+                inst["forecast_horizon_hours"] = forecast_horizon_hours
+            viz_instances.append(inst)
+        if viz_instances:
+            out.append({
+                "pattern": "auto/spatial_display_grid",
+                "instances": viz_instances,
+            })
     return out
 
 
@@ -957,6 +1017,7 @@ def _resolve_forecasting_patterns(
         wants_interpolation=bool(slots.get("wants_interpolation")),
         grid_resolution=slots.get("grid_resolution"),
         forecast_horizon_hours=slots.get("forecast_horizon_hours"),
+        wants_visualization=bool(slots.get("wants_visualization")),
     )
     for b in _basins_list(slots):
         out.extend(
@@ -982,6 +1043,7 @@ def _resolve_data_import_only_patterns(
         wants_interpolation=bool(slots.get("wants_interpolation")),
         grid_resolution=slots.get("grid_resolution"),
         forecast_horizon_hours=slots.get("forecast_horizon_hours"),
+        wants_visualization=bool(slots.get("wants_visualization")),
     )
 
 

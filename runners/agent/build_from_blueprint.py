@@ -55,8 +55,9 @@ from rich.panel import Panel
 from rich.table import Table
 
 from fews_agent.agent.blueprint import (
-    expand, load_blueprint, merge_contributions, write_output,
+    Blueprint, expand, load_blueprint, merge_contributions, write_output,
 )
+from fews_agent.agent.phases import PHASE_LABELS, classify_phase
 from fews_agent.agent.csv_ingest import IngestResult, ingest_directory
 from fews_agent.agent.descriptor_derivation import derive_descriptor_singletons
 from fews_agent.agent.filter_drafter import (
@@ -1343,6 +1344,128 @@ def build_from_blueprint(
     return summary
 
 
+def build_phase(
+    blueprint_path: Path,
+    pattern_root: Path,
+    phase: str,
+    *,
+    console: Console | None = None,
+) -> dict:
+    """Render + XSD-validate ONLY the patterns belonging to one phase.
+
+    This is the per-module (capability-group) build used by the guided
+    flow. It deliberately does NOT run the singleton merge, bundled
+    standards, derivers, or the semantic cross-reference check — those
+    need the whole project and belong to final assembly (``done`` →
+    :func:`build_from_blueprint`). Here we render just this phase's
+    pattern outputs into the shared output tree and confirm each file is
+    XSD-valid, so the user sees concrete, valid files for one capability
+    before moving on.
+
+    Files accumulate in the same ``output_root`` across phase builds.
+    """
+    if console is None:
+        console = Console()
+
+    bp = load_blueprint(blueprint_path, pattern_root)
+    output_root = (blueprint_path.parent / bp.output_root).resolve()
+    output_root.mkdir(parents=True, exist_ok=True)
+
+    phase_patterns = [
+        p for p in bp.patterns if classify_phase(p.pattern) == phase
+    ]
+
+    console.print(Panel(
+        f"[bold]Phase:[/bold] {phase} — {PHASE_LABELS.get(phase, '')}\n"
+        f"[dim]blueprint: {bp.name}[/dim]\n"
+        f"[dim]output: {output_root}[/dim]\n"
+        f"[bold]{len(phase_patterns)}[/bold] pattern(s) in this phase",
+        border_style="cyan",
+    ))
+
+    if not phase_patterns:
+        console.print(
+            f"[yellow]No patterns resolved for phase '{phase}'. "
+            f"Nothing to build yet.[/yellow]"
+        )
+        return {
+            "ok": True, "phase": phase, "files_total": 0,
+            "files_xsd_ok": 0, "errors": [],
+        }
+
+    sub_bp = Blueprint(
+        name=f"{bp.name} [{phase}]",
+        output_root=bp.output_root,
+        patterns=phase_patterns,
+        singleton_seeds=bp.singleton_seeds,
+    )
+    result = expand(sub_bp, pattern_root)
+    if result.errors:
+        for err in result.errors:
+            console.print(f"[red]error:[/red] {err}")
+        return {
+            "ok": False, "phase": phase, "files_total": 0,
+            "files_xsd_ok": 0, "errors": list(result.errors),
+        }
+
+    manifest = write_output(result, output_root)
+
+    table = Table(
+        title=f"Phase '{phase}' — files ({len(manifest['written'])})",
+        show_lines=False,
+    )
+    table.add_column("file", overflow="fold")
+    table.add_column("pattern")
+    table.add_column("instance")
+    table.add_column("xsd", justify="center")
+
+    n_xsd_ok = 0
+    n_non_xml = 0
+    files_report = []
+    for entry in manifest["written"]:
+        file_path = output_root / entry["path"]
+        data = file_path.read_bytes()
+        if not entry["path"].lower().endswith(".xml"):
+            xsd_ok, xsd_msg = True, "(not XML)"
+            n_non_xml += 1
+        else:
+            xsd_ok, xsd_msg = validate_xsd(data)
+            if xsd_ok:
+                n_xsd_ok += 1
+        table.add_row(
+            entry["path"],
+            entry["pattern"].split("/")[-1],
+            entry["instance"],
+            "[green]OK[/green]" if xsd_ok else "[red]FAIL[/red]",
+        )
+        files_report.append(
+            {"path": entry["path"], "xsd_ok": xsd_ok, "xsd_msg": xsd_msg}
+        )
+
+    console.print(table)
+    n_xml = len(manifest["written"]) - n_non_xml
+    ok = n_xsd_ok == n_xml and not result.errors
+    border = "green" if ok else "yellow"
+    console.print(Panel(
+        f"[bold]Phase '{phase}' built:[/bold] "
+        f"{len(manifest['written'])} file(s), "
+        f"XSD-valid {n_xsd_ok}/{n_xml}"
+        + (f" (+{n_non_xml} non-XML)" if n_non_xml else "")
+        + "\n[dim]Cross-file references are checked at final assembly "
+          "(done).[/dim]",
+        title="Phase complete", border_style=border,
+    ))
+    return {
+        "ok": ok,
+        "phase": phase,
+        "files_total": len(manifest["written"]),
+        "files_xml": n_xml,
+        "files_xsd_ok": n_xsd_ok,
+        "errors": list(result.errors),
+        "files": files_report,
+    }
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--blueprint", required=True)
@@ -1363,9 +1486,25 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         help="Optional dir to compare against (e.g. examples/config-tutorial).",
     )
+    parser.add_argument(
+        "--phase",
+        default=None,
+        help=(
+            "Build only one capability group (imports / process / model / "
+            "visualize) instead of the whole project. Renders + XSD-"
+            "validates just that phase's pattern outputs."
+        ),
+    )
     args = parser.parse_args(argv)
 
     blueprint_path = Path(args.blueprint).resolve()
+    if args.phase:
+        summary = build_phase(
+            blueprint_path=blueprint_path,
+            pattern_root=Path(args.pattern_root).resolve(),
+            phase=args.phase,
+        )
+        return 0 if summary.get("ok") else 1
     # Auto-detect a sibling inputs/ directory if --inputs not specified.
     if args.inputs:
         inputs_dir: Path | None = Path(args.inputs).resolve()

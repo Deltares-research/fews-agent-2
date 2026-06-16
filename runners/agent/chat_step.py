@@ -50,6 +50,13 @@ from fews_agent.agent.project_intents import (
     scan_inputs,
     unrecognised_data_types,
 )
+from fews_agent.agent.phases import (
+    PHASE_LABELS,
+    PHASE_ORDER,
+    next_unbuilt_phase,
+    normalize_phase,
+    phase_plan,
+)
 from fews_agent.agent.providers.ollama_provider import OllamaProvider
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -276,6 +283,93 @@ def _resolve_patterns(state: dict, catalog) -> None:
     state["patterns"] = derived
 
 
+def _phase_plan_text(state: dict, catalog) -> str:
+    """Render the current module-by-module phase plan as a text block.
+
+    Resolves patterns from current slots (without persisting), groups
+    them into capability phases, and marks which have been built.
+    """
+    _resolve_patterns(state, catalog)
+    plan = phase_plan(state.get("patterns") or [])
+    built = set(state.get("built_phases") or [])
+    if not plan:
+        return (
+            "No modules resolved yet — tell me what you want to import, "
+            "model, or visualize and I'll line up the first phase."
+        )
+    lines = ["Module plan (built one phase at a time):"]
+    for entry in plan:
+        ph = entry["phase"]
+        mark = "(built)" if ph in built else "(ready)"
+        names = ", ".join(
+            p["pattern"].rsplit("/", 1)[-1] for p in entry["patterns"]
+        )
+        lines.append(
+            f"  {mark} {ph} — {entry['label']}\n"
+            f"        {entry['instance_count']} instance(s): {names}"
+        )
+    nxt = next_unbuilt_phase(state.get("patterns") or [], list(built))
+    if nxt:
+        lines.append(
+            f"\nNext: build the '{nxt}' phase with  /build {nxt}  "
+            f"(or 'done' to assemble the whole project)."
+        )
+    else:
+        lines.append(
+            "\nAll phases built. Type 'done' to assemble the full "
+            "project (singletons, derivers, cross-file validation)."
+        )
+    return "\n".join(lines)
+
+
+def _run_phase_build(
+    state: dict, project_dir: Path, phase: str, console: Console,
+) -> int:
+    """Resolve current slots → write project.yaml → build one phase."""
+    from runners.agent.build_from_blueprint import build_phase
+
+    catalog = build_pattern_catalog(PATTERNS_ROOT)
+    _resolve_patterns(state, catalog)
+    plan = {e["phase"] for e in phase_plan(state.get("patterns") or [])}
+    if phase not in plan:
+        console.print(
+            f"[yellow]No '{phase}' modules resolved yet.[/yellow] "
+            f"Phases with content: {', '.join(sorted(plan)) or '(none)'}."
+        )
+        return 1
+    project_path = write_project(state, project_dir)
+    summary = build_phase(
+        blueprint_path=Path(project_path),
+        pattern_root=PATTERNS_ROOT,
+        phase=phase,
+        console=console,
+    )
+    if summary.get("ok"):
+        built = state.setdefault("built_phases", [])
+        if phase not in built:
+            built.append(phase)
+        nxt = next_unbuilt_phase(
+            state.get("patterns") or [], built,
+        )
+        if nxt:
+            console.print(
+                f"[green]Phase '{phase}' built and XSD-valid.[/green] "
+                f"Next phase: [bold]{nxt}[/bold] — build it with "
+                f"[bold]/build {nxt}[/bold], or 'done' to assemble."
+            )
+        else:
+            console.print(
+                f"[green]Phase '{phase}' built.[/green] All phases done — "
+                f"type [bold]done[/bold] to assemble the full project."
+            )
+        return 0
+    console.print(
+        f"[yellow]Phase '{phase}' did not fully validate — "
+        f"see the table above before moving on.[/yellow]"
+    )
+    return 1
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--project-name", required=True)
@@ -332,6 +426,46 @@ def main(argv: list[str] | None = None) -> int:
         console.print(f"[green]{msg}[/green]")
         _save(project_dir, state, history)
         return 0
+
+    # Module-by-module flow: show the phase plan.
+    if cmd in {"/phases", "phases", "/plan", "plan", "/modules", "modules"}:
+        reply = _phase_plan_text(state, catalog)
+        history.append({"role": "agent", "message": reply})
+        _append_log(project_dir, turn, "agent", reply, "phase plan")
+        _save(project_dir, state, history)
+        console.print(f"\n[bold magenta]agent[/bold magenta]: {reply}")
+        return 0
+
+    # Module-by-module flow: build ONE capability group (phase).
+    #   /build imports   /build model   /build visualize   (or /build-phase X)
+    # Bare "/build" builds the next unbuilt phase.
+    if cmd == "/build" or cmd.startswith(("/build ", "/build-phase ",
+                                          "build phase ")):
+        if cmd == "/build":
+            _resolve_patterns(state, catalog)
+            phase = next_unbuilt_phase(
+                state.get("patterns") or [], state.get("built_phases"),
+            )
+            if phase is None:
+                console.print(
+                    "[yellow]No unbuilt phases — every resolved module is "
+                    "built. Type 'done' to assemble the full project.[/yellow]"
+                )
+                _save(project_dir, state, history)
+                return 0
+        else:
+            token = args.message.strip().split(None, 1)[1].strip()
+            phase = normalize_phase(token)
+            if phase is None:
+                console.print(
+                    f"[yellow]Unknown phase '{token}'. Valid phases: "
+                    f"{', '.join(PHASE_ORDER)}.[/yellow]"
+                )
+                _save(project_dir, state, history)
+                return 1
+        rc = _run_phase_build(state, project_dir, phase, console)
+        _save(project_dir, state, history)
+        return rc
 
     pending = state.get("_pending_removals") or []
     if pending and cmd in {"yes", "y", "confirm", "ok"}:
@@ -647,6 +781,33 @@ def main(argv: list[str] | None = None) -> int:
     _save(project_dir, state, history)
 
     console.print(f"\n[bold magenta]agent[/bold magenta]: {agent_msg}")
+
+    # Module-by-module guidance. The system builds one capability group
+    # (phase) at a time — imports → process → model → visualize — rather
+    # than generating the whole project in one shot. After each turn,
+    # point the user at the next phase to build. This is deterministic
+    # (not LLM-composed) so the guidance never drifts.
+    _plan = phase_plan(state.get("patterns") or [])
+    if _plan:
+        _built = state.get("built_phases") or []
+        _nxt = next_unbuilt_phase(state.get("patterns") or [], _built)
+        if _nxt:
+            console.print(
+                f"\n[cyan]Next module phase:[/cyan] [bold]{_nxt}[/bold] — "
+                f"{PHASE_LABELS[_nxt]}.\n"
+                f"[dim]Build just this phase now with[/dim] "
+                f"[bold]/build {_nxt}[/bold][dim], or[/dim] "
+                f"[bold]/phases[/bold] [dim]to see the full plan. "
+                f"One capability at a time; 'done' assembles the whole "
+                f"project at the end.[/dim]"
+            )
+        else:
+            console.print(
+                "\n[cyan]All resolved module phases are built.[/cyan] "
+                "[dim]Type[/dim] [bold]done[/bold] [dim]to assemble the "
+                "full project (singletons, derivers, cross-file "
+                "validation).[/dim]"
+            )
     if args.verbose:
         console.print(
             f"\n[dim]turn={turn}  intent={state.get('intent')}  "
