@@ -32,16 +32,92 @@ class WorkflowProperty(FewsModel):
 
     `value` can contain FEWS runtime placeholders (`$MODELNAME2$`,
     `ECCCStations$REGION$`, `@pattern@`) — passed through verbatim.
+
+    Reused as the shape for all scalar property kinds (string / int /
+    float / double / bool): each is `key` + `value` (both kept as str to
+    preserve placeholders and exact source text) + optional description.
     """
 
     key: str
     value: str
+    description: str | None = None
+
+
+class DateTimeProperty(FewsModel):
+    """`<dateTime key="..." date="..." time="..."/>` — split date/time
+    attributes rather than a single value (XSD DateTimePropertyComplexType)."""
+
+    key: str
+    date: str
+    time: str
+    description: str | None = None
+
+
+class LocationAttributeProperty(FewsModel):
+    """Property whose value is pulled from a location attribute."""
+
+    key: str
+    locationId: str
+    attributeId: str
+
+
+class LoopLocationProperty(FewsModel):
+    """Property resolved per loop location via a relation + attribute."""
+
+    key: str
+    attributeId: str
+    locationRelationId: str | None = None
+    defaultValue: str | None = None
+
+
+class QualifierAttributeProperty(FewsModel):
+    key: str
+    qualifierId: str
+    attributeId: str
+
+
+class ParameterAttributeProperty(FewsModel):
+    key: str
+    parameterId: str
+    attributeId: str
+
+
+class ModuleInstanceAttributeProperty(FewsModel):
+    key: str
+    moduleInstanceId: str
+    attributeId: str
+
+
+class ActivityModuleInstanceProperty(FewsModel):
+    """Resolves an attribute of the activity's own module instance."""
+
+    key: str
+    attributeId: str
 
 
 class WorkflowProperties(FewsModel):
-    """`<properties>` wrapper around zero-or-more `<string>` entries."""
+    """`<properties>` wrapper. XSD: optional description, then any mix of
+    typed scalar entries (string / int / float / double / bool / dateTime)
+    and attribute-sourced entries (location / loopLocation / qualifier /
+    parameter / moduleInstance / activityModuleInstance)."""
 
+    description: str | None = None
     string: list[WorkflowProperty] = Field(default_factory=list)
+    int: list[WorkflowProperty] = Field(default_factory=list)
+    float: list[WorkflowProperty] = Field(default_factory=list)
+    double: list[WorkflowProperty] = Field(default_factory=list)
+    bool: list[WorkflowProperty] = Field(default_factory=list)
+    dateTime: list[DateTimeProperty] = Field(default_factory=list)
+    locationAttribute: list[LocationAttributeProperty] = Field(default_factory=list)
+    loopLocationAttribute: list[LoopLocationProperty] = Field(default_factory=list)
+    qualifierAttribute: list[QualifierAttributeProperty] = Field(default_factory=list)
+    parameterAttribute: list[ParameterAttributeProperty] = Field(default_factory=list)
+    moduleInstanceAttribute: list[ModuleInstanceAttributeProperty] = Field(
+        default_factory=list
+    )
+    activityModuleInstanceAttribute: list[ActivityModuleInstanceProperty] = Field(
+        default_factory=list
+    )
 
 
 class EnsembleMemberIndexRange(FewsModel):
@@ -166,13 +242,99 @@ class WorkflowActivity(FewsModel):
 WorkflowActivity.model_rebuild()
 
 
+class ModuleInstanceIdsChoice(FewsModel):
+    """XSD ModuleInstanceIdsChoice — supply exactly one form: a list of
+    explicit ``moduleInstanceId``s, a list of ``moduleInstanceIdPattern``s
+    (``*``/``?`` wildcards), or a single ``moduleInstanceSetId``."""
+
+    moduleInstanceId: list[str] = Field(default_factory=list)
+    moduleInstanceIdPattern: list[str] = Field(default_factory=list)
+    moduleInstanceSetId: str | None = None
+
+    @model_validator(mode="after")
+    def _exactly_one_form(self) -> ModuleInstanceIdsChoice:
+        forms = [
+            bool(self.moduleInstanceId),
+            bool(self.moduleInstanceIdPattern),
+            self.moduleInstanceSetId is not None,
+        ]
+        if sum(forms) != 1:
+            raise ValueError(
+                "supply exactly one of moduleInstanceId[] / "
+                "moduleInstanceIdPattern[] / moduleInstanceSetId"
+            )
+        return self
+
+
+class Completed(ModuleInstanceIdsChoice):
+    """`<completed>` — mark module instances completed (read-only) for the
+    rest of the running workflow."""
+
+
+class DeleteTemporary(ModuleInstanceIdsChoice):
+    """`<deleteTemporary>` — explicitly delete temporary series early
+    rather than waiting for the end of the workflow/partition."""
+
+
+class Parallel(FewsModel):
+    """`<parallel>` — run sub-items concurrently. Sub-items are activities
+    and/or sequences (XSD activityOrSequenceChoice). ``forecastingShellCount``
+    distributes the loop across multiple forecasting shells.
+
+    Note: like the root, sub-items are modelled as per-kind lists, so a
+    parallel that *interleaves* activities and sequences round-trips
+    grouped-by-kind rather than in source order (XSD-valid either way)."""
+
+    properties: WorkflowProperties | None = None
+    multipleForecastingShells: bool | None = None
+    forecastingShellCount: int | str | None = None
+    activity: list[WorkflowActivity] = Field(default_factory=list)
+    sequence: list["Sequence"] = Field(default_factory=list)
+
+
+class Sequence(FewsModel):
+    """`<sequence>` — run sub-items one by one, optionally applying shared
+    ``properties`` to all of them. Sub-items: activity / parallel /
+    completed / deleteTemporary (modelled as per-kind lists; see Parallel)."""
+
+    properties: WorkflowProperties | None = None
+    activity: list[WorkflowActivity] = Field(default_factory=list)
+    parallel: list[Parallel] = Field(default_factory=list)
+    completed: list[Completed] = Field(default_factory=list)
+    deleteTemporary: list[DeleteTemporary] = Field(default_factory=list)
+
+
+Parallel.model_rebuild()
+Sequence.model_rebuild()
+
+
 class Workflow(FewsModel):
     """Root of a WorkflowFile.
 
-    Only the ``activity`` variant of the root XSD choice is modelled;
-    parallel / sequence / completed / deleteTemporary are not in scope.
-    """
+    The XSD root is a single ``<choice maxOccurs="unbounded">`` over
+    activity / parallel / sequence / completed / deleteTemporary. We model
+    each kind as its own list: this covers the full element set and is
+    XSD-valid (the choice accepts any ordering), but a workflow that
+    *interleaves* different kinds round-trips grouped-by-kind rather than
+    in exact source order. The overwhelmingly common case — a flat list of
+    ``activity`` — is byte-faithful."""
 
-    activity: list[WorkflowActivity] = Field(min_length=1)
+    activity: list[WorkflowActivity] = Field(default_factory=list)
+    parallel: list[Parallel] = Field(default_factory=list)
+    sequence: list[Sequence] = Field(default_factory=list)
+    completed: list[Completed] = Field(default_factory=list)
+    deleteTemporary: list[DeleteTemporary] = Field(default_factory=list)
     properties: WorkflowProperties | None = None
     version: str = "1.1"
+
+    @model_validator(mode="after")
+    def _at_least_one_item(self) -> Workflow:
+        if not (
+            self.activity or self.parallel or self.sequence
+            or self.completed or self.deleteTemporary
+        ):
+            raise ValueError(
+                "workflow: supply at least one activity / parallel / "
+                "sequence / completed / deleteTemporary"
+            )
+        return self

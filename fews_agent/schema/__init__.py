@@ -556,7 +556,15 @@ from .modifiers_display import (
     ModifierDisplay,
     TimeSeriesModifiersDisplayConfig,
 )
-from .forecast_length_estimator import ForecastLengthEstimator
+from .forecast_length_estimator import (
+    ColdStateTime,
+    CopyTimeSeriesPropertyToExternalForecastTime,
+    CreateExternalForecastTime,
+    DataFeed,
+    ForecastLengthEstimator,
+    ForecastLengthWarmState,
+    SetToModifiedDateTimeAttributeValue,
+)
 from .generic_xml_file import GenericXmlFile
 from .id_map_descriptors import IdMapDescriptor, IdMapDescriptors
 from .cold_module_instance_state_groups import (
@@ -1341,7 +1349,19 @@ from .modifier_types import (
 )
 from .workflow import (
     ActivityEnsemble,
+    ActivityModuleInstanceProperty,
+    Completed,
+    DateTimeProperty,
+    DeleteTemporary,
     EnsembleMemberIndexRange,
+    LocationAttributeProperty,
+    LoopLocationProperty,
+    ModuleInstanceAttributeProperty,
+    ModuleInstanceIdsChoice,
+    Parallel,
+    ParameterAttributeProperty,
+    QualifierAttributeProperty,
+    Sequence,
     Workflow,
     WorkflowActivity,
     WorkflowProperties,
@@ -1961,6 +1981,12 @@ __all__ = [
     "TimeSeriesModifiersDisplayConfig",
     # ForecastLengthEstimator
     "ForecastLengthEstimator",
+    "ForecastLengthWarmState",
+    "ColdStateTime",
+    "SetToModifiedDateTimeAttributeValue",
+    "CopyTimeSeriesPropertyToExternalForecastTime",
+    "DataFeed",
+    "CreateExternalForecastTime",
     # Generic (Products, Grids, LocationSets, Filters, DisplayGroups,
     # Explorer, SpatialDisplay — structure too broad for field-by-field)
     "GenericXmlFile",
@@ -2033,6 +2059,18 @@ __all__ = [
     "EnsembleMemberIndexRange",
     "WorkflowProperties",
     "WorkflowProperty",
+    "DateTimeProperty",
+    "LocationAttributeProperty",
+    "LoopLocationProperty",
+    "QualifierAttributeProperty",
+    "ParameterAttributeProperty",
+    "ModuleInstanceAttributeProperty",
+    "ActivityModuleInstanceProperty",
+    "ModuleInstanceIdsChoice",
+    "Completed",
+    "DeleteTemporary",
+    "Parallel",
+    "Sequence",
     # ImportModule
     "TimeSeriesImportRun",
     "ImportBlock",

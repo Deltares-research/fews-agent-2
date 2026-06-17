@@ -1,6 +1,102 @@
 {%- import "_partials/timeseries_set.xml.j2" as tss -%}
+{%- macro relt(t, tag) -%}
+<{{ tag }} value="{{ t.value }}" unit="{{ t.unit }}"/>
+{%- endmacro -%}
 <?xml version="1.0" encoding="UTF-8"?>
 <forecastLengthEstimator xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/forecastLengthEstimator.xsd">
-  {{ tss.render(externalForecastTimeSeries, tag="externalForecastTimeSeries") }}
+  {%- if timeZone is not none %}
+  <timeZone>{{ timeZone }}</timeZone>
+  {%- endif %}
+  {%- if setColdStateTimeToEarliestNonMissing is not none %}
+  {%- set cs = setColdStateTimeToEarliestNonMissing %}
+  <setColdStateTimeToEarliestNonMissing>
+    {%- for ts in cs.timeSeriesSet %}{{ tss.render(ts) }}{% endfor %}
+    {{ relt(cs.minColdStateRelativeTime, "minColdStateRelativeTime") }}
+    {{ relt(cs.maxColdStateRelativeTime, "maxColdStateRelativeTime") }}
+  </setColdStateTimeToEarliestNonMissing>
+  {%- elif stateModuleInstanceId is not none %}
+  <stateModuleInstanceId>{{ stateModuleInstanceId }}</stateModuleInstanceId>
+  {%- if stateSelection is not none %}
+  {%- set ss = stateSelection %}
+  <stateSelection>
+    <stateSearchPeriod unit="{{ ss.stateSearchPeriod.unit }}" start="{{ ss.stateSearchPeriod.start }}" end="{{ ss.stateSearchPeriod.end }}"/>
+    {%- if ss.searchForTransientStates is not none %}<searchForTransientStates>{{ 'true' if ss.searchForTransientStates else 'false' }}</searchForTransientStates>{% endif %}
+    {%- if ss.transientStateExpiryTime is not none %}<transientStateExpiryTime unit="{{ ss.transientStateExpiryTime.unit }}"{% if ss.transientStateExpiryTime.multiplier is not none %} multiplier="{{ ss.transientStateExpiryTime.multiplier }}"{% endif %}/>{% endif %}
+    {%- if ss.coldStateTime is not none %}{{ relt(ss.coldStateTime, "coldStateTime") }}{% endif %}
+    {%- if ss.insertColdState is not none %}<insertColdState>{{ 'true' if ss.insertColdState else 'false' }}</insertColdState>{% endif %}
+  </stateSelection>
+  {%- endif %}
+  {%- if onlyIntermediateStates is not none %}
+  <onlyIntermediateStates>{{ 'true' if onlyIntermediateStates else 'false' }}</onlyIntermediateStates>
+  {%- endif %}
+  {%- endif %}
+  {%- for ts in externalHistoricalTimeSeries %}{{ tss.render(ts, tag="externalHistoricalTimeSeries") }}{% endfor %}
+  {%- for ts in externalForecastTimeSeries %}
+  {{ tss.render(ts, tag="externalForecastTimeSeries") }}
+  {%- endfor %}
+  {%- for ts in simulatedForecastTimeSeries %}{{ tss.render(ts, tag="simulatedForecastTimeSeries") }}{% endfor %}
+  {%- for ts in requiredExternalForecastTimeSeries %}{{ tss.render(ts, tag="requiredExternalForecastTimeSeries") }}{% endfor %}
+  {%- for c in copyTimeSeriesPropertyToExternalForecastTime %}
+  <copyTimeSeriesPropertyToExternalForecastTime externalForecastTimeId="{{ c.externalForecastTimeId }}" timeSeriesPropertyKey="{{ c.timeSeriesPropertyKey }}">
+    {%- if c.dateTimeFormat is not none %}<dateTimeFormat>{{ c.dateTimeFormat }}</dateTimeFormat>{% endif %}
+    {%- for ts in c.timeSeriesSet %}{{ tss.render(ts) }}{% endfor %}
+  </copyTimeSeriesPropertyToExternalForecastTime>
+  {%- endfor %}
+  {%- if setTime0ToEarliestExternalForecastTime is not none %}
+  <setTime0ToEarliestExternalForecastTime>{{ 'true' if setTime0ToEarliestExternalForecastTime else 'false' }}</setTime0ToEarliestExternalForecastTime>
+  {%- elif setTime0ToLatestExternalForecastTime is not none %}
+  <setTime0ToLatestExternalForecastTime>{{ 'true' if setTime0ToLatestExternalForecastTime else 'false' }}</setTime0ToLatestExternalForecastTime>
+  {%- elif setTime0ToEarliestCurrentForecast is not none %}
+  <setTime0ToEarliestCurrentForecast>{{ 'true' if setTime0ToEarliestCurrentForecast else 'false' }}</setTime0ToEarliestCurrentForecast>
+  {%- elif setToModifiedDateTimeAttributeValueComplexType is not none %}
+  {%- set sm = setToModifiedDateTimeAttributeValueComplexType %}
+  <setToModifiedDateTimeAttributeValueComplexType>
+    <attributeId>{{ sm.attributeId }}</attributeId>
+    <locationId>{{ sm.locationId }}</locationId>
+    <offset unit="{{ sm.offset.unit }}" multiplier="{{ sm.offset.multiplier }}"/>
+    {%- if sm.timeStep.id is not none %}<timeStep id="{{ sm.timeStep.id }}"/>{% else %}<timeStep unit="{{ sm.timeStep.unit }}"{% if sm.timeStep.multiplier is not none %} multiplier="{{ sm.timeStep.multiplier }}"{% endif %}/>{% endif %}
+  </setToModifiedDateTimeAttributeValueComplexType>
+  {%- elif setTime0ToCurrentTime is not none %}
+  <setTime0ToCurrentTime>{{ 'true' if setTime0ToCurrentTime else 'false' }}</setTime0ToCurrentTime>
+  {%- elif setTime0ToLatestNonMissing is not none %}
+  <setTime0ToLatestNonMissing>{{ 'true' if setTime0ToLatestNonMissing else 'false' }}</setTime0ToLatestNonMissing>
+  {%- endif %}
+  {%- if shiftEndTimeAfterTime0Shift is not none %}
+  <shiftEndTimeAfterTime0Shift>{{ 'true' if shiftEndTimeAfterTime0Shift else 'false' }}</shiftEndTimeAfterTime0Shift>
+  {%- endif %}
+  {%- if time0CardinalTimeStep is not none %}
+  {%- if time0CardinalTimeStep.id is not none %}<time0CardinalTimeStep id="{{ time0CardinalTimeStep.id }}"/>{% else %}<time0CardinalTimeStep unit="{{ time0CardinalTimeStep.unit }}"{% if time0CardinalTimeStep.multiplier is not none %} multiplier="{{ time0CardinalTimeStep.multiplier }}"{% endif %}/>{% endif %}
+  {%- endif %}
+  {%- if skipRunWhenTime0EqualToLastRun is not none %}
+  <skipRunWhenTime0EqualToLastRun>{{ 'true' if skipRunWhenTime0EqualToLastRun else 'false' }}</skipRunWhenTime0EqualToLastRun>
+  {%- endif %}
+  {%- if skipRunWhenTimeSeriesMissing is not none %}
+  <skipRunWhenTimeSeriesMissing>{{ 'true' if skipRunWhenTimeSeriesMissing else 'false' }}</skipRunWhenTimeSeriesMissing>
+  {%- endif %}
+  {%- if ignoreCompletelyMissingTimeSeries is not none %}
+  <ignoreCompletelyMissingTimeSeries>{{ 'true' if ignoreCompletelyMissingTimeSeries else 'false' }}</ignoreCompletelyMissingTimeSeries>
+  {%- endif %}
+  {%- if minForecastLength is not none %}
   <minForecastLength unit="{{ minForecastLength.unit }}" multiplier="{{ minForecastLength.multiplier }}"/>
+  {%- endif %}
+  {%- if maxForecastLength is not none %}
+  <maxForecastLength unit="{{ maxForecastLength.unit }}" multiplier="{{ maxForecastLength.multiplier }}"/>
+  {%- endif %}
+  {%- if minForecastEndDay is not none %}
+  <minForecastEndDay>{{ minForecastEndDay }}</minForecastEndDay>
+  {%- endif %}
+  {%- if useLongestTimeSeries is not none %}
+  <useLongestTimeSeries>{{ 'true' if useLongestTimeSeries else 'false' }}</useLongestTimeSeries>
+  {%- endif %}
+  {%- for f in findLatestCommonExternalForecastTime %}
+  <findLatestCommonExternalForecastTime externalForecastTimeId="{{ f.externalForecastTimeId }}">
+    {%- if f.eventCodeOnChange is not none %}<eventCodeOnChange>{{ f.eventCodeOnChange }}</eventCodeOnChange>{% endif %}
+    {%- if f.eventCodeOnNoChange is not none %}<eventCodeOnNoChange>{{ f.eventCodeOnNoChange }}</eventCodeOnNoChange>{% endif %}
+    {%- for df in f.dataFeed %}
+    <dataFeed id="{{ df.id }}">
+      {%- for ts in df.timeSeriesSet %}{{ tss.render(ts) }}{% endfor %}
+    </dataFeed>
+    {%- endfor %}
+  </findLatestCommonExternalForecastTime>
+  {%- endfor %}
 </forecastLengthEstimator>

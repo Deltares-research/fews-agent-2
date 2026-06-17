@@ -1,11 +1,65 @@
+{%- macro emit_properties(props) -%}
+<properties>
+    {%- if props.description is not none %}
+    <description>{{ props.description }}</description>
+    {%- endif %}
+    {%- for p in props.string %}
+    <string key="{{ p.key }}" value="{{ p.value }}"/>
+    {%- endfor %}
+    {%- for p in props["int"] %}
+    <int key="{{ p.key }}" value="{{ p.value }}"/>
+    {%- endfor %}
+    {%- for p in props["float"] %}
+    <float key="{{ p.key }}" value="{{ p.value }}"/>
+    {%- endfor %}
+    {%- for p in props.double %}
+    <double key="{{ p.key }}" value="{{ p.value }}"/>
+    {%- endfor %}
+    {%- for p in props["bool"] %}
+    <bool key="{{ p.key }}" value="{{ p.value }}"/>
+    {%- endfor %}
+    {%- for p in props.dateTime %}
+    <dateTime key="{{ p.key }}" date="{{ p.date }}" time="{{ p.time }}"/>
+    {%- endfor %}
+    {%- for p in props.locationAttribute %}
+    <locationAttribute key="{{ p.key }}" locationId="{{ p.locationId }}" attributeId="{{ p.attributeId }}"/>
+    {%- endfor %}
+    {%- for p in props.loopLocationAttribute %}
+    <loopLocationAttribute key="{{ p.key }}"{% if p.locationRelationId is not none %} locationRelationId="{{ p.locationRelationId }}"{% endif %} attributeId="{{ p.attributeId }}"{% if p.defaultValue is not none %} defaultValue="{{ p.defaultValue }}"{% endif %}/>
+    {%- endfor %}
+    {%- for p in props.qualifierAttribute %}
+    <qualifierAttribute key="{{ p.key }}" qualifierId="{{ p.qualifierId }}" attributeId="{{ p.attributeId }}"/>
+    {%- endfor %}
+    {%- for p in props.parameterAttribute %}
+    <parameterAttribute key="{{ p.key }}" parameterId="{{ p.parameterId }}" attributeId="{{ p.attributeId }}"/>
+    {%- endfor %}
+    {%- for p in props.moduleInstanceAttribute %}
+    <moduleInstanceAttribute key="{{ p.key }}" moduleInstanceId="{{ p.moduleInstanceId }}" attributeId="{{ p.attributeId }}"/>
+    {%- endfor %}
+    {%- for p in props.activityModuleInstanceAttribute %}
+    <activityModuleInstanceAttribute key="{{ p.key }}" attributeId="{{ p.attributeId }}"/>
+    {%- endfor %}
+  </properties>
+{%- endmacro -%}
+{%- macro emit_mi_choice(c, tag) -%}
+<{{ tag }}>
+    {%- if c.moduleInstanceSetId is not none %}
+    <moduleInstanceSetId>{{ c.moduleInstanceSetId }}</moduleInstanceSetId>
+    {%- elif c.moduleInstanceIdPattern %}
+    {%- for p in c.moduleInstanceIdPattern %}
+    <moduleInstanceIdPattern>{{ p }}</moduleInstanceIdPattern>
+    {%- endfor %}
+    {%- else %}
+    {%- for m in c.moduleInstanceId %}
+    <moduleInstanceId>{{ m }}</moduleInstanceId>
+    {%- endfor %}
+    {%- endif %}
+  </{{ tag }}>
+{%- endmacro -%}
 {%- macro emit_activity(a, tag="activity") -%}
 <{{ tag }}{% if a.logStartedAsDebug is not none %} logStartedAsDebug="{{ 'true' if a.logStartedAsDebug else 'false' }}"{% endif %}{% if a.logFinishedAsDebug is not none %} logFinishedAsDebug="{{ 'true' if a.logFinishedAsDebug else 'false' }}"{% endif %}>
     {%- if a.properties is not none %}
-    <properties>
-      {%- for p in a.properties.string %}
-      <string key="{{ p.key }}" value="{{ p.value }}"/>
-      {%- endfor %}
-    </properties>
+    {{ emit_properties(a.properties) }}
     {%- endif %}
     {%- if a.enable is not none %}
     <enable>{{ a.enable }}</enable>
@@ -72,16 +126,61 @@
     {%- endif %}
   </{{ tag }}>
 {%- endmacro -%}
+{%- macro emit_parallel(p) -%}
+<parallel>
+    {%- if p.properties is not none %}
+    {{ emit_properties(p.properties) }}
+    {%- endif %}
+    {%- if p.forecastingShellCount is not none %}
+    <forecastingShellCount>{{ p.forecastingShellCount }}</forecastingShellCount>
+    {%- elif p.multipleForecastingShells is not none %}
+    <multipleForecastingShells>{{ 'true' if p.multipleForecastingShells else 'false' }}</multipleForecastingShells>
+    {%- endif %}
+    {%- for a in p.activity %}
+    {{ emit_activity(a) }}
+    {%- endfor %}
+    {%- for s in p.sequence %}
+    {{ emit_sequence(s) }}
+    {%- endfor %}
+  </parallel>
+{%- endmacro -%}
+{%- macro emit_sequence(s) -%}
+<sequence>
+    {%- if s.properties is not none %}
+    {{ emit_properties(s.properties) }}
+    {%- endif %}
+    {%- for a in s.activity %}
+    {{ emit_activity(a) }}
+    {%- endfor %}
+    {%- for p in s.parallel %}
+    {{ emit_parallel(p) }}
+    {%- endfor %}
+    {%- for c in s.completed %}
+    {{ emit_mi_choice(c, "completed") }}
+    {%- endfor %}
+    {%- for d in s.deleteTemporary %}
+    {{ emit_mi_choice(d, "deleteTemporary") }}
+    {%- endfor %}
+  </sequence>
+{%- endmacro -%}
 <?xml version="1.0" encoding="UTF-8"?>
 <workflow xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/workflow.xsd" version="{{ version }}">
   {%- if properties is not none %}
-  <properties>
-    {%- for p in properties.string %}
-    <string key="{{ p.key }}" value="{{ p.value }}"/>
-    {%- endfor %}
-  </properties>
+  {{ emit_properties(properties) }}
   {%- endif %}
 {% for a in activity %}
   {{ emit_activity(a) }}
+{% endfor %}
+{%- for p in parallel %}
+  {{ emit_parallel(p) }}
+{% endfor %}
+{%- for s in sequence %}
+  {{ emit_sequence(s) }}
+{% endfor %}
+{%- for c in completed %}
+  {{ emit_mi_choice(c, "completed") }}
+{% endfor %}
+{%- for d in deleteTemporary %}
+  {{ emit_mi_choice(d, "deleteTemporary") }}
 {% endfor %}
 </workflow>
