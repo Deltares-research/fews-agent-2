@@ -17,8 +17,8 @@
     {% if g.configTypeContainsSpace is not none %}<configTypeContainsSpace>{{ 'true' if g.configTypeContainsSpace else 'false' }}</configTypeContainsSpace>{% endif %}
   </configGroup>
   {% endfor %}
-  {% if excludedWorkflows %}<excludedWorkflows>
-    {% for w in excludedWorkflows %}<workflowName>{{ w }}</workflowName>
+  {% if excludedWorkflows is not none %}<excludedWorkflows>
+    {% for w in excludedWorkflows.workflowName %}<workflowName>{{ w }}</workflowName>
     {% endfor %}
   </excludedWorkflows>{% endif %}
 </configurationManagement>

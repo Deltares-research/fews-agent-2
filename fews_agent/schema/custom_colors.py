@@ -12,9 +12,15 @@ class CustomColorKey(FewsModel):
     color: str | None = None
 
 
+class DefaultCustomColorKeys(FewsModel):
+    """`<defaultCustomColorKeys>` wrapper around `<customColorKey>` elements."""
+
+    customColorKey: list[CustomColorKey] = Field(min_length=1)
+
+
 class CustomColors(FewsModel):
     """Root of CustomColors.xml."""
 
-    defaultCustomColorKeys: list[CustomColorKey] = Field(min_length=1)
+    defaultCustomColorKeys: DefaultCustomColorKeys
     # Optional attribute with fixed="1.0"; leave optional to emit only when set.
     version: str | None = None

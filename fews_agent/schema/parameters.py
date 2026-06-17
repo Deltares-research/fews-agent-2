@@ -160,5 +160,14 @@ class Parameters(FewsModel):
 
     parameterGroup: list[ParameterGroup] = Field(min_length=1)
     description: str | None = None
+    # UnitConversionSequence (precedes defaultSpectrumDomainParameterId in XSD)
+    displayUnitConversionsId: str | None = None
+    configUnitConversionsId: str | None = None
     defaultSpectrumDomainParameterId: str | None = None
+    # SpecialParametersSequence (between defaultSpectrumDomainParameterId and
+    # the parameterGroup list): parameter ids used to resolve special UI axes.
+    ratingCurveStageParameterId: ParameterId | None = None
+    ratingCurveDischargeParameterId: ParameterId | None = None
+    chainageParameterId: ParameterId | None = None
+    tideNumberParameterId: ParameterId | None = None
     version: str = "1.0"

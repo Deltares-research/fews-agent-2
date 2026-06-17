@@ -1,11 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <unitConversions xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/unitConversions.xsd">
+{% if addInverses is not none %}  <addInverses>{{ 'true' if addInverses else 'false' }}</addInverses>{% endif %}
 {% for uc in unitConversion %}
   <unitConversion>
     <inputUnitType>{{ uc.inputUnitType }}</inputUnitType>
     <outputUnitType>{{ uc.outputUnitType }}</outputUnitType>
     {% if uc.multiplier is not none %}<multiplier>{{ uc.multiplier }}</multiplier>{% endif %}
     {% if uc.incrementer is not none %}<incrementer>{{ uc.incrementer }}</incrementer>{% endif %}
+    {% if uc.convertDatum is not none %}<convertDatum>{{ 'true' if uc.convertDatum else 'false' }}</convertDatum>{% endif %}
   </unitConversion>
 {% endfor %}
 </unitConversions>

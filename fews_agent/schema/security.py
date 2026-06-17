@@ -13,6 +13,12 @@ class SecurityAction(FewsModel):
     description: str | None = None
 
 
+class SecurityActions(FewsModel):
+    """`<actions>` wrapper around `<action>` elements."""
+
+    action: list[SecurityAction] = Field(min_length=1)
+
+
 class SecurityGrants(FewsModel):
     actionId: list[str] = Field(min_length=1)
 
@@ -28,8 +34,14 @@ class SecurityRole(FewsModel):
     grants: SecurityGrants
 
 
+class SecurityRoles(FewsModel):
+    """`<roles>` wrapper around `<role>` elements."""
+
+    role: list[SecurityRole] = Field(min_length=1)
+
+
 class Security(FewsModel):
     """Root of Security.xml."""
 
-    actions: list[SecurityAction] = Field(min_length=1)
-    roles: list[SecurityRole] = Field(min_length=1)
+    actions: SecurityActions
+    roles: SecurityRoles

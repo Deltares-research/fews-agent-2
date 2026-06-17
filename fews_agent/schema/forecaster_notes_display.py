@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from pydantic import Field, model_validator
 
-from .common import FewsModel
+from .common import CalendarTimeSpan, FewsModel
 
 
 class MsgTemplate(FewsModel):
@@ -24,9 +24,11 @@ class MsgTemplate(FewsModel):
 
 
 class EventCode(FewsModel):
-    """Event code reference — attribute-only (`<eventCode id="..."/>`)."""
+    """Event code config — id attr + optional `<expiryTime>` calendar
+    time span (since FEWS 2015.02) bounding log-message retention."""
 
     id: str
+    expiryTime: CalendarTimeSpan | None = None
 
 
 class NotesTableColumn(FewsModel):

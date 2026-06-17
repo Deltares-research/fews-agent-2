@@ -30,8 +30,23 @@
 {%- for p in parameter %}
   <parameter internal="{{ p.internal }}"{{ qattrs(p, 'internal') }}{{ eattrs(p, 'internal') }} external="{{ p.external }}"{{ qattrs(p, 'external') }}{{ eattrs(p, 'external') }}/>
 {%- endfor %}
+{%- for pf in parameterIdFunction %}
+  <parameterIdFunction{{ qattrs(pf, 'internal') }} externalParameterFunction="{{ pf.externalParameterFunction }}"{{ qfuncattrs(pf, 'external') }}/>
+{%- endfor %}
+{%- for qf in qualifierIdFunction %}
+  <qualifierIdFunction externalQualifierFunction="{{ qf.externalQualifierFunction }}"/>
+{%- endfor %}
 {%- for l in location %}
   <location internal="{{ l.internal }}"{{ qattrs(l, 'internal') }} external="{{ l.external }}"{{ qattrs(l, 'external') }}/>
+{%- endfor %}
+{%- for lp in locationIdPattern %}
+  <locationIdPattern internalLocationSet="{{ lp.internalLocationSet }}" internalLocationPattern="{{ lp.internalLocationPattern }}"{{ qattrs(lp, 'internal') }} externalLocationPattern="{{ lp.externalLocationPattern }}"{{ qattrs(lp, 'external') }}/>
+{%- endfor %}
+{%- for lf in locationIdFunction %}
+  <locationIdFunction internalLocationSet="{{ lf.internalLocationSet }}"{{ qattrs(lf, 'internal') }} externalLocationFunction="{{ lf.externalLocationFunction }}"{% if lf.externalLocationFunctionLookupAttributeId is not none %} externalLocationFunctionLookupAttributeId="{{ lf.externalLocationFunctionLookupAttributeId }}"{% endif %}{% if lf.externalLocationFunctionLookupText is not none %} externalLocationFunctionLookupText="{{ lf.externalLocationFunctionLookupText }}"{% endif %}{{ qfuncattrs(lf, 'external') }}/>
+{%- endfor %}
+{%- for t in threshold %}
+  <threshold internal="{{ t.internal }}" external="{{ t.external }}"/>
 {%- endfor %}
   {%- if enableOneToOneMapping %}<enableOneToOneMapping/>{% endif %}
   {%- if enableCaseInsensitivity %}<enableCaseInsensitivity/>{% endif %}

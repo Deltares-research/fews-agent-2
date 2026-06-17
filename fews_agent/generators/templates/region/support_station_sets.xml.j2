@@ -5,7 +5,7 @@
   <supportStationSet>
     {{ tss.render(s.supportStationTimeSeriesSet, tag="supportStationTimeSeriesSet") }}
     <dataTimeSeriesSets>
-    {% for ts in s.dataTimeSeriesSet %}{{ tss.render(ts, tag="TimeSeriesSet") }}
+    {% for ts in s.dataTimeSeriesSets.TimeSeriesSet %}{{ tss.render(ts, tag="TimeSeriesSet") }}
     {% endfor %}
     </dataTimeSeriesSets>
   </supportStationSet>

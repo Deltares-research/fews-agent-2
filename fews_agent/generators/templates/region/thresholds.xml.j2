@@ -1,3 +1,6 @@
+{%- macro season(s) -%}
+<season startMonthDay="{{ s.startMonthDay }}" endMonthDay="{{ s.endMonthDay }}"{% if s.timeZone is not none %} timeZone="{{ s.timeZone }}"{% endif %}{% if s.label is not none %} label="{{ s.label }}"{% endif %}/>
+{%- endmacro -%}
 <?xml version="1.0" encoding="UTF-8"?>
 <thresholdGroups xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/thresholds.xsd">
   {% if eventExpiryTime is not none %}<eventExpiryTime unit="{{ eventExpiryTime.unit }}" multiplier="{{ eventExpiryTime.multiplier }}"/>{% endif %}
@@ -12,9 +15,25 @@
     {% if g.defaultThreshold is not none %}<defaultThreshold shortName="{{ g.defaultThreshold.shortName }}"/>{% endif %}
     {% for lt in g.levelThreshold %}
     <levelThreshold id="{{ lt.id }}"{% if lt.name is not none %} name="{{ lt.name }}"{% endif %}{% if lt.shortName is not none %} shortName="{{ lt.shortName }}"{% endif %}>
-      <upWarningLevelId>{{ lt.upWarningLevelId }}</upWarningLevelId>
+      {% if lt.upWarningLevelId is not none %}<upWarningLevelId>{{ lt.upWarningLevelId }}</upWarningLevelId>{% elif lt.downWarningLevelId is not none %}<downWarningLevelId>{{ lt.downWarningLevelId }}</downWarningLevelId>{% endif %}
+      {% if lt.upIntId is not none %}<upIntId>{{ lt.upIntId }}</upIntId>{% endif %}
+      {% if lt.downIntId is not none %}<downIntId>{{ lt.downIntId }}</downIntId>{% endif %}
+      {% if lt.season is not none %}{{ season(lt.season) }}{% endif %}
     </levelThreshold>
     {% endfor %}
+    {% for rt in g.rateThreshold %}
+    <rateThreshold id="{{ rt.id }}"{% if rt.name is not none %} name="{{ rt.name }}"{% endif %}>
+      {% if rt.upIntId is not none %}<upIntId>{{ rt.upIntId }}</upIntId>{% endif %}
+      {% if rt.downIntId is not none %}<downIntId>{{ rt.downIntId }}</downIntId>{% endif %}
+      {% if rt.season is not none %}{{ season(rt.season) }}{% endif %}
+    </rateThreshold>
+    {% endfor %}
+    {% if g.maxThreshold is not none %}
+    <maxThreshold id="{{ g.maxThreshold.id }}"{% if g.maxThreshold.name is not none %} name="{{ g.maxThreshold.name }}"{% endif %}>
+      {% if g.maxThreshold.intId is not none %}<intId>{{ g.maxThreshold.intId }}</intId>{% endif %}
+      {% if g.maxThreshold.season is not none %}{{ season(g.maxThreshold.season) }}{% endif %}
+    </maxThreshold>
+    {% endif %}
   </thresholdGroup>
 {% endfor %}
 </thresholdGroups>

@@ -29,7 +29,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import ConfigDict, Field, model_validator
+from pydantic import ConfigDict, Field, field_validator, model_validator
 
 from .common import (
     FewsModel,
@@ -76,6 +76,7 @@ class GeneralAdapterGeneral(FewsModel):
     convertDatum: bool | None = None
     timeZone: TimeZone | None = None
     startDateTimeFormat: str | None = None
+    endDateTimeFormat: str | None = None
     modelTimeStep: TimeStep | None = None
 
 
@@ -202,9 +203,23 @@ class TimeSeriesSetList(FewsModel):
 
 
 class ExportNetcdfActivity(FewsModel):
+    # `timeSeriesSets` may repeat: FEWS allows several <timeSeriesSets>
+    # wrapper elements in one exportNetcdfActivity (e.g. Delft3D-FM wind
+    # forcing exports one wrapper per parameter). Modeled as a list so a
+    # single wrapper (the tutorial case) round-trips as a 1-element list.
     exportFile: str
-    timeSeriesSets: TimeSeriesSetList
+    timeSeriesSets: list[TimeSeriesSetList]
     omitMissingValues: bool | None = None
+
+    @field_validator("timeSeriesSets", mode="before")
+    @classmethod
+    def _wrap_single_wrapper(cls, v: Any) -> Any:
+        # Back-compat: callers (and the tutorial-era patterns) pass a single
+        # <timeSeriesSets> wrapper as a dict. Wrap it so a 1-element list
+        # renders byte-identically while repeated wrappers are also allowed.
+        if isinstance(v, dict):
+            return [v]
+        return v
 
 
 class RunFileStringProperty(FewsModel):
@@ -299,6 +314,7 @@ class StateFileRef(FewsModel):
 class ImportStateActivity(FewsModel):
     stateConfigFile: str | None = None
     stateFile: StateFileRef | None = None
+    compressedStateLocation: str | None = None
     synchLevel: int | None = None
 
 

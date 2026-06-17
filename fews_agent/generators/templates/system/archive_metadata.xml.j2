@@ -2,9 +2,9 @@
 <archiveMetaData xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/archiveMetaData.xsd">
   <taskRunId>{{ taskRunId }}</taskRunId>
   <dispatchTime date="{{ dispatchTime.date }}"{% if dispatchTime.time is not none %} time="{{ dispatchTime.time }}"{% endif %}/>
-  {%- if usedStates %}
+  {%- if usedStates is not none %}
   <usedStates>
-    {%- for w in usedStates %}
+    {%- for w in usedStates.warmState %}
     <warmState taskRunId="{{ w.taskRunId }}">
       {%- for sid in w.stateId %}
       <stateId>{{ sid }}</stateId>
@@ -13,9 +13,9 @@
     {%- endfor %}
   </usedStates>
   {%- endif %}
-  {%- if usedTimeSeriesBlobs %}
+  {%- if usedTimeSeriesBlobs is not none %}
   <usedTimeSeriesBlobs>
-    {%- for b in usedTimeSeriesBlobs %}
+    {%- for b in usedTimeSeriesBlobs.timeSeriesBlob %}
     <timeSeriesBlob locationId="{{ b.locationId }}" parameterId="{{ b.parameterId }}">
       <period>
         <startDate>{{ b.period.startDate }}</startDate>
@@ -25,23 +25,23 @@
     {%- endfor %}
   </usedTimeSeriesBlobs>
   {%- endif %}
-  {%- if usedTaskRuns %}
+  {%- if usedTaskRuns is not none %}
   <usedTaskRuns>
-    {%- for t in usedTaskRuns %}
+    {%- for t in usedTaskRuns.taskRun %}
     <taskRun taskRunId="{{ t.taskRunId }}"/>
     {%- endfor %}
   </usedTaskRuns>
   {%- endif %}
-  {%- if usedTasks %}
+  {%- if usedTasks is not none %}
   <usedTasks>
-    {%- for t in usedTasks %}
+    {%- for t in usedTasks.task %}
     <task taskId="{{ t.taskId }}"/>
     {%- endfor %}
   </usedTasks>
   {%- endif %}
-  {%- if usedModuleInstanceRuns %}
+  {%- if usedModuleInstanceRuns is not none %}
   <usedModuleInstanceRuns>
-    {%- for m in usedModuleInstanceRuns %}
+    {%- for m in usedModuleInstanceRuns.moduleInstanceRun %}
     <moduleInstanceRun taskRunId="{{ m.taskRunId }}">
       {%- for mid in m.moduleInstanceId %}
       <moduleInstanceId>{{ mid }}</moduleInstanceId>
@@ -50,23 +50,23 @@
     {%- endfor %}
   </usedModuleInstanceRuns>
   {%- endif %}
-  {%- if usedFewsSessions %}
+  {%- if usedFewsSessions is not none %}
   <usedFewsSessions>
-    {%- for s in usedFewsSessions %}
+    {%- for s in usedFewsSessions.fewsSession %}
     <fewsSession taskRunId="{{ s.taskRunId }}"/>
     {%- endfor %}
   </usedFewsSessions>
   {%- endif %}
-  {%- if usedWhatIfScenarios %}
+  {%- if usedWhatIfScenarios is not none %}
   <usedWhatIfScenarios>
-    {%- for w in usedWhatIfScenarios %}
+    {%- for w in usedWhatIfScenarios.whatIfScenario %}
     <whatIfScenario whatIfId="{{ w.whatIfId }}"/>
     {%- endfor %}
   </usedWhatIfScenarios>
   {%- endif %}
-  {%- if usedModifierDescriptors %}
+  {%- if usedModifierDescriptors is not none %}
   <usedModifierDescriptors>
-    {%- for m in usedModifierDescriptors %}
+    {%- for m in usedModifierDescriptors.modifierDescriptor %}
     <modifierDescriptor modifierId="{{ m.modifierId }}" taskRunId="{{ m.taskRunId }}"/>
     {%- endfor %}
   </usedModifierDescriptors>

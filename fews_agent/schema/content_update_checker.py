@@ -13,6 +13,8 @@ class ContentUpdateChecker(FewsModel):
     file: str | None = None
     url: str | None = None
     user: str | None = None
+    # XSD UserAndPassword: user, then a choice of encryptedPassword | password.
+    encryptedPassword: str | None = None
     password: str | None = None
     eventCode: str
     messagePrefix: str
@@ -29,7 +31,11 @@ class ContentUpdateChecker(FewsModel):
             raise ValueError(
                 "contentUpdateChecker: supply exactly one of file or url"
             )
-        if has_file and (self.user is not None or self.password is not None):
+        if has_file and (
+            self.user is not None
+            or self.password is not None
+            or self.encryptedPassword is not None
+        ):
             raise ValueError(
                 "contentUpdateChecker: user/password only valid with url"
             )

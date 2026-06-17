@@ -61,7 +61,9 @@
 {%- endfor %}
 {%- endif %}
 {%- for ec in m.eventCode %}
-  <eventCode id="{{ ec.id }}"/>
+  {% if ec.expiryTime is not none %}<eventCode id="{{ ec.id }}">
+    <expiryTime unit="{{ ec.expiryTime.unit }}"{% if ec.expiryTime.multiplier is not none %} multiplier="{{ ec.expiryTime.multiplier }}"{% endif %}{% if ec.expiryTime.divider is not none %} divider="{{ ec.expiryTime.divider }}"{% endif %}/>
+  </eventCode>{% else %}<eventCode id="{{ ec.id }}"/>{% endif %}
 {%- endfor %}
 {%- for ut in m.userTemplate %}
   <userTemplate>{{ ut }}</userTemplate>

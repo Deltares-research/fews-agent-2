@@ -1,13 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <security xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/security.xsd">
   <actions>
-    {% for a in actions %}<action id="{{ a.id }}">
+    {% for a in actions.action %}<action id="{{ a.id }}">
       {% if a.description is not none %}<description>{{ a.description }}</description>{% endif %}
     </action>
     {% endfor %}
   </actions>
   <roles>
-    {% for r in roles %}<role id="{{ r.id }}">
+    {% for r in roles.role %}<role id="{{ r.id }}">
       {% if r.description is not none %}<description>{{ r.description }}</description>{% endif %}
       {% if r.buttonText is not none %}<buttonText>{{ r.buttonText }}</buttonText>{% endif %}
       {% if r.userGroups is not none %}<userGroups>{{ r.userGroups }}</userGroups>{% endif %}

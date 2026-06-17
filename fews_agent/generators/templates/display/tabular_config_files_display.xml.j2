@@ -7,12 +7,12 @@
     <iconFile>{{ t.iconFile }}</iconFile>
     <workDir>{{ t.workDir }}</workDir>
     <executable>{{ t.executable }}</executable>
-    {% if t.arguments %}<arguments>
-      {% for a in t.arguments %}<argument>{{ a }}</argument>
+    {% if t.arguments is not none %}<arguments>
+      {% for a in t.arguments.argument %}<argument>{{ a }}</argument>
       {% endfor %}
     </arguments>{% endif %}
-    {% if t.environmentVariables %}<environmentVariables>
-      {% for e in t.environmentVariables %}<environmentVariable>
+    {% if t.environmentVariables is not none %}<environmentVariables>
+      {% for e in t.environmentVariables.environmentVariable %}<environmentVariable>
         <name>{{ e.name }}</name>
         <value>{{ e.value }}</value>
       </environmentVariable>

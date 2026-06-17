@@ -5,7 +5,7 @@
     <showLocationName>{{ t.showLocationName }}</showLocationName>
     <showParameterName>{{ t.showParameterName }}</showParameterName>
     <locationAttributes>
-      {% for a in t.locationAttributes %}<attributeId>{{ a }}</attributeId>
+      {% for a in t.locationAttributes.attributeId %}<attributeId>{{ a }}</attributeId>
       {% endfor %}
     </locationAttributes>
   </displayTemplate>

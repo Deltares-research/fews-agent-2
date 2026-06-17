@@ -12,6 +12,18 @@ class EnvironmentVariable(FewsModel):
     value: str
 
 
+class Arguments(FewsModel):
+    """`<arguments>` wrapper around `<argument>` elements."""
+
+    argument: list[str] = Field(default_factory=list)
+
+
+class EnvironmentVariables(FewsModel):
+    """`<environmentVariables>` wrapper around `<environmentVariable>`."""
+
+    environmentVariable: list[EnvironmentVariable] = Field(default_factory=list)
+
+
 class TabularConfigFilesDisplayTask(FewsModel):
     name: str
     iconFile: str
@@ -19,8 +31,8 @@ class TabularConfigFilesDisplayTask(FewsModel):
     executable: str
     description: str | None = None
     permission: str | None = None
-    arguments: list[str] = Field(default_factory=list)
-    environmentVariables: list[EnvironmentVariable] = Field(default_factory=list)
+    arguments: Arguments | None = None
+    environmentVariables: EnvironmentVariables | None = None
 
 
 class TabularConfigFilesDisplay(FewsModel):

@@ -69,17 +69,53 @@ class LatestAvailableData(FewsModel):
     latestAvailableTime: DateTimePair
 
 
+# Wrapper elements: each `<used*>` wraps a single list of inner items whose
+# element name differs from the wrapper. Modeled as one-field wrappers so the
+# inner element name round-trips faithfully (parse → render).
+
+class UsedStates(FewsModel):
+    warmState: list[WarmStateKey] = Field(min_length=1)
+
+
+class UsedTimeSeriesBlobs(FewsModel):
+    timeSeriesBlob: list[TimeSeriesBlobKey] = Field(min_length=1)
+
+
+class UsedTaskRuns(FewsModel):
+    taskRun: list[TaskRunKey] = Field(min_length=1)
+
+
+class UsedTasks(FewsModel):
+    task: list[TaskKey] = Field(min_length=1)
+
+
+class UsedModuleInstanceRuns(FewsModel):
+    moduleInstanceRun: list[ModuleInstanceRunKey] = Field(min_length=1)
+
+
+class UsedFewsSessions(FewsModel):
+    fewsSession: list[FewsSessionKey] = Field(min_length=1)
+
+
+class UsedWhatIfScenarios(FewsModel):
+    whatIfScenario: list[WhatIfScenarioKey] = Field(min_length=1)
+
+
+class UsedModifierDescriptors(FewsModel):
+    modifierDescriptor: list[ModifierDescriptorKey] = Field(min_length=1)
+
+
 class ArchiveMetaData(FewsModel):
     taskRunId: str
     dispatchTime: DateTimePair
-    usedStates: list[WarmStateKey] = Field(default_factory=list)
-    usedTimeSeriesBlobs: list[TimeSeriesBlobKey] = Field(default_factory=list)
-    usedTaskRuns: list[TaskRunKey] = Field(default_factory=list)
-    usedTasks: list[TaskKey] = Field(default_factory=list)
-    usedModuleInstanceRuns: list[ModuleInstanceRunKey] = Field(default_factory=list)
-    usedFewsSessions: list[FewsSessionKey] = Field(default_factory=list)
-    usedWhatIfScenarios: list[WhatIfScenarioKey] = Field(default_factory=list)
-    usedModifierDescriptors: list[ModifierDescriptorKey] = Field(default_factory=list)
+    usedStates: UsedStates | None = None
+    usedTimeSeriesBlobs: UsedTimeSeriesBlobs | None = None
+    usedTaskRuns: UsedTaskRuns | None = None
+    usedTasks: UsedTasks | None = None
+    usedModuleInstanceRuns: UsedModuleInstanceRuns | None = None
+    usedFewsSessions: UsedFewsSessions | None = None
+    usedWhatIfScenarios: UsedWhatIfScenarios | None = None
+    usedModifierDescriptors: UsedModifierDescriptors | None = None
     latestAvailableData: list[LatestAvailableData] = Field(default_factory=list)
     usedJre: str | None = None
     usedBuild: str | None = None

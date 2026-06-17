@@ -4,7 +4,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <parameterGroups version="{{ version }}" xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/parameters.xsd">
   {% if description is not none %}<description>{{ description }}</description>{% endif %}
+  {% if displayUnitConversionsId is not none %}<displayUnitConversionsId>{{ displayUnitConversionsId }}</displayUnitConversionsId>{% endif %}
+  {% if configUnitConversionsId is not none %}<configUnitConversionsId>{{ configUnitConversionsId }}</configUnitConversionsId>{% endif %}
   {% if defaultSpectrumDomainParameterId is not none %}<defaultSpectrumDomainParameterId>{{ defaultSpectrumDomainParameterId }}</defaultSpectrumDomainParameterId>{% endif %}
+  {% if ratingCurveStageParameterId is not none %}<ratingCurveStageParameterId>{{ ratingCurveStageParameterId }}</ratingCurveStageParameterId>{% endif %}
+  {% if ratingCurveDischargeParameterId is not none %}<ratingCurveDischargeParameterId>{{ ratingCurveDischargeParameterId }}</ratingCurveDischargeParameterId>{% endif %}
+  {% if chainageParameterId is not none %}<chainageParameterId>{{ chainageParameterId }}</chainageParameterId>{% endif %}
+  {% if tideNumberParameterId is not none %}<tideNumberParameterId>{{ tideNumberParameterId }}</tideNumberParameterId>{% endif %}
 {% for g in parameterGroup %}
   <parameterGroup id="{{ g.id }}"{% if g.name is not none %} name="{{ g.name }}"{% endif %}>
     {% if g.description is not none %}<description>{{ g.description }}</description>{% endif %}

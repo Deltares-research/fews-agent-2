@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from pydantic import Field, model_validator
 
-from .common import CalendarTimeSpan, FewsModel
+from .common import Attribute, CalendarTimeSpan, FewsModel
 from .ids import ModuleInstanceId
 
 
@@ -49,6 +49,18 @@ class ModuleInstanceDescriptorAttributeFile(FewsModel):
     csvFile: str
     description: str | None = None
     charset: str | None = None
+    # AttributesSequence: typed custom attributes drawn from CSV columns.
+    attribute: list[Attribute] = Field(default_factory=list)
+
+
+class PersistentIdsCsvFile(FewsModel):
+    """Maps config ids to stable database (persistent) ids via a CSV.
+    Lets config ids change while the persistent id stays fixed."""
+
+    file: str
+    charset: str | None = None
+    configId: str
+    persistentId: str
 
 
 class ModuleInstanceDescriptorsCsvFile(FewsModel):
@@ -76,6 +88,8 @@ class ModuleInstanceDescriptors(FewsModel):
     """Root of ModuleInstanceDescriptors.xml. Either flat descriptors,
     or groups, or CSV sources, or a mix — at least one is required."""
 
+    # Root-level group (precedes the descriptor/group/csv choice in the XSD).
+    persistentIdsCsvFile: list[PersistentIdsCsvFile] = Field(default_factory=list)
     moduleInstanceDescriptor: list[ModuleInstanceDescriptor] = Field(default_factory=list)
     moduleInstanceGroup: list[ModuleInstanceGroup] = Field(default_factory=list)
     moduleInstanceDescriptorsCsvFile: list[ModuleInstanceDescriptorsCsvFile] = Field(

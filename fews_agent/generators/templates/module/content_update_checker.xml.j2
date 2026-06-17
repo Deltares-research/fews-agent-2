@@ -3,7 +3,7 @@
   {% if file is not none %}<file>{{ file }}</file>{% endif %}
   {% if url is not none %}<url>{{ url }}</url>
   {% if user is not none %}<user>{{ user }}</user>{% endif %}
-  {% if password is not none %}<password>{{ password }}</password>{% endif %}
+  {% if encryptedPassword is not none %}<encryptedPassword>{{ encryptedPassword }}</encryptedPassword>{% elif password is not none %}<password>{{ password }}</password>{% endif %}
   {% endif %}
   <eventCode>{{ eventCode }}</eventCode>
   <messagePrefix>{{ messagePrefix }}</messagePrefix>

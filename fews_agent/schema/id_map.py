@@ -13,11 +13,13 @@ supports the common ones:
   - ``map`` (ParameterLocationIdMap) — grid-to-grid mapping with full
     qualifier / ensemble attribute set
 
+  - ``parameterIdFunction`` / ``qualifierIdFunction`` /
+    ``locationIdFunction`` — attribute-text-driven pattern variants
+  - ``locationIdPattern`` — wildcard location-set mapping
+  - ``threshold`` — threshold id remapping for export
+
 Three empty-element flags at the root: ``enableOneToOneMapping``,
 ``enableCaseInsensitivity``, ``ignoreExternalQualifiersWhenMappingToInternal``.
-Two XSD mapping kinds not yet modelled (rare in the wild):
-``parameterIdFunction``, ``qualifierIdFunction``, ``locationIdFunction``
-(standalone variants), and ``locationIdPattern``.
 """
 from __future__ import annotations
 
@@ -151,14 +153,91 @@ class MapMapping(FewsModel):
     externalEnsembleMemberId: str | None = None
 
 
+class ParameterIdFunctionMapping(FewsModel):
+    """``parameterIdFunction`` — derive the external parameter id from
+    parameter text attributes (e.g. ``@EXTERNAL_ID@``). Attribute-only."""
+
+    internalQualifier: QualifierId | None = None
+    internalQualifier1: QualifierId | None = None
+    internalQualifier2: QualifierId | None = None
+    internalQualifier3: QualifierId | None = None
+    internalQualifier4: QualifierId | None = None
+    externalParameterFunction: str
+    externalQualifierFunction: str | None = None
+    externalQualifierFunction1: str | None = None
+    externalQualifierFunction2: str | None = None
+    externalQualifierFunction3: str | None = None
+    externalQualifierFunction4: str | None = None
+
+
+class QualifierIdFunctionMapping(FewsModel):
+    """``qualifierIdFunction`` (since 2014.02) — derive the external
+    qualifier id from qualifier text attributes. Attribute-only."""
+
+    externalQualifierFunction: str
+
+
+class LocationIdPatternMapping(FewsModel):
+    """``locationIdPattern`` — wildcard location mapping over a location set
+    (e.g. ``internalId=H_*`` ``externalId=*`` to strip/add an ``H_``
+    prefix). Attribute-only."""
+
+    internalLocationSet: LocationSetId
+    internalLocationPattern: str
+    internalQualifier: QualifierId | None = None
+    internalQualifier1: QualifierId | None = None
+    internalQualifier2: QualifierId | None = None
+    internalQualifier3: QualifierId | None = None
+    internalQualifier4: QualifierId | None = None
+    externalLocationPattern: str
+    externalQualifier: str | None = None
+    externalQualifier1: str | None = None
+    externalQualifier2: str | None = None
+    externalQualifier3: str | None = None
+    externalQualifier4: str | None = None
+
+
+class LocationIdFunctionMapping(FewsModel):
+    """``locationIdFunction`` — derive the external location id from
+    location text attributes (e.g. ``@EXTERNAL_ID@``). Attribute-only."""
+
+    internalLocationSet: LocationSetId
+    internalQualifier: QualifierId | None = None
+    internalQualifier1: QualifierId | None = None
+    internalQualifier2: QualifierId | None = None
+    internalQualifier3: QualifierId | None = None
+    internalQualifier4: QualifierId | None = None
+    externalLocationFunction: str
+    externalLocationFunctionLookupAttributeId: str | None = None
+    externalLocationFunctionLookupText: str | None = None
+    externalQualifierFunction: str | None = None
+    externalQualifierFunction1: str | None = None
+    externalQualifierFunction2: str | None = None
+    externalQualifierFunction3: str | None = None
+    externalQualifierFunction4: str | None = None
+
+
+class ThresholdMapping(FewsModel):
+    """``threshold`` (since 2016.02) — map threshold ids to different
+    names for export (first used for netcdf scalar export)."""
+
+    internal: str
+    external: str
+
+
 class IdMap(FewsModel):
     """Root of an IdMapFile. At least one mapping must be supplied."""
 
     moduleInstance: list[ModuleInstanceMapping] = Field(default_factory=list)
     parameter: list[ParameterMapping] = Field(default_factory=list)
+    parameterIdFunction: list[ParameterIdFunctionMapping] = Field(default_factory=list)
+    qualifierIdFunction: list[QualifierIdFunctionMapping] = Field(default_factory=list)
     location: list[LocationMapping] = Field(default_factory=list)
+    locationIdPattern: list[LocationIdPatternMapping] = Field(default_factory=list)
+    locationIdFunction: list[LocationIdFunctionMapping] = Field(default_factory=list)
     function: list[FunctionMapping] = Field(default_factory=list)
     map: list[MapMapping] = Field(default_factory=list)
+    threshold: list[ThresholdMapping] = Field(default_factory=list)
     enableOneToOneMapping: bool = False
     enableCaseInsensitivity: bool = False
     ignoreExternalQualifiersWhenMappingToInternal: bool = False
@@ -168,10 +247,14 @@ class IdMap(FewsModel):
     def _at_least_one_mapping(self) -> IdMap:
         if not (
             self.moduleInstance or self.parameter or self.location
-            or self.function or self.map
+            or self.function or self.map or self.parameterIdFunction
+            or self.qualifierIdFunction or self.locationIdPattern
+            or self.locationIdFunction or self.threshold
         ):
             raise ValueError(
-                "idMap: supply at least one of moduleInstance, parameter, "
-                "location, function, or map"
+                "idMap: supply at least one mapping (moduleInstance, "
+                "parameter, parameterIdFunction, qualifierIdFunction, "
+                "location, locationIdPattern, locationIdFunction, function, "
+                "map, or threshold)"
             )
         return self

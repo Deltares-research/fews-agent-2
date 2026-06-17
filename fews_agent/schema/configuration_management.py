@@ -30,10 +30,16 @@ class ConfigGroup(FewsModel):
     configTypeContainsSpace: bool | None = None
 
 
+class ConfigExcludedWorkflows(FewsModel):
+    """`<excludedWorkflows>` wrapper around `<workflowName>` elements."""
+
+    workflowName: list[str] = Field(min_length=1)
+
+
 class ConfigurationManagement(FewsModel):
     """Root of ConfigurationManagement.xml."""
 
     configParams: ConfigParams
     configGroup: list[ConfigGroup] = Field(min_length=1)
-    excludedWorkflows: list[str] = Field(default_factory=list)
+    excludedWorkflows: ConfigExcludedWorkflows | None = None
     version: str = "1.0"

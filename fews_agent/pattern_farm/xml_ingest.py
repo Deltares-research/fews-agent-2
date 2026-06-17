@@ -149,7 +149,7 @@ def _element_to_value(el: etree._Element) -> Any:
 
     if not children:
         if attribs:
-            d: dict[str, Any] = {k: _coerce_scalar(v) for k, v in attribs.items()}
+            d: dict[str, Any] = {f"@{k}": _coerce_scalar(v) for k, v in attribs.items()}
             if text:
                 d["__text__"] = _coerce_scalar(text)
             return d
@@ -157,7 +157,7 @@ def _element_to_value(el: etree._Element) -> Any:
 
     out: dict[str, Any] = {}
     for k, v in attribs.items():
-        out[k] = _coerce_scalar(v)
+        out[f"@{k}"] = _coerce_scalar(v)
 
     grouped: dict[str, list[etree._Element]] = {}
     for c in children:
@@ -219,19 +219,53 @@ def _normalize_for_schema(raw: Any, schema_class: type[BaseModel]) -> Any:
     if not isinstance(raw, dict):
         return raw
     out: dict[str, Any] = {}
+    consumed: set[str] = set()
     for field_name, field_info in schema_class.model_fields.items():
         key = _field_input_key(field_name, field_info)
-        if key not in raw:
+        # A declared field may be sourced from a child element (`key`) or an
+        # XML attribute, which the walker emits `@`-prefixed (`@key`). Typed
+        # fields take the bare name, so strip the `@` here; free-form `body`
+        # / pass-through dicts keep it (see below) so `dict_to_xml` can
+        # re-emit the attribute.
+        raw_key = key if key in raw else (f"@{key}" if f"@{key}" in raw else None)
+        if raw_key is None:
             continue
-        annot = field_info.annotation
-        out[field_name] = _normalize_field(raw[key], annot)
-    # Carry over any keys the model doesn't declare — pydantic will
-    # complain at validate-time if they're spurious, which is the
-    # right loud-failure signal.
-    for k, v in raw.items():
-        if k not in {_field_input_key(f, fi) for f, fi in schema_class.model_fields.items()}:
-            out[k] = v
+        out[field_name] = _normalize_field(raw[raw_key], field_info.annotation)
+        consumed.add(raw_key)
+    extras = {k: v for k, v in raw.items() if k not in consumed}
+    body_field = _free_form_body_field(schema_class)
+    if extras and body_field and body_field not in out:
+        # Fold undeclared child elements into a free-form `body` dict.
+        # Some schemas (e.g. Transformation) model an open-ended subtree
+        # — the transformation-kind body (user/simple, interpolationSpatial,
+        # merge, accumulation, ...) — as a single `body: dict[str, Any]`
+        # rendered back out via the `dict_to_xml` filter. The generic XML
+        # walker can't know this convention, so it surfaces those kinds as
+        # top-level keys; route them into `body` here.
+        out[body_field] = extras
+    else:
+        # Carry over any other undeclared keys — pydantic will complain at
+        # validate-time if they're spurious, which is the right
+        # loud-failure signal.
+        out.update(extras)
     return out
+
+
+def _free_form_body_field(schema_class: type[BaseModel]) -> str | None:
+    """Name of a free-form ``dict``-typed ``body`` field, or None.
+
+    Marks the "open subtree" convention used by ``Transformation`` and the
+    generic-body file schemas: a single field literally named ``body`` whose
+    annotation is ``dict`` / ``dict[str, Any]`` holds child elements the
+    model doesn't enumerate.
+    """
+    finfo = schema_class.model_fields.get("body")
+    if finfo is None:
+        return None
+    annot = finfo.annotation
+    if annot is dict or get_origin(annot) is dict:
+        return "body"
+    return None
 
 
 def _field_input_key(field_name: str, field_info: FieldInfo) -> str:

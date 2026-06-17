@@ -8,11 +8,17 @@ from pydantic import Field
 from .common import FewsModel
 
 
+class LocationAttributes(FewsModel):
+    """`<locationAttributes>` wrapper around `<attributeId>` elements."""
+
+    attributeId: list[str] = Field(min_length=1)
+
+
 class DataDownloadTemplate(FewsModel):
     id: str | None = None
     showLocationName: Literal["id", "short name", "name"]
     showParameterName: Literal["id", "short name", "name"]
-    locationAttributes: list[str] = Field(min_length=1)
+    locationAttributes: LocationAttributes
 
 
 class DataDownloadDisplay(FewsModel):

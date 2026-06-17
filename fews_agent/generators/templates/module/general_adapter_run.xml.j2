@@ -25,6 +25,7 @@
     </timeZone>
     {% endif %}
     {% if general.startDateTimeFormat is not none %}<startDateTimeFormat>{{ general.startDateTimeFormat }}</startDateTimeFormat>{% endif %}
+    {% if general.endDateTimeFormat is not none %}<endDateTimeFormat>{{ general.endDateTimeFormat }}</endDateTimeFormat>{% endif %}
     {% if general.modelTimeStep is not none %}{% if general.modelTimeStep.id is not none %}<modelTimeStep id="{{ general.modelTimeStep.id }}"/>{% else %}<modelTimeStep unit="{{ general.modelTimeStep.unit }}"{% if general.modelTimeStep.multiplier is not none %} multiplier="{{ general.modelTimeStep.multiplier }}"{% endif %}/>{% endif %}{% endif %}
   </general>
   <activities>
@@ -91,9 +92,11 @@
       {% for ena in activities.exportActivities.exportNetcdfActivity %}
       <exportNetcdfActivity>
         <exportFile>{{ ena.exportFile }}</exportFile>
+        {% for tssl in ena.timeSeriesSets %}
         <timeSeriesSets>
-          {% for ts in ena.timeSeriesSets.timeSeriesSet %}{{ tss.render(ts) }}{% endfor %}
+          {% for ts in tssl.timeSeriesSet %}{{ tss.render(ts) }}{% endfor %}
         </timeSeriesSets>
+        {% endfor %}
         {% if ena.omitMissingValues is not none %}<omitMissingValues>{{ 'true' if ena.omitMissingValues else 'false' }}</omitMissingValues>{% endif %}
       </exportNetcdfActivity>
       {% endfor %}
@@ -116,13 +119,16 @@
       <executeActivity>
         {% if exa.description is not none %}<description>{{ exa.description }}</description>{% endif %}
         <command>
-          <executable>{{ exa.command.executable }}</executable>
+          {% if exa.command.executable is not none %}<executable>{{ exa.command.executable }}</executable>{% else %}<className>{{ exa.command.className }}</className>{% if exa.command.binDir is not none %}<binDir>{{ exa.command.binDir }}</binDir>{% endif %}{% if exa.command.moduleDataSetName is not none %}<moduleDataSetName>{{ exa.command.moduleDataSetName }}</moduleDataSetName>{% endif %}{% if exa.command.customJreDir is not none %}<customJreDir>{{ exa.command.customJreDir }}</customJreDir>{% endif %}{% for j in exa.command.jvmArg %}<jvmArg>{{ j }}</jvmArg>{% endfor %}{% endif %}
         </command>
         {% if exa.arguments is not none %}
         <arguments>
           {% for a in exa.arguments.argument %}<argument>{{ a }}</argument>{% endfor %}
         </arguments>
         {% endif %}
+        {% for lf in exa.logFile %}
+        <logFile>{{ lf | dict_to_xml | safe }}</logFile>
+        {% endfor %}
         {% if exa.timeOut is not none %}<timeOut>{{ exa.timeOut }}</timeOut>{% endif %}
         {% if exa.ignoreDiagnostics is not none %}<ignoreDiagnostics>{{ 'true' if exa.ignoreDiagnostics else 'false' }}</ignoreDiagnostics>{% endif %}
         {% if exa.overrulingDiagnosticFile is not none %}<overrulingDiagnosticFile>{{ exa.overrulingDiagnosticFile }}</overrulingDiagnosticFile>{% endif %}
@@ -141,6 +147,7 @@
           {% if isa.stateFile.relativeExportFile is not none %}<relativeExportFile>{{ isa.stateFile.relativeExportFile }}</relativeExportFile>{% endif %}
         </stateFile>
         {% endif %}
+        {% if isa.compressedStateLocation is not none %}<compressedStateLocation>{{ isa.compressedStateLocation }}</compressedStateLocation>{% endif %}
         {% if isa.synchLevel is not none %}<synchLevel>{{ isa.synchLevel }}</synchLevel>{% endif %}
       </importStateActivity>
       {% endfor %}

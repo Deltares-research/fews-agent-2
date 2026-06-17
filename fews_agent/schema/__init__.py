@@ -89,10 +89,15 @@ from .ids import (
 from .id_map import (
     FunctionMapping,
     IdMap,
+    LocationIdFunctionMapping,
+    LocationIdPatternMapping,
     LocationMapping,
     MapMapping,
     ModuleInstanceMapping,
+    ParameterIdFunctionMapping,
     ParameterMapping,
+    QualifierIdFunctionMapping,
+    ThresholdMapping,
 )
 from .annotation_metadata_schema import (
     AnnotationEnumeration,
@@ -227,6 +232,7 @@ from .ribasim_model import (
 )
 from .configuration_management import (
     ConfigChildType,
+    ConfigExcludedWorkflows,
     ConfigGroup,
     ConfigParams,
     ConfigurationManagement,
@@ -236,7 +242,7 @@ from .configuration_validation import (
     ConfigType,
     ConfigurationValidation,
 )
-from .custom_colors import CustomColorKey, CustomColors
+from .custom_colors import CustomColorKey, CustomColors, DefaultCustomColorKeys
 from .correlation_display import (
     CorrelationDisplay,
     CorrelationDisplayOptions,
@@ -278,7 +284,11 @@ from .time_series_modifiers import (
     TimeSeriesModifiers,
 )
 from .da_filter import DAFilter
-from .data_download_display import DataDownloadDisplay, DataDownloadTemplate
+from .data_download_display import (
+    DataDownloadDisplay,
+    DataDownloadTemplate,
+    LocationAttributes,
+)
 from .double_mass_display import DoubleMassDisplay
 from .external_tables_mirror_update import ExternalTablesMirrorUpdate
 from .on_the_fly_expression_time_series import (
@@ -315,7 +325,9 @@ from .forecast_product_info_display import (
     ProductSelection,
 )
 from .tabular_config_files_display import (
+    Arguments,
     EnvironmentVariable,
+    EnvironmentVariables,
     TabularConfigFilesDisplay,
     TabularConfigFilesDisplayTask,
 )
@@ -360,8 +372,10 @@ from .sample_properties import SamplePropertiesBlock, SamplePropertiesFile
 from .security import (
     Security,
     SecurityAction,
+    SecurityActions,
     SecurityGrants,
     SecurityRole,
+    SecurityRoles,
 )
 from .travel_times import (
     CorrelationEquations,
@@ -424,7 +438,11 @@ from .storage_basin_system import (
 from .import_amalgamate import ImportAmalgamate
 from .module_config_properties import ModuleConfigProperties
 from .module_run_table_display import ModuleRunTableDisplay
-from .support_station_sets import SupportStationSet, SupportStationSets
+from .support_station_sets import (
+    DataTimeSeriesSets,
+    SupportStationSet,
+    SupportStationSets,
+)
 from .unreferenced_nc_files_cleaner import (
     NcRootDir,
     UnreferencedNcFilesCleaner,
@@ -494,6 +512,9 @@ from .thresholds import (
     DefaultThreshold,
     ForecastAvailableThreshold,
     LevelThreshold,
+    MaxThreshold,
+    RateThreshold,
+    Season,
     ThresholdGroup,
     ThresholdGroups,
 )
@@ -624,6 +645,14 @@ from .archive_metadata import (
     TaskKey,
     TaskRunKey,
     TimeSeriesBlobKey,
+    UsedFewsSessions,
+    UsedModifierDescriptors,
+    UsedModuleInstanceRuns,
+    UsedStates,
+    UsedTaskRuns,
+    UsedTasks,
+    UsedTimeSeriesBlobs,
+    UsedWhatIfScenarios,
     WarmStateKey,
     WhatIfScenarioKey,
 )
@@ -1253,6 +1282,7 @@ from .module_instance_descriptors import (
     ModuleInstanceDescriptors,
     ModuleInstanceDescriptorsCsvFile,
     ModuleInstanceGroup,
+    PersistentIdsCsvFile,
 )
 from .time_steps import (
     DayOfMonthWithAggregationPeriod,
@@ -1516,6 +1546,7 @@ __all__ = [
     # SupportStationSets
     "SupportStationSets",
     "SupportStationSet",
+    "DataTimeSeriesSets",
     # ImportAmalgamate
     "ImportAmalgamate",
     # ModuleConfigProperties
@@ -1551,6 +1582,7 @@ __all__ = [
     # CustomColors
     "CustomColors",
     "CustomColorKey",
+    "DefaultCustomColorKeys",
     # GeneralSettings
     "GeneralSettings",
     "StateSettings",
@@ -1566,7 +1598,9 @@ __all__ = [
     # Security
     "Security",
     "SecurityAction",
+    "SecurityActions",
     "SecurityRole",
+    "SecurityRoles",
     "SecurityGrants",
     # TrendDisplay
     "TrendDisplay",
@@ -1608,9 +1642,12 @@ __all__ = [
     "TabularConfigFilesDisplay",
     "TabularConfigFilesDisplayTask",
     "EnvironmentVariable",
+    "EnvironmentVariables",
+    "Arguments",
     # DataDownloadDisplay
     "DataDownloadDisplay",
     "DataDownloadTemplate",
+    "LocationAttributes",
     # WebBrowserDisplay
     "WebBrowserDisplay",
     "DomainWhiteList",
@@ -1776,6 +1813,7 @@ __all__ = [
     "ConfigParams",
     "ConfigGroup",
     "ConfigChildType",
+    "ConfigExcludedWorkflows",
     # ForecasterAidSelectionPanel
     "ForecasterAidSelectionPanel",
     # Branches
@@ -1862,9 +1900,14 @@ __all__ = [
     "IdMap",
     "FunctionMapping",
     "LocationMapping",
+    "LocationIdPatternMapping",
+    "LocationIdFunctionMapping",
     "MapMapping",
     "ModuleInstanceMapping",
     "ParameterMapping",
+    "ParameterIdFunctionMapping",
+    "QualifierIdFunctionMapping",
+    "ThresholdMapping",
     # UnitConversions
     "UnitConversions",
     "UnitConversion",
@@ -1883,6 +1926,9 @@ __all__ = [
     "ThresholdGroups",
     "ThresholdGroup",
     "LevelThreshold",
+    "RateThreshold",
+    "MaxThreshold",
+    "Season",
     "DefaultThreshold",
     # ModuleParameters
     "ModuleParameters",
@@ -1926,8 +1972,11 @@ __all__ = [
     "LocationIcon",
     # ModuleInstanceDescriptors
     "ModuleInstanceDescriptor",
+    "ModuleInstanceDescriptorAttributeFile",
     "ModuleInstanceDescriptors",
+    "ModuleInstanceDescriptorsCsvFile",
     "ModuleInstanceGroup",
+    "PersistentIdsCsvFile",
     # WorkflowDescriptors
     "WorkflowDescriptors",
     "WorkflowDescriptor",
@@ -2121,6 +2170,14 @@ __all__ = [
     "TimeSeriesBlobKey",
     "WarmStateKey",
     "WhatIfScenarioKey",
+    "UsedStates",
+    "UsedTimeSeriesBlobs",
+    "UsedTaskRuns",
+    "UsedTasks",
+    "UsedModuleInstanceRuns",
+    "UsedFewsSessions",
+    "UsedWhatIfScenarios",
+    "UsedModifierDescriptors",
     # PCRaster
     "PCRaster",
     "PCRasterAdapterFiles",

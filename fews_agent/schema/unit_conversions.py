@@ -24,9 +24,16 @@ class UnitConversion(FewsModel):
     outputUnitType: str
     multiplier: str = "1"
     incrementer: str = "0"
+    # Optional per-conversion datum flag: convert from/to Ordnance level on
+    # import/export. XSD-default false; modeled optional so it only renders
+    # when supplied.
+    convertDatum: bool | None = None
 
 
 class UnitConversions(FewsModel):
     """Root of a UnitConversions file."""
 
+    # Optional root flag (XSD-default false): when true, FEWS also registers
+    # the inverse of every listed conversion. Precedes the conversion list.
+    addInverses: bool | None = None
     unitConversion: list[UnitConversion] = Field(min_length=1)

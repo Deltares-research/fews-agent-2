@@ -410,6 +410,13 @@ class TimeSeriesSet(FewsModel):
     cycle: "CalendarTimeSpan | None" = None
     relativeViewPeriod: RelativeViewPeriod | None = None
     relativeForecastPeriod: RelativeViewPeriod | None = None
+    # ExternalForecastSearchChoice (XSD group, minOccurs=0): a choice between
+    # relativeForecastSearchPeriod, the min/max-age sequence, and
+    # externalForecastTimeId. Modeled as four optional fields in XSD order.
+    relativeForecastSearchPeriod: RelativeViewPeriod | None = None
+    externalForecastMinAge: TimeShift | None = None
+    externalForecastMaxAge: TimeShift | None = None
+    externalForecastTimeId: str | None = None
     externalForecastSearchTimeStep: TimeStep | None = None
     externalForecastTimeCardinalTimeStep: TimeStep | None = None
     qualifierAggregation: str | None = None

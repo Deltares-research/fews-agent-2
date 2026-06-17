@@ -21,18 +21,60 @@ class DefaultThreshold(FewsModel):
     shortName: str
 
 
+class Season(FewsModel):
+    """SeasonComplexType — a yearly recurring validity window for a
+    threshold. monthDay attributes are raw ``--MM-DD`` strings."""
+
+    startMonthDay: str
+    endMonthDay: str
+    timeZone: str | None = None
+    label: str | None = None
+
+
 class LevelThreshold(FewsModel):
+    """One severity level. XSD: a choice of up/down warningLevelId, then
+    optional deprecated up/down intIds and an optional season window."""
+
     id: LevelThresholdId
-    upWarningLevelId: WarningLevelId
+    # XSD choice (both optional): which crossing direction this level maps to.
+    upWarningLevelId: WarningLevelId | None = None
+    downWarningLevelId: WarningLevelId | None = None
+    upIntId: int | None = None  # deprecated
+    downIntId: int | None = None  # deprecated
+    season: Season | None = None
     name: str | None = None
     shortName: str | None = None
 
 
+class RateThreshold(FewsModel):
+    """Rate-of-change threshold kind. Deprecated up/down intIds + season."""
+
+    id: str
+    name: str | None = None
+    upIntId: int | None = None
+    downIntId: int | None = None
+    season: Season | None = None
+
+
+class MaxThreshold(FewsModel):
+    """Maximum-value threshold kind. Deprecated intId + season."""
+
+    id: str
+    name: str | None = None
+    intId: int | None = None
+    season: Season | None = None
+
+
 class ThresholdGroup(FewsModel):
+    """One threshold group. XSD ThresholdChoiceGroup permits any mix of
+    levelThreshold / rateThreshold kinds plus an optional maxThreshold."""
+
     id: ThresholdGroupId
     name: str | None = None
     defaultThreshold: DefaultThreshold | None = None
-    levelThreshold: list[LevelThreshold] = Field(min_length=1)
+    levelThreshold: list[LevelThreshold] = Field(default_factory=list)
+    rateThreshold: list[RateThreshold] = Field(default_factory=list)
+    maxThreshold: MaxThreshold | None = None
 
 
 class ForecastAvailableThreshold(FewsModel):

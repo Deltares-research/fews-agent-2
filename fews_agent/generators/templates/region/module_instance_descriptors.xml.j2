@@ -21,8 +21,23 @@
 {%- else %}/>
 {%- endif %}
 {%- endmacro -%}
+{%- macro emit_attribute(a) -%}
+<attribute{% if a.id is not none %} id="{{ a.id }}"{% endif %}{% if a.name is not none %} name="{{ a.name }}"{% endif %}>
+        {%- if a.description is not none %}<description>{{ a.description }}</description>{% endif %}
+        {%- if a.text is not none %}<text>{{ a.text }}</text>{% for ev in a.enumerationValue %}<enumerationValue>{{ ev }}</enumerationValue>{% endfor %}{% if a.regularExpression is not none %}<regularExpression>{{ a.regularExpression }}</regularExpression>{% endif %}{% elif a.number is not none %}<number>{{ a.number }}</number>{% elif a.boolean is not none %}<boolean>{{ a.boolean }}</boolean>{% elif a.dateTime is not none %}<dateTime>{{ a.dateTime }}</dateTime>{% endif %}
+        {%- if a.required is not none %}<required>{{ 'true' if a.required else 'false' }}</required>{% endif %}
+      </attribute>
+{%- endmacro -%}
 <?xml version="1.0" encoding="UTF-8"?>
 <moduleInstanceDescriptors xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/moduleInstanceDescriptors.xsd" version="{{ version }}">
+{% for pf in persistentIdsCsvFile %}
+  <persistentIdsCsvFile>
+    <file>{{ pf.file }}</file>
+    {% if pf.charset is not none %}<charset>{{ pf.charset }}</charset>{% endif %}
+    <configId>{{ pf.configId }}</configId>
+    <persistentId>{{ pf.persistentId }}</persistentId>
+  </persistentIdsCsvFile>
+{% endfor %}
 {% for m in moduleInstanceDescriptor %}
   {{ emit_descriptor(m) }}
 {% endfor %}
@@ -53,6 +68,7 @@
       <csvFile>{{ a.csvFile }}</csvFile>
       {% if a.charset is not none %}<charset>{{ a.charset }}</charset>{% endif %}
       <id>{{ a.id }}</id>
+      {% for at in a.attribute %}{{ emit_attribute(at) }}{% endfor %}
     </attributeFile>
     {% endfor %}
   </moduleInstanceDescriptorsCsvFile>
