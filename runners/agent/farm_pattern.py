@@ -61,6 +61,27 @@ from fews_agent.pattern_farm.ir import InstanceInput
 from fews_agent.pattern_farm.renderer import write_pattern_yaml
 from fews_agent.pattern_farm.xml_ingest import parse_instance_config
 
+# Repo root is two levels up from runners/agent/farm_pattern.py.
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+
+
+def _load_env() -> None:
+    """Load provider credentials (e.g. ``HF_TOKEN``) from a ``.env`` file so
+    the documented "put your token in .env" workflow works for this runner.
+
+    Checks repo-root ``.env`` then ``secrets/.env`` (the location the TUI
+    uses). ``load_dotenv`` does not override already-set environment
+    variables, so an explicit ``export`` still wins. No-op if python-dotenv
+    is unavailable.
+    """
+    try:
+        from dotenv import load_dotenv
+    except ImportError:
+        return
+    for path in (_REPO_ROOT / ".env", _REPO_ROOT / "secrets" / ".env"):
+        if path.is_file():
+            load_dotenv(path)
+
 
 # Default escalation ladder for HF-backed runs. Ordered weakest → strongest.
 HF_LADDER = [
@@ -118,6 +139,7 @@ def load_instances(path: Path) -> list[InstanceInput]:
 
 
 def main(argv: list[str] | None = None) -> int:
+    _load_env()
     args = parse_args(argv)
     console = Console()
 
