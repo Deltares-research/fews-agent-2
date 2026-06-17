@@ -1,23 +1,137 @@
 {# Recursive renderer for Topology <nodes> groups and <node> leaves. #}
+{%- macro tstep(t, tag) -%}
+{%- if t.id is not none %}<{{ tag }} id="{{ t.id }}"/>{% else %}<{{ tag }} unit="{{ t.unit }}"{% if t.multiplier is not none %} multiplier="{{ t.multiplier }}"{% endif %}/>{% endif %}
+{%- endmacro -%}
+{%- macro relp(p, tag) -%}
+<{{ tag }} unit="{{ p.unit }}"{% if p.start is not none %} start="{{ p.start }}"{% endif %}{% if p.end is not none %} end="{{ p.end }}"{% endif %}{% if p.startOverrulable is not none %} startOverrulable="{{ 'true' if p.startOverrulable else 'false' }}"{% endif %}{% if p.endOverrulable is not none %} endOverrulable="{{ 'true' if p.endOverrulable else 'false' }}"{% endif %}/>
+{%- endmacro -%}
+{%- macro span(s, tag) -%}
+<{{ tag }} unit="{{ s.unit }}"{% if s.multiplier is not none %} multiplier="{{ s.multiplier }}"{% endif %}/>
+{%- endmacro -%}
+{%- macro idcon(c, tag) -%}
+<{{ tag }}{% if c.prefix is not none %} prefix="{{ c.prefix }}"{% endif %}{% if c.postfix is not none %} postfix="{{ c.postfix }}"{% endif %}{% if c.contains is not none %} contains="{{ c.contains }}"{% endif %}/>
+{%- endmacro -%}
+{%- macro attcon(c, tag) -%}
+<{{ tag }} id="{{ c.id }}"{% if c.prefix is not none %} prefix="{{ c.prefix }}"{% endif %}{% if c.postfix is not none %} postfix="{{ c.postfix }}"{% endif %}{% if c.contains is not none %} contains="{{ c.contains }}"{% endif %}{% if c.equals is not none %} equals="{{ c.equals }}"{% endif %}{% if c.modifierDependent is not none %} modifierDependent="{{ 'true' if c.modifierDependent else 'false' }}"{% endif %}/>
+{%- endmacro -%}
+{%- macro constraints(con) -%}
+{%- for c in con.idStartsWith %}{{ idcon(c, "idStartsWith") }}{% endfor %}
+{%- for c in con.idEndsWith %}{{ idcon(c, "idEndsWith") }}{% endfor %}
+{%- for c in con.idContains %}{{ idcon(c, "idContains") }}{% endfor %}
+{%- for c in con.relatedLocationExists %}<relatedLocationExists locationRelationId="{{ c.locationRelationId }}"/>{% endfor %}
+{%- for c in con.attributeExists %}<attributeExists id="{{ c.id }}"/>{% endfor %}
+{%- for c in con.attributeTextStartsWith %}{{ attcon(c, "attributeTextStartsWith") }}{% endfor %}
+{%- for c in con.attributeTextEndsWith %}{{ attcon(c, "attributeTextEndsWith") }}{% endfor %}
+{%- for c in con.attributeTextContains %}{{ attcon(c, "attributeTextContains") }}{% endfor %}
+{%- for c in con.attributeTextEquals %}{{ attcon(c, "attributeTextEquals") }}{% endfor %}
+{%- for c in con.attributeTrue %}<attributeTrue id="{{ c.id }}"/>{% endfor %}
+{%- for c in con.attributeFalse %}<attributeFalse id="{{ c.id }}"/>{% endfor %}
+{%- if con.not_ is not none %}<not>{{ constraints(con.not_) }}</not>{% endif %}
+{%- if con.anyValid is not none %}<anyValid>{{ constraints(con.anyValid) }}</anyValid>{% endif %}
+{%- if con.allValid is not none %}<allValid>{{ constraints(con.allValid) }}</allValid>{% endif %}
+{%- endmacro -%}
+{%- macro props(p) -%}
+<properties>
+    {%- if p.description is not none %}<description>{{ p.description }}</description>{% endif %}
+    {%- for x in p.string %}<string key="{{ x.key }}" value="{{ x.value }}"/>{% endfor %}
+    {%- for x in p["int"] %}<int key="{{ x.key }}" value="{{ x.value }}"/>{% endfor %}
+    {%- for x in p["float"] %}<float key="{{ x.key }}" value="{{ x.value }}"/>{% endfor %}
+    {%- for x in p.double %}<double key="{{ x.key }}" value="{{ x.value }}"/>{% endfor %}
+    {%- for x in p["bool"] %}<bool key="{{ x.key }}" value="{{ 'true' if x.value else 'false' }}"/>{% endfor %}
+    {%- for x in p.dateTime %}<dateTime key="{{ x.key }}" date="{{ x.date }}" time="{{ x.time }}"/>{% endfor %}
+  </properties>
+{%- endmacro -%}
 
 {% macro render_node(leaf) -%}
 <node id="{{ leaf.id }}"{% if leaf.name is not none %} name="{{ leaf.name }}"{% endif %}>
-  {% for p in leaf.previousNodeId %}<previousNodeId>{{ p }}</previousNodeId>{% endfor %}
-  {% if leaf.nextNodeId is not none %}<nextNodeId>{{ leaf.nextNodeId }}</nextNodeId>{% endif %}
-  {% for l in leaf.locationId %}<locationId>{{ l }}</locationId>{% endfor %}
-  {% if leaf.locationSetId is not none %}<locationSetId>{{ leaf.locationSetId }}</locationSetId>{% endif %}
-  {% for t in leaf.tabularLocationId %}<tabularLocationId>{{ t }}</tabularLocationId>{% endfor %}
-  {% if leaf.url is not none %}<url>{{ leaf.url }}</url>{% endif %}
-  {% if leaf.workflowId is not none %}<workflowId>{{ leaf.workflowId }}</workflowId>{% endif %}
-  {% if leaf.graceTime is not none %}<graceTime unit="{{ leaf.graceTime.unit }}" multiplier="{{ leaf.graceTime.multiplier }}"/>{% endif %}
-  {% for vmg in leaf.visibleModifierGroup %}<visibleModifierGroup>{{ vmg }}</visibleModifierGroup>{% endfor %}
-  {% if leaf.componentSettingsId is not none %}<componentSettingsId>{{ leaf.componentSettingsId }}</componentSettingsId>{% endif %}
-  {% if leaf.localRun is not none %}<localRun>{{ 'true' if leaf.localRun else 'false' }}</localRun>{% endif %}
-  {% if leaf.showRunApprovedForecastButton is not none %}<showRunApprovedForecastButton>{{ 'true' if leaf.showRunApprovedForecastButton else 'false' }}</showRunApprovedForecastButton>{% endif %}
-  {% if leaf.backgroundSelectionColor is not none %}<backgroundSelectionColor>{{ leaf.backgroundSelectionColor }}</backgroundSelectionColor>{% endif %}
-  {% if leaf.backgroundNonSelectionColor is not none %}<backgroundNonSelectionColor>{{ leaf.backgroundNonSelectionColor }}</backgroundNonSelectionColor>{% endif %}
-  {% if leaf.textSelectionColor is not none %}<textSelectionColor>{{ leaf.textSelectionColor }}</textSelectionColor>{% endif %}
-  {% if leaf.textNonSelectionColor is not none %}<textNonSelectionColor>{{ leaf.textNonSelectionColor }}</textNonSelectionColor>{% endif %}
+  {%- for p in leaf.previousNodeId %}<previousNodeId>{{ p }}</previousNodeId>{% endfor %}
+  {%- if leaf.nextNodeId is not none %}<nextNodeId>{{ leaf.nextNodeId }}</nextNodeId>{% endif %}
+  {%- for l in leaf.locationId %}<locationId>{{ l }}</locationId>{% endfor %}
+  {%- if leaf.locationSetId is not none %}<locationSetId>{{ leaf.locationSetId }}</locationSetId>{% endif %}
+  {%- for t in leaf.tabularLocationId %}<tabularLocationId>{{ t }}</tabularLocationId>{% endfor %}
+  {%- if leaf.properties is not none %}{{ props(leaf.properties) }}{% endif %}
+  {%- if leaf.workflowId is not none %}<workflowId>{{ leaf.workflowId }}</workflowId>{% endif %}
+  {%- if leaf.refreshConfigAfterCompletion is not none %}<refreshConfigAfterCompletion>{{ 'true' if leaf.refreshConfigAfterCompletion else 'false' }}</refreshConfigAfterCompletion>{% endif %}
+  {%- for s in leaf.secondaryWorkflowId %}<secondaryWorkflowId>{{ s }}</secondaryWorkflowId>{% endfor %}
+  {%- if leaf.runSecondaryWorkflowAtServer is not none %}<runSecondaryWorkflowAtServer>{{ 'true' if leaf.runSecondaryWorkflowAtServer else 'false' }}</runSecondaryWorkflowAtServer>{% endif %}
+  {%- if leaf.runSecondaryWorkflowWithTaskRunPropertiesFromIFD is not none %}<runSecondaryWorkflowWithTaskRunPropertiesFromIFD>{{ 'true' if leaf.runSecondaryWorkflowWithTaskRunPropertiesFromIFD else 'false' }}</runSecondaryWorkflowWithTaskRunPropertiesFromIFD>{% endif %}
+  {%- if leaf.enableSecondaryWorkflow is not none %}<enableSecondaryWorkflow>{{ leaf.enableSecondaryWorkflow }}</enableSecondaryWorkflow>{% endif %}
+  {%- for m in leaf.moduleInstanceId %}<moduleInstanceId>{{ m }}</moduleInstanceId>{% endfor %}
+  {%- if leaf.enableAutoApprove is not none %}<enableAutoApprove>{{ 'true' if leaf.enableAutoApprove else 'false' }}</enableAutoApprove>{% endif %}
+  {%- if leaf.startDateTime is not none %}
+  <startDateTime>{{ leaf.startDateTime }}</startDateTime>
+  {%- if leaf.enableEarlierStartTime is not none %}<enableEarlierStartTime>{{ 'true' if leaf.enableEarlierStartTime else 'false' }}</enableEarlierStartTime>{% endif %}
+  {%- if leaf.enableLaterStartTime is not none %}<enableLaterStartTime>{{ 'true' if leaf.enableLaterStartTime else 'false' }}</enableLaterStartTime>{% endif %}
+  {%- if leaf.endDateTime is not none %}<endDateTime>{{ leaf.endDateTime }}</endDateTime>{% endif %}
+  {%- if leaf.enableEarlierEndTime is not none %}<enableEarlierEndTime>{{ 'true' if leaf.enableEarlierEndTime else 'false' }}</enableEarlierEndTime>{% endif %}
+  {%- if leaf.enableLaterEndTime is not none %}<enableLaterEndTime>{{ 'true' if leaf.enableLaterEndTime else 'false' }}</enableLaterEndTime>{% endif %}
+  {%- else %}
+  {%- if leaf.coldState is not none %}{{ span(leaf.coldState, "coldState") }}{% elif leaf.coldStateFromCurrentRun is not none %}<coldStateFromCurrentRun><workflowId>{{ leaf.coldStateFromCurrentRun.workflowId }}</workflowId>{% if leaf.coldStateFromCurrentRun.coldState is not none %}{{ span(leaf.coldStateFromCurrentRun.coldState, "coldState") }}{% endif %}</coldStateFromCurrentRun>{% elif leaf.coldStateStartTime is not none %}<coldStateStartTime>{{ leaf.coldStateStartTime }}</coldStateStartTime>{% elif leaf.warmStateSelectionPeriod is not none %}{{ relp(leaf.warmStateSelectionPeriod, "warmStateSelectionPeriod") }}{% elif leaf.warmState is not none %}{{ span(leaf.warmState, "warmState") }}{% elif leaf.noInitialState is not none and leaf.noInitialState %}<noInitialState/>{% endif %}
+  {%- if leaf.fixedColdState is not none %}{%- set f = leaf.fixedColdState %}<fixedColdState>{% if f.coldState is not none %}{{ span(f.coldState, "coldState") }}{% endif %}<locationId>{{ f.locationId }}</locationId><modifierTypeId>{{ f.modifierTypeId }}</modifierTypeId><fixedColdStateLocationAttributeId>{{ f.fixedColdStateLocationAttributeId }}</fixedColdStateLocationAttributeId><fixedColdStateGroupLocationAttributeId>{{ f.fixedColdStateGroupLocationAttributeId }}</fixedColdStateGroupLocationAttributeId></fixedColdState>{% endif %}
+  {%- if leaf.relativePeriod is not none %}{{ relp(leaf.relativePeriod, "relativePeriod") }}{% elif leaf.relativeStartTime is not none %}<relativeStartTime value="{{ leaf.relativeStartTime.value }}" unit="{{ leaf.relativeStartTime.unit }}"/>{% endif %}
+  {%- if leaf.forecastLength is not none %}{{ span(leaf.forecastLength, "forecastLength") }}{% endif %}
+  {%- if leaf.cardinalTimeStepForecastLength is not none %}{{ tstep(leaf.cardinalTimeStepForecastLength, "cardinalTimeStepForecastLength") }}{% endif %}
+  {%- if leaf.initialForecastLengthCardinalTimeStep is not none %}{{ tstep(leaf.initialForecastLengthCardinalTimeStep, "initialForecastLengthCardinalTimeStep") }}{% endif %}
+  {%- if leaf.useForecastLengthFromInteractiveForecastDisplay is not none %}<useForecastLengthFromInteractiveForecastDisplay>{{ 'true' if leaf.useForecastLengthFromInteractiveForecastDisplay else 'false' }}</useForecastLengthFromInteractiveForecastDisplay>{% endif %}
+  {%- if leaf.cardinalTimeStepStartTime is not none %}{{ tstep(leaf.cardinalTimeStepStartTime, "cardinalTimeStepStartTime") }}{% endif %}
+  {%- if leaf.initialStartTimeCardinalTimeStep is not none %}{{ tstep(leaf.initialStartTimeCardinalTimeStep, "initialStartTimeCardinalTimeStep") }}{% endif %}
+  {%- if leaf.cardinalTimeStepEndTime is not none %}{{ tstep(leaf.cardinalTimeStepEndTime, "cardinalTimeStepEndTime") }}{% endif %}
+  {%- if leaf.initialEndTimeCardinalTimeStep is not none %}{{ tstep(leaf.initialEndTimeCardinalTimeStep, "initialEndTimeCardinalTimeStep") }}{% endif %}
+  {%- if leaf.timeZero is not none %}<timeZero>{{ leaf.timeZero }}</timeZero>{% elif leaf.timeZeroShift is not none %}<timeZeroShift unit="{{ leaf.timeZeroShift.unit }}"{% if leaf.timeZeroShift.multiplier is not none %} multiplier="{{ leaf.timeZeroShift.multiplier }}"{% endif %}{% if leaf.timeZeroShift.divider is not none %} divider="{{ leaf.timeZeroShift.divider }}"{% endif %}/>{% endif %}
+  {%- endif %}
+  {%- if leaf.alwaysVisibleInForecasterNotes is not none %}<alwaysVisibleInForecasterNotes>{{ 'true' if leaf.alwaysVisibleInForecasterNotes else 'false' }}</alwaysVisibleInForecasterNotes>{% endif %}
+  {%- if leaf.mapExtentId is not none %}<mapExtentId>{{ leaf.mapExtentId }}</mapExtentId>{% endif %}
+  {%- for f in leaf.filterId %}<filterId>{{ f }}</filterId>{% endfor %}
+  {%- if leaf.disableMap is not none %}<disableMap>{{ 'true' if leaf.disableMap else 'false' }}</disableMap>{% endif %}
+  {%- if leaf.displayId is not none %}<displayId>{{ leaf.displayId }}</displayId>{% elif leaf.plotId is not none %}<plotId>{{ leaf.plotId }}</plotId>{% else %}{% for d in leaf.displayGroupId %}<displayGroupId>{{ d }}</displayGroupId>{% endfor %}{% endif %}
+  {%- if leaf.dataDownloadDisplayId is not none %}<dataDownloadDisplayId>{{ leaf.dataDownloadDisplayId }}</dataDownloadDisplayId>{% endif %}
+  {%- if leaf.logDisplayId is not none %}<logDisplayId>{{ leaf.logDisplayId }}</logDisplayId>{% endif %}
+  {%- if leaf.dynamicReportDisplayId is not none %}<dynamicReportDisplayId>{{ leaf.dynamicReportDisplayId }}</dynamicReportDisplayId>{% endif %}
+  {%- for d in leaf.webOCDashboardId %}<webOCDashboardId>{{ d }}</webOCDashboardId>{% endfor %}
+  {%- for d in leaf.webOCMicroFrontEndId %}<webOCMicroFrontEndId>{{ d }}</webOCMicroFrontEndId>{% endfor %}
+  {%- if leaf.documentDisplayId is not none %}<documentDisplayId>{{ leaf.documentDisplayId }}</documentDisplayId>{% endif %}
+  {%- if leaf.timeSeriesButtonsPanelId is not none %}<timeSeriesButtonsPanelId>{{ leaf.timeSeriesButtonsPanelId }}</timeSeriesButtonsPanelId>{% endif %}
+  {%- if leaf.reportModuleInstanceId is not none %}<reportModuleInstanceId>{{ leaf.reportModuleInstanceId }}</reportModuleInstanceId>{% endif %}
+  {%- if leaf.dataAnalysisDisplayId is not none %}<dataAnalysisDisplayId>{{ leaf.dataAnalysisDisplayId }}</dataAnalysisDisplayId>{% endif %}
+  {%- if leaf.documentFile is not none %}<documentFile>{{ leaf.documentFile }}</documentFile>{% endif %}
+  {%- if leaf.customInfoLabel is not none %}{%- set ci = leaf.customInfoLabel %}<customInfoLabel><labelText>{{ ci.labelText }}</labelText><locationId>{{ ci.locationId }}</locationId>{% for o in ci.overrulingUnmodifiedDateTimeAttributeValue %}<overrulingUnmodifiedDateTimeAttributeValue><attributeId>{{ o.attributeId }}</attributeId>{{ span(o.offset, "offset") }}{{ tstep(o.timeStep, "timeStep") }}</overrulingUnmodifiedDateTimeAttributeValue>{% endfor %}</customInfoLabel>{% endif %}
+  {%- if leaf.showWorkflowDescriptionBox is not none %}<showWorkflowDescriptionBox>{{ 'true' if leaf.showWorkflowDescriptionBox else 'false' }}</showWorkflowDescriptionBox>{% endif %}
+  {%- if leaf.disableAdvancedButton is not none %}<disableAdvancedButton>{{ 'true' if leaf.disableAdvancedButton else 'false' }}</disableAdvancedButton>{% endif %}
+  {%- if leaf.hideModifiersOverviewPanel is not none %}<hideModifiersOverviewPanel>{{ 'true' if leaf.hideModifiersOverviewPanel else 'false' }}</hideModifiersOverviewPanel>{% endif %}
+  {%- if leaf.areaId is not none %}<areaId>{{ leaf.areaId }}</areaId>{% endif %}
+  {%- if leaf.modifiersReadOnly is not none %}<modifiersReadOnly>{{ 'true' if leaf.modifiersReadOnly else 'false' }}</modifiersReadOnly>{% endif %}
+  {%- if leaf.viewPermission is not none %}<viewPermission>{{ leaf.viewPermission }}</viewPermission>{% endif %}
+  {%- if leaf.runWorkflowLocallyPermission is not none %}<runWorkflowLocallyPermission>{{ leaf.runWorkflowLocallyPermission }}</runWorkflowLocallyPermission>{% endif %}
+  {%- if leaf.runWorkflowAtServerPermission is not none %}<runWorkflowAtServerPermission>{{ leaf.runWorkflowAtServerPermission }}</runWorkflowAtServerPermission>{% endif %}
+  {%- if leaf.runSecondaryWorkflowPermission is not none %}<runSecondaryWorkflowPermission>{{ leaf.runSecondaryWorkflowPermission }}</runSecondaryWorkflowPermission>{% endif %}
+  {%- if leaf.defaultModifierId is not none %}<defaultModifierId>{{ leaf.defaultModifierId }}</defaultModifierId>{% endif %}
+  {%- if leaf.onlyAllowEditDefaultModifier is not none %}<onlyAllowEditDefaultModifier>{{ 'true' if leaf.onlyAllowEditDefaultModifier else 'false' }}</onlyAllowEditDefaultModifier>{% endif %}
+  {%- for vmg in leaf.visibleModifierGroup %}<visibleModifierGroup>{{ vmg }}</visibleModifierGroup>{% endfor %}
+  {%- if leaf.attributeModifierLocationConstraint is not none %}<attributeModifierLocationConstraint>{{ constraints(leaf.attributeModifierLocationConstraint) }}</attributeModifierLocationConstraint>{% endif %}
+  {%- if leaf.graceTime is not none %}{{ span(leaf.graceTime, "graceTime") }}{% endif %}
+  {%- if leaf.checkStatusPreviousServerRun is not none %}<checkStatusPreviousServerRun>{{ 'true' if leaf.checkStatusPreviousServerRun else 'false' }}</checkStatusPreviousServerRun>{% endif %}
+  {%- if leaf.showMacroButton is not none %}<showMacroButton>{{ 'true' if leaf.showMacroButton else 'false' }}</showMacroButton>{% endif %}
+  {%- if leaf.gridDisplaySelection is not none %}<gridDisplaySelection><groupId>{{ leaf.gridDisplaySelection.groupId }}</groupId>{% if leaf.gridDisplaySelection.plotId is not none %}<plotId>{{ leaf.gridDisplaySelection.plotId }}</plotId>{% endif %}</gridDisplaySelection>{% endif %}
+  {%- if leaf.mainPanel is not none %}<mainPanel>{{ leaf.mainPanel }}</mainPanel>{% elif leaf.explorerTaskName is not none %}<explorerTaskName>{{ leaf.explorerTaskName }}</explorerTaskName>{% elif leaf.displayConfigFileName is not none %}<displayConfigFileName>{{ leaf.displayConfigFileName }}</displayConfigFileName>{% if leaf.tabId is not none %}<tabId>{{ leaf.tabId }}</tabId>{% elif leaf.panelId is not none %}<panelId>{{ leaf.panelId }}</panelId>{% endif %}{% endif %}
+  {%- for tw in leaf.toolWindow %}<toolWindow>{{ tw }}</toolWindow>{% endfor %}
+  {%- if leaf.url is not none %}<url>{{ leaf.url }}</url>{% endif %}
+  {%- if leaf.embedUrl is not none %}<embedUrl>{{ leaf.embedUrl }}</embedUrl>{% endif %}
+  {%- if leaf.useStatusParentNode is not none %}<useStatusParentNode>{{ 'true' if leaf.useStatusParentNode else 'false' }}</useStatusParentNode>{% endif %}
+  {%- for t in leaf.thresholdValueSetId %}<thresholdValueSetId>{{ t }}</thresholdValueSetId>{% endfor %}
+  {%- if leaf.scadaDisplayId is not none %}<scadaDisplayId>{{ leaf.scadaDisplayId }}</scadaDisplayId>{% endif %}
+  {%- if leaf.scadaPanelId is not none %}<scadaPanelId>{{ leaf.scadaPanelId }}</scadaPanelId>{% endif %}
+  {%- if leaf.popupMessageServerRun is not none %}<popupMessageServerRun>{{ leaf.popupMessageServerRun }}</popupMessageServerRun>{% endif %}
+  {%- if leaf.popupMessageUncommittedModifiers is not none %}<popupMessageUncommittedModifiers>{{ leaf.popupMessageUncommittedModifiers }}</popupMessageUncommittedModifiers>{% endif %}
+  {%- if leaf.thresholdIconRelativeViewPeriod is not none %}{{ relp(leaf.thresholdIconRelativeViewPeriod, "thresholdIconRelativeViewPeriod") }}{% endif %}
+  {%- if leaf.icon is not none %}<icon>{{ leaf.icon }}</icon>{% endif %}
+  {%- if leaf.iconId is not none %}<iconId>{{ leaf.iconId }}</iconId>{% endif %}
+  {%- if leaf.componentSettingsId is not none %}<componentSettingsId>{{ leaf.componentSettingsId }}</componentSettingsId>{% endif %}
+  {%- if leaf.privateRunAtServer is not none %}<privateRunAtServer>{{ 'true' if leaf.privateRunAtServer else 'false' }}</privateRunAtServer>{% if leaf.publishPrivateRunEnabled is not none %}<publishPrivateRunEnabled>{{ 'true' if leaf.publishPrivateRunEnabled else 'false' }}</publishPrivateRunEnabled>{% endif %}{% else %}{% if leaf.localRun is not none %}<localRun>{{ 'true' if leaf.localRun else 'false' }}</localRun>{% endif %}{% if leaf.saveLocalRunEnabled is not none %}<saveLocalRunEnabled>{{ 'true' if leaf.saveLocalRunEnabled else 'false' }}</saveLocalRunEnabled>{% endif %}{% endif %}
+  {%- if leaf.showRunApprovedForecastButton is not none %}<showRunApprovedForecastButton>{{ 'true' if leaf.showRunApprovedForecastButton else 'false' }}</showRunApprovedForecastButton>{% endif %}
+  {%- if leaf.backgroundSelectionColor is not none %}<backgroundSelectionColor>{{ leaf.backgroundSelectionColor }}</backgroundSelectionColor>{% endif %}
+  {%- if leaf.backgroundNonSelectionColor is not none %}<backgroundNonSelectionColor>{{ leaf.backgroundNonSelectionColor }}</backgroundNonSelectionColor>{% endif %}
+  {%- if leaf.textSelectionColor is not none %}<textSelectionColor>{{ leaf.textSelectionColor }}</textSelectionColor>{% endif %}
+  {%- if leaf.textNonSelectionColor is not none %}<textNonSelectionColor>{{ leaf.textNonSelectionColor }}</textNonSelectionColor>{% endif %}
 </node>
 {%- endmacro %}
 

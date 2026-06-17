@@ -1,8 +1,9 @@
 {%- import "_partials/topology_nodes.xml.j2" as topo -%}
 <?xml version="1.0" encoding="UTF-8"?>
 <topology xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/topology.xsd">
-  {% if forecasterHelperDirectories is not none %}<forecasterHelperDirectories>{{ forecasterHelperDirectories }}</forecasterHelperDirectories>{% endif %}
+  {% if forecasterHelperDirectories is not none %}{% set fhd = forecasterHelperDirectories %}<forecasterHelperDirectories>{% for d in fhd.directory %}<directory>{{ d }}</directory>{% endfor %}{% for d in fhd.allNodesDirectory %}<allNodesDirectory>{{ d }}</allNodesDirectory>{% endfor %}{% for d in fhd.multipleNodesDirectory %}<multipleNodesDirectory nodeIdPrefix="{{ d.nodeIdPrefix }}">{{ d.value }}</multipleNodesDirectory>{% endfor %}</forecasterHelperDirectories>{% endif %}
   {% if enableOriginalButtons is not none %}<enableOriginalButtons>{{ 'true' if enableOriginalButtons else 'false' }}</enableOriginalButtons>{% endif %}
+  {% if modifiersIconVisible is not none %}<modifiersIconVisible>{{ 'true' if modifiersIconVisible else 'false' }}</modifiersIconVisible>{% elif hideModifiersButton is not none %}<hideModifiersButton>{{ 'true' if hideModifiersButton else 'false' }}</hideModifiersButton>{% endif %}
   {% if hideThresholdsButton is not none %}<hideThresholdsButton>{{ 'true' if hideThresholdsButton else 'false' }}</hideThresholdsButton>{% endif %}
   {% if hideNextSegmentButton is not none %}<hideNextSegmentButton>{{ 'true' if hideNextSegmentButton else 'false' }}</hideNextSegmentButton>{% endif %}
   {% if hidePreviousSegmentButton is not none %}<hidePreviousSegmentButton>{{ 'true' if hidePreviousSegmentButton else 'false' }}</hidePreviousSegmentButton>{% endif %}
