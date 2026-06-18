@@ -598,16 +598,41 @@ hold. Small-project: file count 29, XSD 28/28 + 1 non-XML must hold.
 
 ## Session pickup notes (resume from another laptop)
 
-Branch: **`build-pattern-agent`**. Last committed work: `a227062
-End-to-end configurator UX: /edit handlers, yaml starters, output
-relocation`. The HEAD commit gives a working end-to-end chat → build
-pipeline; everything below is layered on top.
+Branch: **`make-agent-stepwise`**. The chat → build pipeline works
+end-to-end; everything below is layered on top.
+
+**Most recent workstream (2026-06-18): stepwise build + mid-chat edits.**
+The agent now builds **one module at a time** and supports editing the
+in-progress project (add / remove a module, change a variable) via both
+slash commands and natural language. Shipped in four slices plus an
+intent fix, all committed with tests (`tests/test_stepwise_edits.py`,
+35 tests):
+
+- **Slice 1** — per-instance build (`build_module()` + `--module`); slash
+  edits `/add` `/remove` `/set` `/list` and `/build <name>`; slot mutators
+  `add_module`/`remove_module`/`set_variable` (edits mutate `slots`, never
+  `patterns`, because `_resolve_patterns` rebuilds patterns from slots
+  every turn).
+- **Slice 2** — `detect_edit_action` NL skill (verb-gated, positional cue
+  disambiguation, remove + scalar-override), wired as Phase 2.5 in
+  `chat_step.py` with re-add suppression.
+- **Slice 3** — `compose_reply` reoriented to one-module-at-a-time;
+  acknowledges completed edits past-tense (gated on a per-turn RECENT EDIT
+  line), keeps the anti-fabrication rules.
+- **Slice 4** — per-instance scoping for `grid_resolution` /
+  `forecast_horizon_hours` via `slots["import_overrides"]`; unnamed set
+  stays a project-wide default. Resolver applies override → project
+  fallback per instance.
+- **Turn-1 intent fix** — `forced_intent_override()` runs deterministically
+  on **every** turn, so "no basin model" yields `build_data_import_only`
+  on turn 1; an explicit "forecasting" request blocks greedy narrowing.
+
+The showcase fixture is
+`projects/stepwise-edit-demo/stepwise-edit-demo_2026-06-18_101706/`
+(documented under "Demo / experiment projects on disk").
 
 **Active context:** the user is prepping a presentation about this
-system. Most recent work clusters around (a) eliminating chat-agent
-false positives so the demos are clean, (b) building reference
-projects to show off each behaviour, and (c) clarifying the mental
-model for the audience. No active in-flight code change.
+system. No active in-flight code change.
 
 ### Mental model in 30 seconds
 
@@ -762,7 +787,27 @@ behaviour you may want to inspect or rerun:
   and validates the mid-conversation intent override: turn 1
   misclassifies as `build_forecasting_project`; turn 2 ("Just data
   import, no basin model") re-classifies to `build_data_import_only`
-  and drops 16 stale template patterns. Same 36/35 build.
+  and drops 16 stale template patterns. Same 36/35 build. **Note:** the
+  turn-1 misclassification this fixture documents was later *fixed* (see
+  "Stepwise build + mid-chat edits" below) — `forced_intent_override`
+  now runs on turn 1, so a fresh run of this prompt classifies correctly
+  on the first turn.
+- **`projects/stepwise-edit-demo/stepwise-edit-demo_2026-06-18_101706/`**
+  — the showcase for the stepwise-build + mid-chat-edit work (Slices 1–4
+  + the turn-1 intent fix). 6 turns: (1) "NOAA GFS for the Gulf of Guinea,
+  precip+temp, visualize, no basin model" → correctly classifies
+  `build_data_import_only` on **turn 1**; (2) NL "also add an HRDPS
+  import"; (3) NL "make GFS a 7-day forecast" → per-import horizon=168;
+  (4) slash `/set HRDPS horizon 3-day` → per-import horizon=72; (5)
+  `/list` shows the two grids with **distinct** display windows; (6)
+  `done`. Builds to **40 files, 39/39 XSD + 1 non-XML**. The payoff is
+  verifiable in the rendered XML: `DisplayConfigFiles/GridDisplay_GFS.xml`
+  has `relativeViewPeriod end="168"`, `GridDisplay_HRDPS.xml` has
+  `end="72"`. Use this to demo add/remove/set edits and per-instance
+  scoping end-to-end. (Caveat: a couple of the qwen2.5 reply lines drift
+  — e.g. a fabricated "Mackenzie basin" mention on turn 3 — so cherry-pick
+  turns when presenting; the engine internals in `_conversation.md` are
+  correct.)
 
 None of these are the regression oracle — that's still
 `projects/tutorial/tutorial_2026-05-07_120000/` (120 files,

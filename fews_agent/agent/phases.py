@@ -66,6 +66,7 @@ def classify_phase(pattern_path: str) -> str:
         or name.startswith(("wf_merge", "wf_modify", "wf_update"))
         or "preprocess" in name
         or "postprocess" in name
+        or "interpolate" in name
         or "accumulate" in name
     ):
         return "process"

@@ -946,6 +946,20 @@ _PARAMETERIZED_NWP_PATTERNS: frozenset[str] = frozenset({
 })
 
 
+# NWP import names eligible for grid->station interpolation. The
+# interpolation pattern reads the grid from ``Import<nwp>`` at
+# ``locationId=<nwp>`` for each requested parameter, so a source is only
+# safe here if its import actually registers those (param, location)
+# pairs. NOAA GFS is parameterized — it imports exactly the requested
+# param rows — so the interpolation grid input always resolves. The ECCC
+# grids import a *fixed* param set (PC.nwp/TA.nwp); widening this set
+# means intersecting requested params with each ECCC pattern's fixed set
+# and verifying the result resolves (a Slice D verification-fixture
+# task). Until then, keep interpolation scoped to GFS rather than ship an
+# unverified ECCC path that would reference un-imported parameters.
+_INTERPOLATABLE_NWP: frozenset[str] = frozenset({"GFS"})
+
+
 def _data_types_to_parameter_rows(
     data_types: list[str] | None,
 ) -> tuple[list[dict[str, Any]], list[str]]:
@@ -995,6 +1009,7 @@ def _resolve_import_patterns(
     forecast_horizon_hours: int | None = None,
     wants_visualization: bool = False,
     import_overrides: dict[str, dict] | None = None,
+    geo_datum: str | None = None,
 ) -> list[dict]:
     """Map import names to pattern instances using each pattern's own
     label variable name. Dedups by path.
@@ -1006,8 +1021,9 @@ def _resolve_import_patterns(
 
     When ``wants_interpolation`` is True (user asked for grid→point
     interpolation or Data Viewer / Spatial Display output), the resolver
-    also emits the postprocess template and one interpolation workflow
-    per NWP import so the gridded data lands as point time series."""
+    emits one self-contained ``wf_interpolate_nwp_to_stations`` instance
+    per eligible NWP import (see ``_INTERPOLATABLE_NWP``) so the gridded
+    data lands as point time series."""
     param_rows, unrecognised = _data_types_to_parameter_rows(data_types)
     if unrecognised:
         # Surface to stderr so the configurator notices; the chat agent
@@ -1071,34 +1087,29 @@ def _resolve_import_patterns(
         })
 
     # Interpolation path. The user asked to land the gridded data as
-    # point time series (Data Viewer) — emit the postprocess template
-    # plus one interpolation workflow per NWP import. Currently scoped
-    # to NOAA GFS because that's the only NWP whose nwp_grid_* pattern
-    # accepts user-selected parameters. Future ECCC parameterization
-    # widens this set.
-    if wants_interpolation and param_rows:
+    # point time series (Data Viewer) — emit one self-contained
+    # interpolation module + workflow per eligible NWP import
+    # (``wf_interpolate_nwp_to_stations``, which reads the grid from the
+    # upstream Import<nwp> instance). Scoped to `_INTERPOLATABLE_NWP`;
+    # see that constant for why ECCC isn't included yet.
+    if (
+        wants_interpolation and param_rows
+        and "auto/wf_interpolate_nwp_to_stations" in catalog_paths
+    ):
         nwp_imports = [imp for imp in (imports or [])
-                       if imp in {"GFS"}]
+                       if imp in _INTERPOLATABLE_NWP]
         if nwp_imports:
-            if "auto/tpl_postprocess_to_station" in catalog_paths:
-                # Override the locationId to match the bare NWP import
-                # (which writes locationId=<NWP>, not $MODELNAME1$Grid).
-                out.append({
-                    "pattern": "auto/tpl_postprocess_to_station",
-                    "instances": [{
-                        "template_name":
-                            "PostprocessModelOutputToStationTemplate",
-                        "grid_locationid": nwp_imports[0],
-                    }],
-                })
-            if "auto/wf_interpolate_nwp_to_stations" in catalog_paths:
-                out.append({
-                    "pattern": "auto/wf_interpolate_nwp_to_stations",
-                    "instances": [
-                        {"nwp_name": imp, "parameters": list(param_rows)}
-                        for imp in nwp_imports
-                    ],
-                })
+            interp_instance: dict[str, Any] = {}
+            if geo_datum:
+                interp_instance["geo_datum"] = geo_datum
+            out.append({
+                "pattern": "auto/wf_interpolate_nwp_to_stations",
+                "instances": [
+                    {"nwp_name": imp, "parameters": list(param_rows),
+                     **interp_instance}
+                    for imp in nwp_imports
+                ],
+            })
 
     # Visualization path. The user asked to view/plot the imported grids
     # (Spatial Display / Data Viewer). Emit one standalone display config
@@ -1210,6 +1221,7 @@ def _resolve_forecasting_patterns(
         forecast_horizon_hours=slots.get("forecast_horizon_hours"),
         wants_visualization=bool(slots.get("wants_visualization")),
         import_overrides=slots.get("import_overrides"),
+        geo_datum=slots.get("geoDatum"),
     )
     for b in _basins_list(slots):
         out.extend(
@@ -1237,6 +1249,7 @@ def _resolve_data_import_only_patterns(
         forecast_horizon_hours=slots.get("forecast_horizon_hours"),
         wants_visualization=bool(slots.get("wants_visualization")),
         import_overrides=slots.get("import_overrides"),
+        geo_datum=slots.get("geoDatum"),
     )
 
 

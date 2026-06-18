@@ -229,6 +229,13 @@ __marimo__/
 !fews_agent/agent/standard_inputs/
 !fews_agent/agent/standard_inputs/*.yaml
 
+# The pattern library (one pattern.yaml / contributions.yaml per
+# capability) is the core asset that grows over time. The blanket *.yaml
+# ignore would silently drop NEW patterns (existing ones survive only
+# because they were force-added), so a new capability could be left out
+# of a commit without warning. Keep all pattern yamls tracked.
+!patterns/auto/**/*.yaml
+
 secrets/*
 !secrets/.env.example
 
