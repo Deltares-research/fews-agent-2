@@ -946,18 +946,31 @@ _PARAMETERIZED_NWP_PATTERNS: frozenset[str] = frozenset({
 })
 
 
-# NWP import names eligible for grid->station interpolation. The
-# interpolation pattern reads the grid from ``Import<nwp>`` at
-# ``locationId=<nwp>`` for each requested parameter, so a source is only
-# safe here if its import actually registers those (param, location)
-# pairs. NOAA GFS is parameterized — it imports exactly the requested
-# param rows — so the interpolation grid input always resolves. The ECCC
-# grids import a *fixed* param set (PC.nwp/TA.nwp); widening this set
-# means intersecting requested params with each ECCC pattern's fixed set
-# and verifying the result resolves (a Slice D verification-fixture
-# task). Until then, keep interpolation scoped to GFS rather than ship an
-# unverified ECCC path that would reference un-imported parameters.
-_INTERPOLATABLE_NWP: frozenset[str] = frozenset({"GFS"})
+# NWP imports eligible for grid->station interpolation, with the facts
+# the interpolation needs to stay resolvable. The interpolation reads the
+# grid from ``Import<nwp>`` at ``locationId=<nwp>`` for each requested
+# parameter and at a given timeStep, so for each source we record:
+#   - ``parameters``: the parameterIds the import actually registers, so
+#     the resolver can intersect them with what the user asked for. None
+#     means "parameterized" (the import emits exactly the requested rows,
+#     e.g. NOAA GFS), so any requested param resolves.
+#   - ``time_step_hours``: the import's grid timeStep multiplier. The
+#     interpolation grid input must read at the SAME step or the series
+#     won't match at runtime (XSD won't catch the mismatch).
+#
+# Only deterministic forecast grids are listed. Excluded on purpose:
+#   - REPS — ensemble grid (carries ensembleId); needs ensemble-aware
+#     interpolation we don't emit yet.
+#   - HRDPA / RDPA — analysis precip imported as PC.sim (not the .nwp
+#     forecast convention the data_types mapper produces).
+_INTERPOLATABLE_IMPORTS: dict[str, dict[str, Any]] = {
+    # NOAA — parameterized, 3-hourly.
+    "GFS":   {"parameters": None, "time_step_hours": 3},
+    # ECCC forecast grids — fixed PC.nwp/TA.nwp set.
+    "HRDPS": {"parameters": frozenset({"PC.nwp", "TA.nwp"}), "time_step_hours": 1},
+    "GDPS":  {"parameters": frozenset({"PC.nwp", "TA.nwp"}), "time_step_hours": 3},
+    "RDPS":  {"parameters": frozenset({"PC.nwp", "TA.nwp"}), "time_step_hours": 3},
+}
 
 
 def _data_types_to_parameter_rows(
@@ -1022,8 +1035,8 @@ def _resolve_import_patterns(
     When ``wants_interpolation`` is True (user asked for grid→point
     interpolation or Data Viewer / Spatial Display output), the resolver
     emits one self-contained ``wf_interpolate_nwp_to_stations`` instance
-    per eligible NWP import (see ``_INTERPOLATABLE_NWP``) so the gridded
-    data lands as point time series."""
+    per eligible NWP import (see ``_INTERPOLATABLE_IMPORTS``) so the
+    gridded data lands as point time series."""
     param_rows, unrecognised = _data_types_to_parameter_rows(data_types)
     if unrecognised:
         # Surface to stderr so the configurator notices; the chat agent
@@ -1090,25 +1103,42 @@ def _resolve_import_patterns(
     # point time series (Data Viewer) — emit one self-contained
     # interpolation module + workflow per eligible NWP import
     # (``wf_interpolate_nwp_to_stations``, which reads the grid from the
-    # upstream Import<nwp> instance). Scoped to `_INTERPOLATABLE_NWP`;
-    # see that constant for why ECCC isn't included yet.
+    # upstream Import<nwp> instance). For each source we intersect the
+    # requested parameters with what its import actually carries and read
+    # at the import's own timeStep, so the grid input always resolves
+    # (see ``_INTERPOLATABLE_IMPORTS``). A source whose import carries
+    # none of the requested params is skipped — the Slice D build guard
+    # then flags the unbacked set if that leaves interpolation inert.
     if (
         wants_interpolation and param_rows
         and "auto/wf_interpolate_nwp_to_stations" in catalog_paths
     ):
-        nwp_imports = [imp for imp in (imports or [])
-                       if imp in _INTERPOLATABLE_NWP]
-        if nwp_imports:
-            interp_instance: dict[str, Any] = {}
+        interp_instances: list[dict[str, Any]] = []
+        for imp in (imports or []):
+            spec = _INTERPOLATABLE_IMPORTS.get(imp)
+            if spec is None:
+                continue
+            importable = spec["parameters"]
+            rows = (
+                list(param_rows) if importable is None
+                else [r for r in param_rows if r.get("id") in importable]
+            )
+            if not rows:
+                # Import carries none of the requested params (e.g. HRDPS
+                # asked to interpolate wind speed) — can't interpolate it.
+                continue
+            inst: dict[str, Any] = {
+                "nwp_name": imp,
+                "parameters": rows,
+                "time_step_hours": spec["time_step_hours"],
+            }
             if geo_datum:
-                interp_instance["geo_datum"] = geo_datum
+                inst["geo_datum"] = geo_datum
+            interp_instances.append(inst)
+        if interp_instances:
             out.append({
                 "pattern": "auto/wf_interpolate_nwp_to_stations",
-                "instances": [
-                    {"nwp_name": imp, "parameters": list(param_rows),
-                     **interp_instance}
-                    for imp in nwp_imports
-                ],
+                "instances": interp_instances,
             })
 
     # Visualization path. The user asked to view/plot the imported grids

@@ -143,3 +143,69 @@ def test_loud_failure_when_no_locations_csv(tmp_path):
         if ls.get("id") == "GuineaStations"
     )
     assert list(guinea) == []  # no children = unbacked
+
+
+# --- ECCC widening: interpolation works for an ECCC forecast grid -------
+# The resolver-driven build (the path chat actually takes) for an ECCC
+# source. The defining ECCC correctness concern is the timeStep: HRDPS is
+# hourly, so the interpolation grid input must read at multiplier 1 (not
+# the 3-hour default) or it won't match the import at runtime.
+
+import os  # noqa: E402
+
+from fews_agent.agent.project_intents import (  # noqa: E402
+    _resolve_data_import_only_patterns,
+)
+
+
+def _build_resolved(tmp_path, slots, *, locations=("STNA", "STNB")):
+    """Resolve patterns from slots (as chat does), then build."""
+    proj = tmp_path / "proj"
+    (proj / "inputs").mkdir(parents=True)
+    catalog = {f"auto/{d}" for d in os.listdir(PATTERNS_ROOT / "auto")}
+    patterns = _resolve_data_import_only_patterns(slots, catalog)
+    bp = {
+        "name": "eccc-interp", "output_root": "out", "patterns": patterns,
+        "singleton_seeds": {"Locations": {"geoDatum": "WGS 1984"}},
+    }
+    (proj / "project.yaml").write_text(yaml.safe_dump(bp), encoding="utf-8")
+    rows = "id,name,lat,lon\n" + "".join(
+        f"{lid},{lid},50.{i},-110.{i}\n" for i, lid in enumerate(locations)
+    )
+    (proj / "inputs" / "locations.csv").write_text(rows, encoding="utf-8")
+    summary = build_from_blueprint(
+        blueprint_path=proj / "project.yaml",
+        pattern_root=PATTERNS_ROOT,
+        inputs_dir=proj / "inputs",
+        console=Console(quiet=True),
+    )
+    return summary, proj / "out", patterns
+
+
+def test_eccc_hrdps_interpolation_resolves_end_to_end(tmp_path):
+    slots = {
+        "imports": ["HRDPS"],
+        "data_types": ["precipitation", "temperature"],
+        "wants_interpolation": True,
+    }
+    summary, out, patterns = _build_resolved(tmp_path, slots)
+    assert summary["ok"], summary.get("errors")
+    assert summary["unbacked_interpolation_sets"] == []
+    # No NOAA aggregator should sneak in for an ECCC-only project.
+    paths = [p["pattern"] for p in patterns]
+    assert "auto/wf_interpolate_nwp_to_stations" in paths
+    assert "auto/wf_import_noaa_grids" not in paths
+
+    module = ET.parse(_find(out, "InterpolateHRDPSToStations.xml")).getroot()
+    grid_tss = next(
+        v.find("f:timeSeriesSet", NS)
+        for v in module.findall("f:variable", NS)
+        if (v.findtext("f:variableId", namespaces=NS) or "").startswith("Grid_")
+    )
+    # Grid input reads from the HRDPS import at the HRDPS (1-hour) step.
+    assert grid_tss.findtext("f:moduleInstanceId", namespaces=NS) == "ImportHRDPS"
+    assert grid_tss.findtext("f:locationId", namespaces=NS) == "HRDPS"
+    ts = grid_tss.find("f:timeStep", NS)
+    assert ts.get("unit") == "hour" and ts.get("multiplier") == "1"
+    # The HRDPS import module instance really exists in the tree.
+    assert any(p.as_posix().endswith("ImportHRDPS.xml") for p in out.rglob("*.xml"))

@@ -194,14 +194,84 @@ def test_no_geo_datum_slot_leaves_pattern_default():
     assert "geo_datum" not in inst  # pattern.yaml default applies
 
 
-def test_interpolation_scoped_to_interpolatable_nwp():
-    # ECCC HRDPS is not (yet) in _INTERPOLATABLE_NWP — no interpolation for it.
+def _interp_instances(resolved):
+    return next(
+        p for p in resolved
+        if p["pattern"] == "auto/wf_interpolate_nwp_to_stations"
+    )["instances"]
+
+
+def test_eccc_hrdps_interpolates_with_its_timestep():
+    # HRDPS is now interpolatable; it imports PC.nwp/TA.nwp at a 1-hour
+    # step, so the interpolation must read at multiplier 1 (not the 3-hour
+    # default) or the grid input won't match the import at runtime.
     slots = {
         "imports": ["HRDPS"], "data_types": ["precipitation", "temperature"],
         "wants_interpolation": True,
     }
+    insts = _interp_instances(_resolve_data_import_only_patterns(slots, _INTERP_CATALOG))
+    assert len(insts) == 1
+    assert insts[0]["nwp_name"] == "HRDPS"
+    assert insts[0]["time_step_hours"] == 1
+    ids = {r["id"] for r in insts[0]["parameters"]}
+    assert ids == {"PC.nwp", "TA.nwp"}
+
+
+def test_eccc_intersects_requested_params_with_import_set():
+    # HRDPS imports only PC.nwp/TA.nwp — a requested wind-speed param it
+    # doesn't carry must be dropped, not referenced un-imported.
+    slots = {
+        "imports": ["HRDPS"],
+        "data_types": ["precipitation", "wind speed"],
+        "wants_interpolation": True,
+    }
+    insts = _interp_instances(_resolve_data_import_only_patterns(slots, _INTERP_CATALOG))
+    ids = {r["id"] for r in insts[0]["parameters"]}
+    assert ids == {"PC.nwp"}  # WS10.nwp dropped — HRDPS doesn't import it
+
+
+def test_eccc_with_no_importable_param_is_skipped():
+    # Asking to interpolate only wind speed from HRDPS yields nothing to
+    # interpolate (empty intersection) — no instance emitted.
+    slots = {
+        "imports": ["HRDPS"], "data_types": ["wind speed"],
+        "wants_interpolation": True,
+    }
     paths = _patterns(_resolve_data_import_only_patterns(slots, _INTERP_CATALOG))
     assert "auto/wf_interpolate_nwp_to_stations" not in paths
+
+
+def test_reps_ensemble_grid_is_excluded():
+    # REPS is an ensemble grid — not interpolatable until we emit
+    # ensemble-aware interpolation.
+    cat = _INTERP_CATALOG | {"auto/nwp_grid_eccc_REPS"}
+    slots = {
+        "imports": ["REPS"], "data_types": ["precipitation"],
+        "wants_interpolation": True,
+    }
+    paths = _patterns(_resolve_data_import_only_patterns(slots, cat))
+    assert "auto/wf_interpolate_nwp_to_stations" not in paths
+
+
+def test_mixed_imports_each_get_own_param_and_timestep():
+    # GFS (parameterized, 3h) + HRDPS (fixed set, 1h) interpolated together,
+    # each correctly scoped.
+    cat = _INTERP_CATALOG
+    slots = {
+        "imports": ["GFS", "HRDPS"],
+        "data_types": ["precipitation", "temperature", "wind speed"],
+        "wants_interpolation": True,
+    }
+    insts = {
+        i["nwp_name"]: i
+        for i in _interp_instances(_resolve_data_import_only_patterns(slots, cat))
+    }
+    assert insts["GFS"]["time_step_hours"] == 3
+    assert {r["id"] for r in insts["GFS"]["parameters"]} == {
+        "PC.nwp", "TA.nwp", "WS10.nwp"
+    }
+    assert insts["HRDPS"]["time_step_hours"] == 1
+    assert {r["id"] for r in insts["HRDPS"]["parameters"]} == {"PC.nwp", "TA.nwp"}
 
 
 def test_forecasting_postprocess_is_not_dropped():
