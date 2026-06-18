@@ -315,6 +315,38 @@ def test_nl_remove_survives_readd_suppression(catalog):
     assert "auto/nwp_grid_noaa" in _import_paths(state)
 
 
+# --------------------------------------------------------------------------
+# Intent override (deterministic, turn-agnostic)
+# --------------------------------------------------------------------------
+
+@pytest.mark.parametrize("message,current,expected", [
+    # "no basin model" must narrow on turn 1 (current=forecasting). The
+    # substring "no model" is NOT inside "no basin model", so this only
+    # works because the phrase is listed explicitly.
+    ("Configure a NOAA GFS import, no basin model.",
+     "build_forecasting_project", "build_data_import_only"),
+    ("GFS import, no basin.",
+     "build_forecasting_project", "build_data_import_only"),
+    # Explicit forecasting request blocks a greedy narrowing match
+    # ("no model" inside "no model preference").
+    ("I have no model preference yet, full forecasting please.",
+     "build_forecasting_project", None),
+    # Genuine forecasting prose → no override.
+    ("Set up a forecasting project for the Liard basin using raven.",
+     None, None),
+    ("Model only, no NWP yet.",
+     "build_forecasting_project", "build_basin_model_only"),
+    # Already the target intent → no-op (None).
+    ("no basin model", "build_data_import_only", None),
+    # "no forecast" is a narrowing phrase and must NOT be caught by the
+    # "forecasting" affirmative guard.
+    ("imports only, no forecast workflow",
+     "build_forecasting_project", "build_data_import_only"),
+])
+def test_forced_intent_override(message, current, expected):
+    assert chat_step.forced_intent_override(message, current) == expected
+
+
 def test_nl_set_overrides_existing_value(catalog):
     state = _new_state()
     add_module(state, "GFS", "import")

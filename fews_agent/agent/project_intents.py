@@ -1442,6 +1442,12 @@ _NARROWING_PHRASES: tuple[str, ...] = (
     "only", "just the", "just imports", "just import", "just data",
     "just the model", "just model",
     "no model", "without model", "without a model",
+    # Basin-negation phrases. "no basin model" does NOT contain the
+    # substring "no model" (a "basin " sits between), so these must be
+    # listed explicitly. Kept in lockstep with chat_step's
+    # _INTENT_OVERRIDE_PHRASES so turn-1 demotion and mid-chat override
+    # agree on what counts as a data-import-only signal.
+    "no basin", "no basin model", "without a basin", "without basin",
     "no imports", "without imports", "without nwp",
     "no nwp", "no forecast",
     "model only", "model-only", "imports only", "import only",
