@@ -682,6 +682,11 @@ def remove_module(
         if len(kept) == len(imports):
             return f"{name} is not an import; nothing removed."
         slots["imports"] = kept
+        # Drop any per-import variable overrides for the removed import.
+        overrides = slots.get("import_overrides")
+        if isinstance(overrides, dict):
+            for k in [k for k in overrides if k.lower() == name.lower()]:
+                overrides.pop(k, None)
         _clear_built_for_label(state, name)
         return f"Removed import {name}."
     if target_kind == "basin":
@@ -726,9 +731,12 @@ def set_variable(
     synonyms to a canonical ``variable`` name and parsing ``value`` to its
     canonical form (e.g. "half-degree" → "0p50").
 
-    v1 scoping caveat: ``grid_resolution`` and ``forecast_horizon_hours``
-    are project-level slots the NWP resolver reads, so a /set on one import
-    applies project-wide. ``model_adapter`` is correctly scoped to the
+    Scoping: ``grid_resolution`` and ``forecast_horizon_hours`` are scoped
+    to a single named import via ``slots["import_overrides"][<import>]``
+    (the resolver applies override → project-level fallback per instance).
+    When no valid import is named (e.g. NL "make it half-degree"), the
+    value lands on the project-level slot as the default for every NWP
+    import without its own override. ``model_adapter`` is scoped to the
     named basin. The returned note states the scope.
     """
     slots = state.setdefault("slots", {})
@@ -753,23 +761,30 @@ def set_variable(
                 return f"Set {b['basin_name']} model adapter to {value}."
         return f"{name} is not a basin in the project; nothing changed."
 
-    # Project-wide NWP scalars. Validate the named module exists as an
-    # import so /set TYPO ... is caught, but the value applies project-wide.
+    # NWP scalars (grid_resolution / forecast_horizon_hours). Scoped to a
+    # single named import when one is given (per-instance, Slice 4);
+    # otherwise applied project-wide as the default for every NWP import
+    # that lacks its own override.
     imports = [str(x) for x in (slots.get("imports") or [])]
-    known = any(x.lower() == name.lower() for x in imports)
+    canonical = next((x for x in imports if x.lower() == name.lower()), None)
     if variable in {"grid_resolution", "forecast_horizon_hours"}:
+        if canonical:
+            overrides = slots.setdefault("import_overrides", {})
+            overrides.setdefault(canonical, {})[variable] = value
+            _clear_built_for_label(state, canonical)
+            return f"Set {variable} to {value} for {canonical} only."
+        # No named import (NL "make it half-degree") or an unknown name →
+        # project-wide default. A non-empty unknown name gets a note so a
+        # typo doesn't silently become a project-wide change.
         slots[variable] = value
         _clear_built_for_label(state, name)
-        # No scope note when the value applies cleanly: either the named
-        # import exists, or no module was named at all (NL "make it
-        # half-degree" — project-wide is exactly the intent).
         scope = (
-            "" if (known or not name)
-            else f" (note: {name} is not a current import)"
+            "" if not name
+            else f" (note: {name} is not a current import; applied project-wide)"
         )
         return (
-            f"Set {variable} to {value} (applies project-wide to NWP "
-            f"imports in v1){scope}."
+            f"Set {variable} to {value} (default for all NWP imports "
+            f"without a per-import override){scope}."
         )
 
     if variable == "data_types":

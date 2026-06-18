@@ -85,18 +85,56 @@ def test_remove_absent_is_noop(catalog):
     assert "not an import" in note
 
 
-def test_set_grid_resolution_is_project_wide(catalog):
+def test_set_grid_resolution_scoped_to_named_import(catalog):
+    # Slice 4: /set <import> grid_resolution scopes to that import only.
     state = _new_state()
     add_module(state, "GFS", "import")
     note = set_variable(state, "GFS", "grid_resolution", "0p50")
-    assert "0p50" in note
-    assert state["slots"]["grid_resolution"] == "0p50"
+    assert "GFS only" in note
+    assert state["slots"]["import_overrides"]["GFS"]["grid_resolution"] == "0p50"
+    assert "grid_resolution" not in state["slots"]  # NOT project-wide
     chat_step._resolve_patterns(state, catalog)
-    # The resolved NOAA instance should carry the new resolution.
     noaa = [
         p for p in state["patterns"] if p["pattern"] == "auto/nwp_grid_noaa"
     ][0]
     assert noaa["instances"][0].get("grid_resolution") == "0p50"
+
+
+def test_set_grid_resolution_no_target_is_project_wide(catalog):
+    # NL "make it half-degree" (no named import) → project-wide default.
+    state = _new_state()
+    add_module(state, "GFS", "import")
+    note = set_variable(state, "", "grid_resolution", "0p50")
+    assert "0p50" in note
+    assert state["slots"]["grid_resolution"] == "0p50"
+    assert "import_overrides" not in state["slots"]
+    chat_step._resolve_patterns(state, catalog)
+    noaa = [
+        p for p in state["patterns"] if p["pattern"] == "auto/nwp_grid_noaa"
+    ][0]
+    assert noaa["instances"][0].get("grid_resolution") == "0p50"
+
+
+def test_per_import_override_beats_project_default(catalog):
+    # GFS override (0p25) wins over the project-wide default (0p50).
+    state = _new_state()
+    add_module(state, "GFS", "import")
+    set_variable(state, "", "grid_resolution", "0p50")       # project default
+    set_variable(state, "GFS", "grid_resolution", "0p25")    # GFS override
+    chat_step._resolve_patterns(state, catalog)
+    noaa = [
+        p for p in state["patterns"] if p["pattern"] == "auto/nwp_grid_noaa"
+    ][0]
+    assert noaa["instances"][0].get("grid_resolution") == "0p25"
+
+
+def test_remove_import_clears_its_override(catalog):
+    state = _new_state()
+    add_module(state, "GFS", "import")
+    set_variable(state, "GFS", "grid_resolution", "0p50")
+    assert "GFS" in state["slots"]["import_overrides"]
+    remove_module(state, "GFS", "import")
+    assert "GFS" not in (state["slots"].get("import_overrides") or {})
 
 
 def test_set_unknown_variable_is_rejected():
@@ -182,7 +220,8 @@ def test_apply_edit_action_set_normalises_value(catalog):
          "variable": "resolution", "value": "half-degree"},
         catalog,
     )
-    assert state["slots"]["grid_resolution"] == "0p50"
+    # Named import → per-import override (Slice 4), normalised to the slug.
+    assert state["slots"]["import_overrides"]["GFS"]["grid_resolution"] == "0p50"
 
 
 # --------------------------------------------------------------------------
@@ -352,10 +391,10 @@ def test_nl_set_overrides_existing_value(catalog):
     add_module(state, "GFS", "import")
     set_variable(state, "GFS", "grid_resolution", "0p25")
     chat_step._resolve_patterns(state, catalog)
-    assert state["slots"]["grid_resolution"] == "0p25"
+    assert state["slots"]["import_overrides"]["GFS"]["grid_resolution"] == "0p25"
 
     _apply_nl_edit(state, "actually make GFS half-degree", catalog)
-    assert state["slots"]["grid_resolution"] == "0p50"
+    assert state["slots"]["import_overrides"]["GFS"]["grid_resolution"] == "0p50"
     noaa = [
         p for p in state["patterns"] if p["pattern"] == "auto/nwp_grid_noaa"
     ][0]

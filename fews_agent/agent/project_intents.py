@@ -971,6 +971,22 @@ def _data_types_to_parameter_rows(
     return rows, unrecognised
 
 
+def _override_for(
+    import_overrides: dict[str, dict] | None, name: str,
+) -> dict:
+    """Per-import override dict for ``name`` (case-insensitive), or {}."""
+    if not import_overrides:
+        return {}
+    ov = import_overrides.get(name)
+    if ov is None:
+        ov = next(
+            (v for k, v in import_overrides.items()
+             if str(k).lower() == name.lower()),
+            None,
+        )
+    return ov or {}
+
+
 def _resolve_import_patterns(
     imports: list[str], catalog_paths: set[str],
     data_types: list[str] | None = None,
@@ -978,6 +994,7 @@ def _resolve_import_patterns(
     grid_resolution: str | None = None,
     forecast_horizon_hours: int | None = None,
     wants_visualization: bool = False,
+    import_overrides: dict[str, dict] | None = None,
 ) -> list[dict]:
     """Map import names to pattern instances using each pattern's own
     label variable name. Dedups by path.
@@ -1020,16 +1037,21 @@ def _resolve_import_patterns(
             # to Parameters.xml — without this the new IDs would be
             # referenced in timeSeriesSet but not declared anywhere.
             instance["contribute_parameters"] = True
+        # Per-import override wins over the project-level default, so two
+        # NWP imports can carry different resolutions / horizons (Slice 4).
+        _ov = _override_for(import_overrides, imp)
+        _res = _ov.get("grid_resolution") or grid_resolution
+        _hor = _ov.get("forecast_horizon_hours") or forecast_horizon_hours
         # NOAA GFS publishes at 0p25/0p50/1p00; plumb the configurator's
         # choice into the pattern instance so the DODS URL points at the
         # right dataset.
-        if grid_resolution and path == "auto/nwp_grid_noaa":
-            instance["grid_resolution"] = grid_resolution
+        if _res and path == "auto/nwp_grid_noaa":
+            instance["grid_resolution"] = _res
         # Forecast horizon (hours) — when set, the NOAA pattern emits a
         # relativeViewPeriod on the SpatialDisplay timeSeriesSet so the
         # plot shows just that window instead of the full forecast.
-        if forecast_horizon_hours and path == "auto/nwp_grid_noaa":
-            instance["forecast_horizon_hours"] = forecast_horizon_hours
+        if _hor and path == "auto/nwp_grid_noaa":
+            instance["forecast_horizon_hours"] = _hor
         existing = next((p for p in out if p["pattern"] == path), None)
         if existing:
             existing["instances"].append(instance)
@@ -1096,8 +1118,16 @@ def _resolve_import_patterns(
                 # Pass the selected parameter rows through; the visualize
                 # pattern reads only `id` from each (extra keys ignored).
                 inst["parameters"] = [{"id": r["id"]} for r in param_rows]
-            if forecast_horizon_hours:
-                inst["forecast_horizon_hours"] = forecast_horizon_hours
+            # Per-import horizon override (Slice 4) → each grid's display
+            # window can differ; fall back to the project-level horizon.
+            _viz_hor = (
+                _override_for(import_overrides, imp).get(
+                    "forecast_horizon_hours"
+                )
+                or forecast_horizon_hours
+            )
+            if _viz_hor:
+                inst["forecast_horizon_hours"] = _viz_hor
             viz_instances.append(inst)
         if viz_instances:
             out.append({
@@ -1179,6 +1209,7 @@ def _resolve_forecasting_patterns(
         grid_resolution=slots.get("grid_resolution"),
         forecast_horizon_hours=slots.get("forecast_horizon_hours"),
         wants_visualization=bool(slots.get("wants_visualization")),
+        import_overrides=slots.get("import_overrides"),
     )
     for b in _basins_list(slots):
         out.extend(
@@ -1205,6 +1236,7 @@ def _resolve_data_import_only_patterns(
         grid_resolution=slots.get("grid_resolution"),
         forecast_horizon_hours=slots.get("forecast_horizon_hours"),
         wants_visualization=bool(slots.get("wants_visualization")),
+        import_overrides=slots.get("import_overrides"),
     )
 
 
