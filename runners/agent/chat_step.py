@@ -31,9 +31,12 @@ from pathlib import Path
 from rich.console import Console
 
 from fews_agent.agent.project_chat import (
+    add_module,
     apply_removal,
     build_pattern_catalog,
     initial_state,
+    remove_module,
+    set_variable,
     write_project,
 )
 from fews_agent.agent.project_intents import (
@@ -42,6 +45,13 @@ from fews_agent.agent.project_intents import (
     classify_intent,
     compose_reply,
     compute_input_status,
+    detect_basin,
+    detect_basins_with_adapters,
+    detect_edit_action,
+    detect_forecast_horizon_hours,
+    detect_grid_resolution,
+    detect_imports,
+    detect_model_adapter,
     extract_skills,
     fill_slots_from_text,
     heuristic_intent_from_slots,
@@ -62,6 +72,36 @@ from fews_agent.agent.providers.ollama_provider import OllamaProvider
 REPO_ROOT = Path(__file__).resolve().parents[2]
 PATTERNS_ROOT = REPO_ROOT / "patterns"
 OUTPUT_ROOT = REPO_ROOT / "projects"
+
+# Instance-variable keys that name a module. The first group labels an
+# import (reused by the unmapped-import warning scan); basin_name labels a
+# model. ``_LABEL_VAR_KEYS`` is the full set used to resolve a user-typed
+# module name (e.g. "GFS", "Liard") back to its pattern instance.
+_IMPORT_LABEL_KEYS = (
+    "nwp_name", "source_name", "wsc_variant", "snow_source", "template_name",
+)
+_LABEL_VAR_KEYS = _IMPORT_LABEL_KEYS + ("basin_name",)
+
+# Synonyms → canonical settable variable name for the /set command and NL
+# edits. The canonical set is enforced by project_chat.set_variable.
+_SET_VAR_CANON = {
+    "grid_resolution": "grid_resolution",
+    "resolution": "grid_resolution",
+    "res": "grid_resolution",
+    "forecast_horizon_hours": "forecast_horizon_hours",
+    "horizon": "forecast_horizon_hours",
+    "forecast_length": "forecast_horizon_hours",
+    "length": "forecast_horizon_hours",
+    "parameter": "data_types",
+    "parameters": "data_types",
+    "param": "data_types",
+    "data_type": "data_types",
+    "data_types": "data_types",
+    "variable": "data_types",
+    "adapter": "model_adapter",
+    "model": "model_adapter",
+    "model_adapter": "model_adapter",
+}
 
 
 def _resolve_provider(model: str):
@@ -370,6 +410,247 @@ def _run_phase_build(
     return 1
 
 
+def _resolve_module_target(
+    state: dict, catalog, name: str,
+) -> tuple[str, dict] | None:
+    """Map a user-typed module name to ``(pattern_path, label_match)``.
+
+    Walks the currently-resolved instances and matches ``name`` (case-
+    insensitively) against any label variable (nwp_name, basin_name, ...).
+    The returned ``label_match`` is a single-key dict suitable for
+    :func:`build_from_blueprint.build_module`'s ``instance_match``.
+    Returns None when no instance matches.
+    """
+    _resolve_patterns(state, catalog)
+    name_l = name.strip().lower()
+    for entry in state.get("patterns") or []:
+        pat = entry.get("pattern", "")
+        for inst in entry.get("instances") or []:
+            if not isinstance(inst, dict):
+                continue
+            for k in _LABEL_VAR_KEYS:
+                v = inst.get(k)
+                if isinstance(v, str) and v.lower() == name_l:
+                    return pat, {k: v}
+    return None
+
+
+def _module_list_text(state: dict, catalog) -> str:
+    """Instance-level listing of the project, grouped by phase.
+
+    Finer than ``/phases`` (which is phase-level): shows each module
+    instance, its built status, and its editable variables so the user
+    knows exactly what they can /set or /remove.
+    """
+    _resolve_patterns(state, catalog)
+    plan = phase_plan(state.get("patterns") or [])
+    if not plan:
+        return (
+            "No modules yet. Add one with e.g.  /add GFS  (import) or "
+            "/add Liard uses raven  (basin), then  /build <name>."
+        )
+    built = set(state.get("built_modules") or [])
+    built_phases = set(state.get("built_phases") or [])
+    lines = ["Modules in this project (one per line):"]
+    for entry in plan:
+        ph = entry["phase"]
+        lines.append(f"\n{ph} — {entry['label']}")
+        for p in entry["patterns"]:
+            pat = p["pattern"]
+            short = pat.rsplit("/", 1)[-1]
+            for inst in p.get("instances") or [{}]:
+                label = next(
+                    (str(inst[k]) for k in _LABEL_VAR_KEYS if inst.get(k)),
+                    short,
+                )
+                is_built = (
+                    f"{pat}::{label}" in built or ph in built_phases
+                )
+                mark = "(built)" if is_built else "(ready)"
+                extras = []
+                for vk in ("grid_resolution", "forecast_horizon_hours",
+                           "model_adapter"):
+                    if inst.get(vk):
+                        extras.append(f"{vk}={inst[vk]}")
+                if inst.get("parameters"):
+                    extras.append(f"{len(inst['parameters'])} param(s)")
+                extra_txt = f"  ({'; '.join(extras)})" if extras else ""
+                lines.append(f"  {mark} {label}  ·{short}{extra_txt}")
+    lines.append(
+        "\nEdit: /add <name> · /remove <name> · /set <name> <var> <value>"
+        "  ·  Build one: /build <name>"
+    )
+    return "\n".join(lines)
+
+
+def _parse_slash_edit(op: str, rest: str) -> list[dict]:
+    """Turn a slash-command tail into one or more edit dicts.
+
+    ``op`` is add/remove/set. For add/remove, classify ``rest`` into
+    import(s) or basin(s) by reusing the detector skills (with optional
+    explicit ``import``/``basin`` prefixes). For set, split into
+    target / variable / value.
+    """
+    rest = rest.strip()
+    if op == "set":
+        parts = rest.split(None, 2)
+        if len(parts) < 3:
+            return []
+        target, variable, value = parts[0], parts[1], parts[2]
+        return [{
+            "op": "set", "target": target, "target_kind": "variable",
+            "variable": variable, "value": value,
+        }]
+
+    # add / remove: allow an explicit kind prefix.
+    forced_kind: str | None = None
+    low = rest.lower()
+    for prefix, kind in (("import ", "import"), ("imports ", "import"),
+                         ("basin ", "basin"), ("basins ", "basin")):
+        if low.startswith(prefix):
+            forced_kind = kind
+            rest = rest[len(prefix):].strip()
+            break
+
+    edits: list[dict] = []
+    if forced_kind == "basin" or (forced_kind is None and
+                                  detect_basins_with_adapters(rest)):
+        pairs = detect_basins_with_adapters(rest)
+        if pairs:
+            for b in pairs:
+                edits.append({"op": op, "target": b, "target_kind": "basin"})
+            return edits
+        # basin forced but no adapter parsed → bare basin name
+        name = detect_basin(rest) or rest
+        return [{"op": op, "target": {"basin_name": name},
+                 "target_kind": "basin"}]
+
+    imports = detect_imports(rest)
+    if imports:
+        for name in imports:
+            edits.append({"op": op, "target": name, "target_kind": "import"})
+        return edits
+
+    # Fall back: treat each whitespace token as an import name. Unknown
+    # names surface via the unmapped-import warning on resolve.
+    for tok in rest.split():
+        edits.append({"op": op, "target": tok, "target_kind": "import"})
+    return edits
+
+
+def apply_edit_action(state: dict, edit: dict, catalog) -> str:
+    """Apply one add/remove/set edit to slots, then re-resolve patterns.
+
+    Shared entry point for slash commands (Slice 1) and NL edits (later).
+    Returns a human-readable note. Normalises /set variable synonyms and
+    parses values to canonical form before delegating to the mutators.
+    """
+    op = edit.get("op")
+    note: str
+    if op == "add":
+        note = add_module(state, edit["target"], edit["target_kind"])
+    elif op == "remove":
+        target = edit["target"]
+        name = (
+            target.get("basin_name") if isinstance(target, dict) else target
+        )
+        note = remove_module(state, name, edit["target_kind"])
+    elif op == "set":
+        variable = _SET_VAR_CANON.get(
+            str(edit.get("variable", "")).strip().lower()
+        )
+        if variable is None:
+            return (
+                f"Don't recognise variable {edit.get('variable')!r}. "
+                f"Try: resolution, horizon, parameter, adapter."
+            )
+        value = _normalise_set_value(variable, edit.get("value"))
+        if value is None:
+            return (
+                f"Couldn't parse value {edit.get('value')!r} for "
+                f"{variable}."
+            )
+        # NL edits ("make it half-degree") may carry no named module —
+        # pass "" so set_variable applies the project-wide scalar cleanly.
+        note = set_variable(state, edit.get("target") or "", variable, value)
+    else:
+        return f"Unknown edit op {op!r}."
+
+    # If no intent yet, infer one so the resolver has a template set.
+    if not state.get("intent"):
+        inferred = heuristic_intent_from_slots(state.get("slots", {}))
+        if inferred:
+            state["intent"] = inferred
+    _resolve_patterns(state, catalog)
+    return note
+
+
+def _normalise_set_value(variable: str, raw):
+    """Parse a /set value into the canonical form the slot expects."""
+    if raw is None:
+        return None
+    text = str(raw).strip()
+    if variable == "grid_resolution":
+        return detect_grid_resolution(text) or (
+            text if text in {"0p25", "0p50", "1p00"} else None
+        )
+    if variable == "forecast_horizon_hours":
+        parsed = detect_forecast_horizon_hours(text)
+        if parsed is not None:
+            return parsed
+        try:
+            return int(text)
+        except ValueError:
+            return None
+    if variable == "model_adapter":
+        return detect_model_adapter(text) or text
+    if variable == "data_types":
+        return text
+    return text
+
+
+def _run_module_build(
+    state: dict, project_dir: Path, name: str, console: Console,
+) -> int:
+    """Resolve a module name → write project.yaml → build just that module."""
+    from runners.agent.build_from_blueprint import build_module
+
+    catalog = build_pattern_catalog(PATTERNS_ROOT)
+    target = _resolve_module_target(state, catalog, name)
+    if target is None:
+        console.print(
+            f"[yellow]No module named '{name}' in the project.[/yellow]\n"
+            + _module_list_text(state, catalog)
+        )
+        return 1
+    pattern, match = target
+    project_path = write_project(state, project_dir)
+    summary = build_module(
+        blueprint_path=Path(project_path),
+        pattern_root=PATTERNS_ROOT,
+        pattern=pattern,
+        instance_match=match,
+        console=console,
+    )
+    label = next(iter(match.values()))
+    if summary.get("ok"):
+        built = state.setdefault("built_modules", [])
+        key = f"{pattern}::{label}"
+        if key not in built:
+            built.append(key)
+        console.print(
+            f"[green]Module '{label}' built and XSD-valid.[/green] "
+            f"Build another with [bold]/build <name>[/bold], or "
+            f"[bold]/phases[/bold] to see the plan."
+        )
+        return 0
+    console.print(
+        f"[yellow]Module '{label}' did not fully validate — "
+        f"see the table above.[/yellow]"
+    )
+    return 1
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--project-name", required=True)
@@ -436,6 +717,41 @@ def main(argv: list[str] | None = None) -> int:
         console.print(f"\n[bold magenta]agent[/bold magenta]: {reply}")
         return 0
 
+    # Instance-level listing (finer than /phases).
+    if cmd in {"/list", "list", "/show", "show"}:
+        reply = _module_list_text(state, catalog)
+        history.append({"role": "agent", "message": reply})
+        _append_log(project_dir, turn, "agent", reply, "module list")
+        _save(project_dir, state, history)
+        console.print(f"\n[bold magenta]agent[/bold magenta]: {reply}")
+        return 0
+
+    # Explicit edits: /add, /remove (/drop), /set. Deterministic — mutate
+    # slots then re-resolve. No LLM, no confirmation (the command IS the
+    # confirmation; the engine-proposed yes/no flow stays for ambiguous
+    # NL-driven removals only).
+    if cmd.startswith(("/add ", "/remove ", "/drop ", "/set ")):
+        verb = args.message.strip().split(None, 1)[0].lstrip("/").lower()
+        op = "remove" if verb == "drop" else verb
+        rest = args.message.strip().split(None, 1)[1].strip()
+        edits = _parse_slash_edit(op, rest)
+        if not edits:
+            console.print(
+                "[yellow]Couldn't parse that edit. Usage: "
+                "/add <name> · /remove <name> · /set <name> <var> "
+                "<value>[/yellow]"
+            )
+            _save(project_dir, state, history)
+            return 1
+        notes = [apply_edit_action(state, e, catalog) for e in edits]
+        reply = "\n".join(notes)
+        history.append({"role": "agent", "message": reply})
+        _append_log(project_dir, turn, "agent", reply, f"edit:{op}")
+        _save(project_dir, state, history)
+        console.print(f"\n[bold magenta]agent[/bold magenta]: {reply}")
+        console.print("\n" + _module_list_text(state, catalog))
+        return 0
+
     # Module-by-module flow: build ONE capability group (phase).
     #   /build imports   /build model   /build visualize   (or /build-phase X)
     # Bare "/build" builds the next unbuilt phase.
@@ -457,6 +773,13 @@ def main(argv: list[str] | None = None) -> int:
             token = args.message.strip().split(None, 1)[1].strip()
             phase = normalize_phase(token)
             if phase is None:
+                # Not a phase. For a bare "/build <token>" treat the token
+                # as a single module name (e.g. /build GFS). The explicit
+                # phase-only forms (/build-phase, "build phase") still error.
+                if cmd.startswith("/build ") and "-phase" not in cmd:
+                    rc = _run_module_build(state, project_dir, token, console)
+                    _save(project_dir, state, history)
+                    return rc
                 console.print(
                     f"[yellow]Unknown phase '{token}'. Valid phases: "
                     f"{', '.join(PHASE_ORDER)}.[/yellow]"
@@ -587,6 +910,50 @@ def main(argv: list[str] | None = None) -> int:
         else:
             notes.append("no intent classified")
 
+    # Phase 2.5: natural-language edits (remove a module / override a
+    # scalar). Verb-gated and target-required, so descriptive prose never
+    # parses as an edit. Runs AFTER intent + LLM-entity merge but BEFORE
+    # the additive merge: applied edits mutate slots immediately, then the
+    # just-removed targets are stripped from skill_results so the additive
+    # merge below cannot re-add them on the same turn. Slash /add /remove
+    # /set (handled earlier) stay the unambiguous fallback.
+    recent_edit_note: str | None = None  # per-turn; stale notes must not leak
+    edit_action = detect_edit_action(args.message)
+    if edit_action and edit_action.get("edits"):
+        applied_notes: list[str] = []
+        for e in edit_action["edits"]:
+            note = apply_edit_action(state, e, catalog)
+            notes.append(f"edit: {note}")
+            applied_notes.append(note)
+        # Re-add suppression: drop removed targets from skill_results so the
+        # additive merge doesn't immediately resurrect them.
+        if edit_action.get("removed_imports"):
+            ri = {x.lower() for x in edit_action["removed_imports"]}
+            if isinstance(skill_results.get("imports"), list):
+                skill_results["imports"] = [
+                    x for x in skill_results["imports"]
+                    if str(x).lower() not in ri
+                ]
+        if edit_action.get("removed_basins"):
+            rb = {x.lower() for x in edit_action["removed_basins"]}
+            if isinstance(skill_results.get("basins"), list):
+                skill_results["basins"] = [
+                    b for b in skill_results["basins"]
+                    if not (
+                        isinstance(b, dict)
+                        and str(b.get("basin_name", "")).lower() in rb
+                    )
+                ]
+            if (
+                isinstance(skill_results.get("basin_name"), str)
+                and skill_results["basin_name"].lower() in rb
+            ):
+                skill_results["basin_name"] = None
+        # Surface this turn's edits so the reply layer can acknowledge
+        # them as already-done. Per-turn only — never persisted, so a
+        # later non-edit turn can't re-acknowledge a stale edit.
+        recent_edit_note = "; ".join(applied_notes)
+
     # Phase 3: slot filling — additive, no overwrites.
     slots = state.setdefault("slots", {})
     for k, v in skill_results.items():
@@ -688,8 +1055,7 @@ def main(argv: list[str] | None = None) -> int:
         for inst in p.get("instances") or []:
             if not isinstance(inst, dict):
                 continue
-            for k in ("nwp_name", "source_name", "wsc_variant",
-                      "snow_source", "template_name"):
+            for k in _IMPORT_LABEL_KEYS:
                 v = inst.get(k)
                 if isinstance(v, str):
                     mapped_imports.add(v)
@@ -760,6 +1126,7 @@ def main(argv: list[str] | None = None) -> int:
         new_patterns=new_patterns,
         input_status=input_status,
         warnings=warnings,
+        recent_edit=recent_edit_note,
         provider=provider,
     )
 

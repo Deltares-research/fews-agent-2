@@ -636,6 +636,167 @@ def detect_data_types(text: str) -> list[str]:
 
 
 # ---------------------------------------------------------------------------
+# Skill: natural-language EDIT detection (remove / change-a-variable)
+# ---------------------------------------------------------------------------
+#
+# The additive slot-fill in chat_step already handles *adding* facts
+# (imports, basins, parameters) — so this skill deliberately does NOT
+# emit "add" edits. It fills the two gaps the additive merge structurally
+# cannot cover:
+#
+#   * REMOVE a module      — additive can only union, never subtract.
+#   * OVERRIDE a scalar    — additive fills a slot only when it is unset,
+#     (grid_resolution,      so "make GFS half-degree" wouldn't change an
+#      forecast_horizon)     already-set resolution.
+#
+# It is verb-gated (an edit verb must be present) AND target-required (a
+# known import / basin / value must resolve), so plain descriptive prose
+# ("we don't want flooding") never parses as an edit and the normal
+# additive path proceeds untouched.
+
+# Removal verbs. "without" is intentionally excluded — "import GFS without
+# interpolation" must not read as "remove GFS". "replace"/"swap" are also
+# excluded: they imply remove-one-add-another, which the strip-then-readd
+# suppression below would mishandle (use explicit /remove + /add instead).
+_EDIT_REMOVE_CUES: tuple[str, ...] = (
+    "remove", "drop", "delete", "get rid of", "take out", "exclude",
+    "no longer", "don't want", "do not want", "dont want",
+    "don't need", "do not need", "dont need",
+)
+
+# Change/override verbs for scalar variables (resolution, horizon). A
+# change cue gates the override so a *first* mention ("import GFS at half
+# degree") still flows through additive slot-fill rather than a no-op set.
+_EDIT_CHANGE_CUES: tuple[str, ...] = (
+    "change", "make", "set", "switch", "update", "instead",
+    "actually", "rather", "increase", "decrease", "lower", "raise",
+)
+
+
+def _has_cue(lower: str, cues: tuple[str, ...]) -> bool:
+    return any(c in lower for c in cues)
+
+
+def _cue_positions(lower: str, cues: tuple[str, ...]) -> list[int]:
+    """Start offsets of every cue occurrence in ``lower``."""
+    out: list[int] = []
+    for cue in cues:
+        start = 0
+        while True:
+            i = lower.find(cue, start)
+            if i < 0:
+                break
+            out.append(i)
+            start = i + len(cue)
+    return out
+
+
+def _import_position(text: str, name: str) -> int:
+    """Char offset of an import name in ``text`` (0 if not literally present,
+    e.g. when it was matched via an alias)."""
+    m = re.search(rf"\b{re.escape(name.upper())}\b", text.upper())
+    return m.start() if m else 0
+
+
+def detect_edit_action(text: str) -> dict | None:
+    """Detect a natural-language edit (remove a module / change a variable).
+
+    Returns ``None`` when no edit verb + resolvable target is present, so
+    the caller's normal additive slot-fill runs untouched. Otherwise::
+
+        {
+          "edits": [ <edit dict for chat_step.apply_edit_action>, ... ],
+          "removed_imports": [<canonical import name>, ...],
+          "removed_basins":  [<basin name>, ...],
+        }
+
+    Each edit dict matches the shape ``apply_edit_action`` consumes
+    (``op``/``target``/``target_kind`` (+ ``variable``/``value`` for set)).
+    ``removed_*`` let the caller strip just-removed targets from the
+    skill results before the additive merge so they aren't re-added.
+    """
+    if not text:
+        return None
+    lower = text.lower()
+    edits: list[dict] = []
+    removed_imports: list[str] = []
+    removed_basins: list[str] = []
+
+    remove_pos = _cue_positions(lower, _EDIT_REMOVE_CUES)
+    change_pos = _cue_positions(lower, _EDIT_CHANGE_CUES)
+    has_remove = bool(remove_pos)
+    has_change = bool(change_pos)
+
+    # Associate each detected import with the cue it sits closest to, so a
+    # mixed sentence ("drop RDPS and make GFS half-degree") removes only
+    # RDPS and targets the GFS set at GFS — not a greedy remove of both.
+    inf = float("inf")
+    imports_here = detect_imports(text)
+    remove_targets: list[str] = []
+    change_target: str | None = None
+    best_change_dist = inf
+    for name in imports_here:
+        pos = _import_position(text, name)
+        rd = min((abs(pos - p) for p in remove_pos), default=inf)
+        cd = min((abs(pos - p) for p in change_pos), default=inf)
+        if rd == inf and cd == inf:
+            continue
+        if rd <= cd:
+            remove_targets.append(name)
+        elif cd < best_change_dist:
+            best_change_dist = cd
+            change_target = name
+
+    # --- SET (override a scalar variable) ------------------------------
+    # Gated on a change cue; the value (resolution / horizon) must parse.
+    if has_change:
+        res = detect_grid_resolution(text)
+        if res is not None:
+            edits.append({
+                "op": "set", "target": change_target,
+                "target_kind": "variable",
+                "variable": "grid_resolution", "value": res,
+            })
+        hor = detect_forecast_horizon_hours(text)
+        if hor is not None:
+            edits.append({
+                "op": "set", "target": change_target,
+                "target_kind": "variable",
+                "variable": "forecast_horizon_hours", "value": hor,
+            })
+
+    # --- REMOVE (a module) ---------------------------------------------
+    if has_remove:
+        for name in remove_targets:
+            removed_imports.append(name)
+            edits.append({
+                "op": "remove", "target": name, "target_kind": "import",
+            })
+        # Basins: only those nearer a remove cue than a change cue.
+        for basin in detect_all_basins(text):
+            pos = lower.find(basin.lower())
+            if pos < 0:
+                pos = 0
+            rd = min((abs(pos - p) for p in remove_pos), default=inf)
+            cd = min((abs(pos - p) for p in change_pos), default=inf)
+            if rd <= cd:
+                removed_basins.append(basin)
+                edits.append({
+                    "op": "remove",
+                    "target": {"basin_name": basin},
+                    "target_kind": "basin",
+                })
+
+    if not edits:
+        return None
+    return {
+        "edits": edits,
+        "removed_imports": removed_imports,
+        "removed_basins": removed_basins,
+    }
+
+
+# ---------------------------------------------------------------------------
 # Composite: extract everything the skills can find
 # ---------------------------------------------------------------------------
 
@@ -1519,6 +1680,7 @@ def compose_reply(
     new_patterns: list[str],
     input_status: dict[str, Any] | None = None,
     warnings: list[str] | None = None,
+    recent_edit: str | None = None,
     provider: OllamaProvider | None = None,
     model: str = "qwen2.5:7b-instruct",
 ) -> str:
@@ -1632,10 +1794,18 @@ def compose_reply(
 
     system = (
         "You are a helpful assistant guiding a configurator through "
-        "authoring a Delft-FEWS project. The deterministic engine has "
-        "ALREADY updated state — your only job is to PHRASE a natural "
-        "reply. You CANNOT change state; anything you write is just "
-        "acknowledgment, questions, or suggestions.\n"
+        "authoring a Delft-FEWS project ONE MODULE AT A TIME (an import, "
+        "a basin model, a visualization) — not by generating the whole "
+        "project in one shot. The configurator can edit the in-progress "
+        "project mid-chat: add a module, remove a module, or change a "
+        "variable (e.g. grid resolution, forecast horizon), either with "
+        "slash commands (/add, /remove, /set, /build, /list) or in plain "
+        "language ('also drop RDPS', 'make GFS half-degree').\n"
+        "The deterministic engine has ALREADY applied any such edit and "
+        "updated state before you reply — your job is to PHRASE a natural "
+        "reply. You do not mutate state yourself; you acknowledge what the "
+        "engine already did, ask the next question, or suggest a next "
+        "step.\n"
         "\n"
         "ANTI-FABRICATION RULE — read carefully:\n"
         "Only reference values that appear under KNOWN. Treat values "
@@ -1651,25 +1821,28 @@ def compose_reply(
         "Good reply: 'Got it — Mackenzie basin. Which hydrological "
         "model adapter does it use (raven, wflow, hbv96)?'\n"
         "\n"
-        "ANTI-FABRICATED-ACTION RULE — equally important:\n"
-        "You have NO ability to perform actions for the user. The "
-        "engine — not you — is what mutates state. You can only "
-        "acknowledge, ask, or suggest. NEVER offer to do something on "
-        "the user's behalf with phrases like 'Would you like me to "
-        "add…?', 'Shall I include…?', 'Want me to remove…?'. If the "
-        "user says 'yes' to such a phantom offer, nothing will happen "
-        "and the user will be confused. The only yes/no flow that is "
-        "actually wired up is the engine-proposed pattern-removal "
-        "confirmation (which appears in Engine notes — you don't "
-        "invent it). For everything else, instruct the user how to "
-        "phrase their own next message instead of asking permission.\n"
+        "ACTIONS — offers vs. completed edits (read carefully):\n"
+        "You do NOT mutate state yourself, and you must NEVER make a "
+        "phantom OFFER that waits on a 'yes' — phrases like 'Would you "
+        "like me to add…?', 'Shall I include…?', 'Want me to remove…?'. "
+        "If the user said 'yes' to such an offer, nothing would happen "
+        "and they'd be confused. The only engine-wired yes/no flow is a "
+        "pattern-removal proposal that appears in Engine notes (you "
+        "don't invent it).\n"
+        "BUT: when a RECENT EDIT line is present below, the engine has "
+        "ALREADY performed that edit this turn — acknowledge it as DONE, "
+        "in the past tense ('Removed RDPS', 'Set GFS to half-degree'), "
+        "and never re-offer it. When the user wants a change that has "
+        "NOT happened, don't ask permission — tell them the exact "
+        "phrasing to use ('say \"also drop RDPS\"', 'say \"make GFS "
+        "half-degree\"', or use /remove, /set).\n"
         "\n"
-        "Bad reply (fabricated action): 'The Snare basin hasn't been "
-        "added yet. Would you like me to add it now?' (the engine "
-        "won't add anything on 'yes')\n"
-        "Good reply: 'The Snare basin isn't in the project yet. To "
-        "add it, say something like: \"also add the Snare basin using "
-        "raven\".'\n"
+        "Bad (phantom offer): 'Would you like me to add the Snare "
+        "basin?' (nothing happens on 'yes')\n"
+        "Good (not yet done): 'Snare isn't in the project yet — to add "
+        "it, say \"also add the Snare basin using raven\".'\n"
+        "Good (RECENT EDIT confirms it): 'Done — removed RDPS. Build "
+        "the next import with /build <name>, or keep adding modules.'\n"
         "\n"
         "RULES:\n"
         "1) Reply in 1-3 sentences. Plain English. No JSON, no "
@@ -1694,20 +1867,26 @@ def compose_reply(
         "   MUST mention each one verbatim or paraphrased, and ask the "
         "   user to confirm, correct, or 'continue anyway'. Never bury "
         "   a warning. Never silently accept inputs that are flagged.\n"
-        "8) NEVER offer to perform an action ('Want me to…?', "
-        "   'Shall I…?', 'Would you like me to add/remove/change…?'). "
-        "   You cannot mutate state. If the user wants a change, tell "
-        "   them how to phrase it themselves on the next turn. The "
-        "   ONLY exception is when Engine notes contain an explicit "
-        "   pattern-removal proposal — then yes/no IS wired.\n"
+        "8) Don't make a phantom OFFER that waits on a 'yes' "
+        "   ('Want me to…?', 'Shall I…?'). Two allowed moves instead: "
+        "   (a) if a RECENT EDIT line is present, acknowledge that edit "
+        "   as already DONE (past tense); (b) for a change the user "
+        "   hasn't requested yet, tell them the exact phrasing or slash "
+        "   command to use. The only engine-wired yes/no is a "
+        "   pattern-removal proposal in Engine notes.\n"
         "9) NEVER ask whether to add/include something that is "
         "   ALREADY in KNOWN. If a basin or import appears under "
         "   'Basins already in project' or 'Imports already in "
         "   project', it is DONE — do not ask 'should I also add "
-        "   X?' or 'do you want to add X?'. The engine has already "
-        "   added it. Move on to next_question or, if ready, "
-        "   encourage 'done'.\n"
-        "10) Output JSON {\"reply\": \"...\"}, nothing else."
+        "   X?'. The engine already added it. You MAY, however, "
+        "   suggest how to remove or change it ('to drop it, say "
+        "   \"remove X\"').\n"
+        "10) STEPWISE: after acknowledging, nudge toward ONE concrete "
+        "   next step — build the module just configured (/build "
+        "   <name>), add the next module, or (if ready) 'done' to "
+        "   assemble. Prefer one small module over pushing the whole "
+        "   project at once.\n"
+        "11) Output JSON {\"reply\": \"...\"}, nothing else."
     )
 
     warnings_text = ""
@@ -1715,6 +1894,13 @@ def compose_reply(
         warnings_text = "\nWARNINGS (must be surfaced in the reply):\n" + "\n".join(
             f"  - {w}" for w in warnings
         ) + "\n"
+
+    recent_edit_text = ""
+    if recent_edit:
+        recent_edit_text = (
+            f"\nRECENT EDIT (engine ALREADY applied this — acknowledge as "
+            f"DONE, past tense; do NOT re-offer it):\n  {recent_edit}\n"
+        )
 
     user = (
         f"User just said: {user_message!r}\n"
@@ -1724,6 +1910,7 @@ def compose_reply(
         f"UNKNOWN (empty slots — DO NOT mention values for these): "
         f"{unknown_text}\n"
         f"{warnings_text}"
+        f"{recent_edit_text}"
         f"\n"
         f"New patterns added this turn: {new_pat_text}\n"
         f"Engine notes: {'; '.join(notes) or '(none)'}\n"

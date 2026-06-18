@@ -55,7 +55,8 @@ from rich.panel import Panel
 from rich.table import Table
 
 from fews_agent.agent.blueprint import (
-    Blueprint, expand, load_blueprint, merge_contributions, write_output,
+    Blueprint, PatternRef, expand, load_blueprint, merge_contributions,
+    write_output,
 )
 from fews_agent.agent.phases import PHASE_LABELS, classify_phase
 from fews_agent.agent.csv_ingest import IngestResult, ingest_directory
@@ -1466,6 +1467,149 @@ def build_phase(
     }
 
 
+def _instance_matches(inst: dict, match: dict | None) -> bool:
+    """True if every key/value in ``match`` is present and equal in ``inst``.
+
+    ``match`` is a label-only dict (e.g. ``{"nwp_name": "GFS"}``) so a
+    single module can be selected out of a pattern that has several
+    instances. ``None`` matches everything.
+    """
+    if not match:
+        return True
+    return all(inst.get(k) == v for k, v in match.items())
+
+
+def build_module(
+    blueprint_path: Path,
+    pattern_root: Path,
+    pattern: str,
+    instance_match: dict | None = None,
+    *,
+    console: Console | None = None,
+) -> dict:
+    """Render + XSD-validate ONE module — a single pattern, optionally a
+    single instance within it.
+
+    The per-import (finest) granularity of the guided flow: build just
+    "the GFS import" rather than the whole imports phase. Like
+    :func:`build_phase`, it skips the singleton merge, bundled standards,
+    derivers, and the semantic cross-reference check — those belong to
+    final assembly (``done``). Files accumulate in the shared
+    ``output_root`` alongside any other phase/module builds.
+    """
+    if console is None:
+        console = Console()
+
+    bp = load_blueprint(blueprint_path, pattern_root)
+    output_root = (blueprint_path.parent / bp.output_root).resolve()
+    output_root.mkdir(parents=True, exist_ok=True)
+
+    matched: list[PatternRef] = []
+    for p in bp.patterns:
+        if p.pattern != pattern:
+            continue
+        insts = [i for i in p.instances if _instance_matches(i, instance_match)]
+        if insts:
+            matched.append(PatternRef(pattern=p.pattern, instances=insts))
+
+    label = pattern.rsplit("/", 1)[-1]
+    if instance_match:
+        label += " " + ", ".join(f"{k}={v}" for k, v in instance_match.items())
+
+    console.print(Panel(
+        f"[bold]Module:[/bold] {label}\n"
+        f"[dim]blueprint: {bp.name}[/dim]\n"
+        f"[dim]output: {output_root}[/dim]\n"
+        f"[bold]{sum(len(m.instances) for m in matched)}[/bold] "
+        f"instance(s) to build",
+        border_style="cyan",
+    ))
+
+    if not matched:
+        console.print(
+            f"[yellow]No instance of '{pattern}'"
+            + (f" matching {instance_match}" if instance_match else "")
+            + " is in the project. Nothing to build.[/yellow]"
+        )
+        return {
+            "ok": False, "module": pattern, "files_total": 0,
+            "files_xsd_ok": 0, "errors": ["no matching instance"],
+        }
+
+    sub_bp = Blueprint(
+        name=f"{bp.name} [{label}]",
+        output_root=bp.output_root,
+        patterns=matched,
+        singleton_seeds=bp.singleton_seeds,
+    )
+    result = expand(sub_bp, pattern_root)
+    if result.errors:
+        for err in result.errors:
+            console.print(f"[red]error:[/red] {err}")
+        return {
+            "ok": False, "module": pattern, "files_total": 0,
+            "files_xsd_ok": 0, "errors": list(result.errors),
+        }
+
+    manifest = write_output(result, output_root)
+
+    table = Table(
+        title=f"Module '{label}' — files ({len(manifest['written'])})",
+        show_lines=False,
+    )
+    table.add_column("file", overflow="fold")
+    table.add_column("pattern")
+    table.add_column("instance")
+    table.add_column("xsd", justify="center")
+
+    n_xsd_ok = 0
+    n_non_xml = 0
+    files_report = []
+    for entry in manifest["written"]:
+        file_path = output_root / entry["path"]
+        data = file_path.read_bytes()
+        if not entry["path"].lower().endswith(".xml"):
+            xsd_ok, xsd_msg = True, "(not XML)"
+            n_non_xml += 1
+        else:
+            xsd_ok, xsd_msg = validate_xsd(data)
+            if xsd_ok:
+                n_xsd_ok += 1
+        table.add_row(
+            entry["path"],
+            entry["pattern"].split("/")[-1],
+            entry["instance"],
+            "[green]OK[/green]" if xsd_ok else "[red]FAIL[/red]",
+        )
+        files_report.append(
+            {"path": entry["path"], "xsd_ok": xsd_ok, "xsd_msg": xsd_msg}
+        )
+
+    console.print(table)
+    n_xml = len(manifest["written"]) - n_non_xml
+    ok = n_xsd_ok == n_xml and not result.errors
+    border = "green" if ok else "yellow"
+    console.print(Panel(
+        f"[bold]Module '{label}' built:[/bold] "
+        f"{len(manifest['written'])} file(s), "
+        f"XSD-valid {n_xsd_ok}/{n_xml}"
+        + (f" (+{n_non_xml} non-XML)" if n_non_xml else "")
+        + "\n[dim]Cross-file references are checked at final assembly "
+          "(done).[/dim]",
+        title="Module complete", border_style=border,
+    ))
+    return {
+        "ok": ok,
+        "module": pattern,
+        "instance_match": instance_match,
+        "files_total": len(manifest["written"]),
+        "files_xml": n_xml,
+        "files_xsd_ok": n_xsd_ok,
+        "errors": list(result.errors),
+        "files": files_report,
+    }
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--blueprint", required=True)
@@ -1495,9 +1639,38 @@ def main(argv: list[str] | None = None) -> int:
             "validates just that phase's pattern outputs."
         ),
     )
+    parser.add_argument(
+        "--module",
+        default=None,
+        help=(
+            "Build only one pattern (e.g. auto/nwp_grid_noaa) instead of the "
+            "whole project — finer than --phase. Optionally narrow to a "
+            "single instance with --instance-match 'nwp_name=GFS'."
+        ),
+    )
+    parser.add_argument(
+        "--instance-match",
+        default=None,
+        help=(
+            "With --module, select one instance via 'key=value' (e.g. "
+            "'nwp_name=GFS'). Omit to build all instances of the pattern."
+        ),
+    )
     args = parser.parse_args(argv)
 
     blueprint_path = Path(args.blueprint).resolve()
+    if args.module:
+        match: dict | None = None
+        if args.instance_match and "=" in args.instance_match:
+            k, _, v = args.instance_match.partition("=")
+            match = {k.strip(): v.strip()}
+        summary = build_module(
+            blueprint_path=blueprint_path,
+            pattern_root=Path(args.pattern_root).resolve(),
+            pattern=args.module,
+            instance_match=match,
+        )
+        return 0 if summary.get("ok") else 1
     if args.phase:
         summary = build_phase(
             blueprint_path=blueprint_path,
