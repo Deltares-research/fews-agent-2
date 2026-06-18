@@ -1141,17 +1141,59 @@ def build_from_blueprint(
                         pattern="(auto-locsets)",
                         instance_label="locationSetsFile",
                     ))
-                    n_stubs = len(ls_data.get("body", []))
-                    console.print(
-                        f"[yellow]Auto-stubbed LocationSets: {n_stubs} "
-                        f"id-only stub(s) — configurator must fill csv/"
-                        f"shapefile backing[/yellow]"
+                    body = ls_data.get("body", [])
+                    n_total = len(body)
+                    n_populated = sum(
+                        1 for e in body
+                        if e.get("locationSet", {}).get("locationId")
                     )
+                    n_stubs = n_total - n_populated
+                    if n_populated:
+                        console.print(
+                            f"[dim]Auto-derived LocationSets: {n_populated} "
+                            f"interpolation station set(s) populated from "
+                            f"Locations.xml"
+                            + (
+                                f", {n_stubs} id-only stub(s) for the "
+                                f"configurator to back"
+                                if n_stubs else ""
+                            )
+                            + "[/dim]"
+                        )
+                    else:
+                        console.print(
+                            f"[yellow]Auto-stubbed LocationSets: {n_stubs} "
+                            f"id-only stub(s) — configurator must fill csv/"
+                            f"shapefile backing[/yellow]"
+                        )
                 except Exception as exc:  # noqa: BLE001
                     console.print(
                         f"[yellow]LocationSets stub invalid: "
                         f"{type(exc).__name__}: {str(exc)[:120]}[/yellow]"
                     )
+
+    # Loud failure: an interpolation that writes to a station set with no
+    # backing produces no point time series. This usually means
+    # locations.csv (the interpolation targets) wasn't provided. Warn
+    # rather than ship a silently inert interpolation. Runs independent of
+    # the deriver above, so it also catches a user-provided LocationSets
+    # yaml that left an interpolation set as a bare stub.
+    from fews_agent.agent.locationsets_derivation import (
+        unbacked_interpolation_station_sets,
+    )
+    _unbacked = unbacked_interpolation_station_sets(result.rendered_files)
+    if _unbacked:
+        _sets = ", ".join(sorted(_unbacked))
+        console.print(Panel(
+            f"Interpolation writes to locationSet(s) {_sets}, but they have "
+            f"no backing data (empty id-only stubs). The interpolation will "
+            f"produce no point time series until they are populated.\n"
+            f"Fix: provide a locations.csv (the station targets) in inputs/, "
+            f"or back the set with a csvFile / esriShapeFile in a "
+            f"locationSetsFile.yaml.",
+            title="Warning: interpolation has no station targets",
+            border_style="yellow",
+        ))
 
     # Auto-derive descriptor singletons from rendered XMLs. Only fires
     # for descriptor specs that aren't already produced by patterns or
@@ -1332,6 +1374,11 @@ def build_from_blueprint(
         # file missing) from "XSD validation failed" (file present,
         # xsd_ok=False).
         "errors": list(result.errors),
+        # Interpolation station sets left unbacked (no locations.csv / no
+        # csvFile backing) — the interpolation resolves to nothing. Empty
+        # list is the healthy case. Lets the chat `done` path re-surface
+        # the warning to the configurator.
+        "unbacked_interpolation_sets": sorted(_unbacked),
         "byte_equivalent_vs_tutorial": (
             f"{n_byte_eq}/{n_compared}" if diff_against else None
         ),
