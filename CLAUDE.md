@@ -530,6 +530,66 @@ rather than a side-effect of an import pattern.
   intent's `optional_slots` — it flows through chat_step's additive slot
   merge.
 
+### The `interpolate` step (`wf_interpolate_nwp_to_stations`)
+
+The `process` phase's grid→point leg. It lands an imported NWP grid as
+**scalar point time series at station locations** so the data shows up in
+the Data Viewer — the missing middle of the *import → interpolate →
+visualize* path. `patterns/auto/wf_interpolate_nwp_to_stations/` is its
+pattern. Implemented in four slices (A–D) plus an ECCC widening; the
+full feature is summarised in the memory file
+`import-interpolate-visualize-feature.md`.
+
+- **Shape.** Two outputs per NWP source: a `TransformationModule`
+  (`ModuleConfigFiles/Interpolate/Interpolate<nwp>ToStations.xml`) with
+  one `Grid_<param>` input + `Station_<param>` output +
+  `interpolationSpatial/closestDistance` transform per parameter, and the
+  `Workflow` that runs it. Fully concrete — no FEWS `$PLACEHOLDER$`.
+- **The defining property.** The grid input reads from the **upstream
+  `Import<nwp>` instance** (`moduleInstanceId=Import<nwp>`,
+  `locationId=<nwp>`), *not* from a model-run instance like the basin
+  patterns' `PostprocessModelOutputToStationTemplate` does. That's what
+  makes interpolation work in a **no-basin import-only** project.
+- **Variables.** `nwp_name` (req), `parameters` (list of `{id}`; default
+  precip + temperature), `station_locationset_id` (default
+  `InterpolationStations`), `time_step_hours` (default 3),
+  `time_series_type` (default `external forecasting`), `geo_datum`
+  (default `WGS 1984`, used as the `closestDistance` distanceGeoDatum).
+- **How it gets resolved (Slice C).** `detect_wants_interpolation` sets
+  the `wants_interpolation` slot; `_resolve_import_patterns` emits one
+  instance per eligible NWP import. It emits **only** this pattern — the
+  old inert `tpl_postprocess_to_station` force-fit was dropped.
+  `classify_phase` routes `interpolate` names to the **process** phase.
+- **Which imports are eligible (`_INTERPOLATABLE_IMPORTS`).** A
+  per-source descriptor in `project_intents.py` records each import's
+  importable `parameters` and grid `time_step_hours`. The resolver
+  **intersects** the requested params with what the import actually
+  carries and reads at the import's **own timeStep** (HRDPS is hourly →
+  `multiplier=1`, not the 3-hour default; XSD won't catch a step
+  mismatch). Current set: `GFS` (parameterized, 3h), `HRDPS` (PC.nwp/
+  TA.nwp, 1h), `GDPS`/`RDPS` (PC.nwp/TA.nwp, 3h). **Excluded on
+  purpose:** `REPS` (ensemble grid — needs ensemble-aware interpolation),
+  `HRDPA`/`RDPA` (analysis precip as `PC.sim`, not the `.nwp` forecast
+  convention). A source carrying none of the requested params is skipped.
+- **Station targets come from `locations.csv` (Slice B).** The
+  `locationsets_derivation` deriver detects which set the interpolation
+  writes its scalar output to and backs **that** set with explicit
+  `<locationId>` membership pulled from the rendered `Locations.xml`
+  (the CSV-ingest output) — so the id auto-matches
+  `station_locationset_id` and the interpolation resolves against real
+  targets. Every other referenced set stays an id-only stub.
+- **Loud failure when targets are missing (Slice D).**
+  `unbacked_interpolation_station_sets` flags any interpolation set left
+  as a bare stub (usually because no `locations.csv` was provided); the
+  build prints a warning Panel and surfaces `unbacked_interpolation_sets`
+  in the build summary. The build still succeeds (XSD-valid) — it warns,
+  it doesn't abort.
+- **Tests / oracles.** `tests/test_interpolate_pattern.py` (pattern +
+  resolver), `tests/test_locationsets_deriv.py` (CSV-backed sets),
+  `tests/test_interpolation_e2e.py` (end-to-end XSD + semantic-by-parsing
+  for both GFS and HRDPS, plus the loud-failure path). These are the
+  durable oracle — the `projects/` interpolation fixtures are gitignored.
+
 ## Configurator inputs (what the user provides)
 
 For a single-basin forecasting project, the configurator's minimum-
@@ -601,8 +661,35 @@ hold. Small-project: file count 29, XSD 28/28 + 1 non-XML must hold.
 Branch: **`make-agent-stepwise`**. The chat → build pipeline works
 end-to-end; everything below is layered on top.
 
-**Most recent workstream (2026-06-18): stepwise build + mid-chat edits.**
-The agent now builds **one module at a time** and supports editing the
+**Most recent workstream (2026-06-18): import → interpolate → visualize.**
+The agent now handles a free-form "import a grid, interpolate it to my
+stations, visualize it" request end-to-end on the existing
+`build_data_import_only` intent — no new intent needed. Shipped as four
+slices (A–D) plus an ECCC widening, all with tests
+(`tests/test_interpolate_pattern.py`, `tests/test_locationsets_deriv.py`,
+`tests/test_interpolation_e2e.py`). The mechanics live under **"The
+`interpolate` step (`wf_interpolate_nwp_to_stations`)"** above; the
+one-paragraph version:
+
+- **A** — the interpolation pattern (grid→station `closestDistance` per
+  parameter + its workflow), reading the grid from the upstream
+  `Import<nwp>` instance so it works without a basin.
+- **C** — resolver wiring: emit only this pattern (dropped the inert
+  `tpl_postprocess_to_station`); route `interpolate` → `process` phase.
+- **B** — the LocationSets deriver auto-backs the interpolation's station
+  set from `locations.csv` (explicit `<locationId>` membership).
+- **D** — loud-failure guard (`unbacked_interpolation_sets`) when a
+  station set has no backing; end-to-end XSD + semantic-by-parsing oracle.
+- **ECCC widening** — `_INTERPOLATABLE_IMPORTS` adds HRDPS/GDPS/RDPS to
+  GFS, intersecting requested params with each import's fixed set and
+  reading at the import's own timeStep (HRDPS = 1h).
+
+Live-verified the full chat→resolve→build loop on the colleague prompt at
+`projects/interp-chat-verify/...` (gitignored): 1 turn → 4 patterns → 38
+files, 37/37 XSD-valid, station set populated. Full suite: **65 passing**.
+
+**Prior workstream (2026-06-18): stepwise build + mid-chat edits.**
+The agent builds **one module at a time** and supports editing the
 in-progress project (add / remove a module, change a variable) via both
 slash commands and natural language. Shipped in four slices plus an
 intent fix, all committed with tests (`tests/test_stepwise_edits.py`,
@@ -632,7 +719,8 @@ The showcase fixture is
 (documented under "Demo / experiment projects on disk").
 
 **Active context:** the user is prepping a presentation about this
-system. No active in-flight code change.
+system. The import→interpolate→visualize feature (above) is complete and
+verified across chat / resolve / build. No active in-flight code change.
 
 ### Mental model in 30 seconds
 
@@ -870,6 +958,13 @@ python -m runners.agent.build_from_blueprint \
 python -m runners.agent.build_from_blueprint \
     --blueprint projects/tutorial-csv-only/tutorial-csv-only_2026-05-13_085951/project.yaml
    # expect: 100 files, 99/99 XSD-valid (1 non-XML)
+
+# 7. Test suite (the durable oracle — survives a fresh clone, unlike the
+#    gitignored projects/ fixtures above). Covers stepwise edits +
+#    import->interpolate->visualize (pattern, CSV-backed sets, e2e).
+python -m pytest tests/ -q
+   # expect: 65 passed (the interpolation e2e tests invoke the build path
+   #         + the filter-drafter LLM, so this takes ~40s)
 ```
 
 If any of (2)–(5) drift, **stop** — the build path is the foundation
@@ -1001,9 +1096,9 @@ In rough priority order:
    typed-spec promotions + tutorial sharpening) is an older plan;
    it is **not the active workstream** on this branch. The
    pattern-agent thread is.
-6. **Support a free-form, multi-capability "import + interpolate +
-   visualize" request style.** A colleague wants the agent to handle
-   prompts shaped like:
+6. **Free-form "import + interpolate + visualize" request style — SHIPPED.**
+   The colleague prompt below now works end-to-end on the existing
+   `build_data_import_only` intent — **no new intent was needed**:
 
    > "Configure a NOAA GFS import for the Gulf of Guinea with wind
    > speed, wind direction, and mean sea level pressure. Interpolate
@@ -1012,28 +1107,28 @@ In rough priority order:
    > Display. The list of locations with coordinates is provided in
    > the .csv file." (+ attached locations CSV)
 
-   This is a richer intent than the current `build_data_import_only`
-   path covers. Gaps to close:
-   - **Parameter selection from prose.** Extract a *specific* NWP
-     variable subset (wind speed, wind direction, MSLP) and map each
-     to FEWS parameterIds — today's import patterns pull a fixed set,
-     not a user-chosen subset.
-   - **Region as a grid extent, not a basin.** "Gulf of Guinea" is an
-     area/grid bbox, not a Raven basin — needs a region/extent slot
-     distinct from `basin_name`.
-   - **Grid→point interpolation step.** Emit the interpolation module
-     config (gridded import → interpolated-to-locations timeseries)
-     so the data lands in the **Data Viewer**.
-   - **Spatial Display output.** Emit/extend `gridDisplay` /
-     `SpatialDisplay` config so the gridded field is viewable.
-   - **Attached locations CSV** drives `Locations.xml` /
-     `LocationSets.xml` (the interpolation targets) — wire the
-     uploaded CSV into the existing CSV-ingest layer.
+   Each erstwhile gap is closed and how:
+   - **Parameter selection from prose** — `detect_data_types` already
+     maps a user-chosen subset to FEWS parameterIds; the NOAA pattern is
+     parameterized, ECCC imports a fixed set (intersected at resolve).
+   - **Region as a grid extent** — handled by the prose-driven NWP slots
+     (`region` / `custom_bbox`); see "Prose-driven NWP slots".
+   - **Grid→point interpolation step** — the
+     `wf_interpolate_nwp_to_stations` pattern (see "The `interpolate`
+     step" above). Verified for GFS and ECCC HRDPS/GDPS/RDPS.
+   - **Spatial Display output** — the `spatial_display_grid` pattern
+     (see "The `visualize` phase pattern").
+   - **Attached locations CSV** — drives `Locations.xml` via CSV ingest,
+     and the LocationSets deriver auto-backs the interpolation's station
+     set from it (Slice B).
 
-   Likely needs: a new intent (e.g. `build_import_interpolate_visualize`)
-   with its own resolver + `INTENT_INPUT_EXPECTATIONS`, a parameter-
-   subset skill, an extent/region slot, and possibly a new
-   interpolation pattern under `patterns/auto/`.
+   Live-verified the full chat→resolve→build loop on this exact prompt
+   (`projects/interp-chat-verify/...`, gitignored): 1 turn →
+   `build_data_import_only` → 4 patterns → 38 files, 37/37 XSD-valid,
+   `InterpolationStations` populated from the CSV. **Remaining options
+   (not blockers):** widen interpolation to REPS (ensemble) / analysis
+   grids; today's `_INTERPOLATABLE_IMPORTS` covers the deterministic
+   forecast grids.
 
 ### Azure deployment (decided: bundled-Ollama on a GPU VM)
 

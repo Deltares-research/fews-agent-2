@@ -29,6 +29,7 @@ from datetime import datetime
 from pathlib import Path
 
 from rich.console import Console
+from rich.panel import Panel
 
 from fews_agent.agent.project_chat import (
     add_module,
@@ -689,6 +690,81 @@ def _run_module_build(
     return 1
 
 
+def _run_module_export(
+    state: dict, project_dir: Path, name: str, console: Console,
+) -> int:
+    """Export ONE module + only the files it depends on (closure walker).
+
+    Builds the full project (so every declarer exists), identifies the
+    module's own files, walks the dependency closure, and writes just
+    that subset + a MANIFEST.md to ``generated/_export_<name>/``.
+    """
+    from runners.agent.build_from_blueprint import (
+        build_from_blueprint, build_module,
+    )
+    from fews_agent.agent.module_export import compute_closure, render_manifest
+
+    catalog = build_pattern_catalog(PATTERNS_ROOT)
+    target = _resolve_module_target(state, catalog, name)
+    if target is None:
+        console.print(
+            f"[yellow]No module named '{name}' in the project.[/yellow]\n"
+            + _module_list_text(state, catalog)
+        )
+        return 1
+    pattern, match = target
+    project_path = Path(write_project(state, project_dir))
+
+    # 1) Full build — produces every declarer (Parameters, Grids, idMaps...).
+    console.print("[dim]Building full project to resolve dependencies…[/dim]")
+    full = build_from_blueprint(
+        blueprint_path=project_path, pattern_root=PATTERNS_ROOT, console=console,
+    )
+    output_root = Path(full["output_root"])
+
+    # 2) Identify the module's own files (the closure seeds).
+    mod = build_module(
+        blueprint_path=project_path, pattern_root=PATTERNS_ROOT,
+        pattern=pattern, instance_match=match, console=console,
+    )
+    seeds = [f["path"].replace("\\", "/") for f in mod.get("files", [])]
+
+    # 3) Load the rendered tree + walk the closure.
+    files: dict[str, str] = {}
+    for p in output_root.rglob("*.xml"):
+        rel = str(p.relative_to(output_root)).replace("\\", "/")
+        if rel.startswith("_export_"):
+            continue
+        files[rel] = p.read_text(encoding="utf-8")
+    result = compute_closure(files, seeds)
+
+    # 4) Write the subset + manifest.
+    export_dir = output_root / f"_export_{name}"
+    for rel in result.needed:
+        dst = export_dir / rel
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        dst.write_text(files[rel], encoding="utf-8")
+    (export_dir / "MANIFEST.md").write_text(
+        render_manifest(result, name), encoding="utf-8",
+    )
+
+    deps = [f for f in result.needed if f not in result.seeds]
+    if result.external:
+        ext_line = "".join(f"\n  - {e}" for e in result.external)
+    else:
+        ext_line = " (none — self-contained)"
+    console.print(Panel(
+        f"[bold]{len(result.needed)}[/bold] file(s) "
+        f"= {len(result.seeds)} module + {len(deps)} dependency; "
+        f"[bold]{len(result.chrome)}[/bold] chrome file(s) excluded.\n"
+        f"External refs to satisfy in your target config: "
+        f"[bold]{len(result.external)}[/bold]" + ext_line
+        + f"\n[dim]Written to {export_dir} (+ MANIFEST.md)[/dim]",
+        title=f"Module export: {name}", border_style="green",
+    ))
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--project-name", required=True)
@@ -825,6 +901,15 @@ def main(argv: list[str] | None = None) -> int:
                 _save(project_dir, state, history)
                 return 1
         rc = _run_phase_build(state, project_dir, phase, console)
+        _save(project_dir, state, history)
+        return rc
+
+    # Export ONE module + only its dependencies (closure walker), to
+    # `generated/_export_<name>/` + a MANIFEST.md. For dropping a single
+    # module into an existing config without the project chrome.
+    if cmd.startswith("/export "):
+        token = args.message.strip().split(None, 1)[1].strip()
+        rc = _run_module_export(state, project_dir, token, console)
         _save(project_dir, state, history)
         return rc
 
