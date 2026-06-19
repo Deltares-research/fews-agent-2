@@ -92,6 +92,27 @@ _env.filters["xmlstr"] = _xmlstr
 _env.filters["dict_to_xml"] = _dict_to_xml
 
 
+def _strip_blank_lines(xml: str) -> str:
+    """Drop whitespace-only lines from rendered XML.
+
+    Jinja `{% if %}` / `{% for %}` blocks that evaluate to nothing leave
+    behind indented-but-empty lines (the env keeps block whitespace so that
+    *present* optional elements stay cleanly indented). Cumulatively that
+    makes some files majority blank lines. Removing whitespace-only lines
+    collapses the noise without disturbing the indentation of real content.
+
+    Safe by construction: inter-element whitespace is insignificant to XSD
+    validation and to FEWS at runtime, and the byte-equivalence oracle
+    canonicalizes blank lines away regardless (see `canonicalize`). FEWS
+    templates carry no CDATA or multi-line text content, so no significant
+    whitespace is at risk.
+    """
+    lines = [ln for ln in xml.splitlines() if ln.strip()]
+    if not lines:
+        return xml
+    return "\n".join(lines) + "\n"
+
+
 def render(template_name: str, model: FewsModel) -> str:
     """Render `template_name` with the Pydantic model's fields as context.
 
@@ -104,7 +125,7 @@ def render(template_name: str, model: FewsModel) -> str:
     # Pass both splat fields (legacy) and `_root` (for partials that accept
     # a single argument wrapping the whole model). `_root` can't collide
     # with a FEWS XSD field name because of the leading underscore.
-    return template.render(_root=data, **data)
+    return _strip_blank_lines(template.render(_root=data, **data))
 
 
 _PARSER = etree.XMLParser(remove_blank_text=True, remove_comments=True)
