@@ -590,6 +590,62 @@ full feature is summarised in the memory file
   for both GFS and HRDPS, plus the loud-failure path). These are the
   durable oracle — the `projects/` interpolation fixtures are gitignored.
 
+### Module export (`/export <name>` — the closure walker)
+
+`done` + a full build emits a whole config (~30+ files). A configurator
+who wants **one module** — to drop into an existing config, or as a
+minimal standalone — needs the module plus exactly the files that
+declare what it references, and nothing else. `/export <name>` produces
+that. Implemented in `fews_agent/agent/module_export.py` (pure, I/O-free,
+unit-tested) and wired into `chat_step.py` as `_run_module_export`.
+
+- **What it does.** Builds the full project (so every declarer exists),
+  identifies the module's own rendered files (the *seeds*), then walks
+  **outgoing** id references — `parameterId`, `locationId`, `idMapId`,
+  `unitConversionsId`, ... — pulling in the files that *declare* those
+  ids, transitively. It stops at the chrome boundary: files that
+  reference *into* the module (Topology, Filters, DisplayGroups,
+  descriptors) are dependents, not dependencies, and are excluded.
+  Writes the subset + a `MANIFEST.md` to `generated/_export_<name>/`.
+- **Three buckets** (`compute_closure → ExportResult`): **needed** (the
+  module + dependency files it pulled in — a self-contained, XSD-valid
+  subset), **external** (refs no dependency file satisfied — a sibling
+  module's instance, or an id only declared in chrome; these become a
+  manifest "your target config must already declare these"), **chrome**
+  (everything excluded). A module's own `moduleInstanceId` is declared
+  by its config filename, so descriptors are never pulled in.
+- **Dependency trimming (`trim_dependency_files`).** The full build emits
+  `Parameters.xml` / `Grids.xml` / `LocationSets.xml` / `TimeSteps.xml`
+  whole — they carry entries beyond what one module references. The
+  exporter trims each to only the referenced entries via an
+  **entry-level closure**: it seeds from the refs carried by the
+  *non-trimmable* needed files (module + idMap + unitConversions), then
+  keeps only the declared entries those refs reach — **transitively**, so
+  a kept `locationSet` pulls in the sets it names. Unreferenced
+  `parameter` / grid / `locationSet` / `timeStep` entries are removed; a
+  `parameterGroup` left empty is dropped. Concretely, a GFS-only export's
+  `Grids.xml` loses the basin `$MODELNAME1$Grid` placeholder and keeps
+  just `locationId="GFS"`. **Empty-result safeguard** (same convention as
+  the build runner's idMap/grid trimmers): a file with nothing to drop,
+  or where trimming would remove *every* entry, is left whole. An **XSD
+  safety net** in the handler falls back to the full file if a trim would
+  produce invalid XML — never ship unvalidated output. The MANIFEST
+  labels each dep `_(trimmed to the referenced entries)_` vs
+  `_(emitted whole; every entry is referenced)_`.
+- **Why ElementTree, not the build-runner trimmers.** The build runner
+  trims the pre-render *yaml dicts* (`_filter_grids_content`,
+  `_filter_idmap_content`); the exporter works on already-rendered XML
+  strings, so it reuses the *principle* (keep referenced, safeguard
+  against emptying) but parses/re-serializes with ElementTree. The
+  default FEWS namespace is re-declared on re-serialization so a trimmed
+  file round-trips without ElementTree's `ns0:` prefixing.
+- **Tests / oracle.** `tests/test_module_export.py` — synthetic
+  `{relpath: content}` unit tests for the closure + trimming (parameter
+  trim + empty-group removal, grid placeholder drop, locationSet
+  transitivity, all-referenced omission, namespace preservation), plus
+  one integration test that runs the real GFS build and asserts the
+  trimmed `Grids.xml` drops the placeholder and still XSD-validates.
+
 ## Configurator inputs (what the user provides)
 
 For a single-basin forecasting project, the configurator's minimum-
@@ -686,7 +742,7 @@ one-paragraph version:
 
 Live-verified the full chat→resolve→build loop on the colleague prompt at
 `projects/interp-chat-verify/...` (gitignored): 1 turn → 4 patterns → 38
-files, 37/37 XSD-valid, station set populated. Full suite: **65 passing**.
+files, 37/37 XSD-valid, station set populated. Full suite: **81 passing**.
 
 **Prior workstream (2026-06-18): stepwise build + mid-chat edits.**
 The agent builds **one module at a time** and supports editing the
@@ -961,10 +1017,11 @@ python -m runners.agent.build_from_blueprint \
 
 # 7. Test suite (the durable oracle — survives a fresh clone, unlike the
 #    gitignored projects/ fixtures above). Covers stepwise edits +
-#    import->interpolate->visualize (pattern, CSV-backed sets, e2e).
+#    import->interpolate->visualize (pattern, CSV-backed sets, e2e) +
+#    module export closure + dependency trimming.
 python -m pytest tests/ -q
-   # expect: 65 passed (the interpolation e2e tests invoke the build path
-   #         + the filter-drafter LLM, so this takes ~40s)
+   # expect: 81 passed (the interpolation e2e + module-export integration
+   #         tests invoke the build path + the filter-drafter LLM, ~45s)
 ```
 
 If any of (2)–(5) drift, **stop** — the build path is the foundation

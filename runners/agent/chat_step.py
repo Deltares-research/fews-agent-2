@@ -214,6 +214,43 @@ def _save(project_dir: Path, state: dict, history: list) -> None:
     )
 
 
+def _record_build_result(
+    project_dir: Path, history: list, turn: int, summary: dict, label: str,
+) -> None:
+    """Append a build's XSD result as an agent turn → history + transcript.
+
+    Build commands (``/build``, ``/export``) print their XSD table to the
+    console but, without this, leave no trace in ``_conversation.md``. This
+    writes a one-line agent turn recording per-file XSD validity so the
+    saved transcript is self-verifying.
+    """
+    n_ok = summary.get("files_xsd_ok", 0)
+    n_xml = summary.get("files_xml", 0)
+    files = summary.get("files", [])
+    fails = [f for f in files if not f.get("xsd_ok")]
+    # List every file when there are few; for large builds list only the
+    # failures (or nothing, if all valid) to keep the transcript readable.
+    if len(files) <= 8:
+        per_file = ", ".join(
+            f"{f['path'].rsplit('/', 1)[-1]}: "
+            f"{'OK' if f.get('xsd_ok') else 'FAIL'}"
+            for f in files
+        )
+    elif fails:
+        per_file = "failed: " + ", ".join(
+            f['path'].rsplit('/', 1)[-1] for f in fails
+        )
+    else:
+        per_file = ""
+    verdict = "all XSD-valid" if summary.get("ok") else "XSD VALIDATION FAILED"
+    msg = (
+        f"Built '{label}': {n_ok}/{n_xml} XSD-valid — {verdict}."
+        + (f" [{per_file}]" if per_file else "")
+    )
+    history.append({"role": "agent", "message": msg})
+    _append_log(project_dir, turn, "agent", msg, "build result")
+
+
 def _append_log(
     project_dir: Path,
     turn: int,
@@ -403,6 +440,7 @@ def _phase_plan_text(state: dict, catalog) -> str:
 
 def _run_phase_build(
     state: dict, project_dir: Path, phase: str, console: Console,
+    history: list, turn: int,
 ) -> int:
     """Resolve current slots → write project.yaml → build one phase."""
     from runners.agent.build_from_blueprint import build_phase
@@ -423,6 +461,7 @@ def _run_phase_build(
         phase=phase,
         console=console,
     )
+    _record_build_result(project_dir, history, turn, summary, f"phase {phase}")
     if summary.get("ok"):
         built = state.setdefault("built_phases", [])
         if phase not in built:
@@ -650,6 +689,7 @@ def _normalise_set_value(variable: str, raw):
 
 def _run_module_build(
     state: dict, project_dir: Path, name: str, console: Console,
+    history: list, turn: int,
 ) -> int:
     """Resolve a module name → write project.yaml → build just that module."""
     from runners.agent.build_from_blueprint import build_module
@@ -672,6 +712,7 @@ def _run_module_build(
         console=console,
     )
     label = next(iter(match.values()))
+    _record_build_result(project_dir, history, turn, summary, f"module {label}")
     if summary.get("ok"):
         built = state.setdefault("built_modules", [])
         key = f"{pattern}::{label}"
@@ -692,6 +733,7 @@ def _run_module_build(
 
 def _run_module_export(
     state: dict, project_dir: Path, name: str, console: Console,
+    history: list, turn: int,
 ) -> int:
     """Export ONE module + only the files it depends on (closure walker).
 
@@ -702,7 +744,10 @@ def _run_module_export(
     from runners.agent.build_from_blueprint import (
         build_from_blueprint, build_module,
     )
-    from fews_agent.agent.module_export import compute_closure, render_manifest
+    from fews_agent.agent.module_export import (
+        compute_closure, render_manifest, trim_dependency_files,
+    )
+    from fews_agent.validation.xsd import validate_xsd
 
     catalog = build_pattern_catalog(PATTERNS_ROOT)
     target = _resolve_module_target(state, catalog, name)
@@ -721,6 +766,7 @@ def _run_module_export(
         blueprint_path=project_path, pattern_root=PATTERNS_ROOT, console=console,
     )
     output_root = Path(full["output_root"])
+    _record_build_result(project_dir, history, turn, full, f"export {name} (full project)")
 
     # 2) Identify the module's own files (the closure seeds).
     mod = build_module(
@@ -738,14 +784,27 @@ def _run_module_export(
         files[rel] = p.read_text(encoding="utf-8")
     result = compute_closure(files, seeds)
 
+    # 3b) Trim each pulled-in dependency file to only the entries the module
+    # references. An XSD safety net falls back to the full file if a trim
+    # would produce invalid XML (never ship unvalidated output).
+    trimmed = trim_dependency_files(files, result)
+    for rel in list(trimmed):
+        ok, msg = validate_xsd(trimmed[rel].encode("utf-8"))
+        if not ok:
+            console.print(
+                f"[yellow]Trim of {rel} failed XSD ({msg}); "
+                f"keeping the full file.[/yellow]"
+            )
+            del trimmed[rel]
+
     # 4) Write the subset + manifest.
     export_dir = output_root / f"_export_{name}"
     for rel in result.needed:
         dst = export_dir / rel
         dst.parent.mkdir(parents=True, exist_ok=True)
-        dst.write_text(files[rel], encoding="utf-8")
+        dst.write_text(trimmed.get(rel, files[rel]), encoding="utf-8")
     (export_dir / "MANIFEST.md").write_text(
-        render_manifest(result, name), encoding="utf-8",
+        render_manifest(result, name, trimmed=set(trimmed)), encoding="utf-8",
     )
 
     deps = [f for f in result.needed if f not in result.seeds]
@@ -891,7 +950,9 @@ def main(argv: list[str] | None = None) -> int:
                 # as a single module name (e.g. /build GFS). The explicit
                 # phase-only forms (/build-phase, "build phase") still error.
                 if cmd.startswith("/build ") and "-phase" not in cmd:
-                    rc = _run_module_build(state, project_dir, token, console)
+                    rc = _run_module_build(
+                        state, project_dir, token, console, history, turn,
+                    )
                     _save(project_dir, state, history)
                     return rc
                 console.print(
@@ -900,7 +961,9 @@ def main(argv: list[str] | None = None) -> int:
                 )
                 _save(project_dir, state, history)
                 return 1
-        rc = _run_phase_build(state, project_dir, phase, console)
+        rc = _run_phase_build(
+            state, project_dir, phase, console, history, turn,
+        )
         _save(project_dir, state, history)
         return rc
 
@@ -909,7 +972,9 @@ def main(argv: list[str] | None = None) -> int:
     # module into an existing config without the project chrome.
     if cmd.startswith("/export "):
         token = args.message.strip().split(None, 1)[1].strip()
-        rc = _run_module_export(state, project_dir, token, console)
+        rc = _run_module_export(
+            state, project_dir, token, console, history, turn,
+        )
         _save(project_dir, state, history)
         return rc
 

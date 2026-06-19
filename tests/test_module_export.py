@@ -15,7 +15,7 @@ import yaml
 from rich.console import Console
 
 from fews_agent.agent.module_export import (
-    classify, compute_closure, render_manifest,
+    classify, compute_closure, render_manifest, trim_dependency_files,
 )
 
 NS = 'xmlns="http://www.wldelft.nl/fews"'
@@ -164,6 +164,122 @@ def test_deterministic_output():
     assert a.needed == b.needed and a.chrome == b.chrome
 
 
+# --- trimming dependency files ------------------------------------------
+
+def _params_groups(*groups):
+    """groups = ((group_id, (param_id, ...)), ...)."""
+    body = ""
+    for gid, pids in groups:
+        ps = "".join(
+            f'<parameter id="{p}"><shortName>{p}</shortName></parameter>'
+            for p in pids
+        )
+        body += f'<parameterGroup id="{gid}"><unit>mm</unit>{ps}</parameterGroup>'
+    return f'<?xml version="1.0"?><parameterGroups {NS}>{body}</parameterGroups>'
+
+
+def test_trim_drops_unreferenced_parameters_and_empty_groups():
+    # Module references only PC.nwp; Parameters declares three across two
+    # groups. Trim keeps PC.nwp, drops TA.nwp/EXTRA.par, and removes the
+    # now-empty second group.
+    files = {
+        SEED: _mod("ImportGFS", param="PC.nwp", idmap="Id", grid="GFS", units="U"),
+        "RegionConfigFiles/Parameters.xml": _params_groups(
+            ("g1", ("PC.nwp", "EXTRA.par")), ("g2", ("TA.nwp",))),
+        "IdMapFiles/NOAA/Id.xml": _idmap(),
+        "UnitConversionsFiles/U.xml": _units(),
+        "RegionConfigFiles/Grids.xml": _grids("GFS"),
+    }
+    r = compute_closure(files, [SEED])
+    t = trim_dependency_files(files, r)
+    p = t["RegionConfigFiles/Parameters.xml"]
+    assert 'id="PC.nwp"' in p
+    assert "TA.nwp" not in p and "EXTRA.par" not in p
+    assert 'id="g1"' in p and 'id="g2"' not in p  # empty group removed
+
+
+def test_trim_grid_drops_placeholder_keeps_referenced():
+    files = {
+        SEED: _mod("ImportGFS", param="PC.nwp", idmap="Id", grid="GFS", units="U"),
+        "RegionConfigFiles/Parameters.xml": _params("PC.nwp"),
+        "IdMapFiles/NOAA/Id.xml": _idmap(),
+        "UnitConversionsFiles/U.xml": _units(),
+        "RegionConfigFiles/Grids.xml": _grids("GFS", "$MODELNAME1$Grid"),
+    }
+    r = compute_closure(files, [SEED])
+    t = trim_dependency_files(files, r)
+    g = t["RegionConfigFiles/Grids.xml"]
+    assert 'locationId="GFS"' in g
+    assert "MODELNAME1" not in g
+
+
+def test_trim_locationset_is_transitive():
+    # Module references SetA; SetA names SetB; SetC is unrelated. Trim keeps
+    # SetA + SetB (transitively), drops SetC.
+    seed = (
+        f'<?xml version="1.0"?><transformationModule {NS}><variable>'
+        f'<timeSeriesSet><moduleInstanceId>M</moduleInstanceId>'
+        f'<locationSetId>SetA</locationSetId></timeSeriesSet>'
+        f'</variable></transformationModule>'
+    )
+    files = {
+        "ModuleConfigFiles/M.xml": seed,
+        "RegionConfigFiles/LocationSets.xml": (
+            f'<?xml version="1.0"?><locationSets {NS}>'
+            f'<locationSet id="SetA"><locationSetId>SetB</locationSetId></locationSet>'
+            f'<locationSet id="SetB"><locationId>L1</locationId></locationSet>'
+            f'<locationSet id="SetC"><locationId>L9</locationId></locationSet>'
+            f'</locationSets>'),
+    }
+    r = compute_closure(files, ["ModuleConfigFiles/M.xml"])
+    t = trim_dependency_files(files, r)
+    ls = t["RegionConfigFiles/LocationSets.xml"]
+    assert 'id="SetA"' in ls and 'id="SetB"' in ls
+    assert 'id="SetC"' not in ls
+
+
+def test_trim_omits_file_when_every_entry_referenced():
+    # Nothing to drop → file not in the trimmed map (caller keeps it whole).
+    files = {
+        SEED: _mod("ImportGFS", param="PC.nwp", idmap="Id", grid="GFS", units="U"),
+        "RegionConfigFiles/Parameters.xml": _params("PC.nwp"),
+        "IdMapFiles/NOAA/Id.xml": _idmap(),
+        "UnitConversionsFiles/U.xml": _units(),
+        "RegionConfigFiles/Grids.xml": _grids("GFS"),
+    }
+    r = compute_closure(files, [SEED])
+    t = trim_dependency_files(files, r)
+    assert "RegionConfigFiles/Parameters.xml" not in t
+    assert "RegionConfigFiles/Grids.xml" not in t
+
+
+def test_trim_preserves_default_namespace():
+    files = {
+        SEED: _mod("ImportGFS", param="PC.nwp", idmap="Id", grid="GFS", units="U"),
+        "RegionConfigFiles/Grids.xml": _grids("GFS", "$MODELNAME1$Grid"),
+        "RegionConfigFiles/Parameters.xml": _params("PC.nwp"),
+        "IdMapFiles/NOAA/Id.xml": _idmap(),
+        "UnitConversionsFiles/U.xml": _units(),
+    }
+    r = compute_closure(files, [SEED])
+    g = trim_dependency_files(files, r)["RegionConfigFiles/Grids.xml"]
+    assert 'xmlns="http://www.wldelft.nl/fews"' in g
+    assert "ns0:" not in g  # no ElementTree prefix leakage
+
+
+def test_manifest_flags_trimmed_files():
+    files = {
+        SEED: _mod("ImportGFS", param="PC.nwp", idmap="Id", grid="GFS", units="U"),
+        "RegionConfigFiles/Grids.xml": _grids("GFS", "$MODELNAME1$Grid"),
+        "IdMapFiles/NOAA/Id.xml": _idmap(),
+        "UnitConversionsFiles/U.xml": _units(),
+    }
+    r = compute_closure(files, [SEED])
+    t = trim_dependency_files(files, r)
+    md = render_manifest(r, "GFS", trimmed=set(t))
+    assert "trimmed to the referenced entries" in md
+
+
 # --- integration: real build of a GFS-only project ----------------------
 
 def test_integration_gfs_closure_against_real_build():
@@ -209,3 +325,14 @@ def test_integration_gfs_closure_against_real_build():
         # …and chrome is excluded.
         assert any(f.endswith("Topology.xml") for f in r.chrome)
         assert any(f.endswith("Filters.xml") for f in r.chrome)
+
+        # Trimming drops the basin grid placeholder from Grids.xml, and the
+        # trimmed result still XSD-validates.
+        from fews_agent.agent.module_export import trim_dependency_files
+        from fews_agent.validation.xsd import validate_xsd
+        trimmed = trim_dependency_files(files, r)
+        grid_rel = next(f for f in r.needed if f.endswith("Grids.xml"))
+        assert grid_rel in trimmed
+        assert "MODELNAME1" not in trimmed[grid_rel]
+        ok, msg = validate_xsd(trimmed[grid_rel].encode("utf-8"))
+        assert ok, msg

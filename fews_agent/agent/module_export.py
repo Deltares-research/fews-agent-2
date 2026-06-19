@@ -233,14 +233,160 @@ def compute_closure(
 
 
 # Dependency files that the full build emits whole but that may carry
-# entries beyond what the module references — a production export would
-# trim these to the closure (the build runner already trims idMaps/grids).
+# entries beyond what the module references. ``trim_dependency_files``
+# drops the unreferenced entries (the build runner already trims idMaps
+# and grids on the full-project path).
 _TRIMMABLE_BASENAMES: frozenset[str] = frozenset({
     "Parameters.xml", "Grids.xml", "LocationSets.xml", "TimeSteps.xml",
 })
 
+# Namespaces every FEWS file carries; re-declared on re-serialization so a
+# trimmed file round-trips without ElementTree's ``ns0:`` prefixing.
+_FEWS_NS = "http://www.wldelft.nl/fews"
+_XSI_NS = "http://www.w3.org/2001/XMLSchema-instance"
 
-def render_manifest(result: ExportResult, module_name: str) -> str:
+
+def _entry_refs(el: ET.Element) -> set[tuple[str, str]]:
+    """Outgoing id references contained anywhere under ``el``.
+
+    Lets a kept entry pull in the entries *it* references — e.g. a
+    ``locationSet`` whose body names another ``locationSetId``.
+    """
+    out: set[tuple[str, str]] = set()
+    for sub in el.iter():
+        t = _tag(sub)
+        if t in _REF_TAGS and sub.text:
+            v = sub.text.strip()
+            if v and not _is_placeholder(v):
+                out.add((_REF_TAGS[t], v))
+    return out
+
+
+def _declared_entries(root: ET.Element, basename: str):
+    """Yield ``(idtype, id, element, parent)`` for each trimmable top-level
+    declaration in a parsed dependency file.
+
+    A trimmable entry is one the closure can decide to keep or drop on its
+    own: a ``<parameter>`` (nested one level under its group), a grid
+    ``<regular>``/``<irregular>``/... entry keyed by ``@locationId``, a
+    ``<locationSet>``, or a ``<timeStep>``.
+    """
+    if basename == "Parameters.xml":
+        for grp in list(root):
+            if _tag(grp) != "parameterGroup":
+                continue
+            for child in list(grp):
+                if _tag(child) == "parameter" and child.get("id"):
+                    yield ("parameter", child.get("id"), child, grp)
+    elif basename == "Grids.xml":
+        for child in list(root):
+            loc = child.get("locationId")
+            if loc:
+                yield ("location", loc, child, root)
+    elif basename == "LocationSets.xml":
+        for child in list(root):
+            if _tag(child) == "locationSet" and child.get("id"):
+                yield ("locationSet", child.get("id"), child, root)
+    elif basename == "TimeSteps.xml":
+        for child in list(root):
+            if _tag(child) == "timeStep" and child.get("id"):
+                yield ("timeStep", child.get("id"), child, root)
+
+
+def _serialize(root: ET.Element) -> str:
+    """Re-serialize a trimmed root with the FEWS default namespace intact."""
+    ET.register_namespace("", _FEWS_NS)
+    ET.register_namespace("xsi", _XSI_NS)
+    body = ET.tostring(root, encoding="unicode")
+    return '<?xml version="1.0" encoding="UTF-8"?>\n' + body + "\n"
+
+
+def trim_dependency_files(
+    files: dict[str, str], result: ExportResult,
+) -> dict[str, str]:
+    """Trim each trimmable dependency file to the entries the module needs.
+
+    Starting from the references carried by the **non-trimmable** needed
+    files (the module + idMap + unitConversions), this keeps only the
+    declared entries those references reach — transitively, so a kept
+    ``locationSet`` pulls in the sets it names. Unreferenced ``parameter``
+    / grid / ``locationSet`` / ``timeStep`` entries are removed, and a
+    ``parameterGroup`` left empty is dropped with them.
+
+    Returns ``{relpath: trimmed_xml}`` for the files that were actually
+    trimmed; a file is omitted (the caller keeps the original) when there
+    is nothing to drop or when trimming would remove *every* entry — the
+    same empty-result safeguard the build runner uses.
+    """
+    trimmable = [
+        f for f in result.needed
+        if f.rsplit("/", 1)[-1] in _TRIMMABLE_BASENAMES and f in files
+    ]
+    if not trimmable:
+        return {}
+    trimmable_set = set(trimmable)
+    _declared, refs = _index(files)
+
+    # Seed the entry-closure with refs from every non-trimmable needed file.
+    # A trimmable file's own refs only matter once its carrying entry is kept.
+    frontier: list[tuple[str, str]] = []
+    for f in result.needed:
+        if f not in trimmable_set:
+            frontier.extend(refs.get(f, ()))
+
+    # Index every trimmable entry by (idtype, id) → its outgoing refs.
+    parsed: dict[str, ET.Element] = {}
+    entry_refs: dict[tuple[str, str], set[tuple[str, str]]] = {}
+    for f in trimmable:
+        base = f.rsplit("/", 1)[-1]
+        try:
+            root = ET.fromstring(files[f].encode("utf-8"))
+        except ET.ParseError:
+            continue
+        parsed[f] = root
+        for idtype, eid, el, _parent in _declared_entries(root, base):
+            entry_refs.setdefault((idtype, eid), set()).update(_entry_refs(el))
+
+    # BFS: keep entries reachable from the seed refs, following each kept
+    # entry's own outgoing refs.
+    kept: set[tuple[str, str]] = set()
+    seen: set[tuple[str, str]] = set(frontier)
+    queue = list(frontier)
+    while queue:
+        ref = queue.pop()
+        if ref in entry_refs and ref not in kept:
+            kept.add(ref)
+            for nxt in entry_refs[ref]:
+                if nxt not in seen:
+                    seen.add(nxt)
+                    queue.append(nxt)
+
+    trimmed: dict[str, str] = {}
+    for f, root in parsed.items():
+        base = f.rsplit("/", 1)[-1]
+        entries = list(_declared_entries(root, base))
+        drop = [
+            (el, parent) for (idtype, eid, el, parent) in entries
+            if (idtype, eid) not in kept
+        ]
+        if not drop or len(drop) == len(entries):
+            continue  # nothing to trim, or would empty the file → keep whole
+        for el, parent in drop:
+            parent.remove(el)
+        if base == "Parameters.xml":
+            for grp in list(root):
+                if _tag(grp) == "parameterGroup" and not any(
+                    _tag(c) == "parameter" for c in grp
+                ):
+                    root.remove(grp)
+        trimmed[f] = _serialize(root)
+    return trimmed
+
+
+def render_manifest(
+    result: ExportResult, module_name: str,
+    trimmed: set[str] | None = None,
+) -> str:
     """Human-readable MANIFEST.md for an exported module bundle."""
     lines = [
         f"# Export: module `{module_name}`",
@@ -257,11 +403,14 @@ def render_manifest(result: ExportResult, module_name: str) -> str:
     lines += ["", f"## Dependencies pulled in ({len(deps)})"]
     if not deps:
         lines.append("- (none)")
+    trimmed = trimmed or set()
     for f in deps:
         why = ", ".join(f"{t}:{v}" for t, v in result.pulled_by.get(f, []))
         note = ""
-        if f.rsplit("/", 1)[-1] in _TRIMMABLE_BASENAMES:
-            note = "  _(emitted whole; may contain unrelated entries — trim to the above)_"
+        if f in trimmed:
+            note = "  _(trimmed to the referenced entries above)_"
+        elif f.rsplit("/", 1)[-1] in _TRIMMABLE_BASENAMES:
+            note = "  _(emitted whole; every entry is referenced)_"
         lines.append(f"- `{f}` — satisfies {why}{note}")
 
     lines += ["", f"## External dependencies — your target config must "
@@ -278,5 +427,5 @@ def render_manifest(result: ExportResult, module_name: str) -> str:
 
 __all__ = [
     "ExportResult", "ExternalRef", "classify",
-    "compute_closure", "render_manifest",
+    "compute_closure", "render_manifest", "trim_dependency_files",
 ]
