@@ -56,8 +56,11 @@ from fews_agent.agent.project_intents import (
     extract_skills,
     fill_slots_from_text,
     heuristic_intent_from_slots,
+    intent_disambiguation_needed,
+    intent_disambiguation_question,
     is_intent_ready,
     next_unfilled_question,
+    parse_intent_disambiguation_answer,
     scan_inputs,
     unrecognised_data_types,
 )
@@ -845,6 +848,24 @@ def main(argv: list[str] | None = None) -> int:
 
     cmd = args.message.lower().strip()
 
+    # Pending intent disambiguation: a prior turn asked "imports only or a
+    # full forecasting project?" and is awaiting the answer. Interpret this
+    # message as that answer (an 'a'/'b' shorthand, a natural phrasing, or an
+    # explicit intent-naming override). When it resolves to an intent, commit
+    # it and latch `intent_disambiguated` so the gate below never re-asks.
+    # Otherwise consume the prompt and fall through — the gate re-evaluates
+    # ambiguity against this turn's (possibly fuller) slots and either
+    # re-asks or proceeds.
+    if state.get("awaiting_intent_disambiguation"):
+        _ans = parse_intent_disambiguation_answer(args.message)
+        if _ans is None:
+            _ans = forced_intent_override(args.message, None)
+        state["awaiting_intent_disambiguation"] = False
+        if _ans:
+            state["intent"] = _ans
+            state["intent_disambiguated"] = True
+            state["patterns"] = []  # resolver rebuilds from slots
+
     # Deterministic special commands.
     if cmd in {"done", "/done", "quit", "force-done", "/force-done"}:
         force = cmd in {"force-done", "/force-done"}
@@ -1201,6 +1222,37 @@ def main(argv: list[str] | None = None) -> int:
     if slots.get("locations_source") == "csv":
         if "locations.csv" not in state.get("missing_data", []):
             state.setdefault("missing_data", []).append("locations.csv")
+
+    # Phase 3.5: intent disambiguation gate. When the request names exactly
+    # one half (imports XOR basin) with no explicit narrowing/forecasting
+    # signal, ASK rather than silently defaulting to the full forecasting
+    # project. The question is deterministic (never qwen2.5-composed) and the
+    # turn short-circuits until it's answered. `intent_disambiguated` latches
+    # the resolution so it never re-asks; re-asks are capped, after which it
+    # falls back to forecasting with a visible note.
+    if not state.get("intent_disambiguated"):
+        _which = intent_disambiguation_needed(args.message, slots)
+        if _which:
+            _asks = state.get("intent_disambiguation_asks", 0)
+            if _asks >= 2:
+                state["intent"] = "build_forecasting_project"
+                state["intent_disambiguated"] = True
+                state["patterns"] = []
+                notes.append(
+                    "intent disambiguation unanswered → forecasting default"
+                )
+            else:
+                state["intent_disambiguation_asks"] = _asks + 1
+                state["intent_disambiguation_which"] = _which
+                state["awaiting_intent_disambiguation"] = True
+                _q = intent_disambiguation_question(_which)
+                history.append({"role": "agent", "message": _q})
+                _append_log(
+                    project_dir, turn, "agent", _q, "intent disambiguation"
+                )
+                _save(project_dir, state, history)
+                console.print(f"\n[bold magenta]agent[/bold magenta]: {_q}")
+                return 0
 
     # Phase 4: resolve patterns from slots.
     patterns_before = {p["pattern"] for p in state.get("patterns", [])}

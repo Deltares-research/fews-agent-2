@@ -1552,6 +1552,119 @@ def _prose_signals_narrower_intent(prose: str) -> bool:
     return any(phrase in lower for phrase in _NARROWING_PHRASES)
 
 
+# Phrases that explicitly signal the user wants the *full* forecasting
+# project — the counterpart to ``_NARROWING_PHRASES``. When present, an
+# otherwise single-half request is unambiguous (no disambiguation needed).
+_FORECASTING_PHRASES: tuple[str, ...] = (
+    "forecasting", "forecast project", "forecast workflow",
+    "full project", "whole project", "entire project", "complete project",
+    "end-to-end", "end to end", "operational forecast",
+    "import and model", "imports and a model", "imports and model",
+    "imports and a basin", "import and a basin", "model and imports",
+)
+
+
+def _prose_signals_forecasting(prose: str) -> bool:
+    """True if the prose explicitly asks for a full forecasting project.
+
+    Substring match, case-insensitive. Mirrors
+    ``_prose_signals_narrower_intent`` for the opposite pole.
+    """
+    lower = (prose or "").lower()
+    return any(phrase in lower for phrase in _FORECASTING_PHRASES)
+
+
+def intent_disambiguation_needed(
+    prose: str, slots: dict[str, Any] | None,
+) -> str | None:
+    """Return which single half was described when intent is ambiguous.
+
+    The request is ambiguous — between a narrower build and the full
+    forecasting project — when *exactly one* half (imports or basin model)
+    is present, with no explicit narrowing signal ("imports only", "no
+    basin model", ...) and no explicit forecasting signal ("full project",
+    "forecasting", ...). In that case the agent should ask rather than
+    silently default.
+
+    Returns ``"imports"`` (imports present, no basin) or ``"basin"`` (basin
+    present, no imports) to drive the question wording, or ``None`` when the
+    intent is clear: both halves present, neither present, or any explicit
+    signal in the prose.
+    """
+    slots = slots or {}
+    has_imports = bool(slots.get("imports"))
+    has_basin = bool(slots.get("basins")) or bool(slots.get("basin_name"))
+    if has_imports == has_basin:
+        # Both halves (→ forecasting) or neither (→ normal slot elicitation):
+        # not a single-half ambiguity.
+        return None
+    if _prose_signals_narrower_intent(prose) or _prose_signals_forecasting(prose):
+        return None
+    return "imports" if has_imports else "basin"
+
+
+def intent_disambiguation_question(which: str) -> str:
+    """Fixed, deterministic either/or question for an ambiguous intent.
+
+    Deliberately not LLM-composed: the disambiguation must not drift.
+    """
+    if which == "basin":
+        return (
+            "You've described a basin model but no data imports. Should I set "
+            "up (a) just the basin model, or (b) a full forecasting project "
+            "(I'll also wire in NWP imports)? Reply 'a' / 'model only', or "
+            "'b' / 'forecasting'."
+        )
+    return (
+        "You've described a data import but no model. Should I set up (a) just "
+        "the data imports, or (b) a full forecasting project (I'll also need a "
+        "basin + model adapter like raven/wflow)? Reply 'a' / 'imports only', "
+        "or 'b' / 'forecasting'."
+    )
+
+
+# Free-form answer phrasings, checked after the bare 'a'/'b' shorthands.
+_DISAMBIG_IMPORT_ANSWERS: tuple[str, ...] = (
+    "imports only", "import only", "just imports", "just the imports",
+    "just import", "data import", "data only", "data ingestion",
+    "no model", "no basin",
+)
+_DISAMBIG_BASIN_ANSWERS: tuple[str, ...] = (
+    "model only", "basin only", "just the model", "just the basin",
+    "just model", "no imports", "no nwp",
+)
+_DISAMBIG_FORECAST_ANSWERS: tuple[str, ...] = (
+    "forecast", "full project", "the full", "everything",
+    "whole thing", "both", "complete",
+)
+
+
+def parse_intent_disambiguation_answer(text: str) -> str | None:
+    """Map a free-form answer to the disambiguation question onto an intent.
+
+    Handles 'a'/'b' shorthands (with optional punctuation / "option ")
+    and natural phrasings. Returns the intent name, or ``None`` when the
+    answer is not a clear choice (the caller then re-asks).
+    """
+    lower = (text or "").strip().lower()
+    if not lower:
+        return None
+    # Bare a/b shorthands: "a", "a)", "(a)", "a.", "option a".
+    norm = lower.replace("option ", "").strip(".)( ")
+    if norm == "a":
+        return "build_data_import_only"
+    if norm == "b":
+        return "build_forecasting_project"
+    # Natural phrasings (order: import → basin → forecast).
+    if any(p in lower for p in _DISAMBIG_IMPORT_ANSWERS):
+        return "build_data_import_only"
+    if any(p in lower for p in _DISAMBIG_BASIN_ANSWERS):
+        return "build_basin_model_only"
+    if any(p in lower for p in _DISAMBIG_FORECAST_ANSWERS):
+        return "build_forecasting_project"
+    return None
+
+
 # ---------------------------------------------------------------------------
 # Slot elicitation
 # ---------------------------------------------------------------------------
@@ -2959,7 +3072,10 @@ __all__ = [
     "extract_skills",
     "fill_slots_from_text",
     "heuristic_intent_from_slots",
+    "intent_disambiguation_needed",
+    "intent_disambiguation_question",
     "is_intent_ready",
+    "parse_intent_disambiguation_answer",
     "lookup_concept",
     "next_unfilled_question",
     "scan_inputs",
