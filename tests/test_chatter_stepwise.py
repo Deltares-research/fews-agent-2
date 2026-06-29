@@ -49,6 +49,18 @@ def _noaa_instance(state: dict) -> dict:
     return noaa[0]["instances"][0] if noaa else {}
 
 
+# --- discoverability: the stepwise commands must show in /help -----------
+
+def test_stepwise_commands_are_documented_in_help():
+    # The bare `/help` topic list is the canonical command catalogue (shared
+    # by both drivers). If these drop out, the features become invisible to
+    # users even though the engine still supports them.
+    from fews_agent.agent.project_intents import compose_help_reply
+    help_text = compose_help_reply("help")
+    for cmd in ("/list", "/phases", "/add", "/remove", "/set", "/build"):
+        assert cmd in help_text, f"{cmd} missing from /help"
+
+
 # --- slash edits (deterministic, no LLM) ---------------------------------
 
 def test_slash_add_resolves_import(session):

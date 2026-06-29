@@ -2828,6 +2828,64 @@ COMMANDS: list[dict[str, str]] = [
             "as a fenced YAML block, no file created."
         ),
     },
+    # Build commands — build / edit the project one module at a time
+    {
+        "name": "/list",
+        "aliases": "list, show",
+        "group": "Build",
+        "description": (
+            "List each module instance with its built/ready status and "
+            "editable variables, so you know what you can /set or /remove."
+        ),
+    },
+    {
+        "name": "/phases",
+        "aliases": "phases, plan, modules",
+        "group": "Build",
+        "description": (
+            "Show the imports→process→model→visualize phase plan with "
+            "built/ready marks. The agent guides you one phase at a time."
+        ),
+    },
+    {
+        "name": "/add <name>",
+        "aliases": "",
+        "group": "Build",
+        "description": (
+            "Add an import or basin and re-resolve patterns — e.g. "
+            "`/add GFS`, `/add Liard uses raven`. Plain language works too "
+            "(*'also add an HRDPS import'*)."
+        ),
+    },
+    {
+        "name": "/remove <name>",
+        "aliases": "/drop",
+        "group": "Build",
+        "description": (
+            "Remove an import or basin from the project — e.g. "
+            "`/remove RDPS`. Or say *'drop RDPS'*."
+        ),
+    },
+    {
+        "name": "/set <name> <var> <value>",
+        "aliases": "",
+        "group": "Build",
+        "description": (
+            "Change one module variable — e.g. `/set GFS horizon 7-day`. "
+            "Vars: resolution, horizon, parameter, adapter. Named imports "
+            "scope the change to that import; no name = project-wide."
+        ),
+    },
+    {
+        "name": "/build <phase|name>",
+        "aliases": "",
+        "group": "Build",
+        "description": (
+            "Render + XSD-validate ONE phase (`/build imports`) or ONE "
+            "module (`/build GFS`) now, without a full /done. Bare "
+            "`/build` builds the next unbuilt phase."
+        ),
+    },
     # Inspect commands — read-only views of agent + project state
     {
         "name": "/help",

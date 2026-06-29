@@ -189,6 +189,15 @@ with st.sidebar:
         "`/preview` (dry-run project.yaml)."
     )
     st.caption(
+        "**Build & edit (one module at a time)**: `/list` (modules + "
+        "editable vars), `/phases` (the imports→process→model→visualize "
+        "plan), `/add <name>` (e.g. `/add GFS`, `/add Liard uses raven`), "
+        "`/remove <name>`, `/set <name> <var> <value>` (e.g. "
+        "`/set GFS horizon 7-day`), `/build <phase|name>` (build + "
+        "XSD-validate one module/phase now). You can also just say it in "
+        "plain language — *“also add an HRDPS import”*, *“drop RDPS”*."
+    )
+    st.caption(
         "**Inspect**: `/help` (commands + concept glossary; follow "
         "up with *'more'*, *'example'*, *'compare X and Y'*), "
         "`/status` (what's filled / missing)."
