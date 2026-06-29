@@ -416,10 +416,15 @@ language conversation. The flow per turn:
    without overwriting explicit user-set values. Includes cross-turn
    promotion: if `basin_name` and `model_adapter` were filled in
    different turns, synthesise the canonical `basins` list slot.
-4. **Pattern resolution**: the active intent's `resolver` maps
+4. **Intent disambiguation gate** (deterministic; see below): when the
+   request names *exactly one* half (imports XOR basin model) with no
+   explicit narrowing/forecasting signal, ASK an either/or question and
+   short-circuit the turn instead of silently defaulting to the full
+   forecasting project.
+5. **Pattern resolution**: the active intent's `resolver` maps
    `(slots, catalog) → list of pattern instances`. Each intent owns
    its own resolver in `project_intents.py`.
-5. **LLM reply** (`compose_reply`): qwen2.5 phrases the user-facing
+6. **LLM reply** (`compose_reply`): qwen2.5 phrases the user-facing
    acknowledgment + question. The system prompt is hardened against
    fabrication: it gets a KNOWN/UNKNOWN slot split and a rule that
    values under UNKNOWN must not appear in the reply.
@@ -428,6 +433,65 @@ State persists under
 `projects/<project>/<project>_<datetime>/.chat_state.json`. Special commands:
 `done` writes the project.yaml (validates intent readiness first);
 `yes`/`no` confirm a proposed pattern removal.
+
+### Ask on ambiguous intent (Phase 3.5 gate)
+
+The default-to-forecasting bias used to silently promote a single-half
+request (e.g. "import GFS grids", no model) to the full forecasting
+project. The gate replaces that silent default with a question — the
+agent refuses to guess when the intent is genuinely ambiguous.
+
+The taxonomy lives in `project_intents.py` (pure, unit-tested, no LLM):
+
+- **`intent_disambiguation_needed(prose, slots) → "imports" | "basin" |
+  None`.** Ambiguous only when *exactly one* half is present
+  (`imports` XOR `basins`/`basin_name`) AND the prose carries neither an
+  explicit narrowing signal (`_prose_signals_narrower_intent` —
+  "imports only", "no basin model", "data viewer", "interpolate to
+  stations", ...) nor a forecasting signal (`_prose_signals_forecasting`
+  — "full project", "forecasting", "end-to-end", ...). Both halves
+  (→ forecasting) or neither (→ normal slot elicitation) return `None`.
+- **`intent_disambiguation_question(which)`** — the fixed either/or text.
+  Deliberately **not** LLM-composed, so the disambiguation never drifts.
+- **`parse_intent_disambiguation_answer(text) → intent | None`** — maps
+  the reply onto an intent: bare `a`/`b` shorthands (with optional
+  punctuation / "option "), then natural phrasings ("imports only",
+  "the full project", ...). `None` when the answer isn't a clear choice.
+
+The wiring lives in `chat_step.py` as two pieces around the resolve step:
+
+- **Top answer-handler** (before command dispatch): when
+  `awaiting_intent_disambiguation` is set, this turn's message is the
+  answer. Parse it (falling back to `forced_intent_override`); on a
+  clear choice, commit `state["intent"]`, latch `intent_disambiguated`,
+  clear `state["patterns"]` (the resolver rebuilds from slots), and fall
+  through. An unclear answer just clears the awaiting flag and falls
+  through so the gate below re-evaluates against this turn's (possibly
+  fuller) slots.
+- **Phase 3.5 gate** (after slot-fill, before resolve): if not yet
+  `intent_disambiguated` and the request is ambiguous, ASK — append the
+  question to history, `_save`, print it, and `return 0` (no resolve, no
+  `compose_reply`). Re-asks are capped at `intent_disambiguation_asks`
+  >= 2, after which it falls back to `build_forecasting_project` with a
+  visible note rather than looping.
+
+State keys: `awaiting_intent_disambiguation`, `intent_disambiguated`
+(latch — once set, the gate never re-asks), `intent_disambiguation_asks`
+(re-ask counter), `intent_disambiguation_which`.
+
+**Why the question is deterministic, not LLM-composed:** disambiguation
+is a control-flow decision, not phrasing — drift here would change which
+patterns get built. The gate fires *before* `compose_reply`, so the
+elicitation LLM never sees the ambiguous turn.
+
+Existing fixtures are unaffected: their turn-1 prose all carries a
+narrowing signal, a forecasting signal, or both halves (a parametrized
+regression in `tests/test_intent_disambiguation.py` pins this, since the
+`projects/` fixtures are gitignored and absent on a fresh clone). Tests:
+`tests/test_intent_disambiguation.py` (pure helpers + fixture-prose
+regression) and `tests/test_intent_disambiguation_turn.py` (the turn
+loop end-to-end with `classify_intent` / `compose_reply` stubbed — no
+Ollama).
 
 ### Adding a new skill
 
@@ -742,7 +806,8 @@ one-paragraph version:
 
 Live-verified the full chat→resolve→build loop on the colleague prompt at
 `projects/interp-chat-verify/...` (gitignored): 1 turn → 4 patterns → 38
-files, 37/37 XSD-valid, station set populated. Full suite: **81 passing**.
+files, 37/37 XSD-valid, station set populated. Full suite: **120 passing**
+(was 81 at the time of this workstream; +39 from intent disambiguation).
 
 **Prior workstream (2026-06-18): stepwise build + mid-chat edits.**
 The agent builds **one module at a time** and supports editing the
@@ -1018,10 +1083,11 @@ python -m runners.agent.build_from_blueprint \
 # 7. Test suite (the durable oracle — survives a fresh clone, unlike the
 #    gitignored projects/ fixtures above). Covers stepwise edits +
 #    import->interpolate->visualize (pattern, CSV-backed sets, e2e) +
-#    module export closure + dependency trimming.
+#    module export closure + dependency trimming + intent disambiguation
+#    (pure helpers + the turn loop with the LLM stubbed).
 python -m pytest tests/ -q
-   # expect: 81 passed (the interpolation e2e + module-export integration
-   #         tests invoke the build path + the filter-drafter LLM, ~45s)
+   # expect: 120 passed (the interpolation e2e + module-export integration
+   #         tests invoke the build path + the filter-drafter LLM, ~60s)
 ```
 
 If any of (2)–(5) drift, **stop** — the build path is the foundation
