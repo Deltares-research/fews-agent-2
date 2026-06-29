@@ -22,6 +22,7 @@ from pathlib import Path
 
 import pytest
 
+from fews_agent.agent import turn_engine
 from runners.agent import chat_step
 
 
@@ -39,17 +40,21 @@ def run_turn(tmp_path, monkeypatch):
     """
     monkeypatch.setattr(chat_step, "OUTPUT_ROOT", tmp_path)
 
+    # The Phase 1–5 pipeline lives in turn_engine and calls classify_intent /
+    # compose_reply from ITS namespace, so the LLM seams are patched there
+    # (one seam for both drivers). OUTPUT_ROOT is driver state and stays on
+    # chat_step.
     # classify_intent: emulate the LLM's default-to-forecasting pick. The
     # gate exists precisely to override this silent default, so returning
     # it here is the adversarial case.
     monkeypatch.setattr(
-        chat_step, "classify_intent",
+        turn_engine, "classify_intent",
         lambda *a, **k: {"intent": "build_forecasting_project", "entities": {}},
     )
     # compose_reply: a sentinel so a test can tell Phase 5 was reached
     # (i.e. the gate did NOT short-circuit this turn).
     monkeypatch.setattr(
-        chat_step, "compose_reply", lambda *a, **k: "STUB-REPLY",
+        turn_engine, "compose_reply", lambda *a, **k: "STUB-REPLY",
     )
 
     project_name = "disambig-it"

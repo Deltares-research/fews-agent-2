@@ -21,6 +21,7 @@ from fews_agent.agent.project_chat import (
     set_variable,
 )
 from fews_agent.agent.project_intents import detect_edit_action
+from fews_agent.agent import turn_engine
 from runners.agent import chat_step
 from runners.agent.build_from_blueprint import build_module
 
@@ -319,7 +320,7 @@ def test_detect_nl_no_edit_verb_returns_none():
 
 def _apply_nl_edit(state, message, catalog):
     """Mimic chat_step Phase 2.5: apply NL edits + re-add suppression."""
-    skill = chat_step.extract_skills(message)
+    skill = turn_engine.extract_skills(message)
     edit = detect_edit_action(message)
     notes = []
     if edit and edit.get("edits"):
@@ -383,7 +384,7 @@ def test_nl_remove_survives_readd_suppression(catalog):
      "build_forecasting_project", "build_data_import_only"),
 ])
 def test_forced_intent_override(message, current, expected):
-    assert chat_step.forced_intent_override(message, current) == expected
+    assert turn_engine.forced_intent_override(message, current) == expected
 
 
 def test_nl_set_overrides_existing_value(catalog):

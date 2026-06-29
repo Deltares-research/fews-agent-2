@@ -390,10 +390,42 @@ instances, `TIMEZONE` from singleton seeds, derives
 **Do not** "fix" placeholders by substituting them into the XML at
 config-author time. They're FEWS-owned, not agent-owned.
 
-## Chat agent (`runners/agent/chat_step.py`)
+## Chat agent (shared `turn_engine` + two driver shells)
 
-Turn-by-turn driver that composes a `project.yaml` from natural-
-language conversation. The flow per turn:
+There are **two driver shells** — the CLI (`runners/agent/chat_step.py`)
+and the Streamlit app (`app/chatter.py::ChatSession`) — but they share a
+**single per-turn pipeline**, `fews_agent/agent/turn_engine.py`. The
+shells differ only where they legitimately must (command sets, I/O,
+persistence, provider resolution, app-only meta-intents like
+greeting/help/status/undo/reset/preview/pre-flight); the elicitation
+*logic* lives in one place so it can't drift (it did, twice, before the
+unification).
+
+**`turn_engine.run_turn_pipeline(state, message, catalog, *, provider,
+inputs_dir, nag_suppression=False) -> PipelineResult`** runs Phases 1–5
+(below), mutating `state` in place and returning the reply + diagnostics.
+It does **no** history/log/save/print I/O and resolves no provider — each
+driver passes its own `provider` + `inputs_dir` and owns persistence +
+output rendering. On a disambiguation short-circuit it returns
+`PipelineResult(short_circuit=True, agent_message=<question>)` and the
+driver renders that; otherwise it returns the composed reply. The module
+also owns the pipeline-exclusive helpers (`forced_intent_override`,
+`apply_edit_action`, `apply_disambiguation_answer`, `resolve_patterns`,
+`_format_internals`, `_IMPORT_LABEL_KEYS`). The LLM seams
+`classify_intent` / `compose_reply` are referenced from turn_engine's
+namespace — **tests patch `turn_engine.classify_intent` /
+`turn_engine.compose_reply`** (one seam for both drivers); driver-level
+seams (`chat_step.OUTPUT_ROOT`, `chatter.check_ollama_for_model`,
+`chatter.get_provider`) stay on their modules.
+
+Each driver: append user msg → `apply_disambiguation_answer(state, msg)`
+→ its own command dispatch (+ app-only meta-intents/pre-flight) → resolve
+provider → `run_turn_pipeline(...)` → render `PipelineResult`. The CLI
+appends its next-phase nudge (console-only, no app equivalent); the app
+maps `PipelineResult` → `TurnResult`. **When adding an elicitation-phase
+feature, change `turn_engine` once — never re-port into both shells.**
+
+The flow per turn (Phases 1–5, in `run_turn_pipeline`):
 
 1. **Skills** (deterministic regex extractors): `extract_skills(text)`
    pulls structured facts — basins, model adapters (raven/wflow/hbv96),
@@ -806,8 +838,9 @@ one-paragraph version:
 
 Live-verified the full chat→resolve→build loop on the colleague prompt at
 `projects/interp-chat-verify/...` (gitignored): 1 turn → 4 patterns → 38
-files, 37/37 XSD-valid, station set populated. Full suite: **120 passing**
-(was 81 at the time of this workstream; +39 from intent disambiguation).
+files, 37/37 XSD-valid, station set populated. Full suite: **138 passing**
+(was 81 at the time of this workstream; +39 intent disambiguation,
++18 Streamlit-driver parity / shared turn-engine).
 
 **Prior workstream (2026-06-18): stepwise build + mid-chat edits.**
 The agent builds **one module at a time** and supports editing the
@@ -849,7 +882,10 @@ The agent has **two halves**:
 
 1. **Elicitation half (chat).** LLM talks to the user, extracts
    structured facts, decides which patterns are needed, writes
-   `project.yaml`. Lives in `runners/agent/chat_step.py` +
+   `project.yaml`. The per-turn pipeline lives in
+   `fews_agent/agent/turn_engine.py` (shared by the CLI driver
+   `runners/agent/chat_step.py` and the Streamlit driver
+   `app/chatter.py`); skills/intents/resolvers in
    `fews_agent/agent/project_intents.py`.
 2. **Generation half (build).** Deterministic pipeline reads
    `project.yaml`, expands patterns, ingests CSVs, fills with
@@ -1084,9 +1120,10 @@ python -m runners.agent.build_from_blueprint \
 #    gitignored projects/ fixtures above). Covers stepwise edits +
 #    import->interpolate->visualize (pattern, CSV-backed sets, e2e) +
 #    module export closure + dependency trimming + intent disambiguation
-#    (pure helpers + the turn loop with the LLM stubbed).
+#    (pure helpers + the turn loop with the LLM stubbed) + Streamlit-driver
+#    parity (test_chatter_*.py drive the shared turn_engine via ChatSession).
 python -m pytest tests/ -q
-   # expect: 120 passed (the interpolation e2e + module-export integration
+   # expect: 138 passed (the interpolation e2e + module-export integration
    #         tests invoke the build path + the filter-drafter LLM, ~60s)
 ```
 
@@ -1102,7 +1139,9 @@ this order to recover context fast:
 CLAUDE.md                                         this file (top-of-mind context)
 
 # Elicitation half
-runners/agent/chat_step.py                        turn loop, special commands, warning surfacing
+fews_agent/agent/turn_engine.py                   SHARED per-turn pipeline (Phases 1-5) both drivers call
+runners/agent/chat_step.py                        CLI driver: command dispatch + console I/O around turn_engine
+app/chatter.py                                     Streamlit driver: command dispatch + TurnResult around turn_engine
 fews_agent/agent/project_intents.py               skills, intent registry, resolvers, blocklist
 fews_agent/agent/project_chat.py                  state I/O, pattern catalog loading
 fews_agent/agent/providers/ollama_provider.py     the only place that talks to qwen2.5

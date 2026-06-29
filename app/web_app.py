@@ -389,8 +389,9 @@ if prompt:
         st.markdown(result.agent_message)
         for w in result.warnings:
             st.warning(w)
-        if result.kind == "done" and result.project_yaml_path:
-            st.success(f"Wrote `{result.project_yaml_path}`")
+        if result.kind in ("done", "build") and result.project_yaml_path:
+            if result.kind == "done":
+                st.success(f"Wrote `{result.project_yaml_path}`")
             # Stash everything the validation panel needs in
             # session_state, keyed by the active chat session. The
             # panel is rendered OUTSIDE the prompt block (further

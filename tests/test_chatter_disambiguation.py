@@ -24,16 +24,23 @@ sys.path.insert(0, str(_REPO_ROOT / "app"))
 
 import chatter  # noqa: E402
 
+from fews_agent.agent import turn_engine  # noqa: E402
+
 
 @pytest.fixture
 def session(tmp_path, monkeypatch):
-    """A ChatSession with the LLM seams stubbed; returns a fresh session."""
+    """A ChatSession with the LLM seams stubbed; returns a fresh session.
+
+    The Phase 1–5 pipeline lives in turn_engine and calls classify_intent /
+    compose_reply from its namespace, so those seams are patched there. The
+    app-only pre-flight + provider resolution stay on the chatter module.
+    """
     monkeypatch.setattr(chatter, "check_ollama_for_model", lambda *a, **k: None)
     monkeypatch.setattr(
-        chatter, "classify_intent",
+        turn_engine, "classify_intent",
         lambda *a, **k: {"intent": "build_forecasting_project", "entities": {}},
     )
-    monkeypatch.setattr(chatter, "compose_reply", lambda *a, **k: "STUB-REPLY")
+    monkeypatch.setattr(turn_engine, "compose_reply", lambda *a, **k: "STUB-REPLY")
     monkeypatch.setattr(chatter, "get_provider", lambda *a, **k: None)
 
     # Use tmp_path directly (unique per test) as the session dir: it already

@@ -32,30 +32,39 @@ from fews_agent.agent.project_chat import (
     write_project,
 )
 from fews_agent.agent.project_intents import (
-    ENGLISH_WORD_BLOCKLIST,
     INTENTS,
     build_status_report,
-    classify_intent,
     compose_help_reply,
-    compose_reply,
     compose_status_reply,
     compute_input_status,
     detect_help_query,
     detect_status_query,
-    extract_skills,
-    heuristic_intent_from_slots,
-    intent_disambiguation_needed,
-    intent_disambiguation_question,
     is_intent_ready,
     next_unfilled_question,
-    parse_intent_disambiguation_answer,
     scan_inputs,
     status_prose_fallback,
-    unrecognised_data_types,
+)
+from fews_agent.agent.phases import (
+    PHASE_ORDER,
+    next_unbuilt_phase,
+    normalize_phase,
+    phase_plan,
 )
 from fews_agent.agent.providers.factory import get_provider
 from runners.agent.build_from_blueprint import build_from_blueprint
-from runners.agent.chat_step import _format_internals, forced_intent_override
+from fews_agent.agent.turn_engine import (
+    _format_internals,
+    apply_disambiguation_answer,
+    apply_edit_action,
+    resolve_patterns,
+    run_turn_pipeline,
+)
+from runners.agent.chat_step import (
+    _module_list_text,
+    _parse_slash_edit,
+    _phase_plan_text,
+    _resolve_module_target,
+)
 
 
 def _current_provider_name() -> str:
@@ -358,11 +367,8 @@ class ChatSession:
             fh.write("\n".join(block) + "\n")
 
     def _resolve_patterns(self) -> None:
-        intent = INTENTS.get(self.state.get("intent"))
-        if not intent:
-            return
-        paths = {p.path for p in self.catalog}
-        self.state["patterns"] = intent.resolver(self.state.get("slots", {}), paths)
+        """Thin wrapper over the shared resolver (kept for in-class callers)."""
+        resolve_patterns(self.state, self.catalog)
 
     # ---- build pipeline ------------------------------------------------------
 
@@ -400,6 +406,169 @@ class ChatSession:
             # Keep the tail — full tracebacks are huge in the UI.
             tail = "\n".join(tb.splitlines()[-12:])
             return None, f"{type(exc).__name__}: {exc}\n\n{tail}"
+
+    # ---- stepwise partial builds (one phase / one module) --------------------
+
+    def _run_partial_build(self, fn):
+        """Run a phase/module build callable with a silent console.
+
+        Mirrors ``_run_build``'s error handling — returns ``(summary,
+        error)`` so a build crash surfaces gracefully in the UI instead
+        of losing the (already-written) project.yaml.
+        """
+        import io
+        import traceback
+        from rich.console import Console
+
+        try:
+            console = Console(file=io.StringIO(), force_terminal=False)
+            return fn(console), None
+        except Exception as exc:  # noqa: BLE001
+            self._logger.exception("partial build crashed: %s", exc)
+            tail = "\n".join(traceback.format_exc().splitlines()[-12:])
+            return None, f"{type(exc).__name__}: {exc}\n\n{tail}"
+
+    def _build_summary_line(self, summary: dict | None, label: str,
+                            error: str | None = None) -> str:
+        if error or summary is None:
+            return f"{label} build crashed before validation — see error below."
+        n_total = summary.get("files_total", 0)
+        n_xml = summary.get(
+            "files_xml", n_total - summary.get("files_non_xml", 0)
+        )
+        n_xsd = summary.get("files_xsd_ok", 0)
+        if summary.get("ok"):
+            return f"{label} built: {n_total} file(s), {n_xsd}/{n_xml} XSD-valid."
+        n_err = len(summary.get("errors") or [])
+        return (
+            f"{label} built with issues — {n_xsd}/{n_xml} XSD-valid"
+            + (f", {n_err} error(s)" if n_err else "")
+            + ". See the validation panel below."
+        )
+
+    def _build_note(self, turn: int, msg: str) -> TurnResult:
+        """A plain text reply for a build that couldn't start (no panel)."""
+        self.history.append({"role": "agent", "message": msg})
+        self._append_md(turn, "agent", msg, note="build")
+        self._save()
+        return TurnResult(agent_message=msg, kind="reply")
+
+    def _handle_build(self, message: str, cmd: str, turn: int) -> TurnResult:
+        """Route ``/build`` to the next unbuilt phase, a named phase, or a
+        single module (``/build GFS``). Mirrors chat_step.py::main."""
+        if cmd == "/build":
+            self._resolve_patterns()
+            phase = next_unbuilt_phase(
+                self.state.get("patterns") or [], self.state.get("built_phases"),
+            )
+            if phase is None:
+                return self._build_note(
+                    turn,
+                    "No unbuilt phases — every resolved module is built. "
+                    "Type 'done' to assemble the full project.",
+                )
+            return self._app_phase_build(phase, turn)
+
+        token = message.strip().split(None, 1)[1].strip()
+        phase = normalize_phase(token)
+        if phase is None:
+            # Not a phase name. A bare "/build <token>" treats the token as a
+            # single module (e.g. /build GFS); the explicit phase-only forms
+            # still error.
+            if cmd.startswith("/build ") and "-phase" not in cmd:
+                return self._app_module_build(token, turn)
+            return self._build_note(
+                turn,
+                f"Unknown phase '{token}'. Valid phases: "
+                f"{', '.join(PHASE_ORDER)}.",
+            )
+        return self._app_phase_build(phase, turn)
+
+    def _app_phase_build(self, phase: str, turn: int) -> TurnResult:
+        from runners.agent.build_from_blueprint import build_phase
+
+        self._resolve_patterns()
+        plan = {e["phase"] for e in phase_plan(self.state.get("patterns") or [])}
+        if phase not in plan:
+            return self._build_note(
+                turn,
+                f"No '{phase}' modules resolved yet. Phases with content: "
+                f"{', '.join(sorted(plan)) or '(none)'}.",
+            )
+        project_path = write_project(self.state, self.session_dir)
+        summary, error = self._run_partial_build(
+            lambda c: build_phase(
+                blueprint_path=Path(project_path),
+                pattern_root=PATTERNS_ROOT, phase=phase, console=c,
+            )
+        )
+        if summary and summary.get("ok"):
+            built = self.state.setdefault("built_phases", [])
+            if phase not in built:
+                built.append(phase)
+            nxt = next_unbuilt_phase(self.state.get("patterns") or [], built)
+            tail = (
+                f" Next phase: **{nxt}** — `/build {nxt}`, or `done` to assemble."
+                if nxt else " All phases done — type `done` to assemble."
+            )
+            msg = self._build_summary_line(summary, f"Phase '{phase}'") + tail
+        else:
+            msg = self._build_summary_line(summary, f"Phase '{phase}'", error)
+        self.history.append({"role": "agent", "message": msg})
+        self._append_md(turn, "agent", msg, note=f"build phase {phase}")
+        self._save()
+        self._logger.info(
+            "phase_build turn=%d phase=%s ok=%s", turn, phase,
+            summary.get("ok") if summary else None,
+        )
+        return TurnResult(
+            agent_message=msg, kind="build",
+            project_yaml_path=Path(project_path),
+            validation_summary=summary, build_error=error,
+        )
+
+    def _app_module_build(self, name: str, turn: int) -> TurnResult:
+        from runners.agent.build_from_blueprint import build_module
+
+        target = _resolve_module_target(self.state, self.catalog, name)
+        if target is None:
+            return self._build_note(
+                turn,
+                f"No module named '{name}' in the project.\n\n"
+                + _module_list_text(self.state, self.catalog),
+            )
+        pattern, match = target
+        project_path = write_project(self.state, self.session_dir)
+        summary, error = self._run_partial_build(
+            lambda c: build_module(
+                blueprint_path=Path(project_path),
+                pattern_root=PATTERNS_ROOT, pattern=pattern,
+                instance_match=match, console=c,
+            )
+        )
+        label = next(iter(match.values()))
+        if summary and summary.get("ok"):
+            built = self.state.setdefault("built_modules", [])
+            key = f"{pattern}::{label}"
+            if key not in built:
+                built.append(key)
+            msg = self._build_summary_line(summary, f"Module '{label}'") + (
+                " Build another with `/build <name>`, or `/phases` for the plan."
+            )
+        else:
+            msg = self._build_summary_line(summary, f"Module '{label}'", error)
+        self.history.append({"role": "agent", "message": msg})
+        self._append_md(turn, "agent", msg, note=f"build module {label}")
+        self._save()
+        self._logger.info(
+            "module_build turn=%d module=%s ok=%s", turn, label,
+            summary.get("ok") if summary else None,
+        )
+        return TurnResult(
+            agent_message=msg, kind="build",
+            project_yaml_path=Path(project_path),
+            validation_summary=summary, build_error=error,
+        )
 
     # ---- undo support --------------------------------------------------------
 
@@ -500,22 +669,11 @@ class ChatSession:
         self._push_undo_snapshot()
 
         # Pending intent disambiguation: a prior turn asked "imports only or a
-        # full forecasting project?" and is awaiting the answer. Interpret this
-        # message as that answer (an 'a'/'b' shorthand, a natural phrasing, or
-        # an explicit intent-naming override). On a clear choice, commit the
-        # intent and latch `intent_disambiguated` so the Phase 3.5 gate never
-        # re-asks; otherwise clear the flag and fall through so the gate
-        # re-evaluates against this turn's (possibly fuller) slots. Mirrors
-        # runners/agent/chat_step.py::main.
-        if self.state.get("awaiting_intent_disambiguation"):
-            _ans = parse_intent_disambiguation_answer(message)
-            if _ans is None:
-                _ans = forced_intent_override(message, None)
-            self.state["awaiting_intent_disambiguation"] = False
-            if _ans:
-                self.state["intent"] = _ans
-                self.state["intent_disambiguated"] = True
-                self.state["patterns"] = []  # resolver rebuilds from slots
+        # full forecasting project?" and is awaiting the answer. The shared
+        # helper consumes this turn's message as that answer (commits + latches
+        # on a clear choice, else clears the flag so the Phase 3.5 gate
+        # re-evaluates against this turn's slots).
+        apply_disambiguation_answer(self.state, message)
 
         # done / force-done -----------------------------------------------------
         # Collects ALL blocking issues into one refusal message so the
@@ -644,6 +802,66 @@ class ChatSession:
                 validation_summary=validation_summary,
                 build_error=build_error,
             )
+
+        # ----- stepwise module flow: phases / list / edits / build -----------
+        # Deterministic (no LLM): mutate slots then re-resolve. Mirrors the
+        # CLI driver (runners/agent/chat_step.py::main) so the web app and
+        # terminal behave identically.
+
+        # /phases — phase-level plan.
+        if cmd in {"/phases", "phases", "/plan", "plan", "/modules", "modules"}:
+            reply = _phase_plan_text(self.state, self.catalog)
+            self.history.append({"role": "agent", "message": reply})
+            self._append_md(turn, "agent", reply, note="phase plan")
+            self._save()
+            self._logger.info("phases turn=%d", turn)
+            return TurnResult(agent_message=reply, kind="reply")
+
+        # /list — instance-level listing (finer than /phases).
+        if cmd in {"/list", "list", "/show", "show"}:
+            reply = _module_list_text(self.state, self.catalog)
+            self.history.append({"role": "agent", "message": reply})
+            self._append_md(turn, "agent", reply, note="module list")
+            self._save()
+            self._logger.info("list turn=%d", turn)
+            return TurnResult(agent_message=reply, kind="reply")
+
+        # /add /remove /drop /set — explicit edits. The command IS the
+        # confirmation; the engine-proposed yes/no flow stays for ambiguous
+        # NL-driven removals only.
+        if cmd.startswith(("/add ", "/remove ", "/drop ", "/set ")):
+            verb = message.strip().split(None, 1)[0].lstrip("/").lower()
+            op = "remove" if verb == "drop" else verb
+            rest = message.strip().split(None, 1)[1].strip()
+            edits = _parse_slash_edit(op, rest)
+            if not edits:
+                reply = (
+                    "Couldn't parse that edit. Usage:  /add <name>  ·  "
+                    "/remove <name>  ·  /set <name> <var> <value>"
+                )
+                self.history.append({"role": "agent", "message": reply})
+                self._append_md(turn, "agent", reply, note="edit parse fail")
+                self._save()
+                return TurnResult(agent_message=reply, kind="reply")
+            edit_notes = [
+                apply_edit_action(self.state, e, self.catalog) for e in edits
+            ]
+            reply = (
+                "\n".join(edit_notes)
+                + "\n\n"
+                + _module_list_text(self.state, self.catalog)
+            )
+            self.history.append({"role": "agent", "message": reply})
+            self._append_md(turn, "agent", reply, note=f"edit:{op}")
+            self._save()
+            self._logger.info("edit turn=%d op=%s n=%d", turn, op, len(edits))
+            return TurnResult(agent_message=reply, kind="edit")
+
+        # /build [phase|module] — build one capability group or one module.
+        if cmd == "/build" or cmd.startswith(
+            ("/build ", "/build-phase ", "build phase ")
+        ):
+            return self._handle_build(message, cmd, turn)
 
         # /preview — dry-run what /done would write, no file created -----------
         if cmd in {"/preview", "preview"}:
@@ -917,291 +1135,58 @@ class ChatSession:
             self._logger.error("llm_unavailable model=%s", self.model)
             return TurnResult(agent_message=llm_err, kind="error")
 
-        # Phase 1: skills ------------------------------------------------------
-        skill_results = extract_skills(message)
-
-        # Phase 2: intent classification (only on first turn) ------------------
-        notes: list[str] = []
-        llm_picked: str | None = None
-        llm_entities: dict | None = None
-        if self.state.get("intent") is None:
-            provider = get_provider(model=self.model)
-            try:
-                cls = classify_intent(message, skill_results, provider=provider)
-                llm_picked = cls.get("intent")
-                llm_entities = cls.get("entities", {}) or {}
-                for k, v in llm_entities.items():
-                    if k not in skill_results or skill_results[k] is None:
-                        skill_results[k] = v
-                        notes.append(f"LLM filled {k}={v}")
-            except Exception as exc:  # noqa: BLE001
-                notes.append(f"intent classify failed: {str(exc)[:60]}")
-
-            chosen_intent = (
-                llm_picked if llm_picked in INTENTS
-                else heuristic_intent_from_slots(skill_results)
-            )
-            self.state["intent"] = chosen_intent
-            if chosen_intent:
-                notes.append(
-                    f"intent: {chosen_intent}"
-                    + ("" if llm_picked == chosen_intent else " (heuristic)")
-                )
-            else:
-                notes.append("no intent classified")
-
-        # Deterministic intent override — runs on EVERY turn, AFTER
-        # classification. An explicit phrase ("no basin model", "imports
-        # only") forces the intent over the LLM/heuristic pick, so the app
-        # matches the CLI's turn-1 override instead of relying on the 7B
-        # classifier. On a later turn this is the mid-conversation
-        # re-classification that recovers from an early miss.
-        _forced = forced_intent_override(message, self.state.get("intent"))
-        if _forced:
-            notes.append(
-                f"intent override: {self.state.get('intent')} → {_forced}"
-            )
-            self.state["intent"] = _forced
-            self.state["patterns"] = []  # resolver will rebuild from slots
-
-        # Phase 3: slot filling (additive) -------------------------------------
-        slots = self.state.setdefault("slots", {})
-        for k, v in skill_results.items():
-            if v is None or v == []:
-                continue
-            existing = slots.get(k)
-            if isinstance(v, list):
-                merged = list(existing or [])
-                for item in v:
-                    if isinstance(item, dict):
-                        key = tuple(sorted(item.items()))
-                        existing_keys = {
-                            tuple(sorted(d.items())) for d in merged
-                            if isinstance(d, dict)
-                        }
-                        if key not in existing_keys:
-                            merged.append(item)
-                    else:
-                        if item not in merged:
-                            merged.append(item)
-                if merged != existing:
-                    slots[k] = merged
-                    notes.append(f"slot {k}={merged}")
-            else:
-                if existing is None:
-                    slots[k] = v
-                    notes.append(f"slot {k}={v}")
-
-        if slots.get("geoDatum"):
-            self.state.setdefault("singleton_seeds", {}).setdefault(
-                "Locations", {}
-            )["geoDatum"] = slots["geoDatum"]
-
-        if slots.get("region"):
-            self.state.setdefault("singleton_seeds", {}).setdefault(
-                "Locations", {}
-            )["region"] = slots["region"]
-
-        if slots.get("custom_bbox"):
-            self.state.setdefault("singleton_seeds", {}).setdefault(
-                "Locations", {}
-            )["regionBbox"] = list(slots["custom_bbox"])
-
-        if (
-            not slots.get("basins")
-            and slots.get("basin_name")
-            and slots.get("model_adapter")
-        ):
-            slots["basins"] = [{
-                "basin_name": slots["basin_name"],
-                "model_adapter": slots["model_adapter"],
-            }]
-            notes.append(f"derived basins={slots['basins']}")
-
-        if slots.get("locations_source") == "csv":
-            if "locations.csv" not in self.state.get("missing_data", []):
-                self.state.setdefault("missing_data", []).append("locations.csv")
-
-        # Phase 3.5: intent disambiguation gate. When the request names exactly
-        # one half (imports XOR basin) with no explicit narrowing/forecasting
-        # signal, ASK rather than silently defaulting to the full forecasting
-        # project. The question is deterministic (never LLM-composed) and the
-        # turn short-circuits until it's answered. `intent_disambiguated`
-        # latches the resolution so it never re-asks; re-asks are capped, after
-        # which it falls back to forecasting with a visible note. Mirrors
-        # runners/agent/chat_step.py::main.
-        if not self.state.get("intent_disambiguated"):
-            _which = intent_disambiguation_needed(message, slots)
-            if _which:
-                _asks = self.state.get("intent_disambiguation_asks", 0)
-                if _asks >= 2:
-                    self.state["intent"] = "build_forecasting_project"
-                    self.state["intent_disambiguated"] = True
-                    self.state["patterns"] = []
-                    notes.append(
-                        "intent disambiguation unanswered → forecasting default"
-                    )
-                else:
-                    self.state["intent_disambiguation_asks"] = _asks + 1
-                    self.state["intent_disambiguation_which"] = _which
-                    self.state["awaiting_intent_disambiguation"] = True
-                    _q = intent_disambiguation_question(_which)
-                    self.history.append({"role": "agent", "message": _q})
-                    self._append_md(
-                        turn, "agent", _q, note="intent disambiguation"
-                    )
-                    self._save()
-                    self._logger.info(
-                        "intent_disambiguation turn=%d which=%s", turn, _which
-                    )
-                    return TurnResult(agent_message=_q, kind="reply")
-
-        # Phase 4: pattern resolution -----------------------------------------
-        patterns_before = {p["pattern"] for p in self.state.get("patterns", [])}
-        self._resolve_patterns()
-        new_patterns = [
-            p["pattern"] for p in self.state.get("patterns", [])
-            if p["pattern"] not in patterns_before
-        ]
-
-        # Phase 4.25: warnings -------------------------------------------------
-        warnings: list[str] = []
-        mentioned_imports: set[str] = set()
-        if llm_entities and isinstance(llm_entities.get("imports"), list):
-            mentioned_imports.update(str(x) for x in llm_entities["imports"])
-        if isinstance(slots.get("imports"), list):
-            mentioned_imports.update(str(x) for x in slots["imports"])
-        mapped_imports: set[str] = set()
-        pattern_names_lower: set[str] = set()
-        for p in self.state.get("patterns", []):
-            pname = str(p.get("pattern", ""))
-            pattern_names_lower.add(pname.lower())
-            for inst in p.get("instances") or []:
-                if not isinstance(inst, dict):
-                    continue
-                for k in ("nwp_name", "source_name", "wsc_variant",
-                          "snow_source", "template_name"):
-                    v = inst.get(k)
-                    if isinstance(v, str):
-                        mapped_imports.add(v)
-        unmapped_imports = sorted(
-            m for m in mentioned_imports - mapped_imports
-            if not any(m.lower() in pn for pn in pattern_names_lower)
-        )
-        if unmapped_imports:
-            warnings.append(
-                "No pattern in the library for: "
-                + ", ".join(unmapped_imports)
-                + ". These would be silently skipped. Add a pattern under "
-                  "patterns/auto/, or remove them from the request."
-            )
-
-        if isinstance(slots.get("basins"), list):
-            suspicious = [
-                b for b in slots["basins"]
-                if isinstance(b, dict)
-                and b.get("basin_name") in ENGLISH_WORD_BLOCKLIST
-            ]
-            if suspicious:
-                names = ", ".join(b["basin_name"] for b in suspicious)
-                warnings.append(
-                    f"Detected '{names}' as a basin name, which looks like an "
-                    f"English word, not a basin. Likely a regex false positive — "
-                    f"confirm or correct before continuing."
-                )
-
-        if isinstance(slots.get("data_types"), list):
-            unmapped_dt = unrecognised_data_types(slots["data_types"])
-            if unmapped_dt:
-                warnings.append(
-                    "No FEWS parameterId mapping for: "
-                    + ", ".join(unmapped_dt)
-                    + ". These will be skipped — the import will use the "
-                      "pattern's default parameter list. Edit the pattern's "
-                      "`parameters` variable or rename to a recognised phrase."
-                )
-
-        self.state["warnings"] = warnings
-
-        # Phase 4.5: inputs scan ----------------------------------------------
-        inputs_dir = self.session_dir / "inputs"
-        input_scan = scan_inputs(inputs_dir)
-        input_status = compute_input_status(
-            self.state.get("intent"), input_scan,
-            self.state.get("slots") or {},
-        )
-
-        # Suppress the missing-CSV / missing-yaml block from input_status
-        # once it's been raised. Otherwise the LLM keeps asking about the
-        # same files on every turn even when the user has acknowledged or
-        # deferred ("later", "skip", "yes"). The configurator can upload
-        # files via the sidebar at any time; we don't need to nag.
-        if input_status:
-            missing_now = sorted(
-                set(input_status.get("csvs_required_missing") or [])
-                | set(input_status.get("csvs_recommended_missing") or [])
-            )
-            already_raised = sorted(self.state.get("_inputs_nagged") or [])
-            if missing_now and missing_now == already_raised:
-                input_status = dict(input_status)
-                input_status["csvs_required_missing"] = []
-                input_status["csvs_recommended_missing"] = []
-            elif missing_now:
-                # First time this exact set is reported — let the LLM
-                # mention it this turn, then snooze for future turns.
-                self.state["_inputs_nagged"] = missing_now
-
-        # Phase 5: compose reply ----------------------------------------------
-        intent = INTENTS.get(self.state.get("intent") or "")
-        next_q = next_unfilled_question(intent, slots) if intent else None
-        ready = bool(intent) and is_intent_ready(intent, slots)
+        # Phases 1–5 run in the shared turn engine (the same pipeline the CLI
+        # driver uses — fews_agent/agent/turn_engine). The provider is resolved
+        # here, after the pre-flight above; the engine mutates `self.state` and
+        # returns the reply + diagnostics. nag_suppression=True preserves the
+        # app's repeat-turn missing-input snooze (a CLI-absent behaviour).
         provider = get_provider(model=self.model)
-        agent_msg = compose_reply(
-            user_message=message,
-            state=self.state,
-            intent=intent,
-            slots=slots,
-            notes=notes,
-            next_question=next_q,
-            is_ready=ready,
-            new_patterns=new_patterns,
-            input_status=input_status,
-            warnings=warnings,
+        result = run_turn_pipeline(
+            self.state, message, self.catalog,
             provider=provider,
+            inputs_dir=self.session_dir / "inputs",
+            nag_suppression=True,
         )
 
-        internals = _format_internals(
-            skill_results=skill_results,
-            llm_intent=llm_picked,
-            llm_entities=llm_entities,
-            chosen_intent=self.state.get("intent"),
-            notes=notes,
-            state=self.state,
-            new_patterns=new_patterns,
-            ready=ready,
-            next_q=next_q,
-            input_status=input_status,
-            warnings=warnings,
+        # Disambiguation short-circuit: the gate asked a question and resolved
+        # nothing. Persist + return the question as a plain reply.
+        if result.short_circuit:
+            self.history.append(
+                {"role": "agent", "message": result.agent_message}
+            )
+            self._append_md(
+                turn, "agent", result.agent_message, note=result.log_note,
+            )
+            self._save()
+            self._logger.info(
+                "intent_disambiguation turn=%d which=%s",
+                turn, self.state.get("intent_disambiguation_which"),
+            )
+            return TurnResult(agent_message=result.agent_message, kind="reply")
+
+        self.history.append(
+            {"role": "agent", "message": result.agent_message}
         )
-        self.history.append({"role": "agent", "message": agent_msg})
-        self._append_md(turn, "agent", agent_msg, internals=internals)
+        self._append_md(
+            turn, "agent", result.agent_message, internals=result.internals,
+        )
         self._save()
         self._logger.info(
             "turn_end turn=%d intent=%s slots_filled=%d patterns=%d ready=%s warnings=%d",
             turn,
             self.state.get("intent"),
-            sum(1 for v in slots.values() if v),
+            sum(1 for v in (self.state.get("slots") or {}).values() if v),
             len(self.state.get("patterns") or []),
-            ready,
-            len(warnings),
+            result.ready,
+            len(result.warnings),
         )
 
         return TurnResult(
-            agent_message=agent_msg,
+            agent_message=result.agent_message,
             kind="reply",
-            internals=internals,
-            warnings=warnings,
-            ready=ready,
-            next_question=next_q,
-            new_patterns=new_patterns,
+            internals=result.internals,
+            warnings=result.warnings,
+            ready=result.ready,
+            next_question=result.next_question,
+            new_patterns=result.new_patterns,
         )

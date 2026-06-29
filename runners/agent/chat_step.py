@@ -32,37 +32,18 @@ from rich.console import Console
 from rich.panel import Panel
 
 from fews_agent.agent.project_chat import (
-    add_module,
     apply_removal,
     build_pattern_catalog,
     initial_state,
-    remove_module,
-    set_variable,
     write_project,
 )
 from fews_agent.agent.project_intents import (
-    ENGLISH_WORD_BLOCKLIST,
     INTENTS,
-    classify_intent,
-    compose_reply,
-    compute_input_status,
     detect_basin,
     detect_basins_with_adapters,
-    detect_edit_action,
-    detect_forecast_horizon_hours,
-    detect_grid_resolution,
     detect_imports,
-    detect_model_adapter,
-    extract_skills,
-    fill_slots_from_text,
-    heuristic_intent_from_slots,
-    intent_disambiguation_needed,
-    intent_disambiguation_question,
     is_intent_ready,
     next_unfilled_question,
-    parse_intent_disambiguation_answer,
-    scan_inputs,
-    unrecognised_data_types,
 )
 from fews_agent.agent.phases import (
     PHASE_LABELS,
@@ -71,79 +52,23 @@ from fews_agent.agent.phases import (
     normalize_phase,
     phase_plan,
 )
-from fews_agent.agent.providers.ollama_provider import OllamaProvider
+from fews_agent.agent.turn_engine import (
+    _IMPORT_LABEL_KEYS,
+    apply_disambiguation_answer,
+    apply_edit_action,
+    resolve_patterns as _resolve_patterns,
+    run_turn_pipeline,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 PATTERNS_ROOT = REPO_ROOT / "patterns"
 OUTPUT_ROOT = REPO_ROOT / "projects"
 
-# Instance-variable keys that name a module. The first group labels an
-# import (reused by the unmapped-import warning scan); basin_name labels a
-# model. ``_LABEL_VAR_KEYS`` is the full set used to resolve a user-typed
-# module name (e.g. "GFS", "Liard") back to its pattern instance.
-_IMPORT_LABEL_KEYS = (
-    "nwp_name", "source_name", "wsc_variant", "snow_source", "template_name",
-)
+# Instance-variable keys that name a module. ``_IMPORT_LABEL_KEYS`` (the
+# import-labelling group, imported from turn_engine) plus basin_name form the
+# full set used to resolve a user-typed module name (e.g. "GFS", "Liard")
+# back to its pattern instance.
 _LABEL_VAR_KEYS = _IMPORT_LABEL_KEYS + ("basin_name",)
-
-# Synonyms → canonical settable variable name for the /set command and NL
-# edits. The canonical set is enforced by project_chat.set_variable.
-_SET_VAR_CANON = {
-    "grid_resolution": "grid_resolution",
-    "resolution": "grid_resolution",
-    "res": "grid_resolution",
-    "forecast_horizon_hours": "forecast_horizon_hours",
-    "horizon": "forecast_horizon_hours",
-    "forecast_length": "forecast_horizon_hours",
-    "length": "forecast_horizon_hours",
-    "parameter": "data_types",
-    "parameters": "data_types",
-    "param": "data_types",
-    "data_type": "data_types",
-    "data_types": "data_types",
-    "variable": "data_types",
-    "adapter": "model_adapter",
-    "model": "model_adapter",
-    "model_adapter": "model_adapter",
-}
-
-# Strong, explicit intent-naming phrases. When one appears, it is
-# AUTHORITATIVE over the LLM/heuristic intent pick (see
-# forced_intent_override). Whole-phrase substring match so casual mentions
-# don't flip-flop the intent. Kept in lockstep with project_intents'
-# _NARROWING_PHRASES so turn-1 demotion and this override agree.
-_INTENT_OVERRIDE_PHRASES = {
-    "build_data_import_only": (
-        "data import only", "import only", "imports only",
-        "no basin model", "no basin", "no model",
-        "without a basin", "without a model", "just imports",
-    ),
-    "build_basin_model_only": (
-        "model only", "basin model only", "no imports",
-        "without imports", "just the model",
-    ),
-}
-
-
-def forced_intent_override(
-    message: str, current_intent: str | None,
-) -> str | None:
-    """Return an intent to force from an explicit phrase, or None.
-
-    Deterministic and turn-agnostic. An explicit forecasting request
-    ('forecasting', 'full forecast') blocks any narrowing — so a greedy
-    phrase like 'no model' inside 'no model preference' can't silently
-    narrow a full-build request. Otherwise the first matching
-    narrower-intent phrase wins. Returns None when no override applies or
-    the matched intent equals ``current_intent`` (nothing to change).
-    """
-    lower = (message or "").lower()
-    if "forecasting" in lower or "full forecast" in lower:
-        return None
-    for target, phrases in _INTENT_OVERRIDE_PHRASES.items():
-        if any(p in lower for p in phrases) and current_intent != target:
-            return target
-    return None
 
 
 def _resolve_provider(model: str):
@@ -284,122 +209,6 @@ def _append_log(
         block.append("")
     with log.open("a", encoding="utf-8") as fh:
         fh.write("\n".join(block) + "\n")
-
-
-def _format_internals(
-    skill_results: dict,
-    llm_intent: str | None,
-    llm_entities: dict | None,
-    chosen_intent: str | None,
-    notes: list[str],
-    state: dict,
-    new_patterns: list[str],
-    ready: bool,
-    next_q: str | None,
-    input_status: dict | None = None,
-    warnings: list[str] | None = None,
-) -> str:
-    """Render skill / intent / slot / pattern diagnostics as markdown."""
-    lines: list[str] = []
-
-    lines.append("**1. Skills (deterministic regex pass)**")
-    if skill_results:
-        for k, v in skill_results.items():
-            if v in (None, [], {}):
-                continue
-            lines.append(f"- `{k}` = {v!r}")
-    else:
-        lines.append("- (no skill output)")
-    lines.append("")
-
-    if llm_intent is not None or llm_entities is not None:
-        lines.append("**2. LLM intent classification (qwen2.5)**")
-        lines.append(f"- picked: `{llm_intent}`")
-        if llm_entities:
-            for k, v in llm_entities.items():
-                lines.append(f"- entity `{k}` = {v!r}")
-        lines.append(f"- final intent: `{chosen_intent}`")
-        lines.append("")
-
-    slot_notes = [n for n in notes if n.startswith("slot ") or n.startswith("derived ")]
-    if slot_notes:
-        lines.append("**3. Slot-fill events**")
-        for n in slot_notes:
-            lines.append(f"- {n}")
-        lines.append("")
-
-    if new_patterns:
-        lines.append("**4. Pattern resolution**")
-        lines.append(f"- {len(new_patterns)} new pattern(s) added:")
-        for p in new_patterns:
-            lines.append(f"  - `{p}`")
-        lines.append("")
-
-    if input_status:
-        lines.append("**5. Input scan (`inputs/` vs intent expectations)**")
-        present = input_status.get("csvs_present") or []
-        req_missing = input_status.get("csvs_required_missing") or []
-        rec_missing = input_status.get("csvs_recommended_missing") or []
-        ypc = input_status.get("yamls_present_count") or 0
-        rec_yamls = input_status.get("recommended_yamls") or input_status.get(
-            "yamls_recommended_examples"
-        ) or []
-        auto_yamls = input_status.get("auto_generated_yamls") or []
-        lines.append(f"- CSVs present: {present or '(none)'}")
-        lines.append(f"- CSVs required & missing: {req_missing or '(none)'}")
-        lines.append(f"- CSVs recommended & missing: {rec_missing or '(none)'}")
-        lines.append(f"- yamls present count: {ypc}")
-        if rec_yamls:
-            lines.append(f"- recommended yamls (configurator-authored): {rec_yamls}")
-        if auto_yamls:
-            lines.append(f"- auto-generated yamls (no need to author): {auto_yamls}")
-        lines.append("")
-
-    if warnings:
-        lines.append("**6. ⚠ Warnings (loud failures — surfaced to user)**")
-        for w in warnings:
-            lines.append(f"- {w}")
-        lines.append("")
-
-    lines.append("**7. State snapshot**")
-    lines.append(f"- intent: `{state.get('intent')}`")
-    slots = state.get("slots") or {}
-    lines.append(f"- slots filled: {sum(1 for v in slots.values() if v)}/{len(slots)}")
-    lines.append(f"- patterns: {len(state.get('patterns') or [])}")
-    lines.append(f"- ready: `{ready}`")
-    if next_q:
-        lines.append(f"- next unfilled question: {next_q!r}")
-    lines.append("")
-
-    other_notes = [
-        n for n in notes
-        if not n.startswith("slot ") and not n.startswith("derived ")
-    ]
-    if other_notes:
-        lines.append("**8. Other notes**")
-        for n in other_notes:
-            lines.append(f"- {n}")
-        lines.append("")
-
-    return "\n".join(lines).rstrip()
-
-
-def _resolve_patterns(state: dict, catalog) -> None:
-    """Refresh state['patterns'] from the resolver, using current slots.
-
-    Resolver runs deterministically. Existing patterns that were
-    user-confirmed are preserved if not contradicted by current slots.
-    """
-    intent_name = state.get("intent")
-    intent = INTENTS.get(intent_name)
-    if not intent:
-        return
-    catalog_paths = {p.path for p in catalog}
-    derived = intent.resolver(state.get("slots", {}), catalog_paths)
-    # Drop patterns that aren't derivable from current slots — but only
-    # if the user hasn't explicitly added them outside the intent flow.
-    # For now, fully replace (intent-driven assembly).
-    state["patterns"] = derived
 
 
 def _phase_plan_text(state: dict, catalog) -> str:
@@ -619,77 +428,6 @@ def _parse_slash_edit(op: str, rest: str) -> list[dict]:
     return edits
 
 
-def apply_edit_action(state: dict, edit: dict, catalog) -> str:
-    """Apply one add/remove/set edit to slots, then re-resolve patterns.
-
-    Shared entry point for slash commands (Slice 1) and NL edits (later).
-    Returns a human-readable note. Normalises /set variable synonyms and
-    parses values to canonical form before delegating to the mutators.
-    """
-    op = edit.get("op")
-    note: str
-    if op == "add":
-        note = add_module(state, edit["target"], edit["target_kind"])
-    elif op == "remove":
-        target = edit["target"]
-        name = (
-            target.get("basin_name") if isinstance(target, dict) else target
-        )
-        note = remove_module(state, name, edit["target_kind"])
-    elif op == "set":
-        variable = _SET_VAR_CANON.get(
-            str(edit.get("variable", "")).strip().lower()
-        )
-        if variable is None:
-            return (
-                f"Don't recognise variable {edit.get('variable')!r}. "
-                f"Try: resolution, horizon, parameter, adapter."
-            )
-        value = _normalise_set_value(variable, edit.get("value"))
-        if value is None:
-            return (
-                f"Couldn't parse value {edit.get('value')!r} for "
-                f"{variable}."
-            )
-        # NL edits ("make it half-degree") may carry no named module —
-        # pass "" so set_variable applies the project-wide scalar cleanly.
-        note = set_variable(state, edit.get("target") or "", variable, value)
-    else:
-        return f"Unknown edit op {op!r}."
-
-    # If no intent yet, infer one so the resolver has a template set.
-    if not state.get("intent"):
-        inferred = heuristic_intent_from_slots(state.get("slots", {}))
-        if inferred:
-            state["intent"] = inferred
-    _resolve_patterns(state, catalog)
-    return note
-
-
-def _normalise_set_value(variable: str, raw):
-    """Parse a /set value into the canonical form the slot expects."""
-    if raw is None:
-        return None
-    text = str(raw).strip()
-    if variable == "grid_resolution":
-        return detect_grid_resolution(text) or (
-            text if text in {"0p25", "0p50", "1p00"} else None
-        )
-    if variable == "forecast_horizon_hours":
-        parsed = detect_forecast_horizon_hours(text)
-        if parsed is not None:
-            return parsed
-        try:
-            return int(text)
-        except ValueError:
-            return None
-    if variable == "model_adapter":
-        return detect_model_adapter(text) or text
-    if variable == "data_types":
-        return text
-    return text
-
-
 def _run_module_build(
     state: dict, project_dir: Path, name: str, console: Console,
     history: list, turn: int,
@@ -849,22 +587,10 @@ def main(argv: list[str] | None = None) -> int:
     cmd = args.message.lower().strip()
 
     # Pending intent disambiguation: a prior turn asked "imports only or a
-    # full forecasting project?" and is awaiting the answer. Interpret this
-    # message as that answer (an 'a'/'b' shorthand, a natural phrasing, or an
-    # explicit intent-naming override). When it resolves to an intent, commit
-    # it and latch `intent_disambiguated` so the gate below never re-asks.
-    # Otherwise consume the prompt and fall through — the gate re-evaluates
-    # ambiguity against this turn's (possibly fuller) slots and either
-    # re-asks or proceeds.
-    if state.get("awaiting_intent_disambiguation"):
-        _ans = parse_intent_disambiguation_answer(args.message)
-        if _ans is None:
-            _ans = forced_intent_override(args.message, None)
-        state["awaiting_intent_disambiguation"] = False
-        if _ans:
-            state["intent"] = _ans
-            state["intent_disambiguated"] = True
-            state["patterns"] = []  # resolver rebuilds from slots
+    # full forecasting project?" and is awaiting the answer. The shared helper
+    # consumes this turn's message as that answer (commits + latches on a
+    # clear choice, else clears the flag so the Phase 3.5 gate re-evaluates).
+    apply_disambiguation_answer(state, args.message)
 
     # Deterministic special commands.
     if cmd in {"done", "/done", "quit", "force-done", "/force-done"}:
@@ -1048,332 +774,29 @@ def main(argv: list[str] | None = None) -> int:
         console.print(f"\n[bold magenta]agent[/bold magenta]: {reply}")
         return 0
 
-    # Phase 1: skills.
-    skill_results = extract_skills(args.message)
-
-    # Phase 2: intent classification (only if no intent yet).
-    notes: list[str] = []
-    llm_picked: str | None = None
-    llm_entities: dict | None = None
-    chosen_intent: str | None = state.get("intent")
-
-    if state.get("intent") is None:
-        provider = _resolve_provider(args.model)
-        try:
-            cls = classify_intent(
-                args.message, skill_results, provider=provider,
-            )
-            llm_picked = cls.get("intent")
-            llm_entities = cls.get("entities", {}) or {}
-            # Merge LLM-supplied entities into skill results (skills win).
-            # Empty-list slots (data_types) are treated as missing so the
-            # LLM extraction isn't shadowed by a zero-result regex pass.
-            for k, v in llm_entities.items():
-                existing = skill_results.get(k)
-                if (k not in skill_results or existing is None
-                        or (isinstance(existing, list) and not existing)):
-                    skill_results[k] = v
-                    notes.append(f"LLM filled {k}={v}")
-        except Exception as exc:  # noqa: BLE001
-            notes.append(f"intent classify failed: {str(exc)[:60]}")
-
-        # Validate LLM pick against known intents; fall back to heuristic.
-        chosen_intent = (
-            llm_picked if llm_picked in INTENTS
-            else heuristic_intent_from_slots(skill_results)
-        )
-        state["intent"] = chosen_intent
-        if chosen_intent:
-            notes.append(
-                f"intent: {chosen_intent}"
-                + ("" if llm_picked == chosen_intent else " (heuristic)")
-            )
-        else:
-            notes.append("no intent classified")
-
-    # Deterministic intent override — runs on EVERY turn (turn 1 included),
-    # AFTER classification. An explicit intent-naming phrase forces the
-    # intent over whatever the LLM/heuristic picked, so "no basin model"
-    # deterministically yields build_data_import_only on the first turn
-    # rather than relying on a 7B model (and surviving classify_intent's
-    # default-to-forecasting demotion). On a later turn this is the
-    # mid-conversation re-classification that recovers from an early miss.
-    _forced = forced_intent_override(args.message, state.get("intent"))
-    if _forced:
-        notes.append(f"intent override: {state.get('intent')} → {_forced}")
-        state["intent"] = _forced
-        state["patterns"] = []  # resolver will rebuild from slots
-        chosen_intent = _forced
-
-    # Phase 2.5: natural-language edits (remove a module / override a
-    # scalar). Verb-gated and target-required, so descriptive prose never
-    # parses as an edit. Runs AFTER intent + LLM-entity merge but BEFORE
-    # the additive merge: applied edits mutate slots immediately, then the
-    # just-removed targets are stripped from skill_results so the additive
-    # merge below cannot re-add them on the same turn. Slash /add /remove
-    # /set (handled earlier) stay the unambiguous fallback.
-    recent_edit_note: str | None = None  # per-turn; stale notes must not leak
-    edit_action = detect_edit_action(args.message)
-    if edit_action and edit_action.get("edits"):
-        applied_notes: list[str] = []
-        for e in edit_action["edits"]:
-            note = apply_edit_action(state, e, catalog)
-            notes.append(f"edit: {note}")
-            applied_notes.append(note)
-        # Re-add suppression: drop removed targets from skill_results so the
-        # additive merge doesn't immediately resurrect them.
-        if edit_action.get("removed_imports"):
-            ri = {x.lower() for x in edit_action["removed_imports"]}
-            if isinstance(skill_results.get("imports"), list):
-                skill_results["imports"] = [
-                    x for x in skill_results["imports"]
-                    if str(x).lower() not in ri
-                ]
-        if edit_action.get("removed_basins"):
-            rb = {x.lower() for x in edit_action["removed_basins"]}
-            if isinstance(skill_results.get("basins"), list):
-                skill_results["basins"] = [
-                    b for b in skill_results["basins"]
-                    if not (
-                        isinstance(b, dict)
-                        and str(b.get("basin_name", "")).lower() in rb
-                    )
-                ]
-            if (
-                isinstance(skill_results.get("basin_name"), str)
-                and skill_results["basin_name"].lower() in rb
-            ):
-                skill_results["basin_name"] = None
-        # Surface this turn's edits so the reply layer can acknowledge
-        # them as already-done. Per-turn only — never persisted, so a
-        # later non-edit turn can't re-acknowledge a stale edit.
-        recent_edit_note = "; ".join(applied_notes)
-
-    # Phase 3: slot filling — additive, no overwrites.
-    slots = state.setdefault("slots", {})
-    for k, v in skill_results.items():
-        if v is None or v == []:
-            continue
-        existing = slots.get(k)
-        if isinstance(v, list):
-            merged = list(existing or [])
-            for item in v:
-                # Dict items dedup on equality of dict contents.
-                if isinstance(item, dict):
-                    key = tuple(sorted(item.items()))
-                    existing_keys = {
-                        tuple(sorted(d.items())) for d in merged
-                        if isinstance(d, dict)
-                    }
-                    if key not in existing_keys:
-                        merged.append(item)
-                else:
-                    if item not in merged:
-                        merged.append(item)
-            if merged != existing:
-                slots[k] = merged
-                notes.append(f"slot {k}={merged}")
-        else:
-            if existing is None:
-                slots[k] = v
-                notes.append(f"slot {k}={v}")
-
-    # Sync settings: geoDatum slot → Locations.geoDatum.
-    if slots.get("geoDatum"):
-        state.setdefault("singleton_seeds", {}).setdefault(
-            "Locations", {}
-        )["geoDatum"] = slots["geoDatum"]
-
-    # Sync settings: region slot → Locations.region. This populates the
-    # REGION property in sa_global.Properties so FEWS resolves $REGION$
-    # at startup, and lets the build path override the bundled
-    # spatialDisplay defaultExtent if the region has a known bbox.
-    if slots.get("region"):
-        state.setdefault("singleton_seeds", {}).setdefault(
-            "Locations", {}
-        )["region"] = slots["region"]
-
-    # Free-form bbox parsed from prose (e.g. "from 5N to 10S, 15W to
-    # 5E") — stored as a 4-tuple so the runner can crop NWP grids and
-    # rewrite the SpatialDisplay defaultExtent without needing a
-    # gazetteer match. Stored as a list for yaml round-trip.
-    if slots.get("custom_bbox"):
-        bbox = list(slots["custom_bbox"])
-        state.setdefault("singleton_seeds", {}).setdefault(
-            "Locations", {}
-        )["regionBbox"] = bbox
-
-    # Cross-turn promotion: if singular basin_name + model_adapter were
-    # filled in different turns, synthesise the canonical `basins` pair.
-    # Without this, `is_intent_ready` blocks indefinitely because the
-    # skill only emits `basins` when both appear in the SAME message.
-    if (
-        not slots.get("basins")
-        and slots.get("basin_name")
-        and slots.get("model_adapter")
-    ):
-        slots["basins"] = [{
-            "basin_name": slots["basin_name"],
-            "model_adapter": slots["model_adapter"],
-        }]
-        notes.append(f"derived basins={slots['basins']}")
-
-    # Sync missing_data: locations_source=csv → reminder for locations.csv.
-    if slots.get("locations_source") == "csv":
-        if "locations.csv" not in state.get("missing_data", []):
-            state.setdefault("missing_data", []).append("locations.csv")
-
-    # Phase 3.5: intent disambiguation gate. When the request names exactly
-    # one half (imports XOR basin) with no explicit narrowing/forecasting
-    # signal, ASK rather than silently defaulting to the full forecasting
-    # project. The question is deterministic (never qwen2.5-composed) and the
-    # turn short-circuits until it's answered. `intent_disambiguated` latches
-    # the resolution so it never re-asks; re-asks are capped, after which it
-    # falls back to forecasting with a visible note.
-    if not state.get("intent_disambiguated"):
-        _which = intent_disambiguation_needed(args.message, slots)
-        if _which:
-            _asks = state.get("intent_disambiguation_asks", 0)
-            if _asks >= 2:
-                state["intent"] = "build_forecasting_project"
-                state["intent_disambiguated"] = True
-                state["patterns"] = []
-                notes.append(
-                    "intent disambiguation unanswered → forecasting default"
-                )
-            else:
-                state["intent_disambiguation_asks"] = _asks + 1
-                state["intent_disambiguation_which"] = _which
-                state["awaiting_intent_disambiguation"] = True
-                _q = intent_disambiguation_question(_which)
-                history.append({"role": "agent", "message": _q})
-                _append_log(
-                    project_dir, turn, "agent", _q, "intent disambiguation"
-                )
-                _save(project_dir, state, history)
-                console.print(f"\n[bold magenta]agent[/bold magenta]: {_q}")
-                return 0
-
-    # Phase 4: resolve patterns from slots.
-    patterns_before = {p["pattern"] for p in state.get("patterns", [])}
-    _resolve_patterns(state, catalog)
-    new_patterns = [
-        p["pattern"] for p in state.get("patterns", [])
-        if p["pattern"] not in patterns_before
-    ]
-
-    # Phase 4.25: warn loudly when a mentioned input has no pattern mapping.
-    # The LLM often sees more than skills + resolver can map (e.g. it picks
-    # up HARMONIE/ICON but the library only has patterns for ECCC + NOAA
-    # NWPs). Surface the gap so the configurator isn't surprised by silent
-    # drops downstream.
-    warnings: list[str] = []
-    mentioned_imports: set[str] = set()
-    if llm_entities and isinstance(llm_entities.get("imports"), list):
-        mentioned_imports.update(str(x) for x in llm_entities["imports"])
-    if isinstance(slots.get("imports"), list):
-        mentioned_imports.update(str(x) for x in slots["imports"])
-    mapped_imports: set[str] = set()
-    pattern_names_lower: set[str] = set()
-    for p in state.get("patterns", []):
-        pname = str(p.get("pattern", ""))
-        pattern_names_lower.add(pname.lower())
-        for inst in p.get("instances") or []:
-            if not isinstance(inst, dict):
-                continue
-            for k in _IMPORT_LABEL_KEYS:
-                v = inst.get(k)
-                if isinstance(v, str):
-                    mapped_imports.add(v)
-    unmapped_imports = sorted(
-        m for m in mentioned_imports - mapped_imports
-        if not any(m.lower() in pn for pn in pattern_names_lower)
-    )
-    if unmapped_imports:
-        warnings.append(
-            "No pattern in the library for: "
-            + ", ".join(unmapped_imports)
-            + ". These would be silently skipped. Add a pattern under "
-              "patterns/auto/, or remove them from the request."
-        )
-
-    # Suspicious basin names — single-token CAPITALISED words that are
-    # actually English sentence starters ("We", "It", "The", ...).
-    # The regex extractor in project_intents now filters these too, so
-    # this branch only catches LLM entity-extraction leaks.
-    if isinstance(slots.get("basins"), list):
-        suspicious = [
-            b for b in slots["basins"]
-            if isinstance(b, dict) and b.get("basin_name") in ENGLISH_WORD_BLOCKLIST
-        ]
-        if suspicious:
-            names = ", ".join(b["basin_name"] for b in suspicious)
-            warnings.append(
-                f"Detected '{names}' as a basin name, which looks like an "
-                f"English word, not a basin. Likely a regex false positive — "
-                f"confirm or correct before continuing."
-            )
-
-    # Mentioned data_types that the parameter mapper can't translate to a
-    # FEWS parameterId. Without this, the resolver drops them silently
-    # (stderr only) and the user gets the pattern's default subset (PC.nwp
-    # + TA.nwp) — wrong output, no signal.
-    if isinstance(slots.get("data_types"), list):
-        unmapped_dt = unrecognised_data_types(slots["data_types"])
-        if unmapped_dt:
-            warnings.append(
-                "No FEWS parameterId mapping for: "
-                + ", ".join(unmapped_dt)
-                + ". These will be skipped — the import will use the "
-                  "pattern's default parameter list. Edit the pattern's "
-                  "`parameters` variable or rename to a recognised phrase."
-            )
-
-    state["warnings"] = warnings
-
-    # Phase 4.5: scan the inputs/ directory and compute presence/missing.
-    inputs_dir = project_dir / "inputs"
-    input_scan = scan_inputs(inputs_dir)
-    input_status = compute_input_status(state.get("intent"), input_scan, slots)
-
-    # Phase 5: LLM composes the user-facing reply.
-    intent = INTENTS.get(state.get("intent") or "")
-    next_q = next_unfilled_question(intent, slots) if intent else None
-    ready = bool(intent) and is_intent_ready(intent, slots)
+    # Phases 1–5 run in the shared turn engine (fews_agent/agent/turn_engine).
+    # The driver resolves the provider and owns persistence + console output;
+    # the engine mutates `state` and returns the reply + diagnostics.
     provider = _resolve_provider(args.model)
-    agent_msg = compose_reply(
-        user_message=args.message,
-        state=state,
-        intent=intent,
-        slots=slots,
-        notes=notes,
-        next_question=next_q,
-        is_ready=ready,
-        new_patterns=new_patterns,
-        input_status=input_status,
-        warnings=warnings,
-        recent_edit=recent_edit_note,
+    result = run_turn_pipeline(
+        state, args.message, catalog,
         provider=provider,
+        inputs_dir=project_dir / "inputs",
     )
-
-    internals = _format_internals(
-        skill_results=skill_results,
-        llm_intent=llm_picked,
-        llm_entities=llm_entities,
-        chosen_intent=chosen_intent,
-        notes=notes,
-        state=state,
-        new_patterns=new_patterns,
-        ready=ready,
-        next_q=next_q,
-        input_status=input_status,
-        warnings=warnings,
+    history.append({"role": "agent", "message": result.agent_message})
+    _append_log(
+        project_dir, turn, "agent", result.agent_message,
+        result.log_note, internals=result.internals,
     )
-    history.append({"role": "agent", "message": agent_msg})
-    _append_log(project_dir, turn, "agent", agent_msg, None, internals=internals)
     _save(project_dir, state, history)
+    console.print(
+        f"\n[bold magenta]agent[/bold magenta]: {result.agent_message}"
+    )
 
-    console.print(f"\n[bold magenta]agent[/bold magenta]: {agent_msg}")
+    # On a disambiguation short-circuit the gate asked a question and resolved
+    # nothing — skip the module-guidance / verbose / finalise tail.
+    if result.short_circuit:
+        return 0
 
     # Module-by-module guidance. The system builds one capability group
     # (phase) at a time — imports → process → model → visualize — rather
@@ -1402,10 +825,11 @@ def main(argv: list[str] | None = None) -> int:
                 "validation).[/dim]"
             )
     if args.verbose:
+        _slots = state.get("slots", {})
         console.print(
             f"\n[dim]turn={turn}  intent={state.get('intent')}  "
-            f"slots_filled={sum(1 for v in slots.values() if v)}  "
-            f"patterns={len(state.get('patterns', []))}  ready={ready}[/dim]"
+            f"slots_filled={sum(1 for v in _slots.values() if v)}  "
+            f"patterns={len(state.get('patterns', []))}  ready={result.ready}[/dim]"
         )
 
     if args.finalize:
