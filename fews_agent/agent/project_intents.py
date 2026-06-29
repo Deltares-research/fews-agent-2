@@ -565,6 +565,26 @@ _INTERPOLATION_PHRASES: tuple[str, ...] = (
     "spatial display",
 )
 
+# Prose asking to view/plot the imported gridded fields. Triggers the
+# standalone `spatial_display_grid` visualize pattern (one display config
+# per NWP grid source). Kept distinct from interpolation so a request can
+# do either or both ("interpolate to stations AND visualize the grids").
+_VISUALIZATION_PHRASES: tuple[str, ...] = (
+    "visualize",
+    "visualise",
+    "visualization",
+    "visualisation",
+    "spatial display",
+    "data viewer",
+    "grid display",
+    "view the grid",
+    "view the gridded",
+    "display the grid",
+    "display the gridded",
+    "plot the grid",
+    "show the grid",
+)
+
 
 def detect_wants_interpolation(text: str) -> bool | None:
     """Return True when prose asks for grid→point interpolation or viewing.
@@ -575,6 +595,17 @@ def detect_wants_interpolation(text: str) -> bool | None:
     """
     lower = (text or "").lower()
     return True if any(p in lower for p in _INTERPOLATION_PHRASES) else None
+
+
+def detect_wants_visualization(text: str) -> bool | None:
+    """Return True when prose asks to visualize/plot the imported grids.
+
+    Returns ``None`` (not ``False``) when no phrase matches, mirroring
+    ``detect_wants_interpolation`` so a turn-1 miss can't shadow a real
+    signal on a later turn.
+    """
+    lower = (text or "").lower()
+    return True if any(p in lower for p in _VISUALIZATION_PHRASES) else None
 
 
 def detect_data_types(text: str) -> list[str]:
@@ -605,6 +636,167 @@ def detect_data_types(text: str) -> list[str]:
 
 
 # ---------------------------------------------------------------------------
+# Skill: natural-language EDIT detection (remove / change-a-variable)
+# ---------------------------------------------------------------------------
+#
+# The additive slot-fill in chat_step already handles *adding* facts
+# (imports, basins, parameters) — so this skill deliberately does NOT
+# emit "add" edits. It fills the two gaps the additive merge structurally
+# cannot cover:
+#
+#   * REMOVE a module      — additive can only union, never subtract.
+#   * OVERRIDE a scalar    — additive fills a slot only when it is unset,
+#     (grid_resolution,      so "make GFS half-degree" wouldn't change an
+#      forecast_horizon)     already-set resolution.
+#
+# It is verb-gated (an edit verb must be present) AND target-required (a
+# known import / basin / value must resolve), so plain descriptive prose
+# ("we don't want flooding") never parses as an edit and the normal
+# additive path proceeds untouched.
+
+# Removal verbs. "without" is intentionally excluded — "import GFS without
+# interpolation" must not read as "remove GFS". "replace"/"swap" are also
+# excluded: they imply remove-one-add-another, which the strip-then-readd
+# suppression below would mishandle (use explicit /remove + /add instead).
+_EDIT_REMOVE_CUES: tuple[str, ...] = (
+    "remove", "drop", "delete", "get rid of", "take out", "exclude",
+    "no longer", "don't want", "do not want", "dont want",
+    "don't need", "do not need", "dont need",
+)
+
+# Change/override verbs for scalar variables (resolution, horizon). A
+# change cue gates the override so a *first* mention ("import GFS at half
+# degree") still flows through additive slot-fill rather than a no-op set.
+_EDIT_CHANGE_CUES: tuple[str, ...] = (
+    "change", "make", "set", "switch", "update", "instead",
+    "actually", "rather", "increase", "decrease", "lower", "raise",
+)
+
+
+def _has_cue(lower: str, cues: tuple[str, ...]) -> bool:
+    return any(c in lower for c in cues)
+
+
+def _cue_positions(lower: str, cues: tuple[str, ...]) -> list[int]:
+    """Start offsets of every cue occurrence in ``lower``."""
+    out: list[int] = []
+    for cue in cues:
+        start = 0
+        while True:
+            i = lower.find(cue, start)
+            if i < 0:
+                break
+            out.append(i)
+            start = i + len(cue)
+    return out
+
+
+def _import_position(text: str, name: str) -> int:
+    """Char offset of an import name in ``text`` (0 if not literally present,
+    e.g. when it was matched via an alias)."""
+    m = re.search(rf"\b{re.escape(name.upper())}\b", text.upper())
+    return m.start() if m else 0
+
+
+def detect_edit_action(text: str) -> dict | None:
+    """Detect a natural-language edit (remove a module / change a variable).
+
+    Returns ``None`` when no edit verb + resolvable target is present, so
+    the caller's normal additive slot-fill runs untouched. Otherwise::
+
+        {
+          "edits": [ <edit dict for chat_step.apply_edit_action>, ... ],
+          "removed_imports": [<canonical import name>, ...],
+          "removed_basins":  [<basin name>, ...],
+        }
+
+    Each edit dict matches the shape ``apply_edit_action`` consumes
+    (``op``/``target``/``target_kind`` (+ ``variable``/``value`` for set)).
+    ``removed_*`` let the caller strip just-removed targets from the
+    skill results before the additive merge so they aren't re-added.
+    """
+    if not text:
+        return None
+    lower = text.lower()
+    edits: list[dict] = []
+    removed_imports: list[str] = []
+    removed_basins: list[str] = []
+
+    remove_pos = _cue_positions(lower, _EDIT_REMOVE_CUES)
+    change_pos = _cue_positions(lower, _EDIT_CHANGE_CUES)
+    has_remove = bool(remove_pos)
+    has_change = bool(change_pos)
+
+    # Associate each detected import with the cue it sits closest to, so a
+    # mixed sentence ("drop RDPS and make GFS half-degree") removes only
+    # RDPS and targets the GFS set at GFS — not a greedy remove of both.
+    inf = float("inf")
+    imports_here = detect_imports(text)
+    remove_targets: list[str] = []
+    change_target: str | None = None
+    best_change_dist = inf
+    for name in imports_here:
+        pos = _import_position(text, name)
+        rd = min((abs(pos - p) for p in remove_pos), default=inf)
+        cd = min((abs(pos - p) for p in change_pos), default=inf)
+        if rd == inf and cd == inf:
+            continue
+        if rd <= cd:
+            remove_targets.append(name)
+        elif cd < best_change_dist:
+            best_change_dist = cd
+            change_target = name
+
+    # --- SET (override a scalar variable) ------------------------------
+    # Gated on a change cue; the value (resolution / horizon) must parse.
+    if has_change:
+        res = detect_grid_resolution(text)
+        if res is not None:
+            edits.append({
+                "op": "set", "target": change_target,
+                "target_kind": "variable",
+                "variable": "grid_resolution", "value": res,
+            })
+        hor = detect_forecast_horizon_hours(text)
+        if hor is not None:
+            edits.append({
+                "op": "set", "target": change_target,
+                "target_kind": "variable",
+                "variable": "forecast_horizon_hours", "value": hor,
+            })
+
+    # --- REMOVE (a module) ---------------------------------------------
+    if has_remove:
+        for name in remove_targets:
+            removed_imports.append(name)
+            edits.append({
+                "op": "remove", "target": name, "target_kind": "import",
+            })
+        # Basins: only those nearer a remove cue than a change cue.
+        for basin in detect_all_basins(text):
+            pos = lower.find(basin.lower())
+            if pos < 0:
+                pos = 0
+            rd = min((abs(pos - p) for p in remove_pos), default=inf)
+            cd = min((abs(pos - p) for p in change_pos), default=inf)
+            if rd <= cd:
+                removed_basins.append(basin)
+                edits.append({
+                    "op": "remove",
+                    "target": {"basin_name": basin},
+                    "target_kind": "basin",
+                })
+
+    if not edits:
+        return None
+    return {
+        "edits": edits,
+        "removed_imports": removed_imports,
+        "removed_basins": removed_basins,
+    }
+
+
+# ---------------------------------------------------------------------------
 # Composite: extract everything the skills can find
 # ---------------------------------------------------------------------------
 
@@ -628,6 +820,7 @@ def extract_skills(text: str) -> dict[str, Any]:
         "locations_source": detect_locations_source(text),
         "data_types": detect_data_types(text),
         "wants_interpolation": detect_wants_interpolation(text),
+        "wants_visualization": detect_wants_visualization(text),
         "region": detect_region(text),
         "custom_bbox": detect_custom_bbox(text),
         "grid_resolution": detect_grid_resolution(text),
@@ -753,6 +946,33 @@ _PARAMETERIZED_NWP_PATTERNS: frozenset[str] = frozenset({
 })
 
 
+# NWP imports eligible for grid->station interpolation, with the facts
+# the interpolation needs to stay resolvable. The interpolation reads the
+# grid from ``Import<nwp>`` at ``locationId=<nwp>`` for each requested
+# parameter and at a given timeStep, so for each source we record:
+#   - ``parameters``: the parameterIds the import actually registers, so
+#     the resolver can intersect them with what the user asked for. None
+#     means "parameterized" (the import emits exactly the requested rows,
+#     e.g. NOAA GFS), so any requested param resolves.
+#   - ``time_step_hours``: the import's grid timeStep multiplier. The
+#     interpolation grid input must read at the SAME step or the series
+#     won't match at runtime (XSD won't catch the mismatch).
+#
+# Only deterministic forecast grids are listed. Excluded on purpose:
+#   - REPS — ensemble grid (carries ensembleId); needs ensemble-aware
+#     interpolation we don't emit yet.
+#   - HRDPA / RDPA — analysis precip imported as PC.sim (not the .nwp
+#     forecast convention the data_types mapper produces).
+_INTERPOLATABLE_IMPORTS: dict[str, dict[str, Any]] = {
+    # NOAA — parameterized, 3-hourly.
+    "GFS":   {"parameters": None, "time_step_hours": 3},
+    # ECCC forecast grids — fixed PC.nwp/TA.nwp set.
+    "HRDPS": {"parameters": frozenset({"PC.nwp", "TA.nwp"}), "time_step_hours": 1},
+    "GDPS":  {"parameters": frozenset({"PC.nwp", "TA.nwp"}), "time_step_hours": 3},
+    "RDPS":  {"parameters": frozenset({"PC.nwp", "TA.nwp"}), "time_step_hours": 3},
+}
+
+
 def _data_types_to_parameter_rows(
     data_types: list[str] | None,
 ) -> tuple[list[dict[str, Any]], list[str]]:
@@ -778,12 +998,31 @@ def _data_types_to_parameter_rows(
     return rows, unrecognised
 
 
+def _override_for(
+    import_overrides: dict[str, dict] | None, name: str,
+) -> dict:
+    """Per-import override dict for ``name`` (case-insensitive), or {}."""
+    if not import_overrides:
+        return {}
+    ov = import_overrides.get(name)
+    if ov is None:
+        ov = next(
+            (v for k, v in import_overrides.items()
+             if str(k).lower() == name.lower()),
+            None,
+        )
+    return ov or {}
+
+
 def _resolve_import_patterns(
     imports: list[str], catalog_paths: set[str],
     data_types: list[str] | None = None,
     wants_interpolation: bool = False,
     grid_resolution: str | None = None,
     forecast_horizon_hours: int | None = None,
+    wants_visualization: bool = False,
+    import_overrides: dict[str, dict] | None = None,
+    geo_datum: str | None = None,
 ) -> list[dict]:
     """Map import names to pattern instances using each pattern's own
     label variable name. Dedups by path.
@@ -795,8 +1034,9 @@ def _resolve_import_patterns(
 
     When ``wants_interpolation`` is True (user asked for grid→point
     interpolation or Data Viewer / Spatial Display output), the resolver
-    also emits the postprocess template and one interpolation workflow
-    per NWP import so the gridded data lands as point time series."""
+    emits one self-contained ``wf_interpolate_nwp_to_stations`` instance
+    per eligible NWP import (see ``_INTERPOLATABLE_IMPORTS``) so the
+    gridded data lands as point time series."""
     param_rows, unrecognised = _data_types_to_parameter_rows(data_types)
     if unrecognised:
         # Surface to stderr so the configurator notices; the chat agent
@@ -826,16 +1066,21 @@ def _resolve_import_patterns(
             # to Parameters.xml — without this the new IDs would be
             # referenced in timeSeriesSet but not declared anywhere.
             instance["contribute_parameters"] = True
+        # Per-import override wins over the project-level default, so two
+        # NWP imports can carry different resolutions / horizons (Slice 4).
+        _ov = _override_for(import_overrides, imp)
+        _res = _ov.get("grid_resolution") or grid_resolution
+        _hor = _ov.get("forecast_horizon_hours") or forecast_horizon_hours
         # NOAA GFS publishes at 0p25/0p50/1p00; plumb the configurator's
         # choice into the pattern instance so the DODS URL points at the
         # right dataset.
-        if grid_resolution and path == "auto/nwp_grid_noaa":
-            instance["grid_resolution"] = grid_resolution
+        if _res and path == "auto/nwp_grid_noaa":
+            instance["grid_resolution"] = _res
         # Forecast horizon (hours) — when set, the NOAA pattern emits a
         # relativeViewPeriod on the SpatialDisplay timeSeriesSet so the
         # plot shows just that window instead of the full forecast.
-        if forecast_horizon_hours and path == "auto/nwp_grid_noaa":
-            instance["forecast_horizon_hours"] = forecast_horizon_hours
+        if _hor and path == "auto/nwp_grid_noaa":
+            instance["forecast_horizon_hours"] = _hor
         existing = next((p for p in out if p["pattern"] == path), None)
         if existing:
             existing["instances"].append(instance)
@@ -855,34 +1100,81 @@ def _resolve_import_patterns(
         })
 
     # Interpolation path. The user asked to land the gridded data as
-    # point time series (Data Viewer) — emit the postprocess template
-    # plus one interpolation workflow per NWP import. Currently scoped
-    # to NOAA GFS because that's the only NWP whose nwp_grid_* pattern
-    # accepts user-selected parameters. Future ECCC parameterization
-    # widens this set.
-    if wants_interpolation and param_rows:
-        nwp_imports = [imp for imp in (imports or [])
-                       if imp in {"GFS"}]
-        if nwp_imports:
-            if "auto/tpl_postprocess_to_station" in catalog_paths:
-                # Override the locationId to match the bare NWP import
-                # (which writes locationId=<NWP>, not $MODELNAME1$Grid).
-                out.append({
-                    "pattern": "auto/tpl_postprocess_to_station",
-                    "instances": [{
-                        "template_name":
-                            "PostprocessModelOutputToStationTemplate",
-                        "grid_locationid": nwp_imports[0],
-                    }],
-                })
-            if "auto/wf_interpolate_nwp_to_stations" in catalog_paths:
-                out.append({
-                    "pattern": "auto/wf_interpolate_nwp_to_stations",
-                    "instances": [
-                        {"nwp_name": imp, "parameters": list(param_rows)}
-                        for imp in nwp_imports
-                    ],
-                })
+    # point time series (Data Viewer) — emit one self-contained
+    # interpolation module + workflow per eligible NWP import
+    # (``wf_interpolate_nwp_to_stations``, which reads the grid from the
+    # upstream Import<nwp> instance). For each source we intersect the
+    # requested parameters with what its import actually carries and read
+    # at the import's own timeStep, so the grid input always resolves
+    # (see ``_INTERPOLATABLE_IMPORTS``). A source whose import carries
+    # none of the requested params is skipped — the Slice D build guard
+    # then flags the unbacked set if that leaves interpolation inert.
+    if (
+        wants_interpolation and param_rows
+        and "auto/wf_interpolate_nwp_to_stations" in catalog_paths
+    ):
+        interp_instances: list[dict[str, Any]] = []
+        for imp in (imports or []):
+            spec = _INTERPOLATABLE_IMPORTS.get(imp)
+            if spec is None:
+                continue
+            importable = spec["parameters"]
+            rows = (
+                list(param_rows) if importable is None
+                else [r for r in param_rows if r.get("id") in importable]
+            )
+            if not rows:
+                # Import carries none of the requested params (e.g. HRDPS
+                # asked to interpolate wind speed) — can't interpolate it.
+                continue
+            inst: dict[str, Any] = {
+                "nwp_name": imp,
+                "parameters": rows,
+                "time_step_hours": spec["time_step_hours"],
+            }
+            if geo_datum:
+                inst["geo_datum"] = geo_datum
+            interp_instances.append(inst)
+        if interp_instances:
+            out.append({
+                "pattern": "auto/wf_interpolate_nwp_to_stations",
+                "instances": interp_instances,
+            })
+
+    # Visualization path. The user asked to view/plot the imported grids
+    # (Spatial Display / Data Viewer). Emit one standalone display config
+    # per NWP grid import — these reliably register locationId=<name> and
+    # moduleInstanceId=Import<name>, which the visualize pattern points at.
+    if wants_visualization and "auto/spatial_display_grid" in catalog_paths:
+        viz_instances: list[dict] = []
+        for imp in (imports or []):
+            entry = _IMPORT_PATTERN_MAP.get(imp)
+            if not entry:
+                continue
+            path, _ = entry
+            if not path.startswith("auto/nwp_grid_"):
+                continue
+            inst: dict[str, Any] = {"source_name": imp}
+            if param_rows:
+                # Pass the selected parameter rows through; the visualize
+                # pattern reads only `id` from each (extra keys ignored).
+                inst["parameters"] = [{"id": r["id"]} for r in param_rows]
+            # Per-import horizon override (Slice 4) → each grid's display
+            # window can differ; fall back to the project-level horizon.
+            _viz_hor = (
+                _override_for(import_overrides, imp).get(
+                    "forecast_horizon_hours"
+                )
+                or forecast_horizon_hours
+            )
+            if _viz_hor:
+                inst["forecast_horizon_hours"] = _viz_hor
+            viz_instances.append(inst)
+        if viz_instances:
+            out.append({
+                "pattern": "auto/spatial_display_grid",
+                "instances": viz_instances,
+            })
     return out
 
 
@@ -957,6 +1249,9 @@ def _resolve_forecasting_patterns(
         wants_interpolation=bool(slots.get("wants_interpolation")),
         grid_resolution=slots.get("grid_resolution"),
         forecast_horizon_hours=slots.get("forecast_horizon_hours"),
+        wants_visualization=bool(slots.get("wants_visualization")),
+        import_overrides=slots.get("import_overrides"),
+        geo_datum=slots.get("geoDatum"),
     )
     for b in _basins_list(slots):
         out.extend(
@@ -982,6 +1277,9 @@ def _resolve_data_import_only_patterns(
         wants_interpolation=bool(slots.get("wants_interpolation")),
         grid_resolution=slots.get("grid_resolution"),
         forecast_horizon_hours=slots.get("forecast_horizon_hours"),
+        wants_visualization=bool(slots.get("wants_visualization")),
+        import_overrides=slots.get("import_overrides"),
+        geo_datum=slots.get("geoDatum"),
     )
 
 
@@ -1219,6 +1517,12 @@ _NARROWING_PHRASES: tuple[str, ...] = (
     "only", "just the", "just imports", "just import", "just data",
     "just the model", "just model",
     "no model", "without model", "without a model",
+    # Basin-negation phrases. "no basin model" does NOT contain the
+    # substring "no model" (a "basin " sits between), so these must be
+    # listed explicitly. Kept in lockstep with chat_step's
+    # _INTENT_OVERRIDE_PHRASES so turn-1 demotion and mid-chat override
+    # agree on what counts as a data-import-only signal.
+    "no basin", "no basin model", "without a basin", "without basin",
     "no imports", "without imports", "without nwp",
     "no nwp", "no forecast",
     "model only", "model-only", "imports only", "import only",
@@ -1246,6 +1550,119 @@ def _prose_signals_narrower_intent(prose: str) -> bool:
     """
     lower = (prose or "").lower()
     return any(phrase in lower for phrase in _NARROWING_PHRASES)
+
+
+# Phrases that explicitly signal the user wants the *full* forecasting
+# project — the counterpart to ``_NARROWING_PHRASES``. When present, an
+# otherwise single-half request is unambiguous (no disambiguation needed).
+_FORECASTING_PHRASES: tuple[str, ...] = (
+    "forecasting", "forecast project", "forecast workflow",
+    "full project", "whole project", "entire project", "complete project",
+    "end-to-end", "end to end", "operational forecast",
+    "import and model", "imports and a model", "imports and model",
+    "imports and a basin", "import and a basin", "model and imports",
+)
+
+
+def _prose_signals_forecasting(prose: str) -> bool:
+    """True if the prose explicitly asks for a full forecasting project.
+
+    Substring match, case-insensitive. Mirrors
+    ``_prose_signals_narrower_intent`` for the opposite pole.
+    """
+    lower = (prose or "").lower()
+    return any(phrase in lower for phrase in _FORECASTING_PHRASES)
+
+
+def intent_disambiguation_needed(
+    prose: str, slots: dict[str, Any] | None,
+) -> str | None:
+    """Return which single half was described when intent is ambiguous.
+
+    The request is ambiguous — between a narrower build and the full
+    forecasting project — when *exactly one* half (imports or basin model)
+    is present, with no explicit narrowing signal ("imports only", "no
+    basin model", ...) and no explicit forecasting signal ("full project",
+    "forecasting", ...). In that case the agent should ask rather than
+    silently default.
+
+    Returns ``"imports"`` (imports present, no basin) or ``"basin"`` (basin
+    present, no imports) to drive the question wording, or ``None`` when the
+    intent is clear: both halves present, neither present, or any explicit
+    signal in the prose.
+    """
+    slots = slots or {}
+    has_imports = bool(slots.get("imports"))
+    has_basin = bool(slots.get("basins")) or bool(slots.get("basin_name"))
+    if has_imports == has_basin:
+        # Both halves (→ forecasting) or neither (→ normal slot elicitation):
+        # not a single-half ambiguity.
+        return None
+    if _prose_signals_narrower_intent(prose) or _prose_signals_forecasting(prose):
+        return None
+    return "imports" if has_imports else "basin"
+
+
+def intent_disambiguation_question(which: str) -> str:
+    """Fixed, deterministic either/or question for an ambiguous intent.
+
+    Deliberately not LLM-composed: the disambiguation must not drift.
+    """
+    if which == "basin":
+        return (
+            "You've described a basin model but no data imports. Should I set "
+            "up (a) just the basin model, or (b) a full forecasting project "
+            "(I'll also wire in NWP imports)? Reply 'a' / 'model only', or "
+            "'b' / 'forecasting'."
+        )
+    return (
+        "You've described a data import but no model. Should I set up (a) just "
+        "the data imports, or (b) a full forecasting project (I'll also need a "
+        "basin + model adapter like raven/wflow)? Reply 'a' / 'imports only', "
+        "or 'b' / 'forecasting'."
+    )
+
+
+# Free-form answer phrasings, checked after the bare 'a'/'b' shorthands.
+_DISAMBIG_IMPORT_ANSWERS: tuple[str, ...] = (
+    "imports only", "import only", "just imports", "just the imports",
+    "just import", "data import", "data only", "data ingestion",
+    "no model", "no basin",
+)
+_DISAMBIG_BASIN_ANSWERS: tuple[str, ...] = (
+    "model only", "basin only", "just the model", "just the basin",
+    "just model", "no imports", "no nwp",
+)
+_DISAMBIG_FORECAST_ANSWERS: tuple[str, ...] = (
+    "forecast", "full project", "the full", "everything",
+    "whole thing", "both", "complete",
+)
+
+
+def parse_intent_disambiguation_answer(text: str) -> str | None:
+    """Map a free-form answer to the disambiguation question onto an intent.
+
+    Handles 'a'/'b' shorthands (with optional punctuation / "option ")
+    and natural phrasings. Returns the intent name, or ``None`` when the
+    answer is not a clear choice (the caller then re-asks).
+    """
+    lower = (text or "").strip().lower()
+    if not lower:
+        return None
+    # Bare a/b shorthands: "a", "a)", "(a)", "a.", "option a".
+    norm = lower.replace("option ", "").strip(".)( ")
+    if norm == "a":
+        return "build_data_import_only"
+    if norm == "b":
+        return "build_forecasting_project"
+    # Natural phrasings (order: import → basin → forecast).
+    if any(p in lower for p in _DISAMBIG_IMPORT_ANSWERS):
+        return "build_data_import_only"
+    if any(p in lower for p in _DISAMBIG_BASIN_ANSWERS):
+        return "build_basin_model_only"
+    if any(p in lower for p in _DISAMBIG_FORECAST_ANSWERS):
+        return "build_forecasting_project"
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -1457,6 +1874,7 @@ def compose_reply(
     new_patterns: list[str],
     input_status: dict[str, Any] | None = None,
     warnings: list[str] | None = None,
+    recent_edit: str | None = None,
     provider: OllamaProvider | None = None,
     model: str = "qwen2.5:7b-instruct",
 ) -> str:
@@ -1570,10 +1988,18 @@ def compose_reply(
 
     system = (
         "You are a helpful assistant guiding a configurator through "
-        "authoring a Delft-FEWS project. The deterministic engine has "
-        "ALREADY updated state — your only job is to PHRASE a natural "
-        "reply. You CANNOT change state; anything you write is just "
-        "acknowledgment, questions, or suggestions.\n"
+        "authoring a Delft-FEWS project ONE MODULE AT A TIME (an import, "
+        "a basin model, a visualization) — not by generating the whole "
+        "project in one shot. The configurator can edit the in-progress "
+        "project mid-chat: add a module, remove a module, or change a "
+        "variable (e.g. grid resolution, forecast horizon), either with "
+        "slash commands (/add, /remove, /set, /build, /list) or in plain "
+        "language ('also drop RDPS', 'make GFS half-degree').\n"
+        "The deterministic engine has ALREADY applied any such edit and "
+        "updated state before you reply — your job is to PHRASE a natural "
+        "reply. You do not mutate state yourself; you acknowledge what the "
+        "engine already did, ask the next question, or suggest a next "
+        "step.\n"
         "\n"
         "ANTI-FABRICATION RULE — read carefully:\n"
         "Only reference values that appear under KNOWN. Treat values "
@@ -1589,25 +2015,28 @@ def compose_reply(
         "Good reply: 'Got it — Mackenzie basin. Which hydrological "
         "model adapter does it use (raven, wflow, hbv96)?'\n"
         "\n"
-        "ANTI-FABRICATED-ACTION RULE — equally important:\n"
-        "You have NO ability to perform actions for the user. The "
-        "engine — not you — is what mutates state. You can only "
-        "acknowledge, ask, or suggest. NEVER offer to do something on "
-        "the user's behalf with phrases like 'Would you like me to "
-        "add…?', 'Shall I include…?', 'Want me to remove…?'. If the "
-        "user says 'yes' to such a phantom offer, nothing will happen "
-        "and the user will be confused. The only yes/no flow that is "
-        "actually wired up is the engine-proposed pattern-removal "
-        "confirmation (which appears in Engine notes — you don't "
-        "invent it). For everything else, instruct the user how to "
-        "phrase their own next message instead of asking permission.\n"
+        "ACTIONS — offers vs. completed edits (read carefully):\n"
+        "You do NOT mutate state yourself, and you must NEVER make a "
+        "phantom OFFER that waits on a 'yes' — phrases like 'Would you "
+        "like me to add…?', 'Shall I include…?', 'Want me to remove…?'. "
+        "If the user said 'yes' to such an offer, nothing would happen "
+        "and they'd be confused. The only engine-wired yes/no flow is a "
+        "pattern-removal proposal that appears in Engine notes (you "
+        "don't invent it).\n"
+        "BUT: when a RECENT EDIT line is present below, the engine has "
+        "ALREADY performed that edit this turn — acknowledge it as DONE, "
+        "in the past tense ('Removed RDPS', 'Set GFS to half-degree'), "
+        "and never re-offer it. When the user wants a change that has "
+        "NOT happened, don't ask permission — tell them the exact "
+        "phrasing to use ('say \"also drop RDPS\"', 'say \"make GFS "
+        "half-degree\"', or use /remove, /set).\n"
         "\n"
-        "Bad reply (fabricated action): 'The Snare basin hasn't been "
-        "added yet. Would you like me to add it now?' (the engine "
-        "won't add anything on 'yes')\n"
-        "Good reply: 'The Snare basin isn't in the project yet. To "
-        "add it, say something like: \"also add the Snare basin using "
-        "raven\".'\n"
+        "Bad (phantom offer): 'Would you like me to add the Snare "
+        "basin?' (nothing happens on 'yes')\n"
+        "Good (not yet done): 'Snare isn't in the project yet — to add "
+        "it, say \"also add the Snare basin using raven\".'\n"
+        "Good (RECENT EDIT confirms it): 'Done — removed RDPS. Build "
+        "the next import with /build <name>, or keep adding modules.'\n"
         "\n"
         "RULES:\n"
         "1) Reply in 1-3 sentences. Plain English. No JSON, no "
@@ -1632,20 +2061,26 @@ def compose_reply(
         "   MUST mention each one verbatim or paraphrased, and ask the "
         "   user to confirm, correct, or 'continue anyway'. Never bury "
         "   a warning. Never silently accept inputs that are flagged.\n"
-        "8) NEVER offer to perform an action ('Want me to…?', "
-        "   'Shall I…?', 'Would you like me to add/remove/change…?'). "
-        "   You cannot mutate state. If the user wants a change, tell "
-        "   them how to phrase it themselves on the next turn. The "
-        "   ONLY exception is when Engine notes contain an explicit "
-        "   pattern-removal proposal — then yes/no IS wired.\n"
+        "8) Don't make a phantom OFFER that waits on a 'yes' "
+        "   ('Want me to…?', 'Shall I…?'). Two allowed moves instead: "
+        "   (a) if a RECENT EDIT line is present, acknowledge that edit "
+        "   as already DONE (past tense); (b) for a change the user "
+        "   hasn't requested yet, tell them the exact phrasing or slash "
+        "   command to use. The only engine-wired yes/no is a "
+        "   pattern-removal proposal in Engine notes.\n"
         "9) NEVER ask whether to add/include something that is "
         "   ALREADY in KNOWN. If a basin or import appears under "
         "   'Basins already in project' or 'Imports already in "
         "   project', it is DONE — do not ask 'should I also add "
-        "   X?' or 'do you want to add X?'. The engine has already "
-        "   added it. Move on to next_question or, if ready, "
-        "   encourage 'done'.\n"
-        "10) Output JSON {\"reply\": \"...\"}, nothing else."
+        "   X?'. The engine already added it. You MAY, however, "
+        "   suggest how to remove or change it ('to drop it, say "
+        "   \"remove X\"').\n"
+        "10) STEPWISE: after acknowledging, nudge toward ONE concrete "
+        "   next step — build the module just configured (/build "
+        "   <name>), add the next module, or (if ready) 'done' to "
+        "   assemble. Prefer one small module over pushing the whole "
+        "   project at once.\n"
+        "11) Output JSON {\"reply\": \"...\"}, nothing else."
     )
 
     warnings_text = ""
@@ -1653,6 +2088,13 @@ def compose_reply(
         warnings_text = "\nWARNINGS (must be surfaced in the reply):\n" + "\n".join(
             f"  - {w}" for w in warnings
         ) + "\n"
+
+    recent_edit_text = ""
+    if recent_edit:
+        recent_edit_text = (
+            f"\nRECENT EDIT (engine ALREADY applied this — acknowledge as "
+            f"DONE, past tense; do NOT re-offer it):\n  {recent_edit}\n"
+        )
 
     user = (
         f"User just said: {user_message!r}\n"
@@ -1662,6 +2104,7 @@ def compose_reply(
         f"UNKNOWN (empty slots — DO NOT mention values for these): "
         f"{unknown_text}\n"
         f"{warnings_text}"
+        f"{recent_edit_text}"
         f"\n"
         f"New patterns added this turn: {new_pat_text}\n"
         f"Engine notes: {'; '.join(notes) or '(none)'}\n"
@@ -2629,7 +3072,10 @@ __all__ = [
     "extract_skills",
     "fill_slots_from_text",
     "heuristic_intent_from_slots",
+    "intent_disambiguation_needed",
+    "intent_disambiguation_question",
     "is_intent_ready",
+    "parse_intent_disambiguation_answer",
     "lookup_concept",
     "next_unfilled_question",
     "scan_inputs",

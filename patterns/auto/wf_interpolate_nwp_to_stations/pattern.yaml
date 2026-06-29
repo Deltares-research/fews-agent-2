@@ -1,0 +1,108 @@
+name: wf_interpolate_nwp_to_stations
+description: >-
+  Interpolate an imported NWP grid to point (station) locations so the gridded
+  field lands as scalar time series in the Data Viewer. Emits a self-contained
+  spatial-interpolation transformation module (one grid->station pair per
+  parameter) plus the workflow that runs it. Unlike the basin patterns'
+  PostprocessModelOutputToStationTemplate (whose gridded input comes from the
+  *same* model-run module instance), this reads the grid from the upstream
+  Import<nwp> module instance, so it works in a no-basin import-only project.
+  Closes the "interpolate" leg of the import -> interpolate -> visualize path.
+variables:
+  # The gridded source to interpolate. Drives the input moduleInstanceId
+  # (Import<nwp_name>), the grid locationId (<nwp_name>, which a bare
+  # nwp_grid_* import registers), and the module/workflow filenames. Match
+  # this to an import pattern's nwp_name.
+  nwp_name:
+    type: str
+    required: true
+  # Which parameters to interpolate — one grid->station transform each. Each
+  # entry needs `id` (a FEWS parameterId); `unit` is accepted but unused.
+  # Default mirrors the NWP import default (precip + temperature).
+  parameters:
+    type: list
+    required: false
+    default:
+      - id: PC.nwp
+      - id: TA.nwp
+  # The LocationSet of interpolation targets (the station points). Populated
+  # from the configurator's locations.csv at final assembly (Slice B); until
+  # then it resolves to an id-only LocationSets stub. The interpolation reads
+  # the closest grid cell to each station in this set.
+  station_locationset_id:
+    type: str
+    required: false
+    default: InterpolationStations
+  # Grid time step (hours) — matches the import's timeStep multiplier. Uses
+  # the inline unit/multiplier form so no declared timeStep id is required.
+  time_step_hours:
+    type: int
+    required: false
+    default: 3
+  # FEWS timeSeriesType for the series. Forecast grids are
+  # "external forecasting"; observed/analysis grids "external historical".
+  time_series_type:
+    type: str
+    required: false
+    default: external forecasting
+  # GeoDatum used to measure grid<->station distance for the nearest-cell
+  # pick. Match the project's Locations geoDatum.
+  geo_datum:
+    type: str
+    required: false
+    default: WGS 1984
+outputs:
+# 1) The spatial-interpolation transformation module. Concrete (no FEWS
+#    runtime placeholders): one Grid_<param> input + Station_<param> output +
+#    a closestDistance transform per parameter.
+- schema: TransformationModule
+  output: ModuleConfigFiles/Interpolate/Interpolate{{ nwp_name }}ToStations.xml
+  data:
+    version: '1.0'
+    variable:
+{% for p in parameters %}
+    - variableId: Grid_{{ p.id | replace('.', '_') }}
+      timeSeriesSet:
+        moduleInstanceId: Import{{ nwp_name }}
+        valueType: grid
+        parameterId: {{ p.id }}
+        locationId: {{ nwp_name }}
+        timeSeriesType: {{ time_series_type }}
+        timeStep:
+          unit: hour
+          multiplier: {{ time_step_hours }}
+        readWriteMode: read complete forecast
+    - variableId: Station_{{ p.id | replace('.', '_') }}
+      timeSeriesSet:
+        moduleInstanceId: Interpolate{{ nwp_name }}ToStations
+        valueType: scalar
+        parameterId: {{ p.id }}
+        locationSetId: {{ station_locationset_id }}
+        timeSeriesType: {{ time_series_type }}
+        timeStep:
+          unit: hour
+          multiplier: {{ time_step_hours }}
+        readWriteMode: add originals
+{% endfor %}
+    transformation:
+{% for p in parameters %}
+    - id: interpolate_{{ p.id | replace('.', '_') }}
+      body:
+        interpolationSpatial:
+          closestDistance:
+            inputVariable:
+              variableId: Grid_{{ p.id | replace('.', '_') }}
+            distanceGeoDatum: {{ geo_datum }}
+            outputVariable:
+              variableId: Station_{{ p.id | replace('.', '_') }}
+{% endfor %}
+# 2) The workflow that runs the interpolation module (one activity).
+- schema: Workflow
+  output: WorkflowFiles/Interpolate/Interpolate{{ nwp_name }}ToStations.xml
+  data:
+    version: '1.1'
+    activity:
+    - runIndependent: true
+      moduleInstanceId: Interpolate{{ nwp_name }}ToStations
+      moduleConfigFileName: Interpolate{{ nwp_name }}ToStations
+contributions: []

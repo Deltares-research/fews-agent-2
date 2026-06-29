@@ -1,0 +1,88 @@
+name: spatial_display_grid
+description: >-
+  Visualize an imported gridded source in the FEWS Spatial Display. Emits a
+  standalone display config (a <gridDisplay> root) with one gridPlot per
+  parameter, pointing at the source's Import module instance. This is the
+  `visualize` phase's first-class pattern — it closes the "import +
+  interpolate + visualize" gap by making visualization an explicit module the
+  configurator adds, rather than a side-effect of an import pattern.
+variables:
+  # The gridded source to visualize. Used three ways:
+  #   - locationId on each timeSeriesSet (grids register as locations)
+  #   - moduleInstanceId = Import<source_name> (the import that produced it)
+  #   - the gridPlotGroup label and output filename
+  # Match this to an import pattern's nwp_name / source_name so the
+  # moduleInstanceId/locationId resolve at final assembly.
+  source_name:
+    type: str
+    required: true
+  # Which parameters to show — one gridPlot each. Each entry needs `id`
+  # (a FEWS parameterId); `unit` is accepted but unused here. Default
+  # mirrors the NWP import default (precip + temperature) so a bare
+  # instance produces a sensible two-panel display.
+  parameters:
+    type: list
+    required: false
+    default:
+      - id: PC.nwp
+      - id: TA.nwp
+  # Forecast window in hours. When set (e.g. 168 for a 7-day forecast),
+  # each plot emits a relativeViewPeriod so it shows just that window;
+  # when unset, the plot reads the whole available forecast.
+  forecast_horizon_hours:
+    type: int
+    required: false
+    default: null
+  # Grid time step (hours) — matches the import's timeStep multiplier.
+  time_step_hours:
+    type: int
+    required: false
+    default: 3
+  # FEWS timeSeriesType for the displayed series. Forecast grids are
+  # "external forecasting"; observed/analysis grids are "external
+  # historical".
+  time_series_type:
+    type: str
+    required: false
+    default: external forecasting
+outputs:
+# Authored via the SpatialDisplay generic-body path (root element is
+# <gridDisplay>, same as SpatialDisplay.xml). Written to a per-source
+# filename so multiple visualize instances never silently overwrite each
+# other; the configurator can consolidate into SpatialDisplay.xml later.
+- schema: SpatialDisplay
+  output: DisplayConfigFiles/GridDisplay_{{ source_name }}.xml
+  data:
+    body:
+    - title: '{{ source_name }} Grids'
+    - gridPlotGroup:
+        '@id': {{ source_name }}_Forecast
+        '@name': '{{ source_name }} Forecast'
+        gridPlot:
+{% for p in parameters %}
+        - '@id': '{{ source_name }}_{{ p.id }}'
+          '@name': '{{ p.id }}'
+          timeSeriesSet:
+            moduleInstanceId: Import{{ source_name }}
+            valueType: grid
+            parameterId: {{ p.id }}
+            locationId: {{ source_name }}
+            timeSeriesType: {{ time_series_type }}
+            timeStep:
+              '@unit': hour
+              '@multiplier': '{{ time_step_hours }}'
+{% if forecast_horizon_hours %}
+            relativeViewPeriod:
+              '@unit': hour
+              '@start': '0'
+              '@end': '{{ forecast_horizon_hours }}'
+{% endif %}
+            readWriteMode: read complete forecast
+          showThumbnailsPanel: 'true'
+          numberOfRecentForecasts: '3'
+{% if p.id.startswith('PC') %}
+          classBreaksId: Class.Precipitation
+{% elif p.id.startswith('TA') %}
+          classBreaksId: Class.Temperature
+{% endif %}
+{% endfor %}

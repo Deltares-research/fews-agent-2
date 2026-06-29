@@ -55,8 +55,10 @@ from rich.panel import Panel
 from rich.table import Table
 
 from fews_agent.agent.blueprint import (
-    expand, load_blueprint, merge_contributions, write_output,
+    Blueprint, PatternRef, expand, load_blueprint, merge_contributions,
+    write_output,
 )
+from fews_agent.agent.phases import PHASE_LABELS, classify_phase
 from fews_agent.agent.csv_ingest import IngestResult, ingest_directory
 from fews_agent.agent.descriptor_derivation import derive_descriptor_singletons
 from fews_agent.agent.filter_drafter import (
@@ -1139,17 +1141,59 @@ def build_from_blueprint(
                         pattern="(auto-locsets)",
                         instance_label="locationSetsFile",
                     ))
-                    n_stubs = len(ls_data.get("body", []))
-                    console.print(
-                        f"[yellow]Auto-stubbed LocationSets: {n_stubs} "
-                        f"id-only stub(s) — configurator must fill csv/"
-                        f"shapefile backing[/yellow]"
+                    body = ls_data.get("body", [])
+                    n_total = len(body)
+                    n_populated = sum(
+                        1 for e in body
+                        if e.get("locationSet", {}).get("locationId")
                     )
+                    n_stubs = n_total - n_populated
+                    if n_populated:
+                        console.print(
+                            f"[dim]Auto-derived LocationSets: {n_populated} "
+                            f"interpolation station set(s) populated from "
+                            f"Locations.xml"
+                            + (
+                                f", {n_stubs} id-only stub(s) for the "
+                                f"configurator to back"
+                                if n_stubs else ""
+                            )
+                            + "[/dim]"
+                        )
+                    else:
+                        console.print(
+                            f"[yellow]Auto-stubbed LocationSets: {n_stubs} "
+                            f"id-only stub(s) — configurator must fill csv/"
+                            f"shapefile backing[/yellow]"
+                        )
                 except Exception as exc:  # noqa: BLE001
                     console.print(
                         f"[yellow]LocationSets stub invalid: "
                         f"{type(exc).__name__}: {str(exc)[:120]}[/yellow]"
                     )
+
+    # Loud failure: an interpolation that writes to a station set with no
+    # backing produces no point time series. This usually means
+    # locations.csv (the interpolation targets) wasn't provided. Warn
+    # rather than ship a silently inert interpolation. Runs independent of
+    # the deriver above, so it also catches a user-provided LocationSets
+    # yaml that left an interpolation set as a bare stub.
+    from fews_agent.agent.locationsets_derivation import (
+        unbacked_interpolation_station_sets,
+    )
+    _unbacked = unbacked_interpolation_station_sets(result.rendered_files)
+    if _unbacked:
+        _sets = ", ".join(sorted(_unbacked))
+        console.print(Panel(
+            f"Interpolation writes to locationSet(s) {_sets}, but they have "
+            f"no backing data (empty id-only stubs). The interpolation will "
+            f"produce no point time series until they are populated.\n"
+            f"Fix: provide a locations.csv (the station targets) in inputs/, "
+            f"or back the set with a csvFile / esriShapeFile in a "
+            f"locationSetsFile.yaml.",
+            title="Warning: interpolation has no station targets",
+            border_style="yellow",
+        ))
 
     # Auto-derive descriptor singletons from rendered XMLs. Only fires
     # for descriptor specs that aren't already produced by patterns or
@@ -1330,6 +1374,11 @@ def build_from_blueprint(
         # file missing) from "XSD validation failed" (file present,
         # xsd_ok=False).
         "errors": list(result.errors),
+        # Interpolation station sets left unbacked (no locations.csv / no
+        # csvFile backing) — the interpolation resolves to nothing. Empty
+        # list is the healthy case. Lets the chat `done` path re-surface
+        # the warning to the configurator.
+        "unbacked_interpolation_sets": sorted(_unbacked),
         "byte_equivalent_vs_tutorial": (
             f"{n_byte_eq}/{n_compared}" if diff_against else None
         ),
@@ -1341,6 +1390,271 @@ def build_from_blueprint(
         json.dumps(summary, indent=2, default=str), encoding="utf-8"
     )
     return summary
+
+
+def build_phase(
+    blueprint_path: Path,
+    pattern_root: Path,
+    phase: str,
+    *,
+    console: Console | None = None,
+) -> dict:
+    """Render + XSD-validate ONLY the patterns belonging to one phase.
+
+    This is the per-module (capability-group) build used by the guided
+    flow. It deliberately does NOT run the singleton merge, bundled
+    standards, derivers, or the semantic cross-reference check — those
+    need the whole project and belong to final assembly (``done`` →
+    :func:`build_from_blueprint`). Here we render just this phase's
+    pattern outputs into the shared output tree and confirm each file is
+    XSD-valid, so the user sees concrete, valid files for one capability
+    before moving on.
+
+    Files accumulate in the same ``output_root`` across phase builds.
+    """
+    if console is None:
+        console = Console()
+
+    bp = load_blueprint(blueprint_path, pattern_root)
+    output_root = (blueprint_path.parent / bp.output_root).resolve()
+    output_root.mkdir(parents=True, exist_ok=True)
+
+    phase_patterns = [
+        p for p in bp.patterns if classify_phase(p.pattern) == phase
+    ]
+
+    console.print(Panel(
+        f"[bold]Phase:[/bold] {phase} — {PHASE_LABELS.get(phase, '')}\n"
+        f"[dim]blueprint: {bp.name}[/dim]\n"
+        f"[dim]output: {output_root}[/dim]\n"
+        f"[bold]{len(phase_patterns)}[/bold] pattern(s) in this phase",
+        border_style="cyan",
+    ))
+
+    if not phase_patterns:
+        console.print(
+            f"[yellow]No patterns resolved for phase '{phase}'. "
+            f"Nothing to build yet.[/yellow]"
+        )
+        return {
+            "ok": True, "phase": phase, "files_total": 0,
+            "files_xsd_ok": 0, "errors": [],
+        }
+
+    sub_bp = Blueprint(
+        name=f"{bp.name} [{phase}]",
+        output_root=bp.output_root,
+        patterns=phase_patterns,
+        singleton_seeds=bp.singleton_seeds,
+    )
+    result = expand(sub_bp, pattern_root)
+    if result.errors:
+        for err in result.errors:
+            console.print(f"[red]error:[/red] {err}")
+        return {
+            "ok": False, "phase": phase, "files_total": 0,
+            "files_xsd_ok": 0, "errors": list(result.errors),
+        }
+
+    manifest = write_output(result, output_root)
+
+    table = Table(
+        title=f"Phase '{phase}' — files ({len(manifest['written'])})",
+        show_lines=False,
+    )
+    table.add_column("file", overflow="fold")
+    table.add_column("pattern")
+    table.add_column("instance")
+    table.add_column("xsd", justify="center")
+
+    n_xsd_ok = 0
+    n_non_xml = 0
+    files_report = []
+    for entry in manifest["written"]:
+        file_path = output_root / entry["path"]
+        data = file_path.read_bytes()
+        if not entry["path"].lower().endswith(".xml"):
+            xsd_ok, xsd_msg = True, "(not XML)"
+            n_non_xml += 1
+        else:
+            xsd_ok, xsd_msg = validate_xsd(data)
+            if xsd_ok:
+                n_xsd_ok += 1
+        table.add_row(
+            entry["path"],
+            entry["pattern"].split("/")[-1],
+            entry["instance"],
+            "[green]OK[/green]" if xsd_ok else "[red]FAIL[/red]",
+        )
+        files_report.append(
+            {"path": entry["path"], "xsd_ok": xsd_ok, "xsd_msg": xsd_msg}
+        )
+
+    console.print(table)
+    n_xml = len(manifest["written"]) - n_non_xml
+    ok = n_xsd_ok == n_xml and not result.errors
+    border = "green" if ok else "yellow"
+    console.print(Panel(
+        f"[bold]Phase '{phase}' built:[/bold] "
+        f"{len(manifest['written'])} file(s), "
+        f"XSD-valid {n_xsd_ok}/{n_xml}"
+        + (f" (+{n_non_xml} non-XML)" if n_non_xml else "")
+        + "\n[dim]Cross-file references are checked at final assembly "
+          "(done).[/dim]",
+        title="Phase complete", border_style=border,
+    ))
+    return {
+        "ok": ok,
+        "phase": phase,
+        "files_total": len(manifest["written"]),
+        "files_xml": n_xml,
+        "files_xsd_ok": n_xsd_ok,
+        "errors": list(result.errors),
+        "files": files_report,
+    }
+
+
+def _instance_matches(inst: dict, match: dict | None) -> bool:
+    """True if every key/value in ``match`` is present and equal in ``inst``.
+
+    ``match`` is a label-only dict (e.g. ``{"nwp_name": "GFS"}``) so a
+    single module can be selected out of a pattern that has several
+    instances. ``None`` matches everything.
+    """
+    if not match:
+        return True
+    return all(inst.get(k) == v for k, v in match.items())
+
+
+def build_module(
+    blueprint_path: Path,
+    pattern_root: Path,
+    pattern: str,
+    instance_match: dict | None = None,
+    *,
+    console: Console | None = None,
+) -> dict:
+    """Render + XSD-validate ONE module — a single pattern, optionally a
+    single instance within it.
+
+    The per-import (finest) granularity of the guided flow: build just
+    "the GFS import" rather than the whole imports phase. Like
+    :func:`build_phase`, it skips the singleton merge, bundled standards,
+    derivers, and the semantic cross-reference check — those belong to
+    final assembly (``done``). Files accumulate in the shared
+    ``output_root`` alongside any other phase/module builds.
+    """
+    if console is None:
+        console = Console()
+
+    bp = load_blueprint(blueprint_path, pattern_root)
+    output_root = (blueprint_path.parent / bp.output_root).resolve()
+    output_root.mkdir(parents=True, exist_ok=True)
+
+    matched: list[PatternRef] = []
+    for p in bp.patterns:
+        if p.pattern != pattern:
+            continue
+        insts = [i for i in p.instances if _instance_matches(i, instance_match)]
+        if insts:
+            matched.append(PatternRef(pattern=p.pattern, instances=insts))
+
+    label = pattern.rsplit("/", 1)[-1]
+    if instance_match:
+        label += " " + ", ".join(f"{k}={v}" for k, v in instance_match.items())
+
+    console.print(Panel(
+        f"[bold]Module:[/bold] {label}\n"
+        f"[dim]blueprint: {bp.name}[/dim]\n"
+        f"[dim]output: {output_root}[/dim]\n"
+        f"[bold]{sum(len(m.instances) for m in matched)}[/bold] "
+        f"instance(s) to build",
+        border_style="cyan",
+    ))
+
+    if not matched:
+        console.print(
+            f"[yellow]No instance of '{pattern}'"
+            + (f" matching {instance_match}" if instance_match else "")
+            + " is in the project. Nothing to build.[/yellow]"
+        )
+        return {
+            "ok": False, "module": pattern, "files_total": 0,
+            "files_xsd_ok": 0, "errors": ["no matching instance"],
+        }
+
+    sub_bp = Blueprint(
+        name=f"{bp.name} [{label}]",
+        output_root=bp.output_root,
+        patterns=matched,
+        singleton_seeds=bp.singleton_seeds,
+    )
+    result = expand(sub_bp, pattern_root)
+    if result.errors:
+        for err in result.errors:
+            console.print(f"[red]error:[/red] {err}")
+        return {
+            "ok": False, "module": pattern, "files_total": 0,
+            "files_xsd_ok": 0, "errors": list(result.errors),
+        }
+
+    manifest = write_output(result, output_root)
+
+    table = Table(
+        title=f"Module '{label}' — files ({len(manifest['written'])})",
+        show_lines=False,
+    )
+    table.add_column("file", overflow="fold")
+    table.add_column("pattern")
+    table.add_column("instance")
+    table.add_column("xsd", justify="center")
+
+    n_xsd_ok = 0
+    n_non_xml = 0
+    files_report = []
+    for entry in manifest["written"]:
+        file_path = output_root / entry["path"]
+        data = file_path.read_bytes()
+        if not entry["path"].lower().endswith(".xml"):
+            xsd_ok, xsd_msg = True, "(not XML)"
+            n_non_xml += 1
+        else:
+            xsd_ok, xsd_msg = validate_xsd(data)
+            if xsd_ok:
+                n_xsd_ok += 1
+        table.add_row(
+            entry["path"],
+            entry["pattern"].split("/")[-1],
+            entry["instance"],
+            "[green]OK[/green]" if xsd_ok else "[red]FAIL[/red]",
+        )
+        files_report.append(
+            {"path": entry["path"], "xsd_ok": xsd_ok, "xsd_msg": xsd_msg}
+        )
+
+    console.print(table)
+    n_xml = len(manifest["written"]) - n_non_xml
+    ok = n_xsd_ok == n_xml and not result.errors
+    border = "green" if ok else "yellow"
+    console.print(Panel(
+        f"[bold]Module '{label}' built:[/bold] "
+        f"{len(manifest['written'])} file(s), "
+        f"XSD-valid {n_xsd_ok}/{n_xml}"
+        + (f" (+{n_non_xml} non-XML)" if n_non_xml else "")
+        + "\n[dim]Cross-file references are checked at final assembly "
+          "(done).[/dim]",
+        title="Module complete", border_style=border,
+    ))
+    return {
+        "ok": ok,
+        "module": pattern,
+        "instance_match": instance_match,
+        "files_total": len(manifest["written"]),
+        "files_xml": n_xml,
+        "files_xsd_ok": n_xsd_ok,
+        "errors": list(result.errors),
+        "files": files_report,
+    }
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -1363,9 +1677,54 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         help="Optional dir to compare against (e.g. examples/config-tutorial).",
     )
+    parser.add_argument(
+        "--phase",
+        default=None,
+        help=(
+            "Build only one capability group (imports / process / model / "
+            "visualize) instead of the whole project. Renders + XSD-"
+            "validates just that phase's pattern outputs."
+        ),
+    )
+    parser.add_argument(
+        "--module",
+        default=None,
+        help=(
+            "Build only one pattern (e.g. auto/nwp_grid_noaa) instead of the "
+            "whole project — finer than --phase. Optionally narrow to a "
+            "single instance with --instance-match 'nwp_name=GFS'."
+        ),
+    )
+    parser.add_argument(
+        "--instance-match",
+        default=None,
+        help=(
+            "With --module, select one instance via 'key=value' (e.g. "
+            "'nwp_name=GFS'). Omit to build all instances of the pattern."
+        ),
+    )
     args = parser.parse_args(argv)
 
     blueprint_path = Path(args.blueprint).resolve()
+    if args.module:
+        match: dict | None = None
+        if args.instance_match and "=" in args.instance_match:
+            k, _, v = args.instance_match.partition("=")
+            match = {k.strip(): v.strip()}
+        summary = build_module(
+            blueprint_path=blueprint_path,
+            pattern_root=Path(args.pattern_root).resolve(),
+            pattern=args.module,
+            instance_match=match,
+        )
+        return 0 if summary.get("ok") else 1
+    if args.phase:
+        summary = build_phase(
+            blueprint_path=blueprint_path,
+            pattern_root=Path(args.pattern_root).resolve(),
+            phase=args.phase,
+        )
+        return 0 if summary.get("ok") else 1
     # Auto-detect a sibling inputs/ directory if --inputs not specified.
     if args.inputs:
         inputs_dir: Path | None = Path(args.inputs).resolve()

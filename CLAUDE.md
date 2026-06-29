@@ -416,10 +416,15 @@ language conversation. The flow per turn:
    without overwriting explicit user-set values. Includes cross-turn
    promotion: if `basin_name` and `model_adapter` were filled in
    different turns, synthesise the canonical `basins` list slot.
-4. **Pattern resolution**: the active intent's `resolver` maps
+4. **Intent disambiguation gate** (deterministic; see below): when the
+   request names *exactly one* half (imports XOR basin model) with no
+   explicit narrowing/forecasting signal, ASK an either/or question and
+   short-circuit the turn instead of silently defaulting to the full
+   forecasting project.
+5. **Pattern resolution**: the active intent's `resolver` maps
    `(slots, catalog) → list of pattern instances`. Each intent owns
    its own resolver in `project_intents.py`.
-5. **LLM reply** (`compose_reply`): qwen2.5 phrases the user-facing
+6. **LLM reply** (`compose_reply`): qwen2.5 phrases the user-facing
    acknowledgment + question. The system prompt is hardened against
    fabrication: it gets a KNOWN/UNKNOWN slot split and a rule that
    values under UNKNOWN must not appear in the reply.
@@ -428,6 +433,65 @@ State persists under
 `projects/<project>/<project>_<datetime>/.chat_state.json`. Special commands:
 `done` writes the project.yaml (validates intent readiness first);
 `yes`/`no` confirm a proposed pattern removal.
+
+### Ask on ambiguous intent (Phase 3.5 gate)
+
+The default-to-forecasting bias used to silently promote a single-half
+request (e.g. "import GFS grids", no model) to the full forecasting
+project. The gate replaces that silent default with a question — the
+agent refuses to guess when the intent is genuinely ambiguous.
+
+The taxonomy lives in `project_intents.py` (pure, unit-tested, no LLM):
+
+- **`intent_disambiguation_needed(prose, slots) → "imports" | "basin" |
+  None`.** Ambiguous only when *exactly one* half is present
+  (`imports` XOR `basins`/`basin_name`) AND the prose carries neither an
+  explicit narrowing signal (`_prose_signals_narrower_intent` —
+  "imports only", "no basin model", "data viewer", "interpolate to
+  stations", ...) nor a forecasting signal (`_prose_signals_forecasting`
+  — "full project", "forecasting", "end-to-end", ...). Both halves
+  (→ forecasting) or neither (→ normal slot elicitation) return `None`.
+- **`intent_disambiguation_question(which)`** — the fixed either/or text.
+  Deliberately **not** LLM-composed, so the disambiguation never drifts.
+- **`parse_intent_disambiguation_answer(text) → intent | None`** — maps
+  the reply onto an intent: bare `a`/`b` shorthands (with optional
+  punctuation / "option "), then natural phrasings ("imports only",
+  "the full project", ...). `None` when the answer isn't a clear choice.
+
+The wiring lives in `chat_step.py` as two pieces around the resolve step:
+
+- **Top answer-handler** (before command dispatch): when
+  `awaiting_intent_disambiguation` is set, this turn's message is the
+  answer. Parse it (falling back to `forced_intent_override`); on a
+  clear choice, commit `state["intent"]`, latch `intent_disambiguated`,
+  clear `state["patterns"]` (the resolver rebuilds from slots), and fall
+  through. An unclear answer just clears the awaiting flag and falls
+  through so the gate below re-evaluates against this turn's (possibly
+  fuller) slots.
+- **Phase 3.5 gate** (after slot-fill, before resolve): if not yet
+  `intent_disambiguated` and the request is ambiguous, ASK — append the
+  question to history, `_save`, print it, and `return 0` (no resolve, no
+  `compose_reply`). Re-asks are capped at `intent_disambiguation_asks`
+  >= 2, after which it falls back to `build_forecasting_project` with a
+  visible note rather than looping.
+
+State keys: `awaiting_intent_disambiguation`, `intent_disambiguated`
+(latch — once set, the gate never re-asks), `intent_disambiguation_asks`
+(re-ask counter), `intent_disambiguation_which`.
+
+**Why the question is deterministic, not LLM-composed:** disambiguation
+is a control-flow decision, not phrasing — drift here would change which
+patterns get built. The gate fires *before* `compose_reply`, so the
+elicitation LLM never sees the ambiguous turn.
+
+Existing fixtures are unaffected: their turn-1 prose all carries a
+narrowing signal, a forecasting signal, or both halves (a parametrized
+regression in `tests/test_intent_disambiguation.py` pins this, since the
+`projects/` fixtures are gitignored and absent on a fresh clone). Tests:
+`tests/test_intent_disambiguation.py` (pure helpers + fixture-prose
+regression) and `tests/test_intent_disambiguation_turn.py` (the turn
+loop end-to-end with `classify_intent` / `compose_reply` stubbed — no
+Ollama).
 
 ### Adding a new skill
 
@@ -448,6 +512,203 @@ Three pieces:
    recommended CSVs, configurator-required yamls, and
    auto-generated yamls. The reply LLM uses this to know what to
    ask the user for and what NOT to ask for.
+
+## Module-by-module building (enforced flow)
+
+The agent does **not** build the whole project in one shot. It guides
+the configurator through one **capability group ("phase")** at a time:
+
+```
+imports  →  process  →  model  →  visualize
+```
+
+A phase is a coarse grouping of patterns by what the configurator is
+doing at that step. Each phase is rendered and XSD-validated on its own
+(just that phase's pattern outputs) so the user sees concrete, valid
+files for one capability before moving to the next. The full cross-file
+assembly (singleton merge, bundled standards, derivers, semantic
+cross-reference check) is deferred to **final assembly** (`done`).
+
+Pieces:
+
+- **`fews_agent/agent/phases.py`** — the phase taxonomy. `classify_phase`
+  (deterministic, name-based) maps a pattern path to a phase;
+  `PHASE_ORDER`, `phase_plan`, `next_unbuilt_phase`, `normalize_phase`.
+  This is the single source of truth for which pattern belongs to which
+  phase.
+- **`build_phase()`** in `runners/agent/build_from_blueprint.py` — the
+  scoped build. Renders + XSD-validates ONLY the patterns in one phase
+  into the shared output tree. Deliberately skips the singleton merge,
+  bundled standards, and derivers (those need the whole project). Also
+  exposed as `--phase imports|process|model|visualize` on the build CLI.
+- **Chat commands** (`chat_step.py`): `/phases` (show the plan with
+  built/ready marks), `/build <phase>` (build one phase), `/build`
+  (build the next unbuilt phase). `state["built_phases"]` tracks
+  progress; a deterministic next-phase nudge is appended after every
+  reply (not LLM-composed, so it never drifts).
+- **`done`** is still the full one-shot assembly via
+  `build_from_blueprint` — kept as the final step, framed as "assemble
+  the modules you've built" (singletons + derivers + cross-file check),
+  not "generate everything at once."
+
+When extending: a new pattern is auto-classified by `classify_phase`
+on its folder name — add a name rule there if a new capability shape
+doesn't fall into an existing phase. Do **not** reintroduce a path that
+silently resolves and builds every pattern at once.
+
+### The `visualize` phase pattern (`spatial_display_grid`)
+
+The `visualize` phase used to resolve empty for most projects — nothing
+emitted a standalone display config. `patterns/auto/spatial_display_grid/`
+is its first-class pattern. It makes "view the imported grids in the
+Spatial Display / Data Viewer" an explicit module the configurator adds,
+rather than a side-effect of an import pattern.
+
+- **Shape.** One `<gridDisplay>` root per gridded source, written to a
+  per-source filename `DisplayConfigFiles/GridDisplay_<source_name>.xml`
+  so multiple visualize instances never silently overwrite each other (and
+  never clobber a contribution-merged `SpatialDisplay.xml`). It emits one
+  `<gridPlot>` per requested parameter, each pointing at
+  `moduleInstanceId=Import<source_name>` / `locationId=<source_name>` —
+  the ids a bare `nwp_grid_*` import reliably registers.
+- **Variables.** `source_name` (required; match an import's `nwp_name`),
+  `parameters` (list of `{id}`; defaults to precip + temperature),
+  `forecast_horizon_hours` (optional → emits a `relativeViewPeriod` window
+  per plot), `time_step_hours` (default 3), `time_series_type` (default
+  `external forecasting`). `PC*` parameters get `classBreaksId
+  Class.Precipitation`, `TA*` get `Class.Temperature`.
+- **Generic-body, not typed.** It uses `schema: SpatialDisplay` (the
+  generic-body render path) **on purpose**: the typed `GridDisplay`
+  template hardcodes `<gridPlotGroup>` and `_dict_to_xml` drops root-level
+  `@`-keys, so the required `@id` on the group would be lost. The
+  SpatialDisplay path renders `@id` correctly. Root element is still
+  `<gridDisplay>`.
+- **How it gets resolved.** The `detect_wants_visualization` skill (in
+  `project_intents.py`) sets the `wants_visualization` slot from prose
+  ("visualize", "spatial display", "view the grids", "Data Viewer", ...).
+  Both `_resolve_forecasting_patterns` and
+  `_resolve_data_import_only_patterns` pass it to `_resolve_import_patterns`,
+  which appends one `spatial_display_grid` instance per `auto/nwp_grid_*`
+  import (carrying the selected `parameters` and `forecast_horizon_hours`).
+  Like `wants_interpolation`, `wants_visualization` is **not** in any
+  intent's `optional_slots` — it flows through chat_step's additive slot
+  merge.
+
+### The `interpolate` step (`wf_interpolate_nwp_to_stations`)
+
+The `process` phase's grid→point leg. It lands an imported NWP grid as
+**scalar point time series at station locations** so the data shows up in
+the Data Viewer — the missing middle of the *import → interpolate →
+visualize* path. `patterns/auto/wf_interpolate_nwp_to_stations/` is its
+pattern. Implemented in four slices (A–D) plus an ECCC widening; the
+full feature is summarised in the memory file
+`import-interpolate-visualize-feature.md`.
+
+- **Shape.** Two outputs per NWP source: a `TransformationModule`
+  (`ModuleConfigFiles/Interpolate/Interpolate<nwp>ToStations.xml`) with
+  one `Grid_<param>` input + `Station_<param>` output +
+  `interpolationSpatial/closestDistance` transform per parameter, and the
+  `Workflow` that runs it. Fully concrete — no FEWS `$PLACEHOLDER$`.
+- **The defining property.** The grid input reads from the **upstream
+  `Import<nwp>` instance** (`moduleInstanceId=Import<nwp>`,
+  `locationId=<nwp>`), *not* from a model-run instance like the basin
+  patterns' `PostprocessModelOutputToStationTemplate` does. That's what
+  makes interpolation work in a **no-basin import-only** project.
+- **Variables.** `nwp_name` (req), `parameters` (list of `{id}`; default
+  precip + temperature), `station_locationset_id` (default
+  `InterpolationStations`), `time_step_hours` (default 3),
+  `time_series_type` (default `external forecasting`), `geo_datum`
+  (default `WGS 1984`, used as the `closestDistance` distanceGeoDatum).
+- **How it gets resolved (Slice C).** `detect_wants_interpolation` sets
+  the `wants_interpolation` slot; `_resolve_import_patterns` emits one
+  instance per eligible NWP import. It emits **only** this pattern — the
+  old inert `tpl_postprocess_to_station` force-fit was dropped.
+  `classify_phase` routes `interpolate` names to the **process** phase.
+- **Which imports are eligible (`_INTERPOLATABLE_IMPORTS`).** A
+  per-source descriptor in `project_intents.py` records each import's
+  importable `parameters` and grid `time_step_hours`. The resolver
+  **intersects** the requested params with what the import actually
+  carries and reads at the import's **own timeStep** (HRDPS is hourly →
+  `multiplier=1`, not the 3-hour default; XSD won't catch a step
+  mismatch). Current set: `GFS` (parameterized, 3h), `HRDPS` (PC.nwp/
+  TA.nwp, 1h), `GDPS`/`RDPS` (PC.nwp/TA.nwp, 3h). **Excluded on
+  purpose:** `REPS` (ensemble grid — needs ensemble-aware interpolation),
+  `HRDPA`/`RDPA` (analysis precip as `PC.sim`, not the `.nwp` forecast
+  convention). A source carrying none of the requested params is skipped.
+- **Station targets come from `locations.csv` (Slice B).** The
+  `locationsets_derivation` deriver detects which set the interpolation
+  writes its scalar output to and backs **that** set with explicit
+  `<locationId>` membership pulled from the rendered `Locations.xml`
+  (the CSV-ingest output) — so the id auto-matches
+  `station_locationset_id` and the interpolation resolves against real
+  targets. Every other referenced set stays an id-only stub.
+- **Loud failure when targets are missing (Slice D).**
+  `unbacked_interpolation_station_sets` flags any interpolation set left
+  as a bare stub (usually because no `locations.csv` was provided); the
+  build prints a warning Panel and surfaces `unbacked_interpolation_sets`
+  in the build summary. The build still succeeds (XSD-valid) — it warns,
+  it doesn't abort.
+- **Tests / oracles.** `tests/test_interpolate_pattern.py` (pattern +
+  resolver), `tests/test_locationsets_deriv.py` (CSV-backed sets),
+  `tests/test_interpolation_e2e.py` (end-to-end XSD + semantic-by-parsing
+  for both GFS and HRDPS, plus the loud-failure path). These are the
+  durable oracle — the `projects/` interpolation fixtures are gitignored.
+
+### Module export (`/export <name>` — the closure walker)
+
+`done` + a full build emits a whole config (~30+ files). A configurator
+who wants **one module** — to drop into an existing config, or as a
+minimal standalone — needs the module plus exactly the files that
+declare what it references, and nothing else. `/export <name>` produces
+that. Implemented in `fews_agent/agent/module_export.py` (pure, I/O-free,
+unit-tested) and wired into `chat_step.py` as `_run_module_export`.
+
+- **What it does.** Builds the full project (so every declarer exists),
+  identifies the module's own rendered files (the *seeds*), then walks
+  **outgoing** id references — `parameterId`, `locationId`, `idMapId`,
+  `unitConversionsId`, ... — pulling in the files that *declare* those
+  ids, transitively. It stops at the chrome boundary: files that
+  reference *into* the module (Topology, Filters, DisplayGroups,
+  descriptors) are dependents, not dependencies, and are excluded.
+  Writes the subset + a `MANIFEST.md` to `generated/_export_<name>/`.
+- **Three buckets** (`compute_closure → ExportResult`): **needed** (the
+  module + dependency files it pulled in — a self-contained, XSD-valid
+  subset), **external** (refs no dependency file satisfied — a sibling
+  module's instance, or an id only declared in chrome; these become a
+  manifest "your target config must already declare these"), **chrome**
+  (everything excluded). A module's own `moduleInstanceId` is declared
+  by its config filename, so descriptors are never pulled in.
+- **Dependency trimming (`trim_dependency_files`).** The full build emits
+  `Parameters.xml` / `Grids.xml` / `LocationSets.xml` / `TimeSteps.xml`
+  whole — they carry entries beyond what one module references. The
+  exporter trims each to only the referenced entries via an
+  **entry-level closure**: it seeds from the refs carried by the
+  *non-trimmable* needed files (module + idMap + unitConversions), then
+  keeps only the declared entries those refs reach — **transitively**, so
+  a kept `locationSet` pulls in the sets it names. Unreferenced
+  `parameter` / grid / `locationSet` / `timeStep` entries are removed; a
+  `parameterGroup` left empty is dropped. Concretely, a GFS-only export's
+  `Grids.xml` loses the basin `$MODELNAME1$Grid` placeholder and keeps
+  just `locationId="GFS"`. **Empty-result safeguard** (same convention as
+  the build runner's idMap/grid trimmers): a file with nothing to drop,
+  or where trimming would remove *every* entry, is left whole. An **XSD
+  safety net** in the handler falls back to the full file if a trim would
+  produce invalid XML — never ship unvalidated output. The MANIFEST
+  labels each dep `_(trimmed to the referenced entries)_` vs
+  `_(emitted whole; every entry is referenced)_`.
+- **Why ElementTree, not the build-runner trimmers.** The build runner
+  trims the pre-render *yaml dicts* (`_filter_grids_content`,
+  `_filter_idmap_content`); the exporter works on already-rendered XML
+  strings, so it reuses the *principle* (keep referenced, safeguard
+  against emptying) but parses/re-serializes with ElementTree. The
+  default FEWS namespace is re-declared on re-serialization so a trimmed
+  file round-trips without ElementTree's `ns0:` prefixing.
+- **Tests / oracle.** `tests/test_module_export.py` — synthetic
+  `{relpath: content}` unit tests for the closure + trimming (parameter
+  trim + empty-group removal, grid placeholder drop, locationSet
+  transitivity, all-referenced omission, namespace preservation), plus
+  one integration test that runs the real GFS build and asserts the
+  trimmed `Grids.xml` drops the placeholder and still XSD-validates.
 
 ## Configurator inputs (what the user provides)
 
@@ -517,16 +778,70 @@ hold. Small-project: file count 29, XSD 28/28 + 1 non-XML must hold.
 
 ## Session pickup notes (resume from another laptop)
 
-Branch: **`build-pattern-agent`**. Last committed work: `a227062
-End-to-end configurator UX: /edit handlers, yaml starters, output
-relocation`. The HEAD commit gives a working end-to-end chat → build
-pipeline; everything below is layered on top.
+Branch: **`make-agent-stepwise`**. The chat → build pipeline works
+end-to-end; everything below is layered on top.
+
+**Most recent workstream (2026-06-18): import → interpolate → visualize.**
+The agent now handles a free-form "import a grid, interpolate it to my
+stations, visualize it" request end-to-end on the existing
+`build_data_import_only` intent — no new intent needed. Shipped as four
+slices (A–D) plus an ECCC widening, all with tests
+(`tests/test_interpolate_pattern.py`, `tests/test_locationsets_deriv.py`,
+`tests/test_interpolation_e2e.py`). The mechanics live under **"The
+`interpolate` step (`wf_interpolate_nwp_to_stations`)"** above; the
+one-paragraph version:
+
+- **A** — the interpolation pattern (grid→station `closestDistance` per
+  parameter + its workflow), reading the grid from the upstream
+  `Import<nwp>` instance so it works without a basin.
+- **C** — resolver wiring: emit only this pattern (dropped the inert
+  `tpl_postprocess_to_station`); route `interpolate` → `process` phase.
+- **B** — the LocationSets deriver auto-backs the interpolation's station
+  set from `locations.csv` (explicit `<locationId>` membership).
+- **D** — loud-failure guard (`unbacked_interpolation_sets`) when a
+  station set has no backing; end-to-end XSD + semantic-by-parsing oracle.
+- **ECCC widening** — `_INTERPOLATABLE_IMPORTS` adds HRDPS/GDPS/RDPS to
+  GFS, intersecting requested params with each import's fixed set and
+  reading at the import's own timeStep (HRDPS = 1h).
+
+Live-verified the full chat→resolve→build loop on the colleague prompt at
+`projects/interp-chat-verify/...` (gitignored): 1 turn → 4 patterns → 38
+files, 37/37 XSD-valid, station set populated. Full suite: **120 passing**
+(was 81 at the time of this workstream; +39 from intent disambiguation).
+
+**Prior workstream (2026-06-18): stepwise build + mid-chat edits.**
+The agent builds **one module at a time** and supports editing the
+in-progress project (add / remove a module, change a variable) via both
+slash commands and natural language. Shipped in four slices plus an
+intent fix, all committed with tests (`tests/test_stepwise_edits.py`,
+35 tests):
+
+- **Slice 1** — per-instance build (`build_module()` + `--module`); slash
+  edits `/add` `/remove` `/set` `/list` and `/build <name>`; slot mutators
+  `add_module`/`remove_module`/`set_variable` (edits mutate `slots`, never
+  `patterns`, because `_resolve_patterns` rebuilds patterns from slots
+  every turn).
+- **Slice 2** — `detect_edit_action` NL skill (verb-gated, positional cue
+  disambiguation, remove + scalar-override), wired as Phase 2.5 in
+  `chat_step.py` with re-add suppression.
+- **Slice 3** — `compose_reply` reoriented to one-module-at-a-time;
+  acknowledges completed edits past-tense (gated on a per-turn RECENT EDIT
+  line), keeps the anti-fabrication rules.
+- **Slice 4** — per-instance scoping for `grid_resolution` /
+  `forecast_horizon_hours` via `slots["import_overrides"]`; unnamed set
+  stays a project-wide default. Resolver applies override → project
+  fallback per instance.
+- **Turn-1 intent fix** — `forced_intent_override()` runs deterministically
+  on **every** turn, so "no basin model" yields `build_data_import_only`
+  on turn 1; an explicit "forecasting" request blocks greedy narrowing.
+
+The showcase fixture is
+`projects/stepwise-edit-demo/stepwise-edit-demo_2026-06-18_101706/`
+(documented under "Demo / experiment projects on disk").
 
 **Active context:** the user is prepping a presentation about this
-system. Most recent work clusters around (a) eliminating chat-agent
-false positives so the demos are clean, (b) building reference
-projects to show off each behaviour, and (c) clarifying the mental
-model for the audience. No active in-flight code change.
+system. The import→interpolate→visualize feature (above) is complete and
+verified across chat / resolve / build. No active in-flight code change.
 
 ### Mental model in 30 seconds
 
@@ -603,6 +918,16 @@ generic — nothing Gulf-of-Guinea-specific in the code.
   list no longer shadows the LLM). Phrases the parameter mapper
   can't translate surface as a user-visible warning via
   `unrecognised_data_types`.
+- **`wants_visualization`** — `detect_wants_visualization` matches
+  visualization prose ("visualize", "spatial display", "view/plot
+  the grids", "Data Viewer", ...). When true, the resolver appends one
+  `auto/spatial_display_grid` instance per `auto/nwp_grid_*` import,
+  carrying the selected `parameters` and `forecast_horizon_hours`. This
+  is what populates the `visualize` phase (see "The `visualize` phase
+  pattern" above). Like `wants_interpolation`, it returns `None` on no
+  match (not `False`) so a turn-1 miss doesn't shadow a later turn, and
+  it is not in any intent's `optional_slots` — it rides chat_step's
+  additive slot merge.
 
 The intent register also gained:
 - **Mid-conversation intent override** in `chat_step.py`: strong
@@ -671,7 +996,27 @@ behaviour you may want to inspect or rerun:
   and validates the mid-conversation intent override: turn 1
   misclassifies as `build_forecasting_project`; turn 2 ("Just data
   import, no basin model") re-classifies to `build_data_import_only`
-  and drops 16 stale template patterns. Same 36/35 build.
+  and drops 16 stale template patterns. Same 36/35 build. **Note:** the
+  turn-1 misclassification this fixture documents was later *fixed* (see
+  "Stepwise build + mid-chat edits" below) — `forced_intent_override`
+  now runs on turn 1, so a fresh run of this prompt classifies correctly
+  on the first turn.
+- **`projects/stepwise-edit-demo/stepwise-edit-demo_2026-06-18_101706/`**
+  — the showcase for the stepwise-build + mid-chat-edit work (Slices 1–4
+  + the turn-1 intent fix). 6 turns: (1) "NOAA GFS for the Gulf of Guinea,
+  precip+temp, visualize, no basin model" → correctly classifies
+  `build_data_import_only` on **turn 1**; (2) NL "also add an HRDPS
+  import"; (3) NL "make GFS a 7-day forecast" → per-import horizon=168;
+  (4) slash `/set HRDPS horizon 3-day` → per-import horizon=72; (5)
+  `/list` shows the two grids with **distinct** display windows; (6)
+  `done`. Builds to **40 files, 39/39 XSD + 1 non-XML**. The payoff is
+  verifiable in the rendered XML: `DisplayConfigFiles/GridDisplay_GFS.xml`
+  has `relativeViewPeriod end="168"`, `GridDisplay_HRDPS.xml` has
+  `end="72"`. Use this to demo add/remove/set edits and per-instance
+  scoping end-to-end. (Caveat: a couple of the qwen2.5 reply lines drift
+  — e.g. a fabricated "Mackenzie basin" mention on turn 3 — so cherry-pick
+  turns when presenting; the engine internals in `_conversation.md` are
+  correct.)
 
 None of these are the regression oracle — that's still
 `projects/tutorial/tutorial_2026-05-07_120000/` (120 files,
@@ -734,6 +1079,15 @@ python -m runners.agent.build_from_blueprint \
 python -m runners.agent.build_from_blueprint \
     --blueprint projects/tutorial-csv-only/tutorial-csv-only_2026-05-13_085951/project.yaml
    # expect: 100 files, 99/99 XSD-valid (1 non-XML)
+
+# 7. Test suite (the durable oracle — survives a fresh clone, unlike the
+#    gitignored projects/ fixtures above). Covers stepwise edits +
+#    import->interpolate->visualize (pattern, CSV-backed sets, e2e) +
+#    module export closure + dependency trimming + intent disambiguation
+#    (pure helpers + the turn loop with the LLM stubbed).
+python -m pytest tests/ -q
+   # expect: 120 passed (the interpolation e2e + module-export integration
+   #         tests invoke the build path + the filter-drafter LLM, ~60s)
 ```
 
 If any of (2)–(5) drift, **stop** — the build path is the foundation
@@ -865,9 +1219,9 @@ In rough priority order:
    typed-spec promotions + tutorial sharpening) is an older plan;
    it is **not the active workstream** on this branch. The
    pattern-agent thread is.
-6. **Support a free-form, multi-capability "import + interpolate +
-   visualize" request style.** A colleague wants the agent to handle
-   prompts shaped like:
+6. **Free-form "import + interpolate + visualize" request style — SHIPPED.**
+   The colleague prompt below now works end-to-end on the existing
+   `build_data_import_only` intent — **no new intent was needed**:
 
    > "Configure a NOAA GFS import for the Gulf of Guinea with wind
    > speed, wind direction, and mean sea level pressure. Interpolate
@@ -876,28 +1230,28 @@ In rough priority order:
    > Display. The list of locations with coordinates is provided in
    > the .csv file." (+ attached locations CSV)
 
-   This is a richer intent than the current `build_data_import_only`
-   path covers. Gaps to close:
-   - **Parameter selection from prose.** Extract a *specific* NWP
-     variable subset (wind speed, wind direction, MSLP) and map each
-     to FEWS parameterIds — today's import patterns pull a fixed set,
-     not a user-chosen subset.
-   - **Region as a grid extent, not a basin.** "Gulf of Guinea" is an
-     area/grid bbox, not a Raven basin — needs a region/extent slot
-     distinct from `basin_name`.
-   - **Grid→point interpolation step.** Emit the interpolation module
-     config (gridded import → interpolated-to-locations timeseries)
-     so the data lands in the **Data Viewer**.
-   - **Spatial Display output.** Emit/extend `gridDisplay` /
-     `SpatialDisplay` config so the gridded field is viewable.
-   - **Attached locations CSV** drives `Locations.xml` /
-     `LocationSets.xml` (the interpolation targets) — wire the
-     uploaded CSV into the existing CSV-ingest layer.
+   Each erstwhile gap is closed and how:
+   - **Parameter selection from prose** — `detect_data_types` already
+     maps a user-chosen subset to FEWS parameterIds; the NOAA pattern is
+     parameterized, ECCC imports a fixed set (intersected at resolve).
+   - **Region as a grid extent** — handled by the prose-driven NWP slots
+     (`region` / `custom_bbox`); see "Prose-driven NWP slots".
+   - **Grid→point interpolation step** — the
+     `wf_interpolate_nwp_to_stations` pattern (see "The `interpolate`
+     step" above). Verified for GFS and ECCC HRDPS/GDPS/RDPS.
+   - **Spatial Display output** — the `spatial_display_grid` pattern
+     (see "The `visualize` phase pattern").
+   - **Attached locations CSV** — drives `Locations.xml` via CSV ingest,
+     and the LocationSets deriver auto-backs the interpolation's station
+     set from it (Slice B).
 
-   Likely needs: a new intent (e.g. `build_import_interpolate_visualize`)
-   with its own resolver + `INTENT_INPUT_EXPECTATIONS`, a parameter-
-   subset skill, an extent/region slot, and possibly a new
-   interpolation pattern under `patterns/auto/`.
+   Live-verified the full chat→resolve→build loop on this exact prompt
+   (`projects/interp-chat-verify/...`, gitignored): 1 turn →
+   `build_data_import_only` → 4 patterns → 38 files, 37/37 XSD-valid,
+   `InterpolationStations` populated from the CSV. **Remaining options
+   (not blockers):** widen interpolation to REPS (ensemble) / analysis
+   grids; today's `_INTERPOLATABLE_IMPORTS` covers the deterministic
+   forecast grids.
 
 ### Azure deployment (decided: bundled-Ollama on a GPU VM)
 

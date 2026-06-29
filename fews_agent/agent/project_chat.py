@@ -585,6 +585,223 @@ def apply_removal(state: dict[str, Any], pattern_path: str) -> bool:
     return len(state["patterns"]) < before
 
 
+# ---------------------------------------------------------------------------
+# Mid-chat edit mutators (stepwise add / remove / set-variable)
+# ---------------------------------------------------------------------------
+#
+# These operate on ``state["slots"]`` — NOT ``state["patterns"]`` — because
+# the chat loop fully rebuilds ``patterns`` from slots every turn via the
+# active intent's resolver (chat_step._resolve_patterns). Anything written
+# straight to ``patterns`` is clobbered on the next resolve; slot edits
+# survive. The caller re-resolves after each mutation.
+#
+# They are intent-agnostic: they only touch the canonical slots
+# (``imports``, ``basins``, ``grid_resolution``, ``forecast_horizon_hours``,
+# ``data_types``) that the resolvers read. Whether the active intent's
+# resolver actually consumes a given slot is the caller's concern.
+
+
+def _clear_built_for_label(state: dict[str, Any], label: str) -> None:
+    """Drop any ``built_modules`` marker for a label that just changed.
+
+    Markers are ``"<pattern>::<label>"``; a changed/removed module's
+    rendered output is now stale, so the phase plan should show it as
+    needing a rebuild.
+    """
+    built = state.get("built_modules") or []
+    state["built_modules"] = [
+        k for k in built if not str(k).endswith(f"::{label}")
+    ]
+
+
+def add_module(
+    state: dict[str, Any],
+    target: Any,
+    target_kind: str,
+) -> str:
+    """Add an import or basin to the slots (additive, deduped).
+
+    ``target_kind == "import"``: ``target`` is an import name (str),
+    appended to ``slots["imports"]``.
+    ``target_kind == "basin"``: ``target`` is a ``{"basin_name", ...,
+    "model_adapter"}`` dict (or a bare basin-name str), appended to
+    ``slots["basins"]``.
+
+    Returns a human-readable note. Caller re-resolves patterns.
+    """
+    slots = state.setdefault("slots", {})
+    if target_kind == "import":
+        name = str(target).strip()
+        imports = slots.setdefault("imports", [])
+        if any(str(x).lower() == name.lower() for x in imports):
+            return f"{name} is already an import; nothing added."
+        imports.append(name)
+        return f"Added import {name}."
+    if target_kind == "basin":
+        if isinstance(target, dict):
+            pair = {
+                "basin_name": str(target.get("basin_name", "")).strip(),
+                "model_adapter": str(target.get("model_adapter") or "").strip()
+                or None,
+            }
+        else:
+            pair = {"basin_name": str(target).strip(), "model_adapter": None}
+        if not pair["basin_name"]:
+            return "No basin name given; nothing added."
+        basins = slots.setdefault("basins", [])
+        if any(
+            isinstance(b, dict)
+            and b.get("basin_name", "").lower() == pair["basin_name"].lower()
+            for b in basins
+        ):
+            return f"Basin {pair['basin_name']} is already in the project."
+        basins.append(pair)
+        adapter_txt = (
+            f" using {pair['model_adapter']}" if pair["model_adapter"]
+            else " (no model adapter yet — set one with /set <basin> adapter <x>)"
+        )
+        return f"Added basin {pair['basin_name']}{adapter_txt}."
+    return f"Unknown target kind {target_kind!r}; nothing added."
+
+
+def remove_module(
+    state: dict[str, Any],
+    target: str,
+    target_kind: str,
+) -> str:
+    """Remove an import or basin from the slots (subtractive).
+
+    Matches case-insensitively. Clears any built-module marker for the
+    target so the phase plan reflects the change. Returns a note.
+    """
+    slots = state.setdefault("slots", {})
+    name = str(target).strip()
+    if target_kind == "import":
+        imports = slots.get("imports") or []
+        kept = [x for x in imports if str(x).lower() != name.lower()]
+        if len(kept) == len(imports):
+            return f"{name} is not an import; nothing removed."
+        slots["imports"] = kept
+        # Drop any per-import variable overrides for the removed import.
+        overrides = slots.get("import_overrides")
+        if isinstance(overrides, dict):
+            for k in [k for k in overrides if k.lower() == name.lower()]:
+                overrides.pop(k, None)
+        _clear_built_for_label(state, name)
+        return f"Removed import {name}."
+    if target_kind == "basin":
+        basins = slots.get("basins") or []
+        kept = [
+            b for b in basins
+            if not (
+                isinstance(b, dict)
+                and b.get("basin_name", "").lower() == name.lower()
+            )
+        ]
+        if len(kept) == len(basins):
+            return f"{name} is not a basin in the project; nothing removed."
+        slots["basins"] = kept
+        # Keep the singular fallback slots consistent so the resolver and
+        # readiness check don't resurrect the basin from basin_name.
+        if str(slots.get("basin_name", "")).lower() == name.lower():
+            slots.pop("basin_name", None)
+            slots.pop("model_adapter", None)
+        _clear_built_for_label(state, name)
+        return f"Removed basin {name}."
+    return f"Unknown target kind {target_kind!r}; nothing removed."
+
+
+# Canonical variable names that ``set_variable`` understands. Project-wide
+# scalars are stored on the matching top-level slot; ``model_adapter`` is
+# scoped to the named basin; ``data_types`` is an append-to-list.
+_SETTABLE_VARIABLES = frozenset(
+    {"grid_resolution", "forecast_horizon_hours", "data_types", "model_adapter"}
+)
+
+
+def set_variable(
+    state: dict[str, Any],
+    target: str,
+    variable: str,
+    value: Any,
+) -> str:
+    """Set one instance variable on a named module (already-canonical args).
+
+    The caller (chat_step.apply_edit_action) is responsible for resolving
+    synonyms to a canonical ``variable`` name and parsing ``value`` to its
+    canonical form (e.g. "half-degree" → "0p50").
+
+    Scoping: ``grid_resolution`` and ``forecast_horizon_hours`` are scoped
+    to a single named import via ``slots["import_overrides"][<import>]``
+    (the resolver applies override → project-level fallback per instance).
+    When no valid import is named (e.g. NL "make it half-degree"), the
+    value lands on the project-level slot as the default for every NWP
+    import without its own override. ``model_adapter`` is scoped to the
+    named basin. The returned note states the scope.
+    """
+    slots = state.setdefault("slots", {})
+    name = str(target).strip()
+    if variable not in _SETTABLE_VARIABLES:
+        return (
+            f"Don't know how to set {variable!r}. Settable: "
+            f"{', '.join(sorted(_SETTABLE_VARIABLES))}."
+        )
+
+    if variable == "model_adapter":
+        basins = slots.get("basins") or []
+        for b in basins:
+            if (
+                isinstance(b, dict)
+                and b.get("basin_name", "").lower() == name.lower()
+            ):
+                b["model_adapter"] = value
+                if str(slots.get("basin_name", "")).lower() == name.lower():
+                    slots["model_adapter"] = value
+                _clear_built_for_label(state, b["basin_name"])
+                return f"Set {b['basin_name']} model adapter to {value}."
+        return f"{name} is not a basin in the project; nothing changed."
+
+    # NWP scalars (grid_resolution / forecast_horizon_hours). Scoped to a
+    # single named import when one is given (per-instance, Slice 4);
+    # otherwise applied project-wide as the default for every NWP import
+    # that lacks its own override.
+    imports = [str(x) for x in (slots.get("imports") or [])]
+    canonical = next((x for x in imports if x.lower() == name.lower()), None)
+    if variable in {"grid_resolution", "forecast_horizon_hours"}:
+        if canonical:
+            overrides = slots.setdefault("import_overrides", {})
+            overrides.setdefault(canonical, {})[variable] = value
+            _clear_built_for_label(state, canonical)
+            return f"Set {variable} to {value} for {canonical} only."
+        # No named import (NL "make it half-degree") or an unknown name →
+        # project-wide default. A non-empty unknown name gets a note so a
+        # typo doesn't silently become a project-wide change.
+        slots[variable] = value
+        _clear_built_for_label(state, name)
+        scope = (
+            "" if not name
+            else f" (note: {name} is not a current import; applied project-wide)"
+        )
+        return (
+            f"Set {variable} to {value} (default for all NWP imports "
+            f"without a per-import override){scope}."
+        )
+
+    if variable == "data_types":
+        dts = slots.setdefault("data_types", [])
+        added = [
+            v for v in (value if isinstance(value, list) else [value])
+            if v not in dts
+        ]
+        dts.extend(added)
+        _clear_built_for_label(state, name)
+        if not added:
+            return f"{value} already in the parameter list; nothing added."
+        return f"Added parameter(s) {', '.join(added)} (project-wide in v1)."
+
+    return f"Don't know how to set {variable!r}."
+
+
 __all__ = [
     "PatternSummary",
     "build_pattern_catalog",
@@ -596,5 +813,8 @@ __all__ = [
     "apply_slot_fills",
     "is_ready_to_write",
     "apply_removal",
+    "add_module",
+    "remove_module",
+    "set_variable",
     "write_project",
 ]
