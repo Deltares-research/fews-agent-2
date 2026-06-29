@@ -44,15 +44,18 @@ from fews_agent.agent.project_intents import (
     detect_status_query,
     extract_skills,
     heuristic_intent_from_slots,
+    intent_disambiguation_needed,
+    intent_disambiguation_question,
     is_intent_ready,
     next_unfilled_question,
+    parse_intent_disambiguation_answer,
     scan_inputs,
     status_prose_fallback,
     unrecognised_data_types,
 )
 from fews_agent.agent.providers.factory import get_provider
 from runners.agent.build_from_blueprint import build_from_blueprint
-from runners.agent.chat_step import _format_internals
+from runners.agent.chat_step import _format_internals, forced_intent_override
 
 
 def _current_provider_name() -> str:
@@ -496,6 +499,24 @@ class ChatSession:
         # the next turn can roll back this turn's changes.
         self._push_undo_snapshot()
 
+        # Pending intent disambiguation: a prior turn asked "imports only or a
+        # full forecasting project?" and is awaiting the answer. Interpret this
+        # message as that answer (an 'a'/'b' shorthand, a natural phrasing, or
+        # an explicit intent-naming override). On a clear choice, commit the
+        # intent and latch `intent_disambiguated` so the Phase 3.5 gate never
+        # re-asks; otherwise clear the flag and fall through so the gate
+        # re-evaluates against this turn's (possibly fuller) slots. Mirrors
+        # runners/agent/chat_step.py::main.
+        if self.state.get("awaiting_intent_disambiguation"):
+            _ans = parse_intent_disambiguation_answer(message)
+            if _ans is None:
+                _ans = forced_intent_override(message, None)
+            self.state["awaiting_intent_disambiguation"] = False
+            if _ans:
+                self.state["intent"] = _ans
+                self.state["intent_disambiguated"] = True
+                self.state["patterns"] = []  # resolver rebuilds from slots
+
         # done / force-done -----------------------------------------------------
         # Collects ALL blocking issues into one refusal message so the
         # user sees everything that needs fixing at once, not turn-by-
@@ -929,6 +950,20 @@ class ChatSession:
             else:
                 notes.append("no intent classified")
 
+        # Deterministic intent override — runs on EVERY turn, AFTER
+        # classification. An explicit phrase ("no basin model", "imports
+        # only") forces the intent over the LLM/heuristic pick, so the app
+        # matches the CLI's turn-1 override instead of relying on the 7B
+        # classifier. On a later turn this is the mid-conversation
+        # re-classification that recovers from an early miss.
+        _forced = forced_intent_override(message, self.state.get("intent"))
+        if _forced:
+            notes.append(
+                f"intent override: {self.state.get('intent')} → {_forced}"
+            )
+            self.state["intent"] = _forced
+            self.state["patterns"] = []  # resolver will rebuild from slots
+
         # Phase 3: slot filling (additive) -------------------------------------
         slots = self.state.setdefault("slots", {})
         for k, v in skill_results.items():
@@ -986,6 +1021,40 @@ class ChatSession:
         if slots.get("locations_source") == "csv":
             if "locations.csv" not in self.state.get("missing_data", []):
                 self.state.setdefault("missing_data", []).append("locations.csv")
+
+        # Phase 3.5: intent disambiguation gate. When the request names exactly
+        # one half (imports XOR basin) with no explicit narrowing/forecasting
+        # signal, ASK rather than silently defaulting to the full forecasting
+        # project. The question is deterministic (never LLM-composed) and the
+        # turn short-circuits until it's answered. `intent_disambiguated`
+        # latches the resolution so it never re-asks; re-asks are capped, after
+        # which it falls back to forecasting with a visible note. Mirrors
+        # runners/agent/chat_step.py::main.
+        if not self.state.get("intent_disambiguated"):
+            _which = intent_disambiguation_needed(message, slots)
+            if _which:
+                _asks = self.state.get("intent_disambiguation_asks", 0)
+                if _asks >= 2:
+                    self.state["intent"] = "build_forecasting_project"
+                    self.state["intent_disambiguated"] = True
+                    self.state["patterns"] = []
+                    notes.append(
+                        "intent disambiguation unanswered → forecasting default"
+                    )
+                else:
+                    self.state["intent_disambiguation_asks"] = _asks + 1
+                    self.state["intent_disambiguation_which"] = _which
+                    self.state["awaiting_intent_disambiguation"] = True
+                    _q = intent_disambiguation_question(_which)
+                    self.history.append({"role": "agent", "message": _q})
+                    self._append_md(
+                        turn, "agent", _q, note="intent disambiguation"
+                    )
+                    self._save()
+                    self._logger.info(
+                        "intent_disambiguation turn=%d which=%s", turn, _which
+                    )
+                    return TurnResult(agent_message=_q, kind="reply")
 
         # Phase 4: pattern resolution -----------------------------------------
         patterns_before = {p["pattern"] for p in self.state.get("patterns", [])}
