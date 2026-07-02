@@ -1,0 +1,89 @@
+name: satellite_sst_SEVIRI
+description: >-
+  Import satellite sea-surface-temperature grids from the OSI-SAF /
+  Ifremer SEVIRI L3C product (NETCDF-CF_GRID over FTP, one file per
+  observation time). Farmed from the Config_Basic 2017 (Crete) course
+  (Import_SEVIRI). Observation times are nonequidistant; the filename
+  pattern carries the observation timestamp.
+variables:
+  # Names the module instance (Import<source_name>), workflow, idMap and
+  # the grid locationId.
+  source_name:
+    type: str
+    required: false
+    default: SEVIRI
+  folder:
+    type: str
+    required: false
+    default: 'ftp://ftp.ifremer.fr/ifremer/medspiration/data/l3c/seviri/osisaf_io/%TIME_ZERO(yyyy)%/%TIME_ZERO(DDD)%/'
+  file_pattern:
+    type: str
+    required: false
+    default: "yyyyMMddHHmmss'-OSISAF-L3C_GHRSST-SSTsubskin-SEVIRI_IO_SST-ssteqc_meteosat08_'yyyyMMdd_HHmmss'-v02.0-fv01.0.nc'"
+  parameter_id:
+    type: str
+    required: false
+    default: T.obs.water.surf
+  # External (CF standard) variable name the idMap maps onto parameter_id.
+  external_parameter:
+    type: str
+    required: false
+    default: sea_surface_temperature
+  # Unit of the source data; converted by ImportUnitConversions.
+  extern_unit:
+    type: str
+    required: false
+    default: K
+  missing_value:
+    type: str
+    required: false
+    default: 9.999E20
+  expiry_days:
+    type: int
+    required: false
+    default: 7
+outputs:
+- schema: TimeSeriesImportRun
+  output: ModuleConfigFiles/Import/EarthObservation/Import{{ source_name }}.xml
+  data:
+    import:
+    - general:
+        importType: NETCDF-CF_GRID
+        folder: '{{ folder }}'
+        fileNameObservationDateTimePattern: "{{ file_pattern }}"
+        idMapId: IdImport{{ source_name }}
+        unitConversionsId: ImportUnitConversions
+        missingValue: '{{ missing_value }}'
+        importTimeZone:
+          timeZoneName: GMT
+        dataFeedId: '{{ source_name }}'
+        expiryTime:
+          unit: day
+          multiplier: {{ expiry_days }}
+      timeSeriesSet:
+      - moduleInstanceId: Import{{ source_name }}
+        valueType: grid
+        parameterId: {{ parameter_id }}
+        locationId: {{ source_name }}
+        timeSeriesType: external historical
+        timeStep:
+          unit: nonequidistant
+        readWriteMode: add originals
+      externUnit:
+      - parameterId: {{ parameter_id }}
+        unit: '{{ extern_unit }}'
+- schema: Workflow
+  output: WorkflowFiles/Import/Import{{ source_name }}.xml
+  data:
+    version: '1.1'
+    activity:
+    - runIndependent: true
+      moduleInstanceId: Import{{ source_name }}
+- schema: IdMap
+  output: IdMapFiles/Import/IdImport{{ source_name }}.xml
+  data:
+    version: '1.1'
+    parameter:
+    - internal: {{ parameter_id }}
+      external: '{{ external_parameter }}'
+contributions: []

@@ -1,0 +1,383 @@
+﻿name: ensemble_wind_ecmwf_eps
+description: >-
+  Import the ECMWF ensemble prediction system (EPS) wind + pressure GRIB
+  grids and process them into per-station ensemble statistics. Farmed from
+  the Config_Advanced 2016 course (ImportECMWF-EPS chain). Four modules,
+  run in sequence by one workflow: (1) grib grid import of Wind.u / Wind.v /
+  Pressure.msl with an ensembleId on every set, (2) closest-distance
+  interpolation of all members to station points, (3) wind speed +
+  direction derivation from the U/V components, (4) ensemble statistics
+  (min / max / median / percentiles) over the derived wind speed.
+variables:
+  # Names every module instance (Import<source_name>, ...), the grid
+  # locationId, the idMap and the import folder.
+  source_name:
+    type: str
+    required: false
+    default: ECMWF-EPS
+  ensemble_id:
+    type: str
+    required: false
+    default: ECMWF-EPS
+  # Number of ensemble members; member indices run 0..size-1.
+  ensemble_size:
+    type: int
+    required: false
+    default: 52
+  # GRIB parameter codes the idMap maps onto the internal ids
+  # (ECMWF table 128: 165=10u, 166=10v, 134=msl).
+  grib_code_wind_u:
+    type: str
+    required: false
+    default: '165'
+  grib_code_wind_v:
+    type: str
+    required: false
+    default: '166'
+  grib_code_pressure:
+    type: str
+    required: false
+    default: '134'
+  # The LocationSet of interpolation targets (station points), backed by
+  # the configurator's locations.csv at final assembly.
+  station_locationset_id:
+    type: str
+    required: false
+    default: InterpolationStations
+  # GeoDatum used for the closest-distance grid->station pick.
+  geo_datum:
+    type: str
+    required: false
+    default: WGS 1984
+  time_step_hours:
+    type: int
+    required: false
+    default: 3
+  # Forecast window read by the interpolation (days before / after T0).
+  lookback_days:
+    type: int
+    required: false
+    default: 2
+  forecast_days:
+    type: int
+    required: false
+    default: 15
+  # Exceedence percentiles computed over the ensemble wind speed, in
+  # addition to min / max / median.
+  percentiles:
+    type: list
+    required: false
+    default: [10, 25, 75, 90]
+outputs:
+# 1) GRIB ensemble grid import: one timeSeriesSet per component, each
+#    carrying the ensembleId so all members land.
+- schema: TimeSeriesImportRun
+  output: ModuleConfigFiles/Import/Ensemble/Import{{ source_name }}.xml
+  data:
+    import:
+    - general:
+        importType: grib
+        folder: $IMPORT_FOLDER$/{{ source_name }}
+        idMapId: IdImport{{ source_name }}
+        unitConversionsId: ImportUnitConversions
+        importTimeZone:
+          timeZoneOffset: '+00:00'
+        dataFeedId: '{{ source_name }}'
+      timeSeriesSet:
+{% for p in ['Wind.u', 'Wind.v', 'Pressure.msl'] %}
+      - moduleInstanceId: Import{{ source_name }}
+        valueType: grid
+        parameterId: {{ p }}
+        locationId: '{{ source_name }}'
+        timeSeriesType: external forecasting
+        timeStep:
+          unit: hour
+          multiplier: {{ time_step_hours }}
+        readWriteMode: add originals
+        synchLevel: 7
+        expiryTime:
+          unit: hour
+          multiplier: 78
+        ensembleId: '{{ ensemble_id }}'
+{% endfor %}
+      externUnit:
+      - parameterId: Wind.u
+        unit: m/s
+      - parameterId: Wind.v
+        unit: m/s
+      - parameterId: Pressure.msl
+        unit: Pa
+# 2) Interpolate every ensemble member to the station points.
+- schema: TransformationModule
+  output: ModuleConfigFiles/Interpolate/Interpolate{{ source_name }}ToStations.xml
+  data:
+    version: '1.0'
+    variable:
+{% for p in ['Wind.u', 'Wind.v', 'Pressure.msl'] %}
+    - variableId: Grid_{{ p | replace('.', '_') }}
+      timeSeriesSet:
+        moduleInstanceId: Import{{ source_name }}
+        valueType: grid
+        parameterId: {{ p }}
+        locationId: '{{ source_name }}'
+        timeSeriesType: external forecasting
+        timeStep:
+          unit: hour
+          multiplier: {{ time_step_hours }}
+        relativeViewPeriod:
+          unit: day
+          start: '-{{ lookback_days }}'
+          end: {{ forecast_days }}
+        readWriteMode: read only
+        ensembleId: '{{ ensemble_id }}'
+    - variableId: Station_{{ p | replace('.', '_') }}
+      timeSeriesSet:
+        moduleInstanceId: Interpolate{{ source_name }}ToStations
+        valueType: scalar
+        parameterId: {{ p }}
+        locationSetId: {{ station_locationset_id }}
+        timeSeriesType: simulated forecasting
+        timeStep:
+          unit: hour
+          multiplier: {{ time_step_hours }}
+        readWriteMode: add originals
+        synchLevel: 2
+        expiryTime:
+          unit: day
+          multiplier: 3
+        ensembleId: '{{ ensemble_id }}'
+{% endfor %}
+    transformation:
+{% for p in ['Wind.u', 'Wind.v', 'Pressure.msl'] %}
+    - id: interpolate_{{ p | replace('.', '_') }}
+      body:
+        interpolationSpatial:
+          closestDistance:
+            inputVariable:
+              variableId: Grid_{{ p | replace('.', '_') }}
+            distanceGeoDatum: {{ geo_datum }}
+            outputVariable:
+              variableId: Station_{{ p | replace('.', '_') }}
+{% endfor %}
+# 3) Derive wind speed + direction per member from the U/V components.
+- schema: TransformationModule
+  output: ModuleConfigFiles/Process/Process{{ source_name }}Wind.xml
+  data:
+    version: '1.0'
+    variable:
+    - variableId: U
+      timeSeriesSet:
+        moduleInstanceId: Interpolate{{ source_name }}ToStations
+        valueType: scalar
+        parameterId: Wind.u
+        locationSetId: {{ station_locationset_id }}
+        timeSeriesType: simulated forecasting
+        timeStep:
+          unit: hour
+          multiplier: {{ time_step_hours }}
+        readWriteMode: read complete forecast
+        ensembleId: '{{ ensemble_id }}'
+        ensembleMemberIndexRange:
+          - start: 0
+            end: {{ (ensemble_size | default(52)) - 1 }}
+    - variableId: V
+      timeSeriesSet:
+        moduleInstanceId: Interpolate{{ source_name }}ToStations
+        valueType: scalar
+        parameterId: Wind.v
+        locationSetId: {{ station_locationset_id }}
+        timeSeriesType: simulated forecasting
+        timeStep:
+          unit: hour
+          multiplier: {{ time_step_hours }}
+        readWriteMode: read complete forecast
+        ensembleId: '{{ ensemble_id }}'
+        ensembleMemberIndexRange:
+          - start: 0
+            end: {{ (ensemble_size | default(52)) - 1 }}
+    - variableId: WindSpeed
+      timeSeriesSet:
+        moduleInstanceId: Process{{ source_name }}Wind
+        valueType: scalar
+        parameterId: Wind.sim.speed
+        locationSetId: {{ station_locationset_id }}
+        timeSeriesType: simulated forecasting
+        timeStep:
+          unit: hour
+          multiplier: {{ time_step_hours }}
+        relativeViewPeriod:
+          unit: hour
+          start: '-6'
+          end: {{ (forecast_days | default(15)) * 24 }}
+        readWriteMode: add originals
+        synchLevel: 0
+        expiryTime:
+          unit: day
+          multiplier: 3
+        ensembleId: '{{ ensemble_id }}'
+        ensembleMemberIndexRange:
+          - start: 0
+            end: {{ (ensemble_size | default(52)) - 1 }}
+    - variableId: WindDir
+      timeSeriesSet:
+        moduleInstanceId: Process{{ source_name }}Wind
+        valueType: scalar
+        parameterId: Wind.sim.dir
+        locationSetId: {{ station_locationset_id }}
+        timeSeriesType: simulated forecasting
+        timeStep:
+          unit: hour
+          multiplier: {{ time_step_hours }}
+        relativeViewPeriod:
+          unit: hour
+          start: '-6'
+          end: {{ (forecast_days | default(15)) * 24 }}
+        readWriteMode: add originals
+        synchLevel: 0
+        expiryTime:
+          unit: day
+          multiplier: 3
+        ensembleId: '{{ ensemble_id }}'
+        ensembleMemberIndexRange:
+          - start: 0
+            end: {{ (ensemble_size | default(52)) - 1 }}
+    transformation:
+    - id: wind_speed
+      body:
+        user:
+          simple:
+            expression: sqrt(U*U+V*V)
+            outputVariable:
+              variableId: WindSpeed
+    - id: wind_direction
+      body:
+        user:
+          simple:
+            expression: 'if ( U >=0, if ( V >=0 , 90 + 180 - (360/(2*pi))*atan ( V / U ), 90 + 180 + (360/(2*pi))*atan ( abs(V / U) ) ), if ( V>=0, 270 - 180 + (360/(2*pi))*atan ( abs(V / U) ), 270 - 180 - (360/(2*pi))*atan ( V / U ) ) )'
+            outputVariable:
+              variableId: WindDir
+# 4) Collapse the ensemble into per-station statistics of wind speed.
+- schema: TransformationSets
+  output: ModuleConfigFiles/Statistics/Statistics{{ source_name }}.xml
+  data:
+    transformationSet:
+{% set stat_functions = [('min', 'min', None), ('max', 'max', None), ('median', 'percentileExceedence', 50)] %}
+{% for suffix, fn, value in stat_functions %}
+    - transformationId: Wind.speed.{{ suffix }}
+      inputVariable:
+      - variableId: W
+        timeSeriesSet:
+          moduleInstanceId: Process{{ source_name }}Wind
+          valueType: scalar
+          parameterId: Wind.sim.speed
+          locationSetId: {{ station_locationset_id }}
+          timeSeriesType: simulated forecasting
+          timeStep:
+            unit: hour
+            multiplier: {{ time_step_hours }}
+          readWriteMode: read complete forecast
+          ensembleId: '{{ ensemble_id }}'
+          ensembleMemberIndexRange:
+            - start: 0
+              end: {{ (ensemble_size | default(52)) - 1 }}
+      algorithm:
+        statistics:
+          function:
+          - '@outputVariableId': OUT
+            '@inputVariableId': W
+            '@function': {{ fn }}
+{% if value is not none %}
+            '@value': {{ value }}
+{% endif %}
+      outputVariable:
+      - variableId: OUT
+        timeSeriesSet:
+          moduleInstanceId: Statistics{{ source_name }}
+          valueType: scalar
+          parameterId: Wind.sim.speed.{{ suffix }}
+          locationSetId: {{ station_locationset_id }}
+          timeSeriesType: simulated forecasting
+          timeStep:
+            unit: hour
+            multiplier: {{ time_step_hours }}
+          readWriteMode: add originals
+          synchLevel: 0
+          expiryTime:
+            unit: day
+            multiplier: 3
+{% endfor %}
+{% for pct in percentiles %}
+    - transformationId: Wind.speed.{{ pct }}
+      inputVariable:
+      - variableId: W
+        timeSeriesSet:
+          moduleInstanceId: Process{{ source_name }}Wind
+          valueType: scalar
+          parameterId: Wind.sim.speed
+          locationSetId: {{ station_locationset_id }}
+          timeSeriesType: simulated forecasting
+          timeStep:
+            unit: hour
+            multiplier: {{ time_step_hours }}
+          readWriteMode: read complete forecast
+          ensembleId: '{{ ensemble_id }}'
+          ensembleMemberIndexRange:
+            - start: 0
+              end: {{ (ensemble_size | default(52)) - 1 }}
+      algorithm:
+        statistics:
+          function:
+          - '@outputVariableId': OUT
+            '@inputVariableId': W
+            '@function': percentileExceedence
+            '@value': {{ pct }}
+      outputVariable:
+      - variableId: OUT
+        timeSeriesSet:
+          moduleInstanceId: Statistics{{ source_name }}
+          valueType: scalar
+          parameterId: Wind.sim.speed.{{ pct }}
+          locationSetId: {{ station_locationset_id }}
+          timeSeriesType: simulated forecasting
+          timeStep:
+            unit: hour
+            multiplier: {{ time_step_hours }}
+          readWriteMode: add originals
+          synchLevel: 0
+          expiryTime:
+            unit: day
+            multiplier: 3
+{% endfor %}
+# 5) One workflow runs the whole chain in order.
+- schema: Workflow
+  output: WorkflowFiles/Import/ImportAndProcess{{ source_name }}.xml
+  data:
+    version: '1.1'
+    activity:
+    - runIndependent: false
+      moduleInstanceId: Import{{ source_name }}
+    - runIndependent: false
+      moduleInstanceId: Interpolate{{ source_name }}ToStations
+    - runIndependent: false
+      moduleInstanceId: Process{{ source_name }}Wind
+    - runIndependent: false
+      moduleInstanceId: Statistics{{ source_name }}
+# 6) GRIB code -> internal id mapping.
+- schema: IdMap
+  output: IdMapFiles/Import/IdImport{{ source_name }}.xml
+  data:
+    version: '1.1'
+    map:
+    - internalParameter: Wind.u
+      internalLocation: '{{ source_name }}'
+      externalParameter: '{{ grib_code_wind_u }}'
+      externalLocation: '{{ source_name }}'
+    - internalParameter: Wind.v
+      internalLocation: '{{ source_name }}'
+      externalParameter: '{{ grib_code_wind_v }}'
+      externalLocation: '{{ source_name }}'
+    - internalParameter: Pressure.msl
+      internalLocation: '{{ source_name }}'
+      externalParameter: '{{ grib_code_pressure }}'
+      externalLocation: '{{ source_name }}'
+contributions: []

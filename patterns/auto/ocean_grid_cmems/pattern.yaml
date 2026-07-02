@@ -1,0 +1,123 @@
+name: ocean_grid_cmems
+description: >-
+  Import an ocean-model grid product from the Copernicus Marine Service
+  (CMEMS Motu server). Farmed from the Config_Basic 2017 (Crete) course
+  (Import_CMEMS_2D / Import_CMEMS_3D). One instance per product slice:
+  the 2D surface layer reads into a single grid locationId, the 3D
+  variant reads all depth layers into a locationSet and snaps vertically.
+  Credentials stay out of the config: user/password default to the FEWS
+  runtime placeholders $CMEMS_USER$ / $CMEMS_PASSWORD$, which the
+  configurator maps in RootConfigFiles/sa_global.Properties.
+variables:
+  # Names the module instance (ImportCMEMS<variant>), workflow and idMap.
+  variant:
+    type: str
+    required: false
+    default: 2D
+  # Motu subsetting URL: product, variable and bbox are baked into the
+  # query string. Default is the course's Mediterranean temperature
+  # analysis/forecast product.
+  server_url:
+    type: str
+    required: false
+    default: 'http://cmems-med-mfc.eu/motu-web/Motu?product=sv03-med-ingv-tem-an-fc-h&service=http://purl.org/myocean/ontology/service/database%23MEDSEA_ANALYSIS_FORECAST_PHY_006_013-TDS&variable=thetao&x_lo=-7&x_hi=36.291667938232&y_lo=30.1875&y_hi=45.979167938232&z_lo=1.0181&z_hi=1.0183'
+  user:
+    type: str
+    required: false
+    default: $CMEMS_USER$
+  password:
+    type: str
+    required: false
+    default: $CMEMS_PASSWORD$
+  parameter_id:
+    type: str
+    required: false
+    default: T.obs
+  # External (CMEMS) variable name the idMap maps onto parameter_id.
+  external_parameter:
+    type: str
+    required: false
+    default: thetao
+  # 2D: the grid registers as this locationId. Ignored when
+  # location_set_id is set.
+  location_id:
+    type: str
+    required: false
+    default: CMEMS_2D
+  # 3D: read all depth layers into this locationSet (one location per
+  # layer, backed by the configurator). Setting this switches the
+  # timeSeriesSet to locationSetId and emits the vertical snap distance.
+  location_set_id:
+    type: str
+    required: false
+    default: null
+  # How far back each run re-reads, in hours.
+  lookback_hours:
+    type: int
+    required: false
+    default: 10
+  time_step_id:
+    type: str
+    required: false
+    default: hourly_at_30
+  expiry_days:
+    type: int
+    required: false
+    default: 7
+outputs:
+- schema: TimeSeriesImportRun
+  output: ModuleConfigFiles/Import/Ocean/ImportCMEMS{{ variant }}.xml
+  data:
+    import:
+    - general:
+        importType: CMEMS
+        serverUrl: '{{ server_url }}'
+        connectionTimeOutMillis: 300000
+        user: '{{ user }}'
+        password: '{{ password }}'
+        relativeViewPeriod:
+          unit: hour
+          start: '-{{ lookback_hours }}'
+          end: 0
+        idMapId: IdImportCMEMS{{ variant }}
+{% if location_set_id %}
+        maximumVerticalSnapDistance: '0.1'
+{% endif %}
+        unitConversionsId: ImportUnitConversions
+        expiryTime:
+          unit: day
+          multiplier: {{ expiry_days }}
+      properties:
+        string:
+        - key: DATA_TYPE
+          value: 2D_HOURLY
+        - key: TICKET_URL
+          value: https://cmems-cas.cls.fr/cas/v1/tickets
+      timeSeriesSet:
+      - moduleInstanceId: ImportCMEMS{{ variant }}
+        valueType: grid
+        parameterId: {{ parameter_id }}
+{% if location_set_id %}
+        locationSetId: {{ location_set_id }}
+{% else %}
+        locationId: {{ location_id }}
+{% endif %}
+        timeSeriesType: external historical
+        timeStep:
+          id: {{ time_step_id }}
+        readWriteMode: add originals
+- schema: Workflow
+  output: WorkflowFiles/Import/ImportCMEMS{{ variant }}.xml
+  data:
+    version: '1.1'
+    activity:
+    - runIndependent: true
+      moduleInstanceId: ImportCMEMS{{ variant }}
+- schema: IdMap
+  output: IdMapFiles/Import/IdImportCMEMS{{ variant }}.xml
+  data:
+    version: '1.1'
+    parameter:
+    - internal: {{ parameter_id }}
+      external: '{{ external_parameter }}'
+contributions: []

@@ -50,12 +50,14 @@ def classify_phase(pattern_path: str) -> str:
     ):
         return "visualize"
 
-    # Models: a basin/model run.
+    # Models: a basin/model run (hydrological or coastal).
     if (
         name in {"raven_basin", "wflow_basin"}
         or name.endswith("_basin")
         or name.endswith("_model")
-        or name.startswith(("raven", "wflow", "hbv"))
+        or name.startswith(("raven", "wflow", "hbv", "coastal_"))
+        or "dflowfm" in name
+        or "delft3d" in name
     ):
         return "model"
 
