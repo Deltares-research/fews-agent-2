@@ -1,0 +1,273 @@
+name: coastal_sfincs
+description: >-
+  Run a SFINCS coastal flood/surge model as a hindcast (HC) / forecast (FC)
+  pair through the FEWS general adapter. Farmed from the FEWS-Caribbean config
+  (Config/ModuleConfigFiles/Sfincs/SfincsHindcastTemplate.xml +
+  SfincsForecastTemplate.xml + IdMapFiles/Sfincs/IdMapTo|FromSfincs.xml). Each
+  mode exports wind (netamuamv) + pressure (netamp) NetCDF forcing from a meteo
+  instance, writes the SFINCS run-control file from a template, runs the SFINCS
+  executable, and imports water-level grids (map) + station scalars (his). The
+  HC run captures its own dated restart state; the FC run warm-starts from the
+  HC state (both fall back to the cold-state instance <domain>SfincsHindcast).
+  Numeric FEWS placeholders are lifted to concrete Jinja vars; folder/executable
+  placeholders ($ModulesFolder$, $SfincsExecutable$, $DumpFilesFolder$,
+  $MODULE_INSTANCE_ID$) stay literal.
+variables:
+  # Model domain / nest (NorthAtlantic overview, Saba, Statia, ...). Drives
+  # ids, rootDir, grid locationId and the station locationSet.
+  domain:
+    type: str
+    required: false
+    default: NorthAtlantic
+  # Meteo forcing label baked into the state instance id
+  # (<domain>Sfincs<meteo>Hindcast).
+  meteo:
+    type: str
+    required: false
+    default: Ecmwf
+  # Upstream meteo module instance + grid locationId providing the wind /
+  # pressure forcing exported to SFINCS.
+  module_instance_meteo:
+    type: str
+    required: false
+    default: ImportEcmwfMeteo
+  location_id_meteo:
+    type: str
+    required: false
+    default: Ecmwf
+  # The HC/FC pair shares one IdMapTo/FromSfincs. The primary instance emits
+  # them; set false on extra domains so they don't duplicate / collide.
+  emit_idmap:
+    type: bool
+    required: false
+    default: true
+  time_step_meteo_hours:
+    type: int
+    required: false
+    default: 3
+  view_period_start_hours:
+    type: int
+    required: false
+    default: -48
+  view_period_end_hours:
+    type: int
+    required: false
+    default: 48
+  time_step_grid_minutes:
+    type: int
+    required: false
+    default: 60
+  time_step_scalar_minutes:
+    type: int
+    required: false
+    default: 10
+  expiry_state_days:
+    type: int
+    required: false
+    default: 5
+  expiry_grid_historical_days:
+    type: int
+    required: false
+    default: 5
+  expiry_grid_forecasting_days:
+    type: int
+    required: false
+    default: 5
+  expiry_scalar_historical_days:
+    type: int
+    required: false
+    default: 10
+  expiry_scalar_forecasting_days:
+    type: int
+    required: false
+    default: 10
+outputs:
+{% for mode in ['Hindcast', 'Forecast'] %}
+{% set hist = (mode == 'Hindcast') %}
+- schema: GeneralAdapterRun
+  output: ModuleConfigFiles/Sfincs/Sfincs{{ domain }}{{ mode }}.xml
+  data:
+    general:
+      description: SFINCS {{ domain }} {{ mode }}
+      piVersion: '1.8'
+      rootDir: $ModulesFolder$/Sfincs/{{ domain }}/{{ mode }}
+      workDir: '%ROOT_DIR%'
+      exportDir: '%WORK_DIR%'
+      exportDataSetDir: '%WORK_DIR%'
+      exportIdMap: IdMapToSfincs
+      exportUnitConversionsId: ExportUnitConversions
+      importDir: '%WORK_DIR%'
+      importIdMap: IdMapFromSfincs
+      dumpFileDir: $DumpFilesFolder$
+      dumpDir: '%WORK_DIR%'
+      diagnosticFile: '%WORK_DIR%/sfincs_diag.xml'
+      missVal: '-99'
+      timeZone:
+        timeZoneName: GMT+0:00
+      startDateTimeFormat: yyyyMMdd HHmmss
+      endDateTimeFormat: yyyyMMdd HHmmss
+    activities:
+      startUpActivities:
+        purgeActivity:
+        - includeSubdirectories: true
+          filter: '%WORK_DIR%/*.*'
+      exportActivities:
+        exportStateActivity:
+        - moduleInstanceId: {{ domain }}Sfincs{{ meteo }}Hindcast
+          stateExportDir: .
+          stateSelection:
+            warmState:
+              stateSearchPeriod:
+                unit: hour
+{% if hist %}
+                start: {{ view_period_start_hours }}
+                end: -1
+{% else %}
+                start: -1
+                end: 0
+{% endif %}
+            overrulingColdStateModuleInstanceId: {{ domain }}SfincsHindcast
+        exportDataSetActivity:
+        - moduleInstanceId: {{ domain }}Sfincs
+        exportNetcdfActivity:
+        - exportFile: sfincs_netamuamvfile.nc
+          netcdfFormat: netcdf3
+          timeSeriesSets:
+            timeSeriesSet:
+{% for wind in ['WindSpeedU', 'WindSpeedV'] %}
+            - moduleInstanceId: {{ module_instance_meteo }}
+              valueType: grid
+              parameterId: {{ wind }}
+              locationId: {{ location_id_meteo }}
+              timeSeriesType: external historical
+              timeStep:
+                unit: hour
+                multiplier: {{ time_step_meteo_hours }}
+              relativeViewPeriod:
+                unit: hour
+                start: {{ view_period_start_hours }}
+                end: {{ view_period_end_hours }}
+              readWriteMode: read only
+{% endfor %}
+        - exportFile: sfincs_netampfile.nc
+          netcdfFormat: netcdf3
+          timeSeriesSets:
+            timeSeriesSet:
+            - moduleInstanceId: {{ module_instance_meteo }}
+              valueType: grid
+              parameterId: AirPressureMeanSeaLevel
+              locationId: {{ location_id_meteo }}
+              timeSeriesType: external historical
+              timeStep:
+                unit: hour
+                multiplier: {{ time_step_meteo_hours }}
+              relativeViewPeriod:
+                unit: hour
+                start: {{ view_period_start_hours }}
+                end: {{ view_period_end_hours }}
+              readWriteMode: read only
+        exportCustomFormatRunFileActivity:
+        - templateFile: '%WORK_DIR%/sfincs_template.inp'
+          exportFile: '%WORK_DIR%/sfincs.inp'
+      executeActivities:
+        executeActivity:
+        - description: Run SFINCS {{ domain }}
+          command:
+            executable: $SfincsExecutable$
+          logFile:
+          - file: '%WORK_DIR%/sfincs_log.txt'
+            errorLinePattern: '*Simulation stopped*'
+            infoLinePattern: '*'
+          timeOut: 9000000
+          ignoreDiagnostics: true
+      importActivities:
+{% if hist %}
+        importStateActivity:
+        - stateImportDir: '%WORK_DIR%'
+          stateFileDateTimePattern: "'sfincs.'yyyyMMdd'.'HHmmss'.rst'"
+          relativeExportFile: sfincs.rst
+          compressedStateLocation: directory
+          expiryTime:
+            unit: day
+            multiplier: {{ expiry_state_days }}
+{% endif %}
+        importNetcdfActivity:
+        - importFile: '%WORK_DIR%/sfincs_map.nc'
+          timeSeriesSets:
+            timeSeriesSet:
+{% for gp in ['WaterLevelMaximum', 'WaterLevel'] %}
+            - moduleInstanceId: $MODULE_INSTANCE_ID$
+              valueType: grid
+              parameterId: {{ gp }}
+              locationId: {{ domain }}Sfincs
+              timeSeriesType: {{ 'simulated historical' if hist else 'simulated forecasting' }}
+              timeStep:
+                unit: minute
+                multiplier: {{ time_step_grid_minutes }}
+              readWriteMode: add originals
+              expiryTime:
+                unit: day
+                multiplier: {{ expiry_grid_historical_days if hist else expiry_grid_forecasting_days }}
+{% endfor %}
+        - importFile: '%WORK_DIR%/sfincs_his.nc'
+          timeSeriesSets:
+            timeSeriesSet:
+            - moduleInstanceId: $MODULE_INSTANCE_ID$
+              valueType: scalar
+              parameterId: WaterLevel
+              locationSetId: StationsSfincs{{ domain }}
+              timeSeriesType: {{ 'simulated historical' if hist else 'simulated forecasting' }}
+              timeStep:
+                unit: minute
+                multiplier: {{ time_step_scalar_minutes }}
+              readWriteMode: add originals
+              expiryTime:
+                unit: day
+                multiplier: {{ expiry_scalar_historical_days if hist else expiry_scalar_forecasting_days }}
+- schema: Workflow
+  output: WorkflowFiles/Sfincs/Sfincs{{ domain }}{{ mode }}.xml
+  data:
+    version: '1.1'
+    activity:
+    - runIndependent: false
+      moduleInstanceId: {{ domain }}Sfincs{{ mode }}
+{% endfor %}
+{% if emit_idmap %}
+- schema: IdMap
+  output: IdMapFiles/Sfincs/IdMapToSfincs.xml
+  data:
+    version: '1.1'
+    parameter:
+    - internal: AirPressureMeanSeaLevel
+      external: barometric_pressure
+    - internal: WaterLevel
+      external: zs
+    - internal: WindSpeedU
+      external: eastward_wind
+    - internal: WindSpeedV
+      external: northward_wind
+    enableOneToOneMapping: true
+- schema: IdMap
+  output: IdMapFiles/Sfincs/IdMapFromSfincs.xml
+  data:
+    version: '1.1'
+    map:
+    - internalLocation: {{ domain }}Sfincs
+      internalParameter: WaterLevel
+      externalParameter: zs
+      externalLocation: dummy
+    - internalLocation: {{ domain }}Sfincs
+      internalParameter: WaterLevelMaximum
+      externalParameter: zsmax
+      externalLocation: dummy
+    parameter:
+    - internal: WaterLevel
+      external: point_zs
+    - internal: WaterLevelMaximum
+      external: zsmax
+    locationIdFunction:
+    - internalLocationSet: StationsSfincsAll
+      externalLocationFunction: '@SfincsId@'
+    enableOneToOneMapping: true
+{% endif %}
+contributions: []

@@ -114,11 +114,17 @@ class FromTimeSeriesSelection(FewsModel):
 
 
 class StateSelection(FewsModel):
-    """Exactly one of warmState / coldState / fromTimeSeries."""
+    """Exactly one of warmState / coldState / fromTimeSeries.
+
+    `overrulingColdStateModuleInstanceId` (optional, XSD-ordered after the
+    state choice) names a cold-state fallback instance when no warm state
+    is found — used by the SFINCS/HurryWave forecast+hindcast runs.
+    """
 
     warmState: WarmStateSelection | None = None
     coldState: ColdStateSelection | None = None
     fromTimeSeries: FromTimeSeriesSelection | None = None
+    overrulingColdStateModuleInstanceId: ModuleInstanceId | None = None
 
     @model_validator(mode="after")
     def _exactly_one(self) -> StateSelection:
@@ -135,8 +141,13 @@ class StateSelection(FewsModel):
 # ---------------------------------------------------------------------------
 
 class PurgeActivity(FewsModel):
-    """Deletes files matching a filter at module start."""
+    """Deletes files matching a filter at module start.
 
+    `includeSubdirectories` (optional, XSD-ordered before `filter`) makes
+    the purge recurse into subfolders — used by the SFINCS/HurryWave runs.
+    """
+
+    includeSubdirectories: bool | None = None
     filter: str
 
 
@@ -208,6 +219,7 @@ class ExportNetcdfActivity(FewsModel):
     # forcing exports one wrapper per parameter). Modeled as a list so a
     # single wrapper (the tutorial case) round-trips as a 1-element list.
     exportFile: str
+    netcdfFormat: str | None = None
     timeSeriesSets: list[TimeSeriesSetList]
     omitMissingValues: bool | None = None
 
@@ -245,12 +257,23 @@ class ExportRunFileActivity(FewsModel):
     properties: RunFileProperties | None = None
 
 
+class ExportCustomFormatRunFileActivity(FewsModel):
+    """Renders a model run-control file from a template (e.g. SFINCS's
+    `sfincs_template.inp` -> `sfincs.inp`)."""
+
+    templateFile: str
+    exportFile: str
+
+
 class ExportActivities(FewsModel):
     exportStateActivity: list[ExportStateActivity] = Field(default_factory=list)
     exportDataSetActivity: list[ExportDataSetActivity] = Field(default_factory=list)
     exportParameterActivity: list[ExportParameterActivity] = Field(default_factory=list)
     exportNetcdfActivity: list[ExportNetcdfActivity] = Field(default_factory=list)
     exportRunFileActivity: list[ExportRunFileActivity] = Field(default_factory=list)
+    exportCustomFormatRunFileActivity: list[ExportCustomFormatRunFileActivity] = Field(
+        default_factory=list
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -312,9 +335,21 @@ class StateFileRef(FewsModel):
 
 
 class ImportStateActivity(FewsModel):
+    """Post-run state capture for warm-start reuse.
+
+    Two forms: the `stateFile` wrapper (Delft3D-FM/DIMR), or the
+    `stateImportDir` + `stateFileDateTimePattern` form (SFINCS/HurryWave)
+    where the state is a dated file matched in a directory, copied to
+    `relativeExportFile` and expired after `expiryTime`.
+    """
+
     stateConfigFile: str | None = None
+    stateImportDir: str | None = None
+    stateFileDateTimePattern: str | None = None
     stateFile: StateFileRef | None = None
+    relativeExportFile: str | None = None
     compressedStateLocation: str | None = None
+    expiryTime: UnitMultiplier | None = None
     synchLevel: int | None = None
 
 
@@ -364,6 +399,7 @@ __all__ = [
     "LocationModelLoop",
     "ExportNetcdfActivity",
     "ExportRunFileActivity",
+    "ExportCustomFormatRunFileActivity",
     "RunFileProperties",
     "RunFileStringProperty",
     "RunFileIntProperty",

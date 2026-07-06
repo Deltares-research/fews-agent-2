@@ -33,6 +33,7 @@
     <startUpActivities>
       {% for pa in activities.startUpActivities.purgeActivity %}
       <purgeActivity>
+        {% if pa.includeSubdirectories is not none %}<includeSubdirectories>{{ 'true' if pa.includeSubdirectories else 'false' }}</includeSubdirectories>{% endif %}
         <filter>{{ pa.filter }}</filter>
       </purgeActivity>
       {% endfor %}
@@ -67,6 +68,7 @@
             {% if esa.stateSelection.coldState.startDate is not none %}<startDate unit="{{ esa.stateSelection.coldState.startDate.unit }}" multiplier="{{ esa.stateSelection.coldState.startDate.multiplier }}"/>{% endif %}
           </coldState>
           {% endif %}
+          {% if esa.stateSelection.overrulingColdStateModuleInstanceId is not none %}<overrulingColdStateModuleInstanceId>{{ esa.stateSelection.overrulingColdStateModuleInstanceId }}</overrulingColdStateModuleInstanceId>{% endif %}
         </stateSelection>
         {% endif %}
       </exportStateActivity>
@@ -92,6 +94,7 @@
       {% for ena in activities.exportActivities.exportNetcdfActivity %}
       <exportNetcdfActivity>
         <exportFile>{{ ena.exportFile }}</exportFile>
+        {% if ena.netcdfFormat is not none %}<netcdfFormat>{{ ena.netcdfFormat }}</netcdfFormat>{% endif %}
         {% for tssl in ena.timeSeriesSets %}
         <timeSeriesSets>
           {% for ts in tssl.timeSeriesSet %}{{ tss.render(ts) }}{% endfor %}
@@ -110,6 +113,12 @@
         </properties>
         {% endif %}
       </exportRunFileActivity>
+      {% endfor %}
+      {% for ecfrfa in activities.exportActivities.exportCustomFormatRunFileActivity %}
+      <exportCustomFormatRunFileActivity>
+        <templateFile>{{ ecfrfa.templateFile }}</templateFile>
+        <exportFile>{{ ecfrfa.exportFile }}</exportFile>
+      </exportCustomFormatRunFileActivity>
       {% endfor %}
     </exportActivities>
     {% endif %}
@@ -141,13 +150,17 @@
       {% for isa in activities.importActivities.importStateActivity %}
       <importStateActivity>
         {% if isa.stateConfigFile is not none %}<stateConfigFile>{{ isa.stateConfigFile }}</stateConfigFile>{% endif %}
+        {% if isa.stateImportDir is not none %}<stateImportDir>{{ isa.stateImportDir }}</stateImportDir>{% endif %}
+        {% if isa.stateFileDateTimePattern is not none %}<stateFileDateTimePattern>{{ isa.stateFileDateTimePattern }}</stateFileDateTimePattern>{% endif %}
         {% if isa.stateFile is not none %}
         <stateFile>
           <importFile>{{ isa.stateFile.importFile }}</importFile>
           {% if isa.stateFile.relativeExportFile is not none %}<relativeExportFile>{{ isa.stateFile.relativeExportFile }}</relativeExportFile>{% endif %}
         </stateFile>
         {% endif %}
+        {% if isa.relativeExportFile is not none %}<relativeExportFile>{{ isa.relativeExportFile }}</relativeExportFile>{% endif %}
         {% if isa.compressedStateLocation is not none %}<compressedStateLocation>{{ isa.compressedStateLocation }}</compressedStateLocation>{% endif %}
+        {% if isa.expiryTime is not none %}<expiryTime unit="{{ isa.expiryTime.unit }}" multiplier="{{ isa.expiryTime.multiplier }}"/>{% endif %}
         {% if isa.synchLevel is not none %}<synchLevel>{{ isa.synchLevel }}</synchLevel>{% endif %}
       </importStateActivity>
       {% endfor %}

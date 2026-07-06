@@ -1,0 +1,164 @@
+name: tpl_generate_nwp_hindcast
+description: >-
+  Generate a continuous NWP hindcast from successive forecasts: take the newest
+  forecast grid, constant-extrapolate backwards to fill the hindcast window,
+  and interpolate the hindcast grid to station scalars. Farmed from the
+  FEWS-Caribbean config (Config/ModuleConfigFiles/Import/
+  GenerateNwpHindcastTemplate.xml, a transformationModule). Per-parameter:
+  instantiate once per NWP parameter. Numeric FEWS placeholders are lifted to
+  concrete Jinja vars; $MODULE_INSTANCE_ID$ stays literal (FEWS resolves it to
+  the running instance).
+variables:
+  # Output module-config filename + instance label.
+  name:
+    type: str
+    required: false
+    default: GenerateNwpHindcast
+  # Upstream forecast import instance providing ForecastGrid.
+  forecast_instance:
+    type: str
+    required: false
+    default: ImportEcmwfMeteo
+  parameter_id:
+    type: str
+    required: false
+    default: AirPressureMeanSeaLevel
+  grid_location_id:
+    type: str
+    required: false
+    default: Ecmwf
+  scalar_locationset_id:
+    type: str
+    required: false
+    default: StationsHindcast
+  time_step_hours:
+    type: int
+    required: false
+    default: 3
+  view_period_start_hours:
+    type: int
+    required: false
+    default: -144
+  view_period_end_hours:
+    type: int
+    required: false
+    default: 0
+  # Geo datum used for the grid->station closestDistance interpolation
+  # (FEWS $UtmZoneSystem$).
+  distance_geo_datum:
+    type: str
+    required: false
+    default: UTM20N
+  expiry_grid_days:
+    type: int
+    required: false
+    default: 5
+  expiry_scalar_days:
+    type: int
+    required: false
+    default: 5
+outputs:
+- schema: TransformationModule
+  output: ModuleConfigFiles/Import/{{ name }}.xml
+  data:
+    version: '1.0'
+    variable:
+    - variableId: ForecastGrid
+      timeSeriesSet:
+        moduleInstanceId: {{ forecast_instance }}
+        valueType: grid
+        parameterId: {{ parameter_id }}
+        locationId: {{ grid_location_id }}
+        timeSeriesType: external forecasting
+        timeStep:
+          unit: hour
+          multiplier: {{ time_step_hours }}
+        readWriteMode: read complete forecast
+    - variableId: HindcastGridTemporary
+      timeSeriesSet:
+        moduleInstanceId: $MODULE_INSTANCE_ID$
+        valueType: grid
+        parameterId: {{ parameter_id }}
+        locationId: {{ grid_location_id }}
+        timeSeriesType: temporary
+        timeStep:
+          unit: hour
+          multiplier: {{ time_step_hours }}
+        relativeViewPeriod:
+          unit: hour
+          start: {{ view_period_start_hours }}
+          end: {{ view_period_end_hours }}
+          endOverrulable: false
+        readWriteMode: read only
+    - variableId: HindcastGrid
+      timeSeriesSet:
+        moduleInstanceId: $MODULE_INSTANCE_ID$
+        valueType: grid
+        parameterId: {{ parameter_id }}
+        locationId: {{ grid_location_id }}
+        timeSeriesType: external historical
+        timeStep:
+          unit: hour
+          multiplier: {{ time_step_hours }}
+        relativeViewPeriod:
+          unit: hour
+          start: {{ view_period_start_hours }}
+          end: {{ view_period_end_hours }}
+          endOverrulable: false
+        readWriteMode: read only
+        expiryTime:
+          unit: day
+          multiplier: {{ expiry_grid_days }}
+    - variableId: HindcastScalar
+      timeSeriesSet:
+        moduleInstanceId: $MODULE_INSTANCE_ID$
+        valueType: scalar
+        parameterId: {{ parameter_id }}
+        locationSetId: {{ scalar_locationset_id }}
+        timeSeriesType: external historical
+        timeStep:
+          unit: hour
+          multiplier: {{ time_step_hours }}
+        relativeViewPeriod:
+          unit: hour
+          start: {{ view_period_start_hours }}
+          end: {{ view_period_end_hours }}
+          endOverrulable: false
+        readWriteMode: add originals
+        expiryTime:
+          unit: day
+          multiplier: {{ expiry_scalar_days }}
+    transformation:
+    - id: HindcastGridTemporary
+      body:
+        user:
+          simple:
+            expression: HindcastGrid
+            outputVariable:
+              variableId: HindcastGridTemporary
+    - id: HindcastGridTemporaryWithForecast
+      body:
+        user:
+          simple:
+            expression: ForecastGrid
+            outputVariable:
+              variableId: HindcastGridTemporary
+    - id: HindcastGrid
+      body:
+        interpolationSerial:
+          extrapolateConstant:
+            inputVariable:
+              variableId: HindcastGridTemporary
+            extrapolateDirection: start
+            outputVariable:
+              variableId: HindcastGrid
+    - id: HindcastScalar
+      body:
+        interpolationSpatial:
+          closestDistance:
+            inputVariable:
+              variableId: HindcastGrid
+            distanceGeoDatum: {{ distance_geo_datum }}
+            outputVariable:
+              variableId: HindcastScalar
+contributions: []
