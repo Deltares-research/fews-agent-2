@@ -1,0 +1,403 @@
+"""FastAPI HTTP driver — the third shell over the FEWS chat agent.
+
+Two existing drivers front the agent's two halves: the CLI
+(``runners/agent/chat_step.py``) and the Streamlit app
+(``app/chatter.py``). This module is a *third* driver shell that exposes
+the same two halves over HTTP/REST:
+
+  * the **elicitation half** — one turn through the shared per-turn
+    pipeline ``fews_agent.agent.turn_engine.run_turn_pipeline`` (the same
+    Phases 1–5 both other drivers run), and
+  * the **generation half** — the deterministic build path
+    ``runners.agent.build_from_blueprint.build_from_blueprint``.
+
+Like the other drivers it owns only its transport concerns (HTTP I/O,
+session lookup, persistence, provider resolution) and delegates all
+elicitation logic to ``turn_engine`` and all XML generation to the build
+runner. It reimplements none of that logic.
+
+Persistence is identical to the CLI driver: a session is a
+datetime-stamped project instance
+``projects/<name>/<name>_<YYYY-MM-DD_HHMMSS>/`` holding
+``.chat_state.json`` / ``.chat_history.json``. The session id is the
+instance directory name.
+
+Run it with::
+
+    uvicorn app.api.server:app --reload
+
+The chat/turn endpoints need Ollama (qwen2.5) reachable; the build
+endpoints are fully deterministic and work without it.
+"""
+from __future__ import annotations
+
+import io
+import json
+import os
+from datetime import datetime
+from pathlib import Path
+
+from fastapi import FastAPI, HTTPException
+from rich.console import Console
+
+# --- reuse the existing agent machinery; do not reinvent it ---------------
+from fews_agent.agent.project_chat import (
+    build_pattern_catalog,
+    initial_state,
+    write_project,
+)
+from fews_agent.agent.providers.factory import get_provider_or_ollama
+from fews_agent.agent.turn_engine import (
+    apply_disambiguation_answer,
+    resolve_patterns,
+    run_turn_pipeline,
+)
+from runners.agent.build_from_blueprint import build_from_blueprint
+
+# The generic "is the LLM reachable?" pre-flight, shared with the Streamlit
+# driver. Imported into this module's namespace so tests can patch
+# ``app.api.server.check_ollama_for_model`` (mirrors how the chatter tests
+# patch ``chatter.check_ollama_for_model``) and run offline.
+from app.chatter import check_ollama_for_model
+
+from app.api.models import (
+    BuildFileResult,
+    BuildRequest,
+    BuildResponse,
+    CreateSessionRequest,
+    CreateSessionResponse,
+    HealthResponse,
+    SessionStateResponse,
+    TurnRequest,
+    TurnResponse,
+)
+
+# This module lives at app/api/server.py, so the repo root is two
+# levels up (parents[0]=app/api, parents[1]=app, parents[2]=repo root).
+REPO_ROOT = Path(__file__).resolve().parents[2]
+PATTERNS_ROOT = REPO_ROOT / "patterns"
+# Sessions live under the same tree the CLI driver uses, so a session
+# started over HTTP is inspectable/rerunnable from the terminal and vice
+# versa. Overridable in tests via monkeypatch.
+OUTPUT_ROOT = REPO_ROOT / "projects"
+
+DEFAULT_MODEL = "qwen2.5:7b-instruct"
+
+app = FastAPI(
+    title="FEWS config-generation agent API",
+    description="HTTP wrapper over the FEWS chat/elicitation turn loop and "
+    "the deterministic XML build path.",
+    version="0.1.0",
+)
+
+
+# --------------------------------------------------------------------------
+# Session persistence — identical layout to runners/agent/chat_step.py
+# --------------------------------------------------------------------------
+
+def _state_path(project_dir: Path) -> Path:
+    return project_dir / ".chat_state.json"
+
+
+def _history_path(project_dir: Path) -> Path:
+    return project_dir / ".chat_history.json"
+
+
+def _new_session_dir(project_name: str) -> Path:
+    """Mint a fresh datetime-stamped instance dir for a new session."""
+    parent = OUTPUT_ROOT / project_name
+    parent.mkdir(parents=True, exist_ok=True)
+    dt = datetime.now().strftime("%Y-%m-%d_%H%M%S")
+    new_dir = parent / f"{project_name}_{dt}"
+    # In the (unlikely) event two sessions land on the same second, append a
+    # disambiguating suffix so we never collide with an existing session.
+    if new_dir.exists():
+        n = 2
+        while (parent / f"{project_name}_{dt}_{n}").exists():
+            n += 1
+        new_dir = parent / f"{project_name}_{dt}_{n}"
+    new_dir.mkdir(parents=True, exist_ok=True)
+    return new_dir
+
+
+def _resolve_session_dir(session_id: str) -> Path:
+    """Find the instance dir for a session id, or 404.
+
+    The id is the instance directory name; it lives two levels under
+    ``OUTPUT_ROOT`` (``<project_name>/<session_id>/``). Globbing avoids
+    having to parse the project name back out of the id (which may itself
+    contain underscores).
+    """
+    if "/" in session_id or "\\" in session_id or ".." in session_id:
+        raise HTTPException(status_code=400, detail="Invalid session id.")
+    for cand in OUTPUT_ROOT.glob(f"*/{session_id}"):
+        if cand.is_dir() and _state_path(cand).is_file():
+            return cand
+    raise HTTPException(
+        status_code=404, detail=f"No session {session_id!r}.",
+    )
+
+
+def _load(project_dir: Path) -> tuple[dict, list]:
+    state = json.loads(_state_path(project_dir).read_text(encoding="utf-8"))
+    hp = _history_path(project_dir)
+    history = (
+        json.loads(hp.read_text(encoding="utf-8")) if hp.is_file() else []
+    )
+    return state, history
+
+
+def _save(project_dir: Path, state: dict, history: list) -> None:
+    project_dir.mkdir(parents=True, exist_ok=True)
+    _state_path(project_dir).write_text(
+        json.dumps(state, indent=2, default=str), encoding="utf-8"
+    )
+    _history_path(project_dir).write_text(
+        json.dumps(history, indent=2, default=str), encoding="utf-8"
+    )
+
+
+def _catalog():
+    return build_pattern_catalog(PATTERNS_ROOT)
+
+
+def _model_for(state: dict) -> str:
+    return state.get("model") or DEFAULT_MODEL
+
+
+def _provider_name() -> str:
+    """The configured LLM backend (default ollama), lower-cased."""
+    return (os.environ.get("FEWS_AGENT_PROVIDER") or "ollama").lower().strip()
+
+
+def _llm_preflight(model: str) -> str | None:
+    """Provider-aware LLM readiness probe.
+
+    Only Ollama exposes a local daemon we can cheaply ping. For hosted
+    backends (litellm / azure / anthropic / hf) there is nothing to probe
+    without spending a real call, so we skip the pre-flight and let the
+    actual ``run_turn_pipeline`` call surface any failure as a 503. This
+    is what makes the turn endpoint usable once ``FEWS_AGENT_PROVIDER`` is
+    switched away from ollama — otherwise the Ollama probe would 503 even
+    though the real backend is reachable.
+
+    Returns an error string when unreachable, else ``None``.
+    """
+    if _provider_name() in ("ollama", ""):
+        return check_ollama_for_model(model)
+    return None
+
+
+# --------------------------------------------------------------------------
+# Endpoints
+# --------------------------------------------------------------------------
+
+@app.get("/health", response_model=HealthResponse)
+def health() -> HealthResponse:
+    """Liveness + whether the chat LLM backend is reachable.
+
+    The build endpoints work regardless of this; only the turn endpoint
+    needs the LLM.
+    """
+    provider = _provider_name()
+    model = os.environ.get("FEWS_AGENT_MODEL") or DEFAULT_MODEL
+    err = _llm_preflight(model)
+    detail = err
+    if err is None and provider not in ("ollama", ""):
+        # No local daemon to probe for a hosted backend; report the
+        # configured provider rather than implying an Ollama check ran.
+        detail = f"provider={provider}; reachability not probed (hosted backend)"
+    return HealthResponse(
+        status="ok",
+        provider=provider,
+        model=model,
+        ollama_reachable=err is None,
+        detail=detail,
+    )
+
+
+@app.post("/sessions", response_model=CreateSessionResponse, status_code=201)
+def create_session(req: CreateSessionRequest) -> CreateSessionResponse:
+    """Create a new chat session (a fresh project instance on disk)."""
+    project_name = (req.project_name or "").strip() or (
+        "api-session-" + datetime.now().strftime("%Y%m%d-%H%M%S")
+    )
+    # Sanitise: the name becomes a directory, so keep it filesystem-safe.
+    safe = "".join(
+        c if (c.isalnum() or c in "-_.") else "-" for c in project_name
+    )
+    project_dir = _new_session_dir(safe)
+    (project_dir / "inputs").mkdir(exist_ok=True)
+
+    state = initial_state(safe)
+    state.setdefault("intent", None)
+    state.setdefault("slots", {})
+    state["model"] = (req.model or DEFAULT_MODEL)
+    _save(project_dir, state, [])
+
+    return CreateSessionResponse(
+        session_id=project_dir.name,
+        project_name=safe,
+        project_dir=str(project_dir),
+        model=state["model"],
+    )
+
+
+@app.get("/sessions/{session_id}", response_model=SessionStateResponse)
+def get_session(session_id: str) -> SessionStateResponse:
+    """Return the resolved intermediate variables (slots + patterns)."""
+    project_dir = _resolve_session_dir(session_id)
+    state, _ = _load(project_dir)
+    return SessionStateResponse(
+        session_id=session_id,
+        project_name=state.get("name", session_id),
+        intent=state.get("intent"),
+        slots=state.get("slots", {}) or {},
+        patterns=state.get("patterns", []) or [],
+        warnings=state.get("warnings", []) or [],
+        built_phases=state.get("built_phases", []) or [],
+    )
+
+
+@app.post("/sessions/{session_id}/turn", response_model=TurnResponse)
+def run_turn(session_id: str, req: TurnRequest) -> TurnResponse:
+    """Run one elicitation turn through the shared turn-engine pipeline.
+
+    Mirrors the CLI/Streamlit turn loop: append the user message →
+    consume any pending disambiguation answer → resolve the provider →
+    ``run_turn_pipeline`` → persist → render the result. Honours the
+    disambiguation short-circuit.
+
+    Returns 503 (not 500) when the LLM backend is unreachable, so a
+    client gets an actionable message rather than a crash.
+    """
+    project_dir = _resolve_session_dir(session_id)
+    state, history = _load(project_dir)
+    catalog = _catalog()
+    model = _model_for(state)
+
+    message = req.message
+    history.append({"role": "user", "message": message})
+
+    # Consume a pending intent-disambiguation answer, if one is awaited
+    # (same seam both other drivers call before command dispatch).
+    apply_disambiguation_answer(state, message)
+
+    # Pre-flight the LLM. The whole pipeline ends at compose_reply (an LLM
+    # call), so fail loudly + actionably here rather than 500-ing deep in
+    # the engine. Patched to None in tests so they run offline.
+    llm_err = _llm_preflight(model)
+    if llm_err:
+        # Persist the user turn so the session records what was asked, then
+        # surface the readiness problem as a 503.
+        _save(project_dir, state, history)
+        raise HTTPException(status_code=503, detail=llm_err)
+
+    provider = get_provider_or_ollama(model)
+    try:
+        result = run_turn_pipeline(
+            state, message, catalog,
+            provider=provider,
+            inputs_dir=project_dir / "inputs",
+        )
+    except Exception as exc:  # noqa: BLE001
+        _save(project_dir, state, history)
+        raise HTTPException(
+            status_code=503,
+            detail=f"Turn pipeline failed ({type(exc).__name__}: {exc}). "
+            f"Is the LLM backend reachable?",
+        ) from exc
+
+    history.append({"role": "agent", "message": result.agent_message})
+    _save(project_dir, state, history)
+
+    return TurnResponse(
+        reply=result.agent_message,
+        short_circuit=result.short_circuit,
+        intent=state.get("intent"),
+        patterns=state.get("patterns", []) or [],
+        slots=state.get("slots", {}) or {},
+        warnings=result.warnings,
+        ready=result.ready,
+        next_question=result.next_question,
+        new_patterns=result.new_patterns,
+        internals=result.internals,
+    )
+
+
+@app.post("/sessions/{session_id}/build", response_model=BuildResponse)
+def build_session(session_id: str, req: BuildRequest | None = None) -> BuildResponse:
+    """Assemble the project: write project.yaml (the ``done`` path) and run
+    the deterministic build, returning the per-file XSD table as JSON.
+
+    Fully deterministic — needs no LLM. The filter drafter falls back to a
+    bundled standard when Ollama is unreachable.
+    """
+    req = req or BuildRequest()
+    project_dir = _resolve_session_dir(session_id)
+    state, history = _load(project_dir)
+    catalog = _catalog()
+
+    # Resolve patterns from the current slots (the ``done`` path), then write
+    # project.yaml. Guard against an empty project so we don't shell a build
+    # that has nothing to emit.
+    resolve_patterns(state, catalog)
+    if not state.get("patterns"):
+        raise HTTPException(
+            status_code=409,
+            detail="No patterns resolved yet — run at least one turn that "
+            "describes what to build before building.",
+        )
+    warnings = list(state.get("warnings") or [])
+    if warnings and not req.force:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": f"{len(warnings)} unresolved warning(s); pass "
+                "force=true to build anyway.",
+                "warnings": warnings,
+            },
+        )
+
+    project_path = write_project(state, project_dir)
+    _save(project_dir, state, history)
+
+    inputs_dir = project_dir / "inputs"
+    silent = Console(file=io.StringIO(), force_terminal=False)
+    try:
+        summary = build_from_blueprint(
+            blueprint_path=Path(project_path),
+            pattern_root=PATTERNS_ROOT,
+            inputs_dir=inputs_dir if inputs_dir.is_dir() else None,
+            console=silent,
+        )
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(
+            status_code=500,
+            detail=f"Build failed ({type(exc).__name__}: {exc}).",
+        ) from exc
+
+    files = [
+        BuildFileResult(
+            path=f.get("path", ""),
+            xsd_ok=bool(f.get("xsd_ok")),
+            xsd_msg=f.get("xsd_msg"),
+            byte_equivalent=f.get("byte_equivalent"),
+        )
+        for f in summary.get("files", [])
+    ]
+    return BuildResponse(
+        ok=bool(summary.get("ok")),
+        blueprint=summary.get("blueprint"),
+        project_yaml=str(project_path),
+        output_root=summary.get("output_root"),
+        files_total=summary.get("files_total", 0),
+        files_xml=summary.get("files_xml", 0),
+        files_non_xml=summary.get("files_non_xml", 0),
+        files_xsd_ok=summary.get("files_xsd_ok", 0),
+        errors=list(summary.get("errors") or []),
+        unbacked_interpolation_sets=list(
+            summary.get("unbacked_interpolation_sets") or []
+        ),
+        files=files,
+    )

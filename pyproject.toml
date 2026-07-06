@@ -30,6 +30,10 @@ dependencies = [
     "streamlit>=1.40.0",
     "rich (>=15.0.0,<16.0.0)",
     "watchdog (>=6.0.0,<7.0.0)",
+
+    # HTTP/REST API (third driver shell — see app/api/server.py)
+    "fastapi>=0.115.0",
+    "uvicorn>=0.30.0",
 ]
 
 [project.scripts]
