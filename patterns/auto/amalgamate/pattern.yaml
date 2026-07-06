@@ -32,6 +32,7 @@ outputs:
 - schema: ImportAmalgamate
   output: ModuleConfigFiles/Maintenance/{{ name }}.xml
   data:
+{% if workflow_ids %}
     workflowId:
 {% for w in workflow_ids %}
     - {{ w }}
@@ -39,6 +40,7 @@ outputs:
     importRunMinimalAge:
       unit: day
       multiplier: {{ minimal_age_days }}
+{% endif %}
     amalgamateOrphans: {{ 'true' if amalgamate_orphans else 'false' }}
 - schema: Workflow
   output: WorkflowFiles/Maintenance/{{ name }}.xml

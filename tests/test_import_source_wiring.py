@@ -40,3 +40,20 @@ def test_import_aliases(alias_text, canonical):
 def test_import_resolves_to_pattern_with_titlecase_name(imp, path, source_name):
     out = pi._resolve_import_patterns([imp], {path})
     assert out == [{"pattern": path, "instances": [{"source_name": source_name}]}]
+
+
+def _station_note(imports):
+    status = pi.compute_input_status(
+        "build_data_import_only", {"csvs": [], "yamls": []}, {"imports": imports}
+    )
+    return [n for n in status["extra_notes"] if "Station imports" in n]
+
+
+@pytest.mark.parametrize("imports", [["NDBC"], ["IOC"], ["GHCND"], ["NDBC", "IOC"]])
+def test_station_sources_get_locations_csv_reminder(imports):
+    assert _station_note(imports), imports
+
+
+@pytest.mark.parametrize("imports", [["ECMWF"], ["GFS"], []])
+def test_non_station_sources_no_reminder(imports):
+    assert not _station_note(imports)

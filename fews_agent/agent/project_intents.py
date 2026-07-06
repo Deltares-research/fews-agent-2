@@ -141,6 +141,10 @@ _IMPORT_VALUE_OVERRIDES: dict[str, str] = {
     "NDBC":  "Ndbc",
 }
 
+# Station imports that need a locations.csv backing (their per-station URL is
+# keyed by a location attribute, and they land on a station locationSet).
+_STATION_IMPORT_SOURCES: frozenset[str] = frozenset({"NDBC", "IOC", "GHCND"})
+
 
 def detect_imports(text: str) -> list[str]:
     """Return canonical import names mentioned in the text (in input order)."""
@@ -661,6 +665,23 @@ def detect_wants_visualization(text: str) -> bool | None:
     return True if any(p in lower for p in _VISUALIZATION_PHRASES) else None
 
 
+_MAINTENANCE_PHRASES: tuple[str, ...] = (
+    "amalgamate", "maintenance", "housekeeping", "house keeping",
+    "datastore cleanup", "datastore clean up", "keep the datastore lean",
+    "database maintenance", "purge old", "clean up the datastore",
+)
+
+
+def detect_wants_maintenance(text: str) -> bool | None:
+    """Return True when prose asks for datastore maintenance / amalgamation.
+
+    Returns ``None`` (not ``False``) on no match, mirroring the other
+    ``wants_*`` flags so a turn-1 miss can't shadow a later signal.
+    """
+    lower = (text or "").lower()
+    return True if any(p in lower for p in _MAINTENANCE_PHRASES) else None
+
+
 def detect_data_types(text: str) -> list[str]:
     """Return canonical data_type phrases mentioned in the text.
 
@@ -881,6 +902,7 @@ def extract_skills(text: str) -> dict[str, Any]:
         "data_types": detect_data_types(text),
         "wants_interpolation": detect_wants_interpolation(text),
         "wants_visualization": detect_wants_visualization(text),
+        "wants_maintenance": detect_wants_maintenance(text),
         "region": detect_region(text),
         "custom_bbox": detect_custom_bbox(text),
         "grid_resolution": detect_grid_resolution(text),
@@ -1248,6 +1270,18 @@ def _resolve_import_patterns(
                 "pattern": "auto/spatial_display_grid",
                 "instances": viz_instances,
             })
+
+    # IOC sea-level companion: importing IOC observations pulls in the
+    # standard processing (1-min → 10-min mean aggregation + vertical-datum
+    # shift). The pattern defaults reference ImportIoc / ProcessIoc, which the
+    # IOC import instance registers.
+    if "IOC" in (imports or []) and (
+        "auto/tpl_aggregate_shift_sealevel" in catalog_paths
+    ):
+        out.append({
+            "pattern": "auto/tpl_aggregate_shift_sealevel",
+            "instances": [{}],
+        })
     return out
 
 
@@ -1371,14 +1405,15 @@ def _resolve_forecasting_patterns(
         _add(_FORECASTING_SHARED_TEMPLATES)
     if has_coastal:
         _add(_COASTAL_FORECASTING_TEMPLATES)
+    out.extend(_resolve_maintenance_patterns(slots, catalog_paths))
     return out
 
 
 def _resolve_data_import_only_patterns(
     slots: dict[str, Any], catalog_paths: set[str],
 ) -> list[dict]:
-    """Data-import-only project = just the import patterns. No basin, no model."""
-    return _resolve_import_patterns(
+    """Data-import-only project = the import patterns (+ optional maintenance)."""
+    out = _resolve_import_patterns(
         slots.get("imports", []), catalog_paths,
         data_types=slots.get("data_types"),
         wants_interpolation=bool(slots.get("wants_interpolation")),
@@ -1388,6 +1423,8 @@ def _resolve_data_import_only_patterns(
         import_overrides=slots.get("import_overrides"),
         geo_datum=slots.get("geoDatum"),
     )
+    out.extend(_resolve_maintenance_patterns(slots, catalog_paths))
+    return out
 
 
 def _resolve_basin_only_patterns(
@@ -1401,7 +1438,30 @@ def _resolve_basin_only_patterns(
                 b.get("model_adapter"), b.get("basin_name"), catalog_paths,
             )
         )
+    out.extend(_resolve_maintenance_patterns(slots, catalog_paths))
     return out
+
+
+def _resolve_maintenance_patterns(
+    slots: dict[str, Any], catalog_paths: set[str],
+) -> list[dict]:
+    """Amalgamate housekeeping module, when the user asked for maintenance.
+
+    Emits an orphan-sweep amalgamate (no workflowId refs) so it's valid in
+    any project without dangling workflow ids — the configurator points it at
+    specific import workflows via ``/set`` later. Rides the ``wants_maintenance``
+    flag through chat_step's additive slot merge (not an intent optional_slot).
+    """
+    if not slots.get("wants_maintenance") or "auto/amalgamate" not in catalog_paths:
+        return []
+    return [{
+        "pattern": "auto/amalgamate",
+        "instances": [{
+            "name": "AmalgamateOrphans",
+            "workflow_ids": [],
+            "amalgamate_orphans": True,
+        }],
+    }]
 
 
 _COMMON_SLOT_QUESTIONS = {
@@ -1950,6 +2010,18 @@ def compute_input_status(
             "extent (MacKenzie-shaped). Mention a region (Gulf of "
             "Guinea, North Sea, Mediterranean, ...) to crop the NWP "
             "grids and orient the Spatial Display map for this project."
+        )
+    station_srcs = sorted(
+        _STATION_IMPORT_SOURCES.intersection(slots.get("imports") or [])
+    ) if slots else []
+    if station_srcs:
+        extra_notes.append(
+            f"Station imports ({', '.join(station_srcs)}) fetch a per-station "
+            "URL keyed by a location attribute (@NdbcId@ / @IocId@ / @GhcndId@) "
+            "and land on a station locationSet (StationsNdbc / StationsIoc / "
+            "StationsGhcnd). Provide locations.csv listing those stations with "
+            "the matching id attribute; without it the import has no stations "
+            "to fetch."
         )
 
     return {
@@ -3235,6 +3307,7 @@ __all__ = [
     "detect_locations_source",
     "detect_model_adapter",
     "detect_coastal_domain",
+    "detect_wants_maintenance",
     "detect_region",
     "detect_status_query",
     "extract_skills",
