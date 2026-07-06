@@ -66,3 +66,46 @@ def test_resolve_basin_pattern_uses_right_var_key(
 
 def test_resolve_basin_pattern_empty_without_name():
     assert pi._resolve_basin_pattern("sfincs", None, {"auto/coastal_sfincs"}) == []
+
+
+# --- adapter-type-aware forecasting shared templates -----------------------
+
+_ALL_PATHS = (
+    set(pi._FORECASTING_SHARED_TEMPLATES)
+    | set(pi._COASTAL_FORECASTING_TEMPLATES)
+    | {"auto/raven_basin", "auto/coastal_hurrywave", "auto/nwp_grid_ecmwf_ifs"}
+)
+
+
+def _resolved_names(slots):
+    return {r["pattern"] for r in pi._resolve_forecasting_patterns(slots, _ALL_PATHS)}
+
+
+def test_hydro_forecast_gets_raven_templates_not_coastal():
+    got = _resolved_names(
+        {"basins": [{"basin_name": "Liard", "model_adapter": "raven"}], "imports": []}
+    )
+    assert "auto/tpl_preprocess_nwp_raven" in got       # hydro chain present
+    assert not (got & set(pi._COASTAL_FORECASTING_TEMPLATES))  # no coastal leak
+
+
+def test_coastal_forecast_gets_coastal_templates_not_raven():
+    got = _resolved_names(
+        {"basins": [{"basin_name": "Caribbean", "model_adapter": "hurrywave"}],
+         "imports": ["ECMWF"]}
+    )
+    assert "auto/coastal_hurrywave" in got
+    assert "auto/nwp_grid_ecmwf_ifs" in got
+    assert set(pi._COASTAL_FORECASTING_TEMPLATES) <= got   # coastal chain present
+    assert not (got & set(pi._FORECASTING_SHARED_TEMPLATES))  # no raven leak
+
+
+def test_mixed_forecast_gets_both_template_sets():
+    got = _resolved_names(
+        {"basins": [
+            {"basin_name": "Liard", "model_adapter": "raven"},
+            {"basin_name": "Caribbean", "model_adapter": "hurrywave"},
+        ], "imports": []}
+    )
+    assert set(pi._FORECASTING_SHARED_TEMPLATES) <= got
+    assert set(pi._COASTAL_FORECASTING_TEMPLATES) <= got

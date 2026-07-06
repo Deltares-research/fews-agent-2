@@ -1315,10 +1315,33 @@ _FORECASTING_SHARED_TEMPLATES: dict[str, dict[str, str]] = {
 }
 
 
+# Coastal counterpart of _FORECASTING_SHARED_TEMPLATES: the ECMWF meteo
+# processing chain a SFINCS / HurryWave forecast needs (forecast-start,
+# continuous hindcast from forecasts, wind speed/dir derivation, grid->station
+# interpolation, accumulated-precip disaggregation). Included ONLY when the
+# project has a coastal model — the hydro (raven) preprocessing set above is
+# wrong for coastal and must not be pulled in.
+_COASTAL_FORECASTING_TEMPLATES: dict[str, dict[str, str]] = {
+    "auto/tpl_forecast_start_nwp": {"name": "ForecastStartNwp"},
+    "auto/tpl_generate_nwp_hindcast": {"name": "GenerateNwpHindcast"},
+    "auto/tpl_process_wind_uv_to_speed_dir": {"name": "ProcessWind"},
+    "auto/tpl_interpolate_ecmwf_grid_scalar": {"name": "ProcessEcmwf"},
+    "auto/tpl_disaggregate_accumulated_precip": {"name": "ProcessPrecipitation"},
+}
+
+
 def _resolve_forecasting_patterns(
     slots: dict[str, Any], catalog_paths: set[str],
 ) -> list[dict]:
-    """Forecasting project = imports + N basin models + shared templates."""
+    """Forecasting project = imports + N basin/coastal models + the shared
+    templates matching the model type(s) in the project.
+
+    The shared-template set is adapter-type-aware: hydrological basins
+    (raven/wflow) pull in the raven preprocessing chain; coastal models
+    (sfincs/hurrywave/delft3d) pull in the ECMWF meteo processing chain. A
+    mixed project gets both. Emitting the hydro set for a coastal-only project
+    was a bug — those templates reference raven instances that don't exist.
+    """
     out = _resolve_import_patterns(
         slots.get("imports", []), catalog_paths,
         data_types=slots.get("data_types"),
@@ -1329,17 +1352,25 @@ def _resolve_forecasting_patterns(
         import_overrides=slots.get("import_overrides"),
         geo_datum=slots.get("geoDatum"),
     )
-    for b in _basins_list(slots):
+    basins = _basins_list(slots)
+    for b in basins:
         out.extend(
             _resolve_basin_pattern(
                 b.get("model_adapter"), b.get("basin_name"), catalog_paths,
             )
         )
-    # Auto-include shared template patterns with their fixed instance
-    # variable values.
-    for tpl_path, instance in _FORECASTING_SHARED_TEMPLATES.items():
-        if tpl_path in catalog_paths:
-            out.append({"pattern": tpl_path, "instances": [dict(instance)]})
+    has_hydro = any(b.get("model_adapter") not in _COASTAL_ADAPTERS for b in basins)
+    has_coastal = any(b.get("model_adapter") in _COASTAL_ADAPTERS for b in basins)
+
+    def _add(templates: dict[str, dict[str, str]]) -> None:
+        for tpl_path, instance in templates.items():
+            if tpl_path in catalog_paths:
+                out.append({"pattern": tpl_path, "instances": [dict(instance)]})
+
+    if has_hydro:
+        _add(_FORECASTING_SHARED_TEMPLATES)
+    if has_coastal:
+        _add(_COASTAL_FORECASTING_TEMPLATES)
     return out
 
 
