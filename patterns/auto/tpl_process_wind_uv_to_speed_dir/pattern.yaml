@@ -1,0 +1,78 @@
+name: tpl_process_wind_uv_to_speed_dir
+description: >-
+  Derive wind speed + meteorological wind direction from U/V components
+  (transformationModule, user/simple expressions). Farmed from the
+  FEWS-Caribbean config (Config/ModuleConfigFiles/Import/ProcessWindTemplate.xml).
+  Reads WindSpeedU/WindSpeedV scalars and writes WindSpeed (sqrt(U^2+V^2)) and
+  WindDirection (quadrant-aware atan) into the same instance.
+variables:
+  name:
+    type: str
+    required: false
+    default: ProcessWind
+  locationset_id:
+    type: str
+    required: false
+    default: StationsEcmwfMeteo
+  time_series_type:
+    type: str
+    required: false
+    default: external forecasting
+  time_step_hours:
+    type: int
+    required: false
+    default: 3
+  view_period_start_hours:
+    type: int
+    required: false
+    default: -48
+  view_period_end_hours:
+    type: int
+    required: false
+    default: 48
+outputs:
+- schema: TransformationModule
+  output: ModuleConfigFiles/Import/{{ name }}.xml
+  data:
+    version: '1.0'
+    variable:
+{% for v in ['WindSpeedU', 'WindSpeedV', 'WindSpeed', 'WindDirection'] %}
+    - variableId: {{ v }}
+      timeSeriesSet:
+        moduleInstanceId: $MODULE_INSTANCE_ID$
+        valueType: scalar
+        parameterId: {{ v }}
+        locationSetId: {{ locationset_id }}
+        timeSeriesType: {{ time_series_type }}
+        timeStep:
+          unit: hour
+          multiplier: {{ time_step_hours }}
+        relativeViewPeriod:
+          unit: hour
+          start: {{ view_period_start_hours }}
+          end: {{ view_period_end_hours }}
+          endOverrulable: false
+        readWriteMode: {{ 'read only' if v in ['WindSpeedU', 'WindSpeedV'] else 'add originals' }}
+{% endfor %}
+    transformation:
+    - id: WindSpeed
+      body:
+        user:
+          simple:
+            expression: sqrt(WindSpeedU^2 + WindSpeedV^2)
+            outputVariable:
+              variableId: WindSpeed
+    - id: WindDirection
+      body:
+        user:
+          simple:
+            expression: >-
+              if ( WindSpeedU >=0, if ( WindSpeedV >=0 , 270 -
+              (360/(2*pi))*atan ( WindSpeedV / WindSpeedU), 270 +
+              (360/(2*pi))*atan ( abs(WindSpeedV / WindSpeedU) ) ), if (
+              WindSpeedV>=0, 90 + (360/(2*pi))*atan ( abs(WindSpeedV /
+              WindSpeedU) ), 90 - (360/(2*pi))*atan ( WindSpeedV / WindSpeedU
+              ) ) )
+            outputVariable:
+              variableId: WindDirection
+contributions: []

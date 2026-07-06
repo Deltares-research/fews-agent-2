@@ -27,6 +27,19 @@ variables:
     type: str
     required: false
     default: Ecmwf
+  # Parent domain to nest in. When set, this instance ALSO exports the
+  # parent HurryWave run's boundary wave spectrum (hurrywave.bsp) at this
+  # domain's HurrywaveBoundaryPoints as the nesting boundary. Empty = a
+  # standalone / overview run (the non-nested template).
+  nest_in_domain:
+    type: str
+    required: false
+    default: ''
+  # Time step of the boundary spectrum series exported from the parent.
+  time_step_input_scalar_minutes:
+    type: int
+    required: false
+    default: 10
   emit_idmap:
     type: bool
     required: false
@@ -147,6 +160,28 @@ outputs:
                 end: {{ view_period_end_hours }}
               readWriteMode: read only
 {% endfor %}
+{% if nest_in_domain %}
+        - exportFile: hurrywave.bsp
+          netcdfFormat: netcdf3
+          timeSeriesSets:
+            timeSeriesSet:
+            - moduleInstanceId: {{ nest_in_domain }}Hurrywave{{ meteo }}Hindcast
+              valueType: scalar
+              parameterId: WaveSpectrum
+              domainParameterId:
+              - Frequency
+              - Direction
+              locationSetId: HurrywaveBoundaryPoints{{ domain }}
+              timeSeriesType: {{ 'simulated historical' if hist else 'simulated forecasting' }}
+              timeStep:
+                unit: minute
+                multiplier: {{ time_step_input_scalar_minutes }}
+              relativeViewPeriod:
+                unit: hour
+                start: {{ view_period_start_hours }}
+                end: {{ view_period_end_hours }}
+              readWriteMode: read only
+{% endif %}
         exportCustomFormatRunFileActivity:
         - templateFile: '%WORK_DIR%/hurrywave_template.inp'
           exportFile: '%WORK_DIR%/hurrywave.inp'

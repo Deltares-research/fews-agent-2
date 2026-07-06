@@ -21,7 +21,7 @@ from typing import Any
 
 # Ordered phases. The guided flow walks them in this order; an empty
 # phase (no patterns resolved for it) is simply skipped.
-PHASE_ORDER: list[str] = ["imports", "process", "model", "visualize"]
+PHASE_ORDER: list[str] = ["imports", "process", "model", "visualize", "maintenance"]
 
 # Human-facing one-liners — used in the phase plan shown to the user.
 PHASE_LABELS: dict[str, str] = {
@@ -29,6 +29,7 @@ PHASE_LABELS: dict[str, str] = {
     "process": "Prepare data (preprocess / merge / modify / postprocess)",
     "model": "Run a basin model (Raven, Wflow, ...)",
     "visualize": "Visualize (Spatial Display, grid display, plots)",
+    "maintenance": "Housekeeping (amalgamate, archive, system metrics)",
 }
 
 
@@ -72,6 +73,15 @@ def classify_phase(pattern_path: str) -> str:
         or "accumulate" in name
     ):
         return "process"
+
+    # Maintenance / housekeeping: amalgamate, archive, system metrics.
+    if (
+        "amalgamate" in name
+        or "archive" in name
+        or "maintenance" in name
+        or "metrics" in name
+    ):
+        return "maintenance"
 
     # Everything else is treated as an import (the default bucket):
     # nwp_grid_*, satellite_precip_*, snow_import_*, earth2observe,
@@ -142,5 +152,10 @@ def normalize_phase(token: str) -> str | None:
         "viz": "visualize",
         "display": "visualize",
         "spatial": "visualize",
+        "maintenance": "maintenance",
+        "maintain": "maintenance",
+        "housekeeping": "maintenance",
+        "amalgamate": "maintenance",
+        "archive": "maintenance",
     }
     return synonyms.get(t)

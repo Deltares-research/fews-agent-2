@@ -46,6 +46,14 @@ from .ids import IdMapId, LocationSetId, ModuleInstanceId, UnitConversionsId
 # <general>
 # ---------------------------------------------------------------------------
 
+class DateTimeFormat(FewsModel):
+    """Named date/time format usable in run-file `%...(id)%` substitutions
+    (e.g. `%START_DATE_TIME(dateFormat)%`). `id` is an XML attribute."""
+
+    id: str | None = None
+    dateTimePattern: str
+
+
 class GeneralAdapterGeneral(FewsModel):
     """`<general>` block.
 
@@ -77,6 +85,7 @@ class GeneralAdapterGeneral(FewsModel):
     timeZone: TimeZone | None = None
     startDateTimeFormat: str | None = None
     endDateTimeFormat: str | None = None
+    dateTimeFormat: list[DateTimeFormat] = Field(default_factory=list)
     modelTimeStep: TimeStep | None = None
 
 
@@ -182,7 +191,11 @@ class ExportStateActivity(FewsModel):
 
 
 class ExportDataSetActivity(FewsModel):
-    moduleInstanceId: ModuleInstanceId
+    """XSD choice: export a module dataset by instance id, or deploy a named
+    module dataset (`moduleDataSetName`, used by the cyclone-download run)."""
+
+    moduleInstanceId: ModuleInstanceId | None = None
+    moduleDataSetName: str | None = None
     description: str | None = None
 
 
@@ -235,8 +248,12 @@ class ExportNetcdfActivity(FewsModel):
 
 
 class RunFileStringProperty(FewsModel):
+    """`<string key value>` — optional nested `<description>` (used, verbosely,
+    by the cyclone-download run file). Reused for `<double>` too."""
+
     key: str
     value: str
+    description: str | None = None
 
 
 class RunFileIntProperty(FewsModel):
@@ -245,14 +262,23 @@ class RunFileIntProperty(FewsModel):
 
 
 class RunFileProperties(FewsModel):
-    """`<properties>` inside exportRunFileActivity — polymorphic key/value
-    pairs (string + int typically; extend as needed)."""
+    """`<properties>` inside export*RunFileActivity — polymorphic key/value
+    pairs (string + int + double)."""
 
     string: list[RunFileStringProperty] = Field(default_factory=list)
     int: list[RunFileIntProperty] = Field(default_factory=list)
+    double: list[RunFileStringProperty] = Field(default_factory=list)
 
 
 class ExportRunFileActivity(FewsModel):
+    exportFile: str
+    properties: RunFileProperties | None = None
+
+
+class ExportNetcdfRunFileActivity(FewsModel):
+    """Run-control NetCDF passed to an adapter (e.g. WesPostAdapter)."""
+
+    description: str | None = None
     exportFile: str
     properties: RunFileProperties | None = None
 
@@ -271,6 +297,9 @@ class ExportActivities(FewsModel):
     exportParameterActivity: list[ExportParameterActivity] = Field(default_factory=list)
     exportNetcdfActivity: list[ExportNetcdfActivity] = Field(default_factory=list)
     exportRunFileActivity: list[ExportRunFileActivity] = Field(default_factory=list)
+    exportNetcdfRunFileActivity: list[ExportNetcdfRunFileActivity] = Field(
+        default_factory=list
+    )
     exportCustomFormatRunFileActivity: list[ExportCustomFormatRunFileActivity] = Field(
         default_factory=list
     )
@@ -354,7 +383,12 @@ class ImportStateActivity(FewsModel):
 
 
 class ImportNetcdfActivity(FewsModel):
-    importFile: str
+    """XSD choice: import a single `importFile`, or scan a `folder` with a
+    `fileNamePatternFilter` (used by the WES post-adapter's grid import)."""
+
+    importFile: str | None = None
+    folder: str | None = None
+    fileNamePatternFilter: str | None = None
     timeSeriesSets: TimeSeriesSetList | None = None
 
 
@@ -388,6 +422,8 @@ class GeneralAdapterRun(FewsModel):
 __all__ = [
     "GeneralAdapterRun",
     "GeneralAdapterGeneral",
+    "DateTimeFormat",
+    "ExportNetcdfRunFileActivity",
     "Activities",
     "StartUpActivities",
     "PurgeActivity",

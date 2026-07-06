@@ -91,6 +91,7 @@ _INTENT_OVERRIDE_PHRASES = {
     "build_basin_model_only": (
         "model only", "basin model only", "no imports",
         "without imports", "just the model",
+        "no data import", "without data import",
     ),
 }
 

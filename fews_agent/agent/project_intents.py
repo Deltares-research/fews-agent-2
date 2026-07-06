@@ -41,6 +41,8 @@ _ADAPTER_PHRASES: dict[str, list[str]] = {
     "hbv96": ["hbv96", "hbv 96", "hbv-96", "hbv"],
     "mesh": ["mesh"],
     "delft3d": ["delft3d", "delft 3d", "delft-3d"],
+    "sfincs": ["sfincs"],
+    "hurrywave": ["hurrywave", "hurry wave"],
 }
 
 
@@ -57,6 +59,42 @@ def detect_model_adapter(text: str) -> str | None:
     return None
 
 
+# The coastal adapters name their model instance by *domain* (e.g.
+# NorthAtlantic, Saba), not a hydrological basin. Detected separately so a
+# coastal domain isn't shadowed by the region gazetteer (Caribbean, Gulf of
+# Mexico, ... are regions AND plausible domain names).
+_COASTAL_ADAPTERS: frozenset[str] = frozenset({"delft3d", "sfincs", "hurrywave"})
+
+# "<Name> domain" / "<Name> nest[ed]" — capture 1-2 capitalised words.
+_COASTAL_DOMAIN_CUE_RE = re.compile(
+    r"\b([A-Z][A-Za-z]+(?:\s+[A-Z][A-Za-z]+)?)\s+(?:domain|nest(?:ed)?)\b"
+)
+
+
+def detect_coastal_domain(text: str) -> str | None:
+    """Extract the coastal model *domain* from prose, independent of the
+    region gazetteer.
+
+    Cues, in order: "<Name> domain" / "<Name> nest", then "<coastal adapter>
+    ... for [the] <Name>". Two-word names are collapsed ("North Atlantic" ->
+    "NorthAtlantic") to match the config's domain-id convention. Returns None
+    when no coastal-domain cue is present.
+    """
+    m = _COASTAL_DOMAIN_CUE_RE.search(text)
+    if m:
+        return m.group(1).replace(" ", "")
+    # Fallback: a coastal adapter followed (soon) by "for [the] <Name>".
+    m2 = re.search(
+        r"\b(?:sfincs|hurry\s*wave|delft\s*3d(?:\s*fm)?)\b[^.]*?"
+        r"\bfor\s+(?:the\s+)?([A-Z][A-Za-z]+(?:\s+[A-Z][A-Za-z]+)?)\b",
+        text,
+        re.IGNORECASE,
+    )
+    if m2:
+        return m2.group(1).replace(" ", "")
+    return None
+
+
 # ---------------------------------------------------------------------------
 # Skill 2: data import detection
 # ---------------------------------------------------------------------------
@@ -69,6 +107,12 @@ _IMPORT_NAMES: list[str] = [
     "E2O",                                             # Earth2Observe
     "WSCDaily", "WSCHourly", "WSCHistoric",            # WSC scalar
     "ECCCScalar",
+    # FEWS-Caribbean sources
+    "ECMWF",                                           # ECMWF IFS open-data grid
+    "GHCND",                                           # NOAA GHCN-Daily stations
+    "JTWC",                                            # JTWC cyclone tracks
+    "IOC",                                             # IOC sea-level stations
+    "NDBC",                                            # NDBC buoys
 ]
 
 # Aliases for import names that appear in conversational language but
@@ -78,6 +122,8 @@ _IMPORT_ALIASES: dict[str, str] = {
     "ECCCStations": "ECCCScalar",
     "WSC": "WSCHourly",  # bare "WSC" defaults to hourly variant
     "Earth2Observe": "E2O",
+    "IFS": "ECMWF",      # ECMWF's operational model name
+    "GHCN": "GHCND",     # also catches the hyphenated "GHCN-D"
 }
 
 # Override the default "use import name as the variable value" behaviour
@@ -86,6 +132,13 @@ _IMPORT_ALIASES: dict[str, str] = {
 _IMPORT_VALUE_OVERRIDES: dict[str, str] = {
     "NAM":  "ImportNAMGrids",
     "SREF": "ImportSREFGrids",
+    # Keep the FEWS-Caribbean patterns' title-case source_name defaults
+    # (Ecmwf/Ghcnd/...) rather than the upper-case detection token.
+    "ECMWF": "Ecmwf",
+    "GHCND": "Ghcnd",
+    "JTWC":  "Jtwc",
+    "IOC":   "Ioc",
+    "NDBC":  "Ndbc",
 }
 
 
@@ -811,10 +864,17 @@ def extract_skills(text: str) -> dict[str, Any]:
     pairs = detect_basins_with_adapters(text)
     single_basin = detect_basin(text) if len(pairs) <= 1 else None
     single_adapter = detect_model_adapter(text) if len(pairs) <= 1 else None
+    # Coastal models name their domain, which the region gazetteer would
+    # otherwise swallow — feed it into basin_name so the shared basin
+    # resolver (adapter -> (pattern, var_key)) can fire.
+    coastal_domain = detect_coastal_domain(text)
+    if single_basin is None and single_adapter in _COASTAL_ADAPTERS:
+        single_basin = coastal_domain
     return {
         "basins": pairs,
         "basin_name": single_basin,
         "model_adapter": single_adapter,
+        "coastal_domain": coastal_domain,
         "imports": detect_imports(text),
         "geoDatum": detect_geo_datum(text),
         "locations_source": detect_locations_source(text),
@@ -875,16 +935,29 @@ _IMPORT_PATTERN_MAP: dict[str, tuple[str, str]] = {
     "E2O": ("auto/earth2observe", "source_name"),
     # ECCCScalar — label_var = source_name
     "ECCCScalar": ("auto/eccc_scalar", "source_name"),
+    # FEWS-Caribbean sources — label_var = source_name (value overridden
+    # to the title-case default via _IMPORT_VALUE_OVERRIDES).
+    "ECMWF": ("auto/nwp_grid_ecmwf_ifs", "source_name"),
+    "GHCND": ("auto/import_station_ghcnd", "source_name"),
+    "JTWC":  ("auto/import_cyclone_jtwc", "source_name"),
+    "IOC":   ("auto/import_sealevel_ioc", "source_name"),
+    "NDBC":  ("auto/import_buoy_ndbc", "source_name"),
     # WSC scalar — label_var = wsc_variant
     "WSCDaily":    ("auto/wsc_scalar_WSCDaily_WSCHourly", "wsc_variant"),
     "WSCHourly":   ("auto/wsc_scalar_WSCDaily_WSCHourly", "wsc_variant"),
     "WSCHistoric": ("auto/wsc_scalar_WSCHistoric", "wsc_variant"),
 }
 
-# Adapter → basin pattern path.
+# Adapter → (pattern path, the pattern variable the model name fills).
+# Hydrological basins fill `basin_name`; coastal models name their domain /
+# model instance differently (`domain` for SFINCS/HurryWave, `model_name`
+# for the Delft3D-FM DIMR run).
 _ADAPTER_PATTERN_MAP = {
-    "raven": "auto/raven_basin",
-    "wflow": "auto/wflow_basin",
+    "raven": ("auto/raven_basin", "basin_name"),
+    "wflow": ("auto/wflow_basin", "basin_name"),
+    "delft3d": ("auto/coastal_dflowfm_dimr", "model_name"),
+    "sfincs": ("auto/coastal_sfincs", "domain"),
+    "hurrywave": ("auto/coastal_hurrywave", "domain"),
 }
 
 
@@ -1184,10 +1257,13 @@ def _resolve_basin_pattern(
     """Adapter + basin → list with a single basin pattern instance."""
     if not adapter or not basin:
         return []
-    path = _ADAPTER_PATTERN_MAP.get(adapter)
-    if not path or path not in catalog_paths:
+    entry = _ADAPTER_PATTERN_MAP.get(adapter)
+    if not entry:
         return []
-    return [{"pattern": path, "instances": [{"basin_name": basin}]}]
+    path, var_key = entry
+    if path not in catalog_paths:
+        return []
+    return [{"pattern": path, "instances": [{var_key: basin}]}]
 
 
 def _basins_list(slots: dict[str, Any]) -> list[dict[str, str]]:
@@ -1305,7 +1381,7 @@ _COMMON_SLOT_QUESTIONS = {
     "basin_name": "What basin is this project for? (e.g. Liard, Snare, ...)",
     "model_adapter": (
         "Which model adapter does this basin use? "
-        "Options: raven, wflow, hbv96, mesh, delft3d."
+        "Options: raven, wflow, hbv96, mesh, delft3d, sfincs, hurrywave."
     ),
     "imports": (
         "Which data sources do you import? "
@@ -1524,6 +1600,7 @@ _NARROWING_PHRASES: tuple[str, ...] = (
     # agree on what counts as a data-import-only signal.
     "no basin", "no basin model", "without a basin", "without basin",
     "no imports", "without imports", "without nwp",
+    "no data import", "without data import",
     "no nwp", "no forecast",
     "model only", "model-only", "imports only", "import only",
     "import-only", "model only.", "model only,",
@@ -2586,7 +2663,8 @@ _CONCEPT_ENTRIES: dict[str, dict[str, str]] = {
         "body": (
             "Which hydrological model code FEWS calls to run the "
             "basin simulation. Supported: raven, wflow, hbv96, mesh, "
-            "delft3d. Each basin in the project gets exactly one "
+            "delft3d, sfincs, hurrywave (the last three are coastal). "
+            "Each basin/domain in the project gets exactly one "
             "adapter."
         ),
     },
@@ -3125,6 +3203,7 @@ __all__ = [
     "detect_grid_resolution",
     "detect_locations_source",
     "detect_model_adapter",
+    "detect_coastal_domain",
     "detect_region",
     "detect_status_query",
     "extract_skills",

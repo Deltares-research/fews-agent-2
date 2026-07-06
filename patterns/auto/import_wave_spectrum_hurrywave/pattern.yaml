@@ -1,0 +1,73 @@
+name: import_wave_spectrum_hurrywave
+description: >-
+  Import a HurryWave 2D wave spectrum (NETCDF-CF_SPECTRUM) at the boundary
+  points of a nested domain, so a child HurryWave run can read its parent's
+  spectral boundary. Farmed from the FEWS-Caribbean config
+  (Config/ModuleConfigFiles/Hurrywave/HurrywaveSpectrumImportTemplate.xml).
+  Reuses IdMapFromHurrywave (emitted by coastal_hurrywave). Spectrum is a
+  scalar series with Frequency + Direction domain axes.
+variables:
+  domain:
+    type: str
+    required: false
+    default: NorthAtlantic
+  # Sub-folder under the domain (Forecast / Hindcast) holding hurrywave_sp2.nc.
+  model_type:
+    type: str
+    required: false
+    default: Forecast
+  boundary_locationset_id:
+    type: str
+    required: false
+    default: HurrywaveBoundaryPoints
+  time_series_type:
+    type: str
+    required: false
+    default: external forecasting
+  time_step_minutes:
+    type: int
+    required: false
+    default: 60
+  expiry_days:
+    type: int
+    required: false
+    default: 5
+outputs:
+- schema: TimeSeriesImportRun
+  output: ModuleConfigFiles/Hurrywave/ImportSpectrum{{ domain }}.xml
+  data:
+    import:
+    - general:
+        importType: NETCDF-CF_SPECTRUM
+        folder: $ModulesFolder$/Hurrywave/{{ domain }}/{{ model_type }}
+        fileNamePatternFilter: hurrywave_sp2.nc
+        deleteImportedFiles: false
+        idMapId: IdMapFromHurrywave
+        unitConversionsId: ImportUnitConversions
+        importTimeZone:
+          timeZoneName: GMT
+        disableDataFeedInfo: true
+        expiryTime:
+          unit: day
+          multiplier: {{ expiry_days }}
+      timeSeriesSet:
+      - moduleInstanceId: $MODULE_INSTANCE_ID$
+        valueType: scalar
+        parameterId: WaveSpectrum
+        domainParameterId:
+        - Frequency
+        - Direction
+        locationSetId: {{ boundary_locationset_id }}
+        timeSeriesType: {{ time_series_type }}
+        timeStep:
+          unit: minute
+          multiplier: {{ time_step_minutes }}
+        readWriteMode: add originals
+- schema: Workflow
+  output: WorkflowFiles/Hurrywave/ImportSpectrum{{ domain }}.xml
+  data:
+    version: '1.1'
+    activity:
+    - runIndependent: true
+      moduleInstanceId: ImportSpectrum{{ domain }}
+contributions: []

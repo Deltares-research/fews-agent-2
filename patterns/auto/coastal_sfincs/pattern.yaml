@@ -35,6 +35,19 @@ variables:
     type: str
     required: false
     default: Ecmwf
+  # Parent domain to nest in. When set, this instance ALSO exports the
+  # parent SFINCS run's boundary water level (sfincs_bnd_wl.nc) at this
+  # domain's SfincsBoundaryPoints as the nesting boundary. Empty = a
+  # standalone / overview run (the non-nested template).
+  nest_in_domain:
+    type: str
+    required: false
+    default: ''
+  # Time step of the boundary input series exported from the parent.
+  time_step_input_scalar_minutes:
+    type: int
+    required: false
+    default: 10
   # The HC/FC pair shares one IdMapTo/FromSfincs. The primary instance emits
   # them; set false on extra domains so they don't duplicate / collide.
   emit_idmap:
@@ -166,6 +179,24 @@ outputs:
                 start: {{ view_period_start_hours }}
                 end: {{ view_period_end_hours }}
               readWriteMode: read only
+{% if nest_in_domain %}
+        - exportFile: '%WORK_DIR%/sfincs_bnd_wl.nc'
+          timeSeriesSets:
+            timeSeriesSet:
+            - moduleInstanceId: {{ nest_in_domain }}Sfincs{{ meteo }}Hindcast
+              valueType: scalar
+              parameterId: WaterLevel
+              locationSetId: SfincsBoundaryPoints{{ domain }}
+              timeSeriesType: {{ 'simulated historical' if hist else 'simulated forecasting' }}
+              timeStep:
+                unit: minute
+                multiplier: {{ time_step_input_scalar_minutes }}
+              relativeViewPeriod:
+                unit: hour
+                start: {{ view_period_start_hours }}
+                end: {{ view_period_end_hours }}
+              readWriteMode: read only
+{% endif %}
         exportCustomFormatRunFileActivity:
         - templateFile: '%WORK_DIR%/sfincs_template.inp'
           exportFile: '%WORK_DIR%/sfincs.inp'

@@ -1,6 +1,6 @@
 {%- import "_partials/timeseries_set.xml.j2" as tss -%}
 {%- macro col(c, tag) -%}
-<{{ tag }}{% if c.name is not none %} name="{{ c.name }}"{% endif %}
+<{{ tag }}{% if c.name is defined and c.name is not none %} name="{{ c.name }}"{% endif %}
 {%- if c.pattern is defined and c.pattern is not none %} pattern="{{ c.pattern }}"{% endif %}
 {%- if c.unit is defined and c.unit is not none %} unit="{{ c.unit }}"{% endif %}
 {%- if c.parameterId is defined and c.parameterId is not none %} parameterId="{{ c.parameterId }}"{% endif %}
@@ -30,6 +30,9 @@
 {%- endmacro -%}
 {%- macro emit_table(tb) -%}
 <table{% if tb.name is not none %} name="{{ tb.name }}"{% endif %}>
+      {%- if tb.columns %}
+      {%- for c in tb.columns %}{{ col(c, c.kind) }}{% endfor %}
+      {%- else -%}
       {%- if tb.locationColumn is not none %}{{ col(tb.locationColumn, "locationColumn") }}{% endif %}
       {%- if tb.dateTimeColumn is not none %}{{ col(tb.dateTimeColumn, "dateTimeColumn") }}{% endif %}
       {%- for c in tb.dateColumn %}{{ col(c, "dateColumn") }}{% endfor %}
@@ -61,6 +64,7 @@
       {%- for c in tb.attributeColumn %}{{ col(c, "attributeColumn") }}{% endfor %}
       {%- for c in tb.limitSymbolColumn %}{{ col(c, "limitSymbolColumn") }}{% endfor %}
       {%- for c in tb.lineNumberColumn %}{{ col(c, "lineNumberColumn") }}{% endfor %}
+      {%- endif %}
       </table>
 {%- endmacro -%}
 {%- macro emit_general(g) -%}

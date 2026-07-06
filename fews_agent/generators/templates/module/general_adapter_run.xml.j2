@@ -1,4 +1,13 @@
 {%- import "_partials/timeseries_set.xml.j2" as tss -%}
+{%- macro run_props(pr) -%}
+{% if pr is not none %}
+<properties>
+  {% for p in pr.string %}<string key="{{ p.key }}" value="{{ p.value }}"{% if p.description is not none %}><description>{{ p.description }}</description></string>{% else %}/>{% endif %}{% endfor %}
+  {% for p in pr.int %}<int key="{{ p.key }}" value="{{ p.value }}"/>{% endfor %}
+  {% for p in pr.double %}<double key="{{ p.key }}" value="{{ p.value }}"{% if p.description is not none %}><description>{{ p.description }}</description></double>{% else %}/>{% endif %}{% endfor %}
+</properties>
+{% endif %}
+{%- endmacro -%}
 <?xml version="1.0" encoding="UTF-8"?>
 <generalAdapterRun xmlns="http://www.wldelft.nl/fews" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.wldelft.nl/fews http://fews.wldelft.nl/schemas/version1.0/generalAdapterRun.xsd">
   <general>
@@ -26,6 +35,7 @@
     {% endif %}
     {% if general.startDateTimeFormat is not none %}<startDateTimeFormat>{{ general.startDateTimeFormat }}</startDateTimeFormat>{% endif %}
     {% if general.endDateTimeFormat is not none %}<endDateTimeFormat>{{ general.endDateTimeFormat }}</endDateTimeFormat>{% endif %}
+    {% for dtf in general.dateTimeFormat %}<dateTimeFormat{% if dtf.id is not none %} id="{{ dtf.id }}"{% endif %}><dateTimePattern>{{ dtf.dateTimePattern }}</dateTimePattern></dateTimeFormat>{% endfor %}
     {% if general.modelTimeStep is not none %}{% if general.modelTimeStep.id is not none %}<modelTimeStep id="{{ general.modelTimeStep.id }}"/>{% else %}<modelTimeStep unit="{{ general.modelTimeStep.unit }}"{% if general.modelTimeStep.multiplier is not none %} multiplier="{{ general.modelTimeStep.multiplier }}"{% endif %}/>{% endif %}{% endif %}
   </general>
   <activities>
@@ -76,7 +86,7 @@
       {% for eda in activities.exportActivities.exportDataSetActivity %}
       <exportDataSetActivity>
         {% if eda.description is not none %}<description>{{ eda.description }}</description>{% endif %}
-        <moduleInstanceId>{{ eda.moduleInstanceId }}</moduleInstanceId>
+        {% if eda.moduleDataSetName is not none %}<moduleDataSetName>{{ eda.moduleDataSetName }}</moduleDataSetName>{% else %}<moduleInstanceId>{{ eda.moduleInstanceId }}</moduleInstanceId>{% endif %}
       </exportDataSetActivity>
       {% endfor %}
       {% for epa in activities.exportActivities.exportParameterActivity %}
@@ -106,13 +116,15 @@
       {% for erfa in activities.exportActivities.exportRunFileActivity %}
       <exportRunFileActivity>
         <exportFile>{{ erfa.exportFile }}</exportFile>
-        {% if erfa.properties is not none %}
-        <properties>
-          {% for p in erfa.properties.string %}<string key="{{ p.key }}" value="{{ p.value }}"/>{% endfor %}
-          {% for p in erfa.properties.int %}<int key="{{ p.key }}" value="{{ p.value }}"/>{% endfor %}
-        </properties>
-        {% endif %}
+        {{ run_props(erfa.properties) }}
       </exportRunFileActivity>
+      {% endfor %}
+      {% for enrfa in activities.exportActivities.exportNetcdfRunFileActivity %}
+      <exportNetcdfRunFileActivity>
+        {% if enrfa.description is not none %}<description>{{ enrfa.description }}</description>{% endif %}
+        <exportFile>{{ enrfa.exportFile }}</exportFile>
+        {{ run_props(enrfa.properties) }}
+      </exportNetcdfRunFileActivity>
       {% endfor %}
       {% for ecfrfa in activities.exportActivities.exportCustomFormatRunFileActivity %}
       <exportCustomFormatRunFileActivity>
@@ -166,7 +178,9 @@
       {% endfor %}
       {% for ina in activities.importActivities.importNetcdfActivity %}
       <importNetcdfActivity>
-        <importFile>{{ ina.importFile }}</importFile>
+        {% if ina.importFile is not none %}<importFile>{{ ina.importFile }}</importFile>{% endif %}
+        {% if ina.folder is not none %}<folder>{{ ina.folder }}</folder>{% endif %}
+        {% if ina.fileNamePatternFilter is not none %}<fileNamePatternFilter>{{ ina.fileNamePatternFilter }}</fileNamePatternFilter>{% endif %}
         {% if ina.timeSeriesSets is not none %}
         <timeSeriesSets>
           {% for ts in ina.timeSeriesSets.timeSeriesSet %}{{ tss.render(ts) }}{% endfor %}

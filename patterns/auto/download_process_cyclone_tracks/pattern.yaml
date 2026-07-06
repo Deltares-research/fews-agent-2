@@ -1,0 +1,149 @@
+name: download_process_cyclone_tracks
+description: >-
+  Download + process tropical cyclone tracks (JTWC live or IBTrACS historical)
+  into FEWS spiderweb/track files via a bundled Python cosmos script
+  (generalAdapterRun). Farmed from the FEWS-Caribbean config
+  (Config/ModuleConfigFiles/Import/DownloadProcessCycloneTracksTemplate.xml).
+  Emits a run file whose <properties> parameterise the script (bounding box,
+  spiderweb geometry, storm selection), then runs the script; the .cyc / track
+  outputs are picked up downstream by import_cyclone_cyc / import_cyclone_jtwc.
+  Folder/executable placeholders stay literal.
+variables:
+  name:
+    type: str
+    required: false
+    default: DownloadProcessCycloneTracks
+  # JTWC (live) or Ibtracs (historical).
+  track_source:
+    type: str
+    required: false
+    default: JTWC
+  latitude_min:
+    type: str
+    required: false
+    default: '0'
+  latitude_max:
+    type: str
+    required: false
+    default: '40'
+  longitude_min:
+    type: str
+    required: false
+    default: '-100'
+  longitude_max:
+    type: str
+    required: false
+    default: '-50'
+  spiderweb_radial_bins:
+    type: str
+    required: false
+    default: '36'
+  spiderweb_radius_km:
+    type: str
+    required: false
+    default: '800'
+  storm_name:
+    type: str
+    required: false
+    default: ''
+  storm_year:
+    type: str
+    required: false
+    default: ''
+  jtwc_tracks_folder:
+    type: str
+    required: false
+    default: $JtwcTracksFolder$
+outputs:
+- schema: GeneralAdapterRun
+  output: ModuleConfigFiles/Import/{{ name }}.xml
+  data:
+    general:
+      piVersion: '1.8'
+      rootDir: $ModulesFolder$/DownloadProcessCycloneTracks
+      workDir: '%ROOT_DIR%'
+      exportDir: '%ROOT_DIR%'
+      exportDataSetDir: '%ROOT_DIR%'
+      importDir: '%ROOT_DIR%'
+      dumpFileDir: $DumpFilesFolder$
+      dumpDir: '%ROOT_DIR%'
+      diagnosticFile: '%ROOT_DIR%/ToFews/fews_ga_logfile.xml'
+      dateTimeFormat:
+      - id: dateFormat
+        dateTimePattern: yyyyMMdd
+    activities:
+      startUpActivities:
+        purgeActivity:
+        - includeSubdirectories: true
+          filter: '%ROOT_DIR%/*.*'
+      exportActivities:
+        exportDataSetActivity:
+        - moduleDataSetName: '{{ name }}'
+        exportRunFileActivity:
+        - exportFile: '%WORK_DIR%/{{ name }}.xml'
+          properties:
+            string:
+            - key: diag_file
+              value: diag.xml
+            - key: download
+              value: 'True'
+            - key: download_folder
+              value: '%ROOT_DIR%/'
+            - key: lat_max
+              value: '{{ latitude_max }}'
+            - key: lat_min
+              value: '{{ latitude_min }}'
+            - key: log_file
+              value: log.txt
+            - key: lon_max
+              value: '{{ longitude_max }}'
+            - key: lon_min
+              value: '{{ longitude_min }}'
+            - key: ibtracs_nc
+              value: '%ROOT_DIR%/Bin/IBTrACS.ALL.v04r01.nc'
+            - key: jtwc_folder
+              value: '{{ jtwc_tracks_folder }}'
+            - key: output_folder
+              value: '%ROOT_DIR%/ToFews'
+            - key: source
+              value: '{{ track_source }}'
+            - key: spiderweb_format
+              value: ascii
+            - key: spiderweb_include_rainfall
+              value: 'true'
+            - key: spiderweb_nr_radial_bins
+              value: '{{ spiderweb_radial_bins }}'
+            - key: spiderweb_radius_km
+              value: '{{ spiderweb_radius_km }}'
+            - key: storm_name
+              value: '{{ storm_name }}'
+            - key: storm_year
+              value: '{{ storm_year }}'
+            - key: tstart
+              value: '%START_DATE_TIME(dateFormat)%'
+            - key: tstop
+              value: '%END_DATE_TIME(dateFormat)%'
+      executeActivities:
+        executeActivity:
+        - command:
+            executable: $PythonCosmosExecutable$
+          arguments:
+            argument:
+            - '%ROOT_DIR%/Bin/DownloadProcessCycloneTracks.py'
+            - '%WORK_DIR%/{{ name }}.xml'
+          logFile:
+          - file: '%WORK_DIR%/log.txt'
+            debugLinePattern: '*root - DEBUG*'
+            infoLinePattern: '*root - INFO*'
+            warningLinePattern: '*root - WARNING*'
+            errorLinePattern: '*root - ERROR*'
+          timeOut: 1200000
+          ignoreDiagnostics: true
+- schema: Workflow
+  output: WorkflowFiles/Import/{{ name }}.xml
+  data:
+    version: '1.1'
+    activity:
+    - runIndependent: true
+      moduleInstanceId: '{{ name }}'
+contributions: []

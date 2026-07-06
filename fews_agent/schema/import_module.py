@@ -181,6 +181,12 @@ class CsvTable(FewsModel):
     dateTimeColumn + valueColumn[]) renders unchanged."""
 
     name: str | None = None
+    # Ordered escape hatch: when non-empty, columns render in THIS order
+    # (each dict carries `kind` = the element tag + its attrs), bypassing the
+    # per-type grouping below. Required for positional CSV parses where
+    # value/skipped columns interleave (e.g. NDBC) — the grouped path would
+    # reorder them and misalign the parse.
+    columns: list[dict[str, Any]] = Field(default_factory=list)
     # Common case (kept single for back-compat with existing patterns).
     locationColumn: LocationColumn | None = None
     dateTimeColumn: DateTimeColumn | None = None
