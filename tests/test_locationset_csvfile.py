@@ -14,6 +14,7 @@ from __future__ import annotations
 from fews_agent.agent.locationsets_derivation import (
     derive_locationsets_yaml,
     locationset_csvfile_body,
+    merge_csvfile_sets_into_locationsets,
 )
 from fews_agent.generators import SPECS
 from fews_agent.generators.base import render as render_template
@@ -125,3 +126,53 @@ def test_deriver_merge_csvfile_set_beats_stub_of_same_id():
     assert len(entries) == 2                         # no duplicate StationsWflow
     assert "csvFile" in by_id["StationsWflow"]       # backed, not a stub
     assert by_id["OtherSet"] == {"@id": "OtherSet"}  # untouched referenced set stays a stub
+
+
+# ---------------------------------------------------------------------------
+# merge_csvfile_sets_into_locationsets — grafting into an existing file
+# ---------------------------------------------------------------------------
+
+_EXISTING = (
+    '<?xml version="1.0" encoding="UTF-8"?>\n'
+    '<locationSets xmlns="http://www.wldelft.nl/fews" version="1.1">'
+    "<allowEmptyLocationSets>true</allowEmptyLocationSets>"
+    '<locationSet id="Stations"/>'          # bare stub — csvFile should replace it
+    '<locationSet id="ModelBasins"/>'       # unrelated — must survive untouched
+    "</locationSets>"
+)
+
+
+def test_merge_replaces_stub_of_same_id_in_place():
+    body = locationset_csvfile_body(
+        "locations.csv", CONFORM_HEADERS, set_id="Stations"
+    )
+    merged = merge_csvfile_sets_into_locationsets(_EXISTING, [body])
+    # csvFile backing replaced the stub; the unrelated set is preserved.
+    assert '<locationSet id="Stations"><csvFile>' in merged
+    assert '<locationSet id="ModelBasins"/>' in merged
+    # No duplicate Stations, and position preserved (before ModelBasins).
+    assert merged.count('id="Stations"') == 1
+    assert merged.index('id="Stations"') < merged.index('id="ModelBasins"')
+    # The attribute survived the graft.
+    assert '<attribute id="WflowIdDischarge">' in merged
+
+
+def test_merge_appends_new_id_and_keeps_default_namespace():
+    body = locationset_csvfile_body(
+        "locations.csv", CONFORM_HEADERS, set_id="NewStations"
+    )
+    merged = merge_csvfile_sets_into_locationsets(_EXISTING, [body])
+    assert '<locationSet id="NewStations"><csvFile>' in merged
+    assert '<locationSet id="Stations"/>' in merged      # existing stub untouched
+    # Namespace stays default (no ns0: prefixing from lxml re-serialisation).
+    assert "ns0:" not in merged
+    assert 'xmlns="http://www.wldelft.nl/fews"' in merged
+
+
+def test_merge_result_is_xsd_valid():
+    body = locationset_csvfile_body(
+        "locations.csv", CONFORM_HEADERS, set_id="Stations"
+    )
+    merged = merge_csvfile_sets_into_locationsets(_EXISTING, [body])
+    ok, msg = validate_xsd(merged.encode("utf-8"))
+    assert ok, msg

@@ -1175,10 +1175,45 @@ def build_from_blueprint(
     )
     if locsets_spec:
         locsets_relpath = str(locsets_spec.output_relpath).replace("\\", "/")
-        already_have_locsets = any(
-            rf.relpath.replace("\\", "/") == locsets_relpath
-            for rf in result.rendered_files
+        existing_locsets_rf = next(
+            (
+                rf for rf in result.rendered_files
+                if rf.relpath.replace("\\", "/") == locsets_relpath
+            ),
+            None,
         )
+        already_have_locsets = existing_locsets_rf is not None
+        # Conform csvFile opt-in when LocationSets.xml already exists: graft
+        # the csvFile-backed sets into it rather than losing them (a csvFile
+        # set replaces a stub of the same id; new ids are appended). Guarded
+        # by an XSD safety net — a graft that would invalidate the file is
+        # dropped, keeping the original.
+        if already_have_locsets and csvfile_locsets:
+            from fews_agent.agent.locationsets_derivation import (
+                merge_csvfile_sets_into_locationsets,
+            )
+            try:
+                merged_xml = merge_csvfile_sets_into_locationsets(
+                    existing_locsets_rf.content, csvfile_locsets,
+                )
+                ok, msg = validate_xsd(merged_xml.encode("utf-8"))
+                if ok:
+                    existing_locsets_rf.content = merged_xml
+                    console.print(
+                        f"[dim]Merged {len(csvfile_locsets)} csvFile "
+                        f"locationSet(s) into existing LocationSets.xml"
+                        f"[/dim]"
+                    )
+                else:
+                    console.print(
+                        f"[yellow]csvFile LocationSet merge would break XSD "
+                        f"({msg[:80]}); kept original[/yellow]"
+                    )
+            except Exception as exc:  # noqa: BLE001
+                console.print(
+                    f"[yellow]csvFile LocationSet merge failed: "
+                    f"{type(exc).__name__}: {str(exc)[:100]}[/yellow]"
+                )
         if not already_have_locsets:
             from fews_agent.agent.locationsets_derivation import (
                 derive_locationsets_yaml,

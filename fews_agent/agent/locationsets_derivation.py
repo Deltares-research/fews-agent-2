@@ -246,6 +246,64 @@ def locationset_csvfile_body(
     return {"locationSet": {"@id": set_id, "csvFile": csv_file}}
 
 
+_FEWS_NS = "http://www.wldelft.nl/fews"
+
+
+def _csvfile_set_to_element(body: dict[str, Any]) -> "etree._Element":
+    """Build a ``<locationSet><csvFile>`` lxml element from a body dict.
+
+    Narrow builder for the fixed shape ``locationset_csvfile_body``
+    emits — keeps this module dependency-free (lxml only, no generators/
+    template import) and pins the XSD child order explicitly.
+    """
+    ls = body["locationSet"]
+    el = etree.Element(f"{{{_FEWS_NS}}}locationSet")
+    el.set("id", ls["@id"])
+    cf = ls["csvFile"]
+    cf_el = etree.SubElement(el, f"{{{_FEWS_NS}}}csvFile")
+    for key in ("file", "geoDatum", *_CSVFILE_ELEMENT_ORDER):
+        if key in cf:
+            child = etree.SubElement(cf_el, f"{{{_FEWS_NS}}}{key}")
+            child.text = cf[key]
+    for attr in cf.get("attribute", []):
+        a_el = etree.SubElement(cf_el, f"{{{_FEWS_NS}}}attribute")
+        a_el.set("id", attr["@id"])
+        t_el = etree.SubElement(a_el, f"{{{_FEWS_NS}}}text")
+        t_el.text = attr["text"]
+    return el
+
+
+def merge_csvfile_sets_into_locationsets(
+    existing_xml: str, extra_sets: list[dict[str, Any]],
+) -> str:
+    """Graft csvFile-backed locationSets into an existing LocationSets.xml.
+
+    Used when a pattern or user yaml already emitted ``LocationSets.xml``
+    (so the fresh-derive path is skipped) but the Conform csvFile opt-in
+    still needs its sets in. A csvFile set **replaces** an existing set of
+    the same id in place (real backing beats a stub, position preserved);
+    a new id is appended after the existing sets. Returns the re-serialised
+    XML with the default FEWS namespace intact (no ``ns0:`` prefixing).
+    """
+    root = etree.fromstring(existing_xml.encode("utf-8"))
+    existing_by_id: dict[str, "etree._Element"] = {}
+    for ls in root.findall(f"{{{_FEWS_NS}}}locationSet"):
+        sid = ls.get("id")
+        if sid:
+            existing_by_id[sid] = ls
+    for body in extra_sets:
+        sid = body["locationSet"]["@id"]
+        new_el = _csvfile_set_to_element(body)
+        old = existing_by_id.get(sid)
+        if old is not None:
+            old.getparent().replace(old, new_el)
+        else:
+            root.append(new_el)
+    return etree.tostring(
+        root, xml_declaration=True, encoding="UTF-8",
+    ).decode("utf-8")
+
+
 def derive_locationsets_yaml(
     rendered_files: list["RenderedFile"],
     extra_sets: list[dict[str, Any]] | None = None,
@@ -295,5 +353,6 @@ def derive_locationsets_yaml(
 __all__ = [
     "derive_locationsets_yaml",
     "locationset_csvfile_body",
+    "merge_csvfile_sets_into_locationsets",
     "unbacked_interpolation_station_sets",
 ]
