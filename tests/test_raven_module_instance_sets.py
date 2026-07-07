@@ -16,6 +16,9 @@ from __future__ import annotations
 from pathlib import Path
 
 from fews_agent.agent.blueprint import Blueprint, PatternRef, expand
+from fews_agent.agent.global_properties_derivation import (
+    derive_global_properties,
+)
 from fews_agent.generators import SPECS
 from fews_agent.generators.base import render as render_template
 from fews_agent.validation.xsd import validate_xsd
@@ -53,6 +56,26 @@ def _filter_files(flag):
         for rf in _expand(flag).rendered_files
         if "Filters" in rf.relpath
     }
+
+
+def _expand_inst(**inst):
+    inst.setdefault("basin_name", "Liard")
+    bp = Blueprint(
+        name="raven-id-test",
+        output_root=Path("out"),
+        patterns=[PatternRef(pattern="auto/raven_basin", instances=[inst])],
+    )
+    res = expand(bp, PATTERNS_ROOT)
+    assert not res.errors, res.errors
+    return res
+
+
+def _run_module(res):
+    rf = next(
+        rf for rf in res.rendered_files
+        if rf.relpath.replace("\\", "/").endswith("LiardHistoricTemplate.xml")
+    )
+    return rf.content
 
 
 def test_off_by_default_no_contribution():
@@ -115,3 +138,84 @@ def test_on_emits_split_filter_referencing_the_sets():
     assert '<filter id="LiardRaven" name="Liard">' in xml
     ok, msg = validate_xsd(xml.encode("utf-8"))
     assert ok, msg
+
+
+# ---------------------------------------------------------------------------
+# basin_local_ids: per-basin identity (the fix for the $MODELNAME2$ farming
+# artifact). Off = placeholders preserved (oracle-safe); on = concrete ids
+# + Conform wildcard sets, and the line-562 inconsistency is corrected.
+# ---------------------------------------------------------------------------
+
+def test_local_ids_off_preserves_placeholders():
+    xml = _run_module(_expand_inst())  # basin_local_ids defaults false
+    assert "$MODELNAME2$Historic" in xml
+    assert "$MODELNAME1$Basins" in xml
+
+
+def test_local_ids_on_uses_concrete_basin_ids():
+    xml = _run_module(_expand_inst(basin_local_ids=True))
+    assert "<moduleInstanceId>LiardHistoric</moduleInstanceId>" in xml
+    assert "<locationSetId>LiardSubBasins</locationSetId>" in xml
+    assert "<locationSetId>LiardBasins</locationSetId>" in xml
+    # No unresolved project-global placeholders remain.
+    assert "$MODELNAME1$" not in xml
+    assert "$MODELNAME2$" not in xml
+
+
+def test_local_ids_on_fixes_line562_inconsistency():
+    # The stray $MODELNAME1$REPSForecast becomes the consistent
+    # LiardREPSForecast (every other forecast run used MODELNAME2).
+    res = _expand_inst(basin_local_ids=True)
+    reps = next(
+        rf for rf in res.rendered_files
+        if rf.relpath.replace("\\", "/").endswith("RunLiardREPSForecast.xml")
+    )
+    assert "LiardREPSForecast" in reps.content
+    assert "$MODELNAME1$" not in reps.content
+
+
+def test_local_ids_on_sets_use_conform_wildcards():
+    payloads = {
+        c.payload["id"]: c.payload
+        for c in _expand_inst(
+            basin_local_ids=True, conform_module_instance_sets=True,
+        ).contributions
+        if c.target_file.startswith("ModuleInstanceSets::")
+    }
+    assert payloads["LiardRavenForecast"]["moduleInstanceIdPattern"] == [
+        "Liard*Forecast",
+    ]
+    assert payloads["LiardRavenHistoric"]["moduleInstanceIdPattern"] == [
+        "Liard*Historic",
+    ]
+
+
+# ---------------------------------------------------------------------------
+# Fix C: a single-basin project must resolve $MODELNAME2$ (the raven pattern
+# references its own runs via it). Before, MODELNAME2 was only emitted for
+# >=2 basins, leaving those ids dead at FEWS startup.
+# ---------------------------------------------------------------------------
+
+def _bp(*basins):
+    return Blueprint(
+        name="props-test",
+        output_root=Path("out"),
+        patterns=[PatternRef(
+            pattern="auto/raven_basin",
+            instances=[{"basin_name": b} for b in basins],
+        )],
+    )
+
+
+def test_single_basin_resolves_modelname2():
+    props = derive_global_properties(_bp("Liard"))
+    assert "MODELNAME1 = Liard" in props
+    assert "MODELNAME2 = Liard" in props   # was absent → $MODELNAME2$ was dead
+    assert "MODEL2_TIMESTEP=" in props
+
+
+def test_two_basins_keep_positional_mapping():
+    # Tutorial shape: MODELNAME2 is the *second* basin (oracle unchanged).
+    props = derive_global_properties(_bp("Liard", "Snare"))
+    assert "MODELNAME1 = Liard" in props
+    assert "MODELNAME2 = Snare" in props

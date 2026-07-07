@@ -1,3 +1,5 @@
+{%- set m1 = basin_name if basin_local_ids else '$MODELNAME1' ~ '$' -%}
+{%- set m2 = basin_name if basin_local_ids else '$MODELNAME2' ~ '$' -%}
 name: raven_basin
 description: 'Auto-derived pattern from tutorial instances: Liard.'
 variables:
@@ -9,6 +11,20 @@ variables:
   # byte-equivalent tutorial oracle (which has no ModuleInstanceSets.xml)
   # is untouched.
   conform_module_instance_sets:
+    type: bool
+    required: false
+    default: false
+  # Per-basin identity. The farmed pattern references this ONE model's
+  # instances/locationSets via the project-global positional placeholders
+  # {{ m1 }}/{{ m2 }} (resolved from sa_global.Properties by basin
+  # declaration order). That is wrong for a per-basin pattern: a 1-basin
+  # project never defines {{ m2 }} (dead at FEWS startup), and two
+  # basins collide on the same slot. When true, the model's ids derive
+  # from basin_name instead (concrete, collision-free, resolvable), which
+  # also unlocks the Conform wildcard ModuleInstanceSets. Default false so
+  # the byte-equivalent tutorial oracle (authored with the placeholders)
+  # is untouched.
+  basin_local_ids:
     type: bool
     required: false
     default: false
@@ -51,14 +67,14 @@ outputs:
         - filter: '%ROOT_DIR%/work/*.xml'
       exportActivities:
         exportStateActivity:
-        - moduleInstanceId: $MODELNAME2$Historic
+        - moduleInstanceId: {{ m2 }}Historic
           stateExportDir: '%ROOT_DIR%/work'
           stateConfigFile: '%ROOT_DIR%/work/stateInfo.xml'
           stateLocations:
             type: file
             stateLocation:
-            - readLocation: $MODELNAME2$.rvc
-              writeLocation: ../output/$MODELNAME2$.rvc
+            - readLocation: {{ m2 }}.rvc
+              writeLocation: ../output/{{ m2 }}.rvc
           stateSelection:
             coldState:
               startDate:
@@ -70,8 +86,8 @@ outputs:
         - fileName: params_ubc.xml
           templateLocationLooping:
             locationModelLoop:
-              locationSetId: $MODELNAME1$Basins
-              model: $MODELNAME1$
+              locationSetId: {{ m1 }}Basins
+              model: {{ m1 }}
           moduleInstanceId: RavenParameters
         exportNetcdfActivity:
         - exportFile: inputs.nc
@@ -80,7 +96,7 @@ outputs:
             - moduleInstanceId: $INPUTMODULEINSTANCEMETEO$
               valueType: scalar
               parameterId: PC.nwp
-              locationSetId: $MODELNAME2$SubBasins
+              locationSetId: {{ m2 }}SubBasins
               timeSeriesType: external forecasting
               timeStep:
                 id: $MODEL2_TIMESTEP$
@@ -89,7 +105,7 @@ outputs:
               valueType: scalar
               parameterId: TA.nwp
               qualifierId: min
-              locationSetId: $MODELNAME2$SubBasins
+              locationSetId: {{ m2 }}SubBasins
               timeSeriesType: external forecasting
               timeStep:
                 id: $MODEL2_TIMESTEP$
@@ -98,7 +114,7 @@ outputs:
               valueType: scalar
               parameterId: TA.nwp
               qualifierId: max
-              locationSetId: $MODELNAME2$SubBasins
+              locationSetId: {{ m2 }}SubBasins
               timeSeriesType: external forecasting
               timeStep:
                 id: $MODEL2_TIMESTEP$
@@ -111,7 +127,7 @@ outputs:
             - key: ModelLocation
               value: '%ROOT_DIR%/work/Raven.exe'
             - key: RunName
-              value: $MODELNAME2$
+              value: {{ m2 }}
             int:
             - key: DebugMode
               value: 3
@@ -139,7 +155,7 @@ outputs:
             - moduleInstanceId: $MODULE_INSTANCE_ID$
               valueType: scalar
               parameterId: QR.sim
-              locationSetId: $MODELNAME2$SubBasins
+              locationSetId: {{ m2 }}SubBasins
               timeSeriesType: simulated forecasting
               timeStep:
                 id: $MODEL2_TIMESTEP$
@@ -150,7 +166,7 @@ outputs:
             - moduleInstanceId: $MODULE_INSTANCE_ID$
               valueType: scalar
               parameterId: SWE.sim
-              locationSetId: $MODELNAME2$SubBasins
+              locationSetId: {{ m2 }}SubBasins
               timeSeriesType: simulated forecasting
               timeStep:
                 id: $MODEL2_TIMESTEP$
@@ -161,7 +177,7 @@ outputs:
             - moduleInstanceId: $MODULE_INSTANCE_ID$
               valueType: scalar
               parameterId: SWE.mlt
-              locationSetId: $MODELNAME2$SubBasins
+              locationSetId: {{ m2 }}SubBasins
               timeSeriesType: simulated forecasting
               timeStep:
                 id: $MODEL2_TIMESTEP$
@@ -172,7 +188,7 @@ outputs:
             - moduleInstanceId: $MODULE_INSTANCE_ID$
               valueType: scalar
               parameterId: SMI.sim
-              locationSetId: $MODELNAME2$SubBasins
+              locationSetId: {{ m2 }}SubBasins
               timeSeriesType: simulated forecasting
               timeStep:
                 id: $MODEL2_TIMESTEP$
@@ -215,14 +231,14 @@ outputs:
         - filter: '%ROOT_DIR%/work/*.xml'
       exportActivities:
         exportStateActivity:
-        - moduleInstanceId: $MODELNAME2$Historic
+        - moduleInstanceId: {{ m2 }}Historic
           stateExportDir: '%ROOT_DIR%/work'
           stateConfigFile: '%ROOT_DIR%/work/stateInfo.xml'
           stateLocations:
             type: file
             stateLocation:
-            - readLocation: $MODELNAME2$.rvc
-              writeLocation: ../output/$MODELNAME2$.rvc
+            - readLocation: {{ m2 }}.rvc
+              writeLocation: ../output/{{ m2 }}.rvc
           stateSelection:
             warmState:
               stateSearchPeriod:
@@ -230,13 +246,13 @@ outputs:
                 start: $STARTTIME$
                 end: 0
         exportDataSetActivity:
-        - moduleInstanceId: $MODELNAME2$Historic
+        - moduleInstanceId: {{ m2 }}Historic
         exportParameterActivity:
         - fileName: params_ubc.xml
           templateLocationLooping:
             locationModelLoop:
-              locationSetId: $MODELNAME1$Basins
-              model: $MODELNAME1$
+              locationSetId: {{ m1 }}Basins
+              model: {{ m1 }}
           moduleInstanceId: RavenParameters
         exportNetcdfActivity:
         - exportFile: meteo_inputs.nc
@@ -245,7 +261,7 @@ outputs:
             - moduleInstanceId: $INPUTMODULEINSTANCEMETEO$
               valueType: scalar
               parameterId: PC.obs
-              locationSetId: $MODELNAME2$MeteoStations
+              locationSetId: {{ m2 }}MeteoStations
               timeSeriesType: external historical
               timeStep:
                 id: $MODEL2_TIMESTEP$
@@ -257,7 +273,7 @@ outputs:
             - moduleInstanceId: $INPUTMODULEINSTANCEMETEO$
               valueType: scalar
               parameterId: TA.obs
-              locationSetId: $MODELNAME2$MeteoStations
+              locationSetId: {{ m2 }}MeteoStations
               timeSeriesType: external historical
               timeStep:
                 id: $MODEL2_TIMESTEP$
@@ -274,7 +290,7 @@ outputs:
             - key: ModelLocation
               value: '%ROOT_DIR%/work/Raven.exe'
             - key: RunName
-              value: $MODELNAME2$
+              value: {{ m2 }}
             int:
             - key: DebugMode
               value: 3
@@ -307,7 +323,7 @@ outputs:
             - moduleInstanceId: $MODULE_INSTANCE_ID$
               valueType: scalar
               parameterId: QR.sim
-              locationSetId: $MODELNAME2$SubBasins
+              locationSetId: {{ m2 }}SubBasins
               timeSeriesType: simulated historical
               timeStep:
                 id: $MODEL2_TIMESTEP$
@@ -318,7 +334,7 @@ outputs:
             - moduleInstanceId: $MODULE_INSTANCE_ID$
               valueType: scalar
               parameterId: SWE.sim
-              locationSetId: $MODELNAME2$SubBasins
+              locationSetId: {{ m2 }}SubBasins
               timeSeriesType: simulated historical
               timeStep:
                 id: $MODEL2_TIMESTEP$
@@ -329,7 +345,7 @@ outputs:
             - moduleInstanceId: $MODULE_INSTANCE_ID$
               valueType: scalar
               parameterId: SWE.mlt
-              locationSetId: $MODELNAME2$SubBasins
+              locationSetId: {{ m2 }}SubBasins
               timeSeriesType: simulated historical
               timeStep:
                 id: $MODEL2_TIMESTEP$
@@ -340,7 +356,7 @@ outputs:
             - moduleInstanceId: $MODULE_INSTANCE_ID$
               valueType: scalar
               parameterId: SMI.sim
-              locationSetId: $MODELNAME2$SubBasins
+              locationSetId: {{ m2 }}SubBasins
               timeSeriesType: simulated historical
               timeStep:
                 id: $MODEL2_TIMESTEP$
@@ -362,7 +378,7 @@ outputs:
       - key: PARAMETER1
         value: TA.obs
       - key: OUTPUTTIMESERIES
-        value: $MODELNAME2$Historic
+        value: {{ m2 }}Historic
       - key: INPUTMODULEINSTANCEMETEO
         value: PreprocessE2O
       - key: PARAMETER3
@@ -373,8 +389,8 @@ outputs:
         value: simulated historical
     activity:
     - runIndependent: true
-      moduleInstanceId: $MODELNAME2$Historic
-      moduleConfigFileName: $MODELNAME2$HistoricTemplate
+      moduleInstanceId: {{ m2 }}Historic
+      moduleConfigFileName: {{ m2 }}HistoricTemplate
     - properties:
         string:
         - key: TIMESERIESTYPE
@@ -384,11 +400,11 @@ outputs:
         - key: ENSEMBLE
           value: main
         - key: STATIONLOCATIONS
-          value: $MODELNAME2$HydroStations
+          value: {{ m2 }}HydroStations
         - key: TIMESTEP
           value: $MODEL2_TIMESTEP$
       runIndependent: true
-      moduleInstanceId: $MODELNAME2$Historic
+      moduleInstanceId: {{ m2 }}Historic
       moduleConfigFileName: PostprocessModelOutputToStationTemplate
 - schema: Workflow
   output: WorkflowFiles/ModelRun/{{ basin_name }}/Run{{ basin_name }}GDPSForecast.xml
@@ -407,7 +423,7 @@ outputs:
       - key: PARAMETER2
         value: PC.nwp
       - key: OUTPUTTIMESERIES
-        value: $MODELNAME1$GDPSForecast
+        value: {{ m1 }}GDPSForecast
       - key: PARAMETER4
         value: QR.sim
       - key: TYPE1
@@ -427,10 +443,10 @@ outputs:
         - key: INPUTMODULEINSTANCEMETEO
           value: PreprocessGDPS
         - key: MODULEDATASET
-          value: $MODELNAME2$Forecast
+          value: {{ m2 }}Forecast
       runIndependent: true
-      moduleInstanceId: $MODELNAME2$GDPSForecast
-      moduleConfigFileName: $MODELNAME2$ForecastTemplate
+      moduleInstanceId: {{ m2 }}GDPSForecast
+      moduleConfigFileName: {{ m2 }}ForecastTemplate
     - properties:
         string:
         - key: TIMESERIESTYPE
@@ -440,11 +456,11 @@ outputs:
         - key: ENSEMBLE
           value: main
         - key: STATIONLOCATIONS
-          value: $MODELNAME2$HydroStations
+          value: {{ m2 }}HydroStations
         - key: TIMESTEP
           value: $MODEL2_TIMESTEP$
       runIndependent: true
-      moduleInstanceId: $MODELNAME2$GDPSForecast
+      moduleInstanceId: {{ m2 }}GDPSForecast
       moduleConfigFileName: PostprocessModelOutputToStationTemplate
 - schema: Workflow
   output: WorkflowFiles/ModelRun/{{ basin_name }}/Run{{ basin_name }}RDPSForecast.xml
@@ -463,7 +479,7 @@ outputs:
       - key: PARAMETER2
         value: PC.nwp
       - key: OUTPUTTIMESERIES
-        value: $MODELNAME1$RDPSForecast
+        value: {{ m1 }}RDPSForecast
       - key: PARAMETER4
         value: QR.sim
       - key: TYPE1
@@ -483,10 +499,10 @@ outputs:
         - key: INPUTMODULEINSTANCEMETEO
           value: PreprocessRDPS
         - key: MODULEDATASET
-          value: $MODELNAME2$Forecast
+          value: {{ m2 }}Forecast
       runIndependent: true
-      moduleInstanceId: $MODELNAME2$RDPSForecast
-      moduleConfigFileName: $MODELNAME2$ForecastTemplate
+      moduleInstanceId: {{ m2 }}RDPSForecast
+      moduleConfigFileName: {{ m2 }}ForecastTemplate
     - properties:
         string:
         - key: TIMESERIESTYPE
@@ -496,11 +512,11 @@ outputs:
         - key: ENSEMBLE
           value: main
         - key: STATIONLOCATIONS
-          value: $MODELNAME2$HydroStations
+          value: {{ m2 }}HydroStations
         - key: TIMESTEP
           value: $MODEL2_TIMESTEP$
       runIndependent: true
-      moduleInstanceId: $MODELNAME2$RDPSForecast
+      moduleInstanceId: {{ m2 }}RDPSForecast
       moduleConfigFileName: PostprocessModelOutputToStationTemplate
 - schema: Workflow
   output: WorkflowFiles/ModelRun/{{ basin_name }}/Run{{ basin_name }}REPSForecast.xml
@@ -519,7 +535,7 @@ outputs:
       - key: PARAMETER2
         value: PC.nwp
       - key: OUTPUTTIMESERIES
-        value: $MODELNAME1$REPSForecast
+        value: {{ m1 }}REPSForecast
       - key: PARAMETER4
         value: QR.sim
       - key: TYPE1
@@ -539,10 +555,10 @@ outputs:
         - key: INPUTMODULEINSTANCEMETEO
           value: PreprocessREPS
         - key: MODULEDATASET
-          value: $MODELNAME2$ForecastEns
+          value: {{ m2 }}ForecastEns
       runIndependent: true
-      moduleInstanceId: $MODELNAME2$REPSForecast
-      moduleConfigFileName: $MODELNAME2$ForecastTemplate
+      moduleInstanceId: {{ m2 }}REPSForecast
+      moduleConfigFileName: {{ m2 }}ForecastTemplate
       ensemble:
         ensembleId: REPS
         runInLoop: true
@@ -555,11 +571,11 @@ outputs:
         - key: ENSEMBLE
           value: REPS
         - key: STATIONLOCATIONS
-          value: $MODELNAME2$HydroStations
+          value: {{ m2 }}HydroStations
         - key: TIMESTEP
           value: $MODEL2_TIMESTEP$
       runIndependent: true
-      moduleInstanceId: $MODELNAME1$REPSForecast
+      moduleInstanceId: {{ m1 }}REPSForecast
       moduleConfigFileName: PostprocessModelOutputToStationTemplate
 - schema: Workflow
   output: WorkflowFiles/Preprocess/{{ basin_name }}/PreprocessE2O{{ basin_name }}.xml
@@ -572,9 +588,9 @@ outputs:
       - key: INPUTMODULEINSTANCE
         value: ImportE2O
       - key: BASINLOCATIONS
-        value: $MODELNAME2$Basins
+        value: {{ m2 }}Basins
       - key: STATIONLOCATIONS
-        value: $MODELNAME2$MeteoStations
+        value: {{ m2 }}MeteoStations
       - key: STARTTIME
         value: '-365'
       - key: ENDTIME
@@ -604,9 +620,9 @@ outputs:
       - key: ENSEMBLE
         value: main
       - key: BASINLOCATIONS
-        value: $MODELNAME2$Basins
+        value: {{ m2 }}Basins
       - key: STATIONLOCATIONS
-        value: $MODELNAME2$MeteoStations
+        value: {{ m2 }}MeteoStations
       - key: TIMESERIESTYPE
         value: external forecasting
     activity:
@@ -616,7 +632,7 @@ outputs:
     - properties:
         string:
         - key: LOCATIONSET
-          value: $MODELNAME2$Basins
+          value: {{ m2 }}Basins
         - key: INPUTMODULEINSTANCE
           value: PreprocessGDPS
         - key: INPUTPARAMETER
@@ -641,9 +657,9 @@ outputs:
       - key: ENSEMBLE
         value: main
       - key: BASINLOCATIONS
-        value: $MODELNAME2$Basins
+        value: {{ m2 }}Basins
       - key: STATIONLOCATIONS
-        value: $MODELNAME2$MeteoStations
+        value: {{ m2 }}MeteoStations
       - key: TIMESERIESTYPE
         value: external forecasting
     activity:
@@ -653,7 +669,7 @@ outputs:
     - properties:
         string:
         - key: LOCATIONSET
-          value: $MODELNAME1$Basins
+          value: {{ m1 }}Basins
         - key: INPUTMODULEINSTANCE
           value: PreprocessRDPS
         - key: INPUTPARAMETER
@@ -678,9 +694,9 @@ outputs:
       - key: ENSEMBLE
         value: REPS
       - key: BASINLOCATIONS
-        value: $MODELNAME2$Basins
+        value: {{ m2 }}Basins
       - key: STATIONLOCATIONS
-        value: $MODELNAME2$MeteoStations
+        value: {{ m2 }}MeteoStations
       - key: TIMESERIESTYPE
         value: external forecasting
     activity:
@@ -690,7 +706,7 @@ outputs:
     - properties:
         string:
         - key: LOCATIONSET
-          value: $MODELNAME2$Basins
+          value: {{ m2 }}Basins
         - key: INPUTMODULEINSTANCE
           value: PreprocessREPS
         - key: INPUTPARAMETER
@@ -703,7 +719,7 @@ outputs:
     - properties:
         string:
         - key: LOCATIONSET
-          value: $MODELNAME2$Basins
+          value: {{ m2 }}Basins
         - key: INPUTMODULEINSTANCE
           value: PreprocessREPS
         - key: PARAMETER
@@ -714,7 +730,7 @@ outputs:
     - properties:
         string:
         - key: LOCATIONSET
-          value: $MODELNAME2$Basins
+          value: {{ m2 }}Basins
         - key: INPUTMODULEINSTANCE
           value: PreprocessREPS
         - key: PARAMETER
@@ -739,7 +755,7 @@ outputs:
             - moduleInstanceSetId: '{{ basin_name }}RavenForecast'
               valueType: scalar
               parameterId: QR.sim
-              locationSetId: $MODELNAME2$SubBasins
+              locationSetId: {{ m2 }}SubBasins
               timeSeriesType: simulated forecasting
               timeStep:
                 '@unit': hour
@@ -750,7 +766,7 @@ outputs:
             - moduleInstanceSetId: '{{ basin_name }}RavenHistoric'
               valueType: scalar
               parameterId: QR.sim
-              locationSetId: $MODELNAME2$SubBasins
+              locationSetId: {{ m2 }}SubBasins
               timeSeriesType: simulated historical
               timeStep:
                 '@unit': hour
@@ -778,27 +794,37 @@ outputs:
 # FEWS-Conform ModuleInstanceSets: group this basin's Raven model runs by
 # simulation type so Filters / DisplayGroups can reference a stable set id
 # ({{ basin_name }}RavenForecast / {{ basin_name }}RavenHistoric) instead of
-# enumerating instances. Members use the same $MODELNAME2$ placeholder the
-# run modules emit — FEWS resolves it in RegionConfigFiles at startup, so
-# the set membership tracks whatever the run instances actually register.
-# (Conform uses wildcard *WflowForecast patterns for cross-catchment
-# auto-extend; the agent's runs carry no software token in the id and
-# $MODELNAME2$ is project-global, so explicit placeholder membership is the
-# exact, over-capture-free equivalent per basin.)
+# enumerating instances. Members use the same {{ m2 }} placeholder the
+# the set membership tracks whatever the run instances register. With
+# basin_local_ids the run ids are concrete ({{ basin_name }}GDPSForecast,
+# ...), so the set uses a Conform-style wildcard ({{ basin_name }}*Forecast)
+# that auto-extends. Without it the ids are the project-global {{ m2 }}
+# placeholder, so we list explicit members (a wildcard on $MODELNAME2$*
+# would be resolved-then-globbed and is needlessly indirect).
 contributions:
   - target: ModuleInstanceSets
     field: moduleInstanceSet
     items:
       - id: '{{ basin_name }}RavenForecast'
         name: '{{ basin_name }} Raven forecast runs'
+{% if basin_local_ids %}
+        moduleInstanceIdPattern:
+          - '{{ basin_name }}*Forecast'
+{% else %}
         moduleInstanceId:
-          - $MODELNAME2$GDPSForecast
-          - $MODELNAME2$RDPSForecast
-          - $MODELNAME2$REPSForecast
+          - {{ m2 }}GDPSForecast
+          - {{ m2 }}RDPSForecast
+          - {{ m2 }}REPSForecast
+{% endif %}
       - id: '{{ basin_name }}RavenHistoric'
         name: '{{ basin_name }} Raven historic run'
+{% if basin_local_ids %}
+        moduleInstanceIdPattern:
+          - '{{ basin_name }}*Historic'
+{% else %}
         moduleInstanceId:
-          - $MODELNAME2$Historic
+          - {{ m2 }}Historic
+{% endif %}
 {% else %}
 contributions: []
 {% endif %}
