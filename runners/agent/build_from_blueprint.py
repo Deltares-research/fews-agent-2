@@ -852,6 +852,51 @@ def build_from_blueprint(
     if inputs_dir is not None and inputs_dir.is_dir():
         ingest_results = ingest_directory(inputs_dir)
 
+    # 1b) FEWS-Conform opt-in: reference locations.csv in place from a
+    # csvFile-backed LocationSet instead of materialising Locations.xml.
+    # This preserves every non-reserved CSV column as a location attribute
+    # (Type/ModelId/WflowId... — which plain ingest drops). Gated on
+    # ``metadata.locations_as_csvfile`` so the default byte-equivalent
+    # oracle path is untouched. See locationsets_derivation.
+    csvfile_locsets: list[dict] = []
+    csvfile_copies: list[tuple[str, str]] = []  # (relpath, raw content)
+    if bp.metadata.get("locations_as_csvfile"):
+        from fews_agent.agent.locationsets_derivation import (
+            locationset_csvfile_body,
+        )
+        set_id = bp.metadata.get("location_set_id", "Stations")
+        seed_datum = (
+            (bp.singleton_seeds.get("Locations") or {}).get("geoDatum")
+            if bp.singleton_seeds else None
+        )
+        for spec_name, r in list(ingest_results.items()):
+            if r.spec_name != "locations" or r.model is None:
+                continue
+            headers = list(r.column_mapping.keys())
+            geo = (
+                seed_datum
+                or r.inferred_file_fields.get("geoDatum")
+                or "WGS 1984"
+            )
+            csv_name = r.csv_path.name
+            csvfile_locsets.append(
+                locationset_csvfile_body(
+                    csv_name, headers, set_id=set_id, geo_datum=str(geo),
+                )
+            )
+            # Copy the raw CSV into the config tree (MapLayerFiles/) so the
+            # locationSet's <file> reference resolves at FEWS runtime.
+            try:
+                csvfile_copies.append((
+                    f"MapLayerFiles/{csv_name}",
+                    r.csv_path.read_text(encoding="utf-8-sig"),
+                ))
+            except OSError:
+                pass
+            # Suppress Locations.xml materialisation from this CSV — Conform
+            # declares locations via LocationSets, never Locations.xml.
+            ingest_results.pop(spec_name, None)
+
     csv_base_data = _csv_results_to_base_data(ingest_results)
 
     console.print(Panel(
@@ -878,6 +923,18 @@ def build_from_blueprint(
         for err in result.errors:
             console.print(f"[red]error:[/red] {err}")
         return {"ok": False, "errors": result.errors}
+
+    # Emit the raw locations CSV copies (Conform csvFile opt-in) as
+    # non-XML config-tree files that the csvFile LocationSets reference.
+    if csvfile_copies:
+        from fews_agent.agent.blueprint import RenderedFile
+        for relpath, content in csvfile_copies:
+            result.rendered_files.append(RenderedFile(
+                relpath=relpath,
+                content=content,
+                pattern="(conform-csv)",
+                instance_label=Path(relpath).name,
+            ))
 
     # Merge cross-pattern contributions into singleton files.
     # Base data has three layers, applied in order (later wins):
@@ -1126,7 +1183,9 @@ def build_from_blueprint(
             from fews_agent.agent.locationsets_derivation import (
                 derive_locationsets_yaml,
             )
-            ls_data = derive_locationsets_yaml(result.rendered_files)
+            ls_data = derive_locationsets_yaml(
+                result.rendered_files, extra_sets=csvfile_locsets or None,
+            )
             if ls_data:
                 try:
                     from fews_agent.agent.blueprint import RenderedFile
