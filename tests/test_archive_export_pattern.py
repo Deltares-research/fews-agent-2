@@ -104,3 +104,23 @@ def test_derived_defaults_switch_on_export_kind():
     ob = _render(OBSERVED)["ModuleConfigFiles/Archive/ToArchiveObserved.xml"]
     assert "external forecasting" in fc and "read complete forecast" in fc
     assert "external historical" in ob and "read only" in ob
+
+
+def test_forecast_export_defaults_source_id_to_name():
+    # exportExternalForecast REQUIRES <sourceId> (XSD). Omitting source_id
+    # must NOT render invalid — it defaults to the export name.
+    inst = dict(FORECAST)
+    inst.pop("source_id")
+    mc = _render(inst)["ModuleConfigFiles/Archive/ToArchiveGfs.xml"]
+    _xsd_ok(mc)
+    assert "<sourceId>Gfs</sourceId>" in mc            # defaulted to name
+
+
+def test_emits_resolvable_idmap():
+    # The exportArchiveModule references idMapId=IdMapToArchive; the pattern
+    # emits a matching 1:1 idMap so the reference resolves out of the box.
+    files = _render(FORECAST)
+    idm = files["IdMapFiles/Archive/IdMapToArchive.xml"]
+    _xsd_ok(idm)
+    assert '<parameter internal="Precipitation" external="Precipitation"/>' in idm
+    assert "<enableOneToOneMapping/>" in idm

@@ -1,6 +1,9 @@
 {%- set ek = export_kind or 'exportExternalForecast' -%}
 {%- set tst = time_series_type or ('external forecasting' if ek == 'exportExternalForecast' else 'external historical') -%}
 {%- set rwm = read_write_mode or ('read complete forecast' if ek == 'exportExternalForecast' else 'read only') -%}
+{# exportExternalForecast REQUIRES a <sourceId> (XSD-enforced); default it to
+   the export name so a forecast export can't render invalid. observed omits it. #}
+{%- set eff_source_id = source_id or (name if ek == 'exportExternalForecast' else '') -%}
 name: archive_export_netcdf
 description: >-
   Export FEWS time series to the Open Archive as NetCDF (exportArchiveModule).
@@ -75,6 +78,15 @@ variables:
     type: str
     required: false
     default: IdMapToArchive
+  # Emit a 1:1 <idMap> for id_map_id so the exportArchiveModule's idMapId
+  # reference resolves out of the box (Conform's real IdMapToArchive maps
+  # FEWS ids -> archive-parameter names; the 1:1 default passes ids through
+  # and the configurator refines it). Set false on secondary export
+  # instances that share one archive idMap.
+  emit_idmap:
+    type: bool
+    required: false
+    default: true
   # Overrides for the derived defaults (forecast → external forecasting /
   # read complete forecast; observed → external historical / read only).
   time_series_type:
@@ -128,8 +140,8 @@ outputs:
             netcdfExportActivity:
               fileName: {{ nc_filename }}
               areaId: {{ area_id }}
-{% if source_id %}
-              sourceId: {{ source_id }}
+{% if eff_source_id %}
+              sourceId: {{ eff_source_id }}
 {% endif %}
 {% if nc_title %}
               ncMetaData:
@@ -164,6 +176,18 @@ outputs:
 {% endif %}
                 readWriteMode: {{ rwm }}
 {% endfor %}
+{% if emit_idmap %}
+- schema: IdMap
+  output: IdMapFiles/Archive/{{ id_map_id }}.xml
+  data:
+    version: '1.1'
+    parameter:
+{% for p in parameters %}
+    - internal: {{ p }}
+      external: {{ p }}
+{% endfor %}
+    enableOneToOneMapping: true
+{% endif %}
 - schema: Workflow
   output: WorkflowFiles/Archive/To_Archive_{{ name }}.xml
   data:

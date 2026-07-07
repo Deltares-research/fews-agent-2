@@ -289,6 +289,81 @@ The blueprint is the **only** project-level artefact the configurator
 must keep in version control. Everything else is either inputs in
 `inputs/` or derived from the rendered output.
 
+## FEWS-Conform pattern families
+
+A batch of patterns farmed from the **FEWS-Conform** reference config
+(`Deltares/FEWS-Conform` — Australian Coolmunda; ECMWF/GFS/ERA5/IMERG/
+GEFS/GHCND imports; a DIMR-style Wflow). This is a **different source
+lineage** from the older library (which was farmed from the ECCC/Canadian
+tutorial + FEWS-Caribbean), so it added capabilities the library lacked.
+Each was derived directly from the Conform source XML, is XSD-validated for
+every variant, and has a round-trip test (the durable oracle — the
+`projects/` fixtures are gitignored). All are tracked via the
+`!patterns/auto/**/*.yaml` negation.
+
+| Pattern | Capability | Key vars / notes |
+|---|---|---|
+| `archive_export_netcdf` | Export time series to the Open Archive as NetCDF (`exportArchiveModule`) + `To_Archive_<Name>` workflow | `export_kind` (`exportExternalForecast` grid / `exportObserved` scalar); type/mode derived from it |
+| `archive_import` | Import from the Open Archive (`importArchiveModule`) + `From_Archive_<Name>` workflow | `categories` list → per-kind blocks (ts-cats share a `timeSeriesSetIdMap`; `historicalEvents` uses `idMapId`) |
+| `download_via_python_venv` | "Call an external Python venv / CDS API" `generalAdapterRun` (from `DownloadEra5`) | credential-preserving purge, `runinfo.xml` Area/Parameter, venv `executeActivity`; `source_name`-driven |
+| `import_era5` | ERA5 (Copernicus) reanalysis import+process chain (5 artifacts) | folder-based NetCDF import (pairs with `download_via_python_venv`) → `forecastLengthEstimator` → grid→scalar `closestDistance` |
+| `import_imerg` | NASA GPM IMERG satellite precip, Early/Late/Final | `product` bakes the `$ImergPostfix$/$ProductForUrl$/$UrlDash$` encoding; **rate→accumulation `meanToMean`** before interpolation |
+| `nwp_grid_noaa_gefs` | NOAA GEFS ensemble import | two `<import>` blocks (perturbed `gep%COUNTER(01-30-1)%` + control `gec00`), `ensembleId`/`synchLevel` tagged |
+| `tpl_generate_reference_et` | Penman-Monteith / Makkink reference ET (`user/simple` formula transforms + `coefficientSet`) | `tpl_` shared template (FEWS `$PLACEHOLDER$`s literal); `simulation_type` switches type/mode/view |
+
+ECMWF ECWAM **waves** was added as an instance of `nwp_grid_ecmwf_ifs`
+(not a new pattern) via new `s3_subpath` (`oper`/`wave`) + `module_suffix`
+(`Meteo`/`Waves`) knobs — see "One pattern per *shape*, not per instance".
+
+**Alignment features shipped alongside** (opt-in, oracle-safe — gated so
+the byte-equivalent tutorial is untouched):
+
+- **csvFile LocationSets** (`metadata.locations_as_csvfile`): reference
+  `locations.csv` in place from a `LocationSet`'s `<csvFile>` and promote
+  every non-reserved column to a location `<attribute>` (Conform's "column
+  header *is* the attributeId"), suppressing `Locations.xml`. Auto-matches
+  an interpolation target set; merges into an existing `LocationSets.xml`.
+  See `locationsets_derivation.locationset_csvfile_body`.
+- **CSV header lint** (`csv_ingest.lint_conform_headers`): warns on
+  non-PascalCase / duplicate attributeId columns; scoped to locations so
+  minimal lowercase CSVs stay silent.
+- **Widened CSV aliases**: `FewsId`/`Alt` (locations), `allowMissing`/
+  `displayUnit`/`parameterGroupName` (parameters) — Conform-shaped CSVs no
+  longer drop ids/altitude/fields. Fixture: `tests/fixtures/conform_inputs/`.
+- **ModuleInstanceSets + split Filters** for `raven_basin`
+  (`conform_module_instance_sets`): group the basin's runs into a set that
+  a split `Filters<Basin>.xml` references via `<moduleInstanceSetId>`.
+- **Per-basin identity** for `raven_basin` (`basin_local_ids`): replace the
+  farmed `$MODELNAME1$/$MODELNAME2$` project-global placeholders with
+  `basin_name`-derived ids (fixes the single-basin `$MODELNAME2$`-unresolved
+  runtime bug + enables wildcards). Off = byte-identical.
+- **Model-asset stubs** (`model_asset_stubs`, opt-in
+  `metadata.emit_model_asset_stubs`): detect general-adapter model runs and
+  loudly flag / scaffold the external ColdState + ModuleDataSet files no
+  layer generates (Conform folders-ending-in-`.zip`).
+
+### Farming gotchas (recurring — hit while farming the above)
+
+- **Dict-typed pattern variables break variable discovery.** The
+  empty-context discovery pass raises on `{{ dict.field }}`. Flatten to
+  scalar vars (`period_unit`, not `relative_period.unit`). Iterating a list
+  of dicts is fine (0 iterations during discovery → no access).
+- **A Jinja var in YAML *key* position** (`- {{ export_kind }}:`) renders
+  to `- :` during discovery → give it a non-empty fallback via a
+  top-of-file `{% set ek = export_kind or '...' %}`.
+- **`{% set %}` must be at the very top of the file** — mid-file placement
+  throws `'x' is undefined`.
+- **Typed vs generic-body rendering.** Inside a *typed* schema
+  (GeneralAdapterRun, TimeSeriesImportRun, TransformationModule), `timeStep`
+  takes plain `unit`/`multiplier` — **not** the `@unit` generic-body form.
+  A `transformation.body` dict *is* generic, so attributes there need
+  `@id`/`@value` (e.g. `coefficient`), and each transform nests under
+  `body:`.
+- **`extra="forbid"`.** Fields the schema doesn't model are rejected, not
+  ignored — e.g. `GeneralAdapterGeneral` has no `importUnitConversionsId`,
+  `PurgeActivity` no `description`, `Tolerance` no `locationId`. Omit them
+  (usually a redundant/default element).
+
 ## Auto-generation layers
 
 The runner produces FEWS XML from five sources, applied in order. Files

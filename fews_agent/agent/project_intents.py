@@ -113,6 +113,10 @@ _IMPORT_NAMES: list[str] = [
     "JTWC",                                            # JTWC cyclone tracks
     "IOC",                                             # IOC sea-level stations
     "NDBC",                                            # NDBC buoys
+    # FEWS-Conform sources
+    "ERA5",                                            # Copernicus reanalysis (CDS)
+    "GEFS",                                            # NOAA ensemble NWP
+    "IMERG",                                           # NASA GPM satellite precip
 ]
 
 # Aliases for import names that appear in conversational language but
@@ -124,6 +128,7 @@ _IMPORT_ALIASES: dict[str, str] = {
     "Earth2Observe": "E2O",
     "IFS": "ECMWF",      # ECMWF's operational model name
     "GHCN": "GHCND",     # also catches the hyphenated "GHCN-D"
+    "ERA-5": "ERA5",     # hyphenated Copernicus reanalysis spelling
 }
 
 # Override the default "use import name as the variable value" behaviour
@@ -139,6 +144,10 @@ _IMPORT_VALUE_OVERRIDES: dict[str, str] = {
     "JTWC":  "Jtwc",
     "IOC":   "Ioc",
     "NDBC":  "Ndbc",
+    # FEWS-Conform: patterns default to PascalCase source_name.
+    "ERA5":  "Era5",
+    "GEFS":  "Gefs",
+    "IMERG": "Imerg",
 }
 
 # Station imports that need a locations.csv backing (their per-station URL is
@@ -682,6 +691,33 @@ def detect_wants_maintenance(text: str) -> bool | None:
     return True if any(p in lower for p in _MAINTENANCE_PHRASES) else None
 
 
+# Archive (Open Archive) — export TO / import FROM. Directional so
+# "export forecasts to archive" and "retrieve from archive" don't cross-fire;
+# a bare "archiving" / "open archive" reads as export (archive what you make).
+_ARCHIVE_EXPORT_PHRASES: tuple[str, ...] = (
+    "to archive", "to the archive", "export to archive", "archive export",
+    "archiving", "archive the", "archive my", "archive our",
+    "archive forecast", "archive observ", "send to archive", "open archive",
+)
+_ARCHIVE_IMPORT_PHRASES: tuple[str, ...] = (
+    "from archive", "from the archive", "retrieve from archive",
+    "import from archive", "read from archive", "restore from archive",
+    "archive import",
+)
+
+
+def detect_wants_archive_export(text: str) -> bool | None:
+    """True when prose asks to export/archive data TO the Open Archive."""
+    lower = (text or "").lower()
+    return True if any(p in lower for p in _ARCHIVE_EXPORT_PHRASES) else None
+
+
+def detect_wants_archive_import(text: str) -> bool | None:
+    """True when prose asks to import/retrieve data FROM the Open Archive."""
+    lower = (text or "").lower()
+    return True if any(p in lower for p in _ARCHIVE_IMPORT_PHRASES) else None
+
+
 def detect_data_types(text: str) -> list[str]:
     """Return canonical data_type phrases mentioned in the text.
 
@@ -903,6 +939,8 @@ def extract_skills(text: str) -> dict[str, Any]:
         "wants_interpolation": detect_wants_interpolation(text),
         "wants_visualization": detect_wants_visualization(text),
         "wants_maintenance": detect_wants_maintenance(text),
+        "wants_archive_export": detect_wants_archive_export(text),
+        "wants_archive_import": detect_wants_archive_import(text),
         "region": detect_region(text),
         "custom_bbox": detect_custom_bbox(text),
         "grid_resolution": detect_grid_resolution(text),
@@ -968,6 +1006,12 @@ _IMPORT_PATTERN_MAP: dict[str, tuple[str, str]] = {
     "WSCDaily":    ("auto/wsc_scalar_WSCDaily_WSCHourly", "wsc_variant"),
     "WSCHourly":   ("auto/wsc_scalar_WSCDaily_WSCHourly", "wsc_variant"),
     "WSCHistoric": ("auto/wsc_scalar_WSCHistoric", "wsc_variant"),
+    # FEWS-Conform sources — label_var = source_name (value title-cased via
+    # _IMPORT_VALUE_OVERRIDES). ERA5 additionally pulls its download companion
+    # (see _resolve_import_patterns).
+    "ERA5":  ("auto/import_era5", "source_name"),
+    "GEFS":  ("auto/nwp_grid_noaa_gefs", "source_name"),
+    "IMERG": ("auto/import_imerg", "source_name"),
 }
 
 # Adapter → (pattern path, the pattern variable the model name fills).
@@ -1194,6 +1238,25 @@ def _resolve_import_patterns(
             "instances": [{"template_name": "ImportNOAAGrids"}],
         })
 
+    # ERA5 is a folder-based import fed by a companion download module (a CDS
+    # API request in a Python venv). Selecting ERA5 pulls that download in so
+    # the ToFews/*.nc files the import reads actually get fetched.
+    if "ERA5" in (imports or []) and (
+        "auto/download_via_python_venv" in catalog_paths
+    ):
+        out.append({
+            "pattern": "auto/download_via_python_venv",
+            "instances": [{
+                "source_name": "Era5",
+                "import_module_instance": "ImportEra5",
+                "download_area": "[-90, -180, 90, 180]",
+                "download_parameters": (
+                    "['2m_temperature', 'total_precipitation', "
+                    "'surface_solar_radiation_downwards']"
+                ),
+            }],
+        })
+
     # Interpolation path. The user asked to land the gridded data as
     # point time series (Data Viewer) — emit one self-contained
     # interpolation module + workflow per eligible NWP import
@@ -1406,6 +1469,7 @@ def _resolve_forecasting_patterns(
     if has_coastal:
         _add(_COASTAL_FORECASTING_TEMPLATES)
     out.extend(_resolve_maintenance_patterns(slots, catalog_paths))
+    out.extend(_resolve_archive_patterns(slots, catalog_paths))
     return out
 
 
@@ -1424,6 +1488,7 @@ def _resolve_data_import_only_patterns(
         geo_datum=slots.get("geoDatum"),
     )
     out.extend(_resolve_maintenance_patterns(slots, catalog_paths))
+    out.extend(_resolve_archive_patterns(slots, catalog_paths))
     return out
 
 
@@ -1439,6 +1504,7 @@ def _resolve_basin_only_patterns(
             )
         )
     out.extend(_resolve_maintenance_patterns(slots, catalog_paths))
+    out.extend(_resolve_archive_patterns(slots, catalog_paths))
     return out
 
 
@@ -1462,6 +1528,85 @@ def _resolve_maintenance_patterns(
             "amalgamate_orphans": True,
         }],
     }]
+
+
+# Forecast NWP grid sources whose imports can be exported to the archive as
+# exportExternalForecast. Excludes historical/observed/station sources.
+_FORECAST_GRID_IMPORTS: frozenset[str] = frozenset({
+    "HRDPS", "GDPS", "RDPS", "REPS", "GFS", "NAM", "SREF", "ECMWF", "GEFS",
+})
+
+# import name → the moduleInstanceId its pattern registers (the archive
+# export's source). Best-effort for the common sources; fallback Import<Name>.
+_ARCHIVE_EXPORT_MODULE: dict[str, str] = {
+    "GFS": "ImportGFS", "GEFS": "ImportGefs", "ECMWF": "ImportEcmwfMeteo",
+}
+
+
+def _archive_export_module(imp: str) -> str:
+    return _ARCHIVE_EXPORT_MODULE.get(
+        imp, "Import" + _IMPORT_VALUE_OVERRIDES.get(imp, imp)
+    )
+
+
+def _resolve_archive_patterns(
+    slots: dict[str, Any], catalog_paths: set[str],
+) -> list[dict]:
+    """Open-Archive export / import, when the user asked for archiving.
+
+    Export: one ``exportExternalForecast`` archive export per forecast-grid
+    import already in the project (so it archives data the project actually
+    produces; the pattern self-emits its IdMapToArchive). Import: one
+    self-contained ``FromArchiveData`` reader. Rides the ``wants_archive_*``
+    flags through chat_step's additive slot merge (not intent optional_slots),
+    mirroring ``_resolve_maintenance_patterns``.
+    """
+    out: list[dict] = []
+    imports = slots.get("imports") or []
+
+    if (
+        slots.get("wants_archive_export")
+        and "auto/archive_export_netcdf" in catalog_paths
+    ):
+        instances = []
+        for imp in imports:
+            if imp not in _FORECAST_GRID_IMPORTS:
+                continue
+            src = _IMPORT_VALUE_OVERRIDES.get(imp, imp)
+            instances.append({
+                "name": src,
+                "export_kind": "exportExternalForecast",
+                "source_module_instance": _archive_export_module(imp),
+                "value_type": "grid",
+                "parameters": ["Precipitation"],
+                "nc_filename": f"{src}DET.nc",
+                "area_id": "Local",
+                "location_id": src,
+                "period_unit": "hour",
+                "period_start": "-48",
+                "period_end": "0",
+                "time_step_unit": "hour",
+                "time_step_multiplier": "1",
+            })
+        if instances:
+            out.append({
+                "pattern": "auto/archive_export_netcdf", "instances": instances,
+            })
+
+    if (
+        slots.get("wants_archive_import")
+        and "auto/archive_import" in catalog_paths
+    ):
+        out.append({
+            "pattern": "auto/archive_import",
+            "instances": [{
+                "name": "Data",
+                "archive_root": "$ArchiveDownloadFolder$",
+                "categories": ["simulated", "externalForecast", "observed"],
+            }],
+        })
+
+    return out
 
 
 _COMMON_SLOT_QUESTIONS = {
@@ -3308,6 +3453,8 @@ __all__ = [
     "detect_model_adapter",
     "detect_coastal_domain",
     "detect_wants_maintenance",
+    "detect_wants_archive_export",
+    "detect_wants_archive_import",
     "detect_region",
     "detect_status_query",
     "extract_skills",
