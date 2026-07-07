@@ -24,6 +24,7 @@ default, or fall back to interactive ask.
 from __future__ import annotations
 
 import csv
+import re
 from dataclasses import dataclass, field
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
@@ -191,12 +192,80 @@ def ingest_csv(path: Path) -> IngestResult:
 
     column_mapping, unknown_headers = _map_headers(spec_name, headers)
     builder = _BUILDERS[spec_name]
-    return builder(path, spec_name, headers, rows, column_mapping, unknown_headers)
+    result = builder(
+        path, spec_name, headers, rows, column_mapping, unknown_headers
+    )
+    # Advisory Conform lint. For locations the unmapped columns become
+    # location attributeIds (csvFile convention), so lint them; for other
+    # specs only the duplicate-header check applies.
+    attribute_headers = unknown_headers if spec_name == "locations" else []
+    result.warnings.extend(lint_conform_headers(headers, attribute_headers))
+    return result
 
 
 # ---------------------------------------------------------------------------
 # Header → field mapping
 # ---------------------------------------------------------------------------
+
+# A valid FEWS attributeId: starts with a letter, then letters/digits only.
+# Conform additionally asks for PascalCase (leading upper). Spaces,
+# underscores, hyphens and dots are all disallowed in an attributeId.
+_ATTR_ID_RE = re.compile(r"^[A-Za-z][A-Za-z0-9]*$")
+
+
+def lint_conform_headers(
+    headers: list[str], attribute_headers: list[str],
+) -> list[str]:
+    """Advisory FEWS-Conform lint of a CSV's column headers.
+
+    Two checks, both pure and side-effect-free:
+
+    1. **Duplicate headers** (case-insensitive) anywhere in the CSV —
+       these collide as attributeIds / column references.
+    2. **``attribute_headers``** (the columns that become location
+       ``attributeId``s via the csvFile convention — i.e. the ingest's
+       *unmapped* columns) must be valid PascalCase attributeIds: no
+       spaces / ``_`` / ``-`` / ``.``, and a leading uppercase letter
+       (``GFS`` → ``Gfs`` is a separate value-casing rule, not checked
+       here).
+
+    Returns a list of human-readable warning strings (empty = clean).
+    Reserved/mapped columns (``id``, ``lat``, ...) are intentionally
+    *not* flagged for casing — the ingest maps them by alias regardless
+    of case, so a minimal lowercase CSV produces zero warnings.
+    """
+    warnings: list[str] = []
+
+    seen: dict[str, list[str]] = {}
+    for h in headers:
+        seen.setdefault(h.strip().lower(), []).append(h.strip())
+    for group in seen.values():
+        if len(group) > 1:
+            warnings.append(
+                f"duplicate column header {group[0]!r} "
+                f"(x{len(group)}, case-insensitive) — attributeIds must be unique"
+            )
+
+    for h in attribute_headers:
+        name = h.strip()
+        # _map_headers reports duplicates as "H (duplicates F)"; the dup
+        # check above already covers those, so skip the annotated form.
+        if not name or "(" in name:
+            continue
+        if not _ATTR_ID_RE.match(name):
+            warnings.append(
+                f"column {name!r} becomes a location attributeId but isn't a "
+                f"valid one (no spaces / _ / - / . ; must start with a letter)"
+            )
+        elif not name[0].isupper():
+            suggestion = name[0].upper() + name[1:]
+            warnings.append(
+                f"column {name!r} should be PascalCase for FEWS-Conform "
+                f"(e.g. {suggestion!r})"
+            )
+
+    return warnings
+
 
 def _map_headers(
     spec_name: str, headers: list[str]
@@ -555,4 +624,5 @@ __all__ = [
     "IngestResult",
     "ingest_csv",
     "ingest_directory",
+    "lint_conform_headers",
 ]

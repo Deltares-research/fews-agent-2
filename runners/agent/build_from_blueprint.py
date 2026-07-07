@@ -852,6 +852,13 @@ def build_from_blueprint(
     if inputs_dir is not None and inputs_dir.is_dir():
         ingest_results = ingest_directory(inputs_dir)
 
+    # Surface CSV warnings — incl. the FEWS-Conform header lint (bad
+    # attributeIds / non-PascalCase / duplicate columns). Advisory only;
+    # the build proceeds.
+    for r in ingest_results.values():
+        for w in r.warnings:
+            console.print(f"[yellow]CSV {r.csv_path.name}: {w}[/yellow]")
+
     # 1b) FEWS-Conform opt-in: reference locations.csv in place from a
     # csvFile-backed LocationSet instead of materialising Locations.xml.
     # This preserves every non-reserved CSV column as a location attribute
@@ -860,11 +867,11 @@ def build_from_blueprint(
     # oracle path is untouched. See locationsets_derivation.
     csvfile_locsets: list[dict] = []
     csvfile_copies: list[tuple[str, str]] = []  # (relpath, raw content)
+    # Raw material captured here; the actual csvFile bodies are built AFTER
+    # expand() so the set id can auto-match the interpolation target set
+    # (which is only known once the patterns have rendered).
+    _conform_pending: list[dict] = []  # {csv_name, headers, geo}
     if bp.metadata.get("locations_as_csvfile"):
-        from fews_agent.agent.locationsets_derivation import (
-            locationset_csvfile_body,
-        )
-        set_id = bp.metadata.get("location_set_id", "Stations")
         seed_datum = (
             (bp.singleton_seeds.get("Locations") or {}).get("geoDatum")
             if bp.singleton_seeds else None
@@ -872,18 +879,17 @@ def build_from_blueprint(
         for spec_name, r in list(ingest_results.items()):
             if r.spec_name != "locations" or r.model is None:
                 continue
-            headers = list(r.column_mapping.keys())
             geo = (
                 seed_datum
                 or r.inferred_file_fields.get("geoDatum")
                 or "WGS 1984"
             )
             csv_name = r.csv_path.name
-            csvfile_locsets.append(
-                locationset_csvfile_body(
-                    csv_name, headers, set_id=set_id, geo_datum=str(geo),
-                )
-            )
+            _conform_pending.append({
+                "csv_name": csv_name,
+                "headers": list(r.column_mapping.keys()),
+                "geo": str(geo),
+            })
             # Copy the raw CSV into the config tree (MapLayerFiles/) so the
             # locationSet's <file> reference resolves at FEWS runtime.
             try:
@@ -923,6 +929,34 @@ def build_from_blueprint(
         for err in result.errors:
             console.print(f"[red]error:[/red] {err}")
         return {"ok": False, "errors": result.errors}
+
+    # Build the Conform csvFile LocationSet bodies now that patterns have
+    # rendered. Set-id resolution, in precedence order:
+    #   1) explicit metadata.location_set_id
+    #   2) the interpolation target set(s) — so a CSV-backed station list
+    #      *is* what the interpolation writes to (composes import →
+    #      interpolate → visualize with the attribute-rich CSV). Every
+    #      target is backed, so the unbacked-interpolation guard stays quiet.
+    #   3) default "Stations"
+    if _conform_pending:
+        from fews_agent.agent.locationsets_derivation import (
+            _collect_interpolation_target_set_ids,
+            locationset_csvfile_body,
+        )
+        explicit_id = bp.metadata.get("location_set_id")
+        if explicit_id:
+            target_ids = [explicit_id]
+        else:
+            interp_targets = _collect_interpolation_target_set_ids(
+                result.rendered_files
+            )
+            target_ids = sorted(interp_targets) if interp_targets else ["Stations"]
+        for pend in _conform_pending:
+            for sid in target_ids:
+                csvfile_locsets.append(locationset_csvfile_body(
+                    pend["csv_name"], pend["headers"],
+                    set_id=sid, geo_datum=pend["geo"],
+                ))
 
     # Emit the raw locations CSV copies (Conform csvFile opt-in) as
     # non-XML config-tree files that the csvFile LocationSets reference.
@@ -1237,9 +1271,13 @@ def build_from_blueprint(
                     ))
                     body = ls_data.get("body", [])
                     n_total = len(body)
+                    # A set is "populated" if it carries real backing —
+                    # explicit locationId membership OR a csvFile reference
+                    # (Conform opt-in) — as opposed to a bare id-only stub.
                     n_populated = sum(
                         1 for e in body
                         if e.get("locationSet", {}).get("locationId")
+                        or e.get("locationSet", {}).get("csvFile")
                     )
                     n_stubs = n_total - n_populated
                     if n_populated:
