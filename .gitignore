@@ -260,3 +260,10 @@ validation/*
 
 !questions/*
 csv-inputs/*
+
+# Terraform
+*.tfstate
+*.tfstate.*
+.terraform/
+*.tfvars
+!*.tfvars.example
