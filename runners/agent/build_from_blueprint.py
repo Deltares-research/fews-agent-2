@@ -1327,6 +1327,48 @@ def build_from_blueprint(
             border_style="yellow",
         ))
 
+    # Model-asset gap (ColdState / ModuleDataSet). General-adapter model
+    # runs need external binaries + schematization + initial state that no
+    # generation layer can produce. Warn loudly whenever they're absent; on
+    # metadata.emit_model_asset_stubs, also scaffold placeholder markers +
+    # a manifest at the Conform paths (folders ending in .zip).
+    from fews_agent.agent.model_asset_stubs import (
+        config_has_model_assets,
+        detect_model_asset_requirements,
+        missing_model_asset_paths,
+        model_asset_stub_files,
+    )
+    _model_reqs = detect_model_asset_requirements(result.rendered_files)
+    _missing_assets: list[str] = []
+    if _model_reqs and not config_has_model_assets(result.rendered_files):
+        _missing_assets = missing_model_asset_paths(_model_reqs)
+        _emit_stubs = bool(bp.metadata.get("emit_model_asset_stubs"))
+        if _emit_stubs:
+            from fews_agent.agent.blueprint import RenderedFile
+            for relpath, content in model_asset_stub_files(_model_reqs):
+                result.rendered_files.append(RenderedFile(
+                    relpath=relpath,
+                    content=content,
+                    pattern="(model-assets)",
+                    instance_label=Path(relpath).name,
+                ))
+        _models = ", ".join(f"{r.area} {r.software}" for r in _model_reqs)
+        console.print(Panel(
+            f"Model run(s) [{_models}] need external assets no layer "
+            f"generates (binaries, schematization, initial state):\n"
+            + "\n".join(f"  - {p}" for p in _missing_assets)
+            + (
+                "\n\nScaffolded placeholders + _REQUIRED_MODEL_ASSETS.md "
+                "(folders ending in .zip) — replace with the real files."
+                if _emit_stubs else
+                "\n\nConfig is XSD-valid but the model run fails at FEWS "
+                "startup until these are supplied. Set "
+                "metadata.emit_model_asset_stubs to scaffold placeholders."
+            ),
+            title="Warning: missing external model assets",
+            border_style="yellow",
+        ))
+
     # Auto-derive descriptor singletons from rendered XMLs. Only fires
     # for descriptor specs that aren't already produced by patterns or
     # by user-provided yamls.
@@ -1511,6 +1553,10 @@ def build_from_blueprint(
         # list is the healthy case. Lets the chat `done` path re-surface
         # the warning to the configurator.
         "unbacked_interpolation_sets": sorted(_unbacked),
+        # External model assets (binaries/schematization/cold state) a
+        # general-adapter model needs but no layer generates. Empty when
+        # the config already carries them or there's no model run.
+        "missing_model_assets": _missing_assets,
         "byte_equivalent_vs_tutorial": (
             f"{n_byte_eq}/{n_compared}" if diff_against else None
         ),

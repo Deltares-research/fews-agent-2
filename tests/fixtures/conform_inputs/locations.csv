@@ -1,0 +1,5 @@
+FewsId,Name,ShortName,Lat,Lon,Alt,Datum,Type,ModelId,WflowIdDischarge,WflowIdWaterLevel
+L_041457,Coolmunda Dam,Coolmunda Dam,-28.4225,151.2131,0,WGS84,RVR,Coolmunda,,
+L_416401A,MacIntyre at Whetstone Weir,MacIntyre Whetstone,-28.4674,150.9546,269,WGS84,ST,Coolmunda,41640101,
+L_416402B,MacIntyre at Inglewood,MacIntyre Inglewood,-28.4181,151.0694,0,GDA94,RV,Coolmunda,41640202,41640202
+L_422394A,Dumaresq at Roseneath,Dumaresq Roseneath,-28.9317,151.5061,0,GDA94,RV,Coolmunda,42239401,

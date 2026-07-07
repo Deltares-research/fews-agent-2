@@ -1,0 +1,5 @@
+Category,ParameterId,ParameterName,ShortName,ParameterGroupId,ParameterGroupName,ParameterType,Unit,DisplayUnit,ValueResolution,ValueResolutionUnit,UsesDatum,AllowMissing
+Fluvial,Discharge,Discharge,Discharge,Discharge,Discharge,instantaneous,m³/s,m³/s,0.01,m³/s,FALSE,FALSE
+Fluvial,WaterLevel,Water level,Level,WaterLevel,Water level,instantaneous,m,m,0.001,m,TRUE,FALSE
+Meteo,Precipitation,Precipitation,Precip,Precipitation,Precipitation,accumulative,mm,mm,0.1,mm,FALSE,TRUE
+Meteo,AirTemperature,Air temperature,Temp,Temperature,Temperature,instantaneous,°C,°C,0.1,°C,FALSE,TRUE
