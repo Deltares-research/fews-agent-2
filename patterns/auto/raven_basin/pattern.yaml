@@ -4,6 +4,14 @@ variables:
   basin_name:
     type: str
     required: true
+  # FEWS-Conform opt-in: when true, contribute ModuleInstanceSets grouping
+  # this basin's Raven runs (see contributions block). Default off so the
+  # byte-equivalent tutorial oracle (which has no ModuleInstanceSets.xml)
+  # is untouched.
+  conform_module_instance_sets:
+    type: bool
+    required: false
+    default: false
 outputs:
 - schema: GeneralAdapterRun
   output: ModuleConfigFiles/ModelRun/{{ basin_name }}/{{ basin_name }}ForecastTemplate.xml
@@ -714,4 +722,83 @@ outputs:
       runIndependent: true
       moduleInstanceId: PreprocessREPS
       moduleConfigFileName: CalculateEnsembleStatisticsTemplate
+{% if conform_module_instance_sets %}
+# FEWS-Conform split Filters file (RegionConfigFiles/ModelRun/Filters<Basin>.xml).
+# Conform splits model filters into their own file that FEWS merges at
+# runtime, so this leaves the LLM-drafted base Filters.xml untouched. The
+# timeSeriesSets reference the ModuleInstanceSets contributed below via
+# <moduleInstanceSetId> — that indirection is the payoff: the filter tracks
+# whatever the {{ basin_name }}Raven* sets contain, no instance enumeration.
+- schema: Filters
+  output: RegionConfigFiles/ModelRun/Filters{{ basin_name }}.xml
+  data:
+    body:
+      - timeSeriesSets:
+          '@id': '{{ basin_name }}RavenForecast'
+          timeSeriesSet:
+            - moduleInstanceSetId: '{{ basin_name }}RavenForecast'
+              valueType: scalar
+              parameterId: QR.sim
+              locationSetId: $MODELNAME2$SubBasins
+              timeSeriesType: simulated forecasting
+              timeStep:
+                '@unit': hour
+              readWriteMode: read complete forecast
+      - timeSeriesSets:
+          '@id': '{{ basin_name }}RavenHistoric'
+          timeSeriesSet:
+            - moduleInstanceSetId: '{{ basin_name }}RavenHistoric'
+              valueType: scalar
+              parameterId: QR.sim
+              locationSetId: $MODELNAME2$SubBasins
+              timeSeriesType: simulated historical
+              timeStep:
+                '@unit': hour
+              relativeViewPeriod:
+                '@unit': day
+                '@start': '-4'
+                '@end': '0'
+              readWriteMode: read only
+      - filter:
+          '@id': '{{ basin_name }}Raven'
+          '@name': '{{ basin_name }}'
+          child:
+            - '@foreignKey': '{{ basin_name }}RavenForecast'
+            - '@foreignKey': '{{ basin_name }}RavenHistoric'
+      - filter:
+          '@id': '{{ basin_name }}RavenForecast'
+          '@name': Forecast
+          timeSeriesSetsId: '{{ basin_name }}RavenForecast'
+      - filter:
+          '@id': '{{ basin_name }}RavenHistoric'
+          '@name': Historic
+          timeSeriesSetsId: '{{ basin_name }}RavenHistoric'
+{% endif %}
+{% if conform_module_instance_sets %}
+# FEWS-Conform ModuleInstanceSets: group this basin's Raven model runs by
+# simulation type so Filters / DisplayGroups can reference a stable set id
+# ({{ basin_name }}RavenForecast / {{ basin_name }}RavenHistoric) instead of
+# enumerating instances. Members use the same $MODELNAME2$ placeholder the
+# run modules emit — FEWS resolves it in RegionConfigFiles at startup, so
+# the set membership tracks whatever the run instances actually register.
+# (Conform uses wildcard *WflowForecast patterns for cross-catchment
+# auto-extend; the agent's runs carry no software token in the id and
+# $MODELNAME2$ is project-global, so explicit placeholder membership is the
+# exact, over-capture-free equivalent per basin.)
+contributions:
+  - target: ModuleInstanceSets
+    field: moduleInstanceSet
+    items:
+      - id: '{{ basin_name }}RavenForecast'
+        name: '{{ basin_name }} Raven forecast runs'
+        moduleInstanceId:
+          - $MODELNAME2$GDPSForecast
+          - $MODELNAME2$RDPSForecast
+          - $MODELNAME2$REPSForecast
+      - id: '{{ basin_name }}RavenHistoric'
+        name: '{{ basin_name }} Raven historic run'
+        moduleInstanceId:
+          - $MODELNAME2$Historic
+{% else %}
 contributions: []
+{% endif %}
