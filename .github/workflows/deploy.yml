@@ -2,13 +2,12 @@ name: Deploy to Azure
 
 on:
   push:
-    branches: [main]
+    branches: [deploy_app_to_Azure]
 
 env:
   REGISTRY: ${{ secrets.ACR_LOGIN_SERVER }}
   IMAGE_NAME: fews-agent
   RESOURCE_GROUP: FEWS_LLM
-  CONTAINER_APP: fews-agent
 
 jobs:
   build-and-push:
@@ -26,14 +25,22 @@ jobs:
           docker build -t $REGISTRY/$IMAGE_NAME:latest .
           docker push $REGISTRY/$IMAGE_NAME:latest
 
-      - name: Azure Login
-        uses: azure/login@v2
-        with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
+      # TODO: Uncomment once you have a service principal (AZURE_CREDENTIALS secret)
+      # - name: Azure Login
+      #   uses: azure/login@v2
+      #   with:
+      #     creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: Deploy to Container Apps
-        run: |
-          az containerapp update \
-            --name ${{ env.CONTAINER_APP }} \
-            --resource-group ${{ env.RESOURCE_GROUP }} \
-            --image ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+      # - name: Deploy to App Service
+      #   run: |
+      #     az webapp config container set \
+      #       --name "${{ secrets.WEB_APP_NAME }}" \
+      #       --resource-group ${{ env.RESOURCE_GROUP }} \
+      #       --container-image-name "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest" \
+      #       --container-registry-url "https://${{ env.REGISTRY }}" \
+      #       --container-registry-user "${{ secrets.ACR_USERNAME }}" \
+      #       --container-registry-password "${{ secrets.ACR_PASSWORD }}"
+
+      #     az webapp restart \
+      #       --name "${{ secrets.WEB_APP_NAME }}" \
+      #       --resource-group ${{ env.RESOURCE_GROUP }}

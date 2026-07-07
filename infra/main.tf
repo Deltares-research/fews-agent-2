@@ -1,7 +1,8 @@
 # main.tf — FEWS Agent Azure Infrastructure
 #
 # Single-file Terraform configuration for deploying the Streamlit app
-# to Azure Container Apps with Azure AI as the LLM backend.
+# to Azure App Service (Linux + custom Docker container) with Azure AI
+# as the LLM backend.
 #
 # Usage:
 #   cd infra
@@ -84,81 +85,49 @@ resource "azurerm_container_registry" "main" {
 }
 
 # -----------------------------------------------------------------------------
-# Container Apps Environment
+# App Service Plan (Linux)
 # -----------------------------------------------------------------------------
 
-resource "azurerm_container_app_environment" "main" {
-  name                = "fews-agent-env"
-  location            = data.azurerm_resource_group.main.location
+resource "azurerm_service_plan" "main" {
+  name                = "fews-agent-plan"
   resource_group_name = data.azurerm_resource_group.main.name
+  location            = data.azurerm_resource_group.main.location
+  os_type             = "Linux"
+  sku_name            = "B1"
 }
 
 # -----------------------------------------------------------------------------
-# Container App
+# App Service (Streamlit container)
 # -----------------------------------------------------------------------------
 
-resource "azurerm_container_app" "main" {
-  name                         = "fews-agent"
-  container_app_environment_id = azurerm_container_app_environment.main.id
-  resource_group_name          = data.azurerm_resource_group.main.name
-  revision_mode                = "Single"
+resource "azurerm_linux_web_app" "main" {
+  name                = "fews-agent-${random_id.suffix.hex}"
+  resource_group_name = data.azurerm_resource_group.main.name
+  location            = data.azurerm_resource_group.main.location
+  service_plan_id     = azurerm_service_plan.main.id
 
-  secret {
-    name  = "azure-ai-key"
-    value = var.azure_ai_api_key
-  }
+  site_config {
+    always_on = true
 
-  secret {
-    name  = "acr-password"
-    value = azurerm_container_registry.main.admin_password
-  }
-
-  registry {
-    server               = azurerm_container_registry.main.login_server
-    username             = azurerm_container_registry.main.admin_username
-    password_secret_name = "acr-password"
-  }
-
-  template {
-    container {
-      name   = "fews-agent"
-      image  = "${azurerm_container_registry.main.login_server}/fews-agent:latest"
-      cpu    = 1.0
-      memory = "2Gi"
-
-      env {
-        name  = "FEWS_AGENT_PROVIDER"
-        value = "litellm"
-      }
-
-      env {
-        name  = "AZURE_AI_API_BASE"
-        value = var.azure_ai_api_base
-      }
-
-      env {
-        name        = "AZURE_AI_API_KEY"
-        secret_name = "azure-ai-key"
-      }
-
-      env {
-        name  = "FEWS_AGENT_MODEL"
-        value = var.fews_agent_model
-      }
+    application_stack {
+      docker_registry_url      = "https://${azurerm_container_registry.main.login_server}"
+      docker_image_name        = "fews-agent:latest"
+      docker_registry_username = azurerm_container_registry.main.admin_username
+      docker_registry_password = azurerm_container_registry.main.admin_password
     }
-
-    min_replicas = 0
-    max_replicas = 2
   }
 
-  ingress {
-    external_enabled = true
-    target_port      = 8501
+  app_settings = {
+    # App Service routes traffic to this port inside the container.
+    WEBSITES_PORT = "8501"
 
-    traffic_weight {
-      percentage      = 100
-      latest_revision = true
-    }
+    FEWS_AGENT_PROVIDER = "litellm"
+    AZURE_AI_API_BASE   = var.azure_ai_api_base
+    AZURE_AI_API_KEY    = var.azure_ai_api_key
+    FEWS_AGENT_MODEL    = var.fews_agent_model
+
+    # Pull the latest image from ACR on restart.
+    DOCKER_ENABLE_CI = "true"
   }
 }
 
@@ -168,7 +137,12 @@ resource "azurerm_container_app" "main" {
 
 output "app_url" {
   description = "URL of the deployed Streamlit app"
-  value       = "https://${azurerm_container_app.main.ingress[0].fqdn}"
+  value       = "https://${azurerm_linux_web_app.main.default_hostname}"
+}
+
+output "web_app_name" {
+  description = "App Service name (for GitHub Actions WEB_APP_NAME secret)"
+  value       = azurerm_linux_web_app.main.name
 }
 
 output "acr_login_server" {
@@ -177,8 +151,13 @@ output "acr_login_server" {
 }
 
 output "acr_name" {
-  description = "ACR name (for GitHub Actions)"
+  description = "ACR name"
   value       = azurerm_container_registry.main.name
+}
+
+output "acr_username" {
+  description = "ACR admin username (for GitHub Actions ACR_USERNAME secret)"
+  value       = azurerm_container_registry.main.admin_username
 }
 
 output "resource_group" {

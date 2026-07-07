@@ -1,0 +1,16 @@
+# terraform.tfvars.example — Template for Terraform variables
+#
+# Copy to terraform.tfvars (gitignored) and fill in your values:
+#   cp terraform.tfvars.example terraform.tfvars
+
+# Resource group name (must already exist in Azure)
+resource_group_name = "FEWS_LLM"
+
+# Azure AI endpoint URL (from Azure portal)
+azure_ai_api_base = "https://your-resource.services.ai.azure.com/models"
+
+# Azure AI API key (from Azure portal - keep secret!)
+azure_ai_api_key = "your-api-key-here"
+
+# LLM model identifier
+fews_agent_model = "azure_ai/Llama-3.3-70B-Instruct"
