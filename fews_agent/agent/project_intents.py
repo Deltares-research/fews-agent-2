@@ -2978,7 +2978,7 @@ def lookup_concept(text: str) -> tuple[str, dict[str, str]] | None:
 # bare '/help' reply. The chatter's command dispatcher recognises the
 # names + aliases listed here; if you add a new command there, mirror
 # it in this table so '/help' surfaces it. Grouped to match the
-# sidebar legend in app/web_app.py.
+# sidebar legend in frontend/web_app.py.
 COMMANDS: list[dict[str, str]] = [
     # Project commands — drive the build pipeline
     {

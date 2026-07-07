@@ -24,7 +24,7 @@
 #     docker exec -it fews bash
 #     # or start the container straight into a shell instead of Streamlit:
 #     docker run -it --gpus all -p 8501:8501 -v ollama-models:/root/.ollama fews-agent bash
-#     #   -> inside: `streamlit run app/web_app.py`
+#     #   -> inside: `streamlit run frontend/web_app.py`
 
 # python:3.11-slim satisfies requires-python>=3.11 (the stock ollama/ollama
 # image ships Python 3.10, which doesn't). Ollama ships its own bundled CUDA
@@ -83,4 +83,4 @@ EXPOSE 8501
 # Entrypoint starts `ollama serve`, waits, ensures the model, then runs CMD.
 # Override CMD with `bash` to drop into a terminal with Ollama already up.
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
-CMD ["streamlit", "run", "app/web_app.py"]
+CMD ["streamlit", "run", "frontend/web_app.py"]

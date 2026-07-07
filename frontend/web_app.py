@@ -2,7 +2,7 @@
 
 Run with:
 
-    streamlit run app/web_app.py
+    streamlit run frontend/web_app.py
 
 Each chat lives in a session folder
 ``sessions/<username>_<YYYY-MM-DD_HHMMSS>/`` containing:
@@ -23,10 +23,10 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-# Streamlit launches this script with ``app/`` (not the repo root) on
-# ``sys.path``, so ``chatter.py``'s imports of ``fews_agent`` and
-# ``runners`` only resolve when the project is editable-installed.
-# Prepend the repo root defensively so the app runs out of the box.
+# Streamlit launches this script with ``frontend/`` (not the repo root)
+# on ``sys.path``, so importing ``app.chatter`` (and its imports of
+# ``fews_agent`` / ``runners``) only resolves once the repo root is on
+# the path. Prepend it defensively so the app runs out of the box.
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
@@ -42,7 +42,7 @@ except ImportError:  # python-dotenv missing → silently skip
 
 import streamlit as st
 
-from chatter import (
+from app.chatter import (
     ChatSession,
     SESSIONS_ROOT,
     list_ollama_models,

@@ -1320,7 +1320,7 @@ starts are instant.
   `FEWS_AGENT_PROVIDER=ollama`, `FEWS_AGENT_MODEL=qwen2.5:7b-instruct`,
   `OLLAMA_HOST=http://127.0.0.1:11434` (read by BOTH the server bind
   and our client, so they meet inside the container). Entrypoint =
-  `docker-entrypoint.sh`, CMD = `streamlit run app/web_app.py`.
+  `docker-entrypoint.sh`, CMD = `streamlit run frontend/web_app.py`.
 - **`docker-entrypoint.sh`** — starts `ollama serve &`, waits for it,
   `ollama pull` the model (no-op if the volume already has it), then
   `exec "$@"`. So the default CMD runs Streamlit with Ollama already

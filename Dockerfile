@@ -115,4 +115,4 @@ ENV OLLAMA_HOST=http://host.docker.internal:11434
 
 EXPOSE 8501
 
-CMD ["streamlit", "run", "app/web_app.py"]
+CMD ["streamlit", "run", "frontend/web_app.py"]
