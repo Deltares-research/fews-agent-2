@@ -83,11 +83,11 @@ _FILENAME_TO_SPEC: dict[str, str] = {
 # Pattern: target_field → list of accepted header names (lowercase).
 _COLUMN_ALIASES: dict[str, dict[str, list[str]]] = {
     "locations": {
-        "id":             ["id", "locationid", "location_id", "code"],
+        "id":             ["id", "locationid", "location_id", "code", "fewsid"],
         "name":           ["name", "locationname", "label"],
         "x":              ["x", "lng", "lon", "longitude"],
         "y":              ["y", "lat", "latitude"],
-        "z":              ["z", "altitude", "elevation"],
+        "z":              ["z", "altitude", "elevation", "alt"],
         "description":    ["description", "desc"],
         "shortName":      ["shortname", "short_name", "short"],
         "parentLocationId": ["parentlocationid", "parent", "parent_id"],
@@ -99,9 +99,12 @@ _COLUMN_ALIASES: dict[str, dict[str, list[str]]] = {
         "description":    ["description", "desc"],
         "valueResolution": ["valueresolution", "resolution"],
         "valueResolutionUnit": ["valueresolutionunit", "resolution_unit"],
+        "allowMissing":   ["allowmissing", "allow_missing"],
         # group-level columns (read once per group from the first row)
         "group":          ["group", "parametergroup", "parametergroupid", "parameter_group"],
+        "groupName":      ["groupname", "parametergroupname", "parameter_group_name"],
         "unit":           ["unit", "units"],
+        "displayUnit":    ["displayunit", "display_unit"],
         "parameterType":  ["parametertype", "type"],
         "usesDatum":      ["usesdatum", "uses_datum"],
     },
@@ -365,9 +368,12 @@ def _build_parameters(
         params: list[Parameter] = []
         first = group_rows[0]
         group_uses_datum = _row_field(first, column_mapping, "usesDatum")
+        group_name = _row_field(first, column_mapping, "groupName")
+        group_display_unit = _row_field(first, column_mapping, "displayUnit")
 
         for i, row in enumerate(group_rows, start=2):
             try:
+                allow_missing = _row_field(row, column_mapping, "allowMissing")
                 p = Parameter(
                     id=_row_field(row, column_mapping, "id") or "",
                     shortName=(
@@ -383,6 +389,11 @@ def _build_parameters(
                     ),
                     valueResolutionUnit=_row_field(
                         row, column_mapping, "valueResolutionUnit"
+                    ),
+                    allowMissing=(
+                        allow_missing.lower() in {"true", "1", "yes"}
+                        if allow_missing
+                        else None
                     ),
                 )
                 params.append(p)
@@ -401,8 +412,10 @@ def _build_parameters(
             pg = ParameterGroup(
                 id=effective_id,
                 parameter=params,
+                name=group_name,
                 parameterType=ptype,  # type: ignore[arg-type]
                 unit=unit,
+                displayUnit=group_display_unit,
                 usesDatum=(
                     group_uses_datum.lower() in {"true", "1", "yes"}
                     if group_uses_datum
