@@ -6,7 +6,7 @@
 #
 # Usage:
 #   cd infra
-#   cp terraform.tfvars.example terraform.tfvars  # fill in values
+#   cp terraform.tfvars.example terraform.tfvars  # fill in correct values
 #   terraform init
 #   terraform apply
 
