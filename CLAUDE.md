@@ -1235,6 +1235,24 @@ behaviour you may want to inspect or rerun:
   — e.g. a fabricated "Mackenzie basin" mention on turn 3 — so cherry-pick
   turns when presenting; the engine internals in `_conversation.md` are
   correct.)
+- **`projects/stepwise-edit-demo/stepwise-edit-demo_2026-07-08_120000/`**
+  — the **module-mode** showcase (the newer UX; see "Module-mode"). 10
+  turns, fully **reproducible** (module-mode replies are deterministic; the
+  extractor is scripted, so no qwen drift): (1) cold entry *"set up the
+  imports module — a NOAA GFS import for precip and temperature"* → enters
+  `processing` + one-shot add; (2) NL *"also add an HRDPS import"*; (3)
+  low-confidence *"make GFS half-degree"* → agent **asks to confirm**; (4)
+  *"yes"* → applies `grid_resolution=0p50`; (5) *"add the GEFS ensemble and
+  the MysteryModel grids"* → GEFS added, **MysteryModel dropped** by catalog
+  validation (surfaced loudly); (6) `/build` → scoped build *"phase imports:
+  8/8 XSD-valid"*; (7) *"switch to the display module"* → focus card shows
+  **`Inherited from this session → imports=['GFS','HRDPS','GEFS']`** (shared
+  vars persist across modules); (8) *"visualize the GFS and HRDPS grids"* →
+  `spatial_display_grid` per source; (9) `/list`; (10) `done`. Full build
+  **42/42 XSD-valid**. Reproduce by driving `chat_step.main` over the 10
+  turns with the extractor's provider stubbed (keyword→op), the way
+  `test_module_mode_e2e.py` stubs it; or just read `_conversation.md`. Use
+  this to demo the whole module-mode arc.
 
 None of these are the regression oracle — that's still
 `projects/tutorial/tutorial_2026-05-07_120000/` (120 files,
