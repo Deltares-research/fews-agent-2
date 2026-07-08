@@ -51,6 +51,10 @@ _ACTIONS = frozenset({
 # Grid-resolution slugs the NOAA pattern understands.
 _RESOLUTIONS = frozenset({"0p25", "0p50", "1p00"})
 
+# Below this confidence, an operation that WOULD change something is
+# confirmed with the user instead of applied silently.
+CONFIDENCE_THRESHOLD = 0.6
+
 
 @dataclass
 class ExtractedOperation:
@@ -60,7 +64,71 @@ class ExtractedOperation:
     module: str | None = None            # normalized key, only for select_module
     fields: dict[str, Any] = field(default_factory=dict)
     dropped: list[str] = field(default_factory=list)   # invalid values discarded
+    confidence: float = 1.0              # model self-report, 0..1
     raw: dict[str, Any] = field(default_factory=dict)  # the model's raw output
+
+
+def _has_effect(op: "ExtractedOperation") -> bool:
+    """True when applying ``op`` would actually change project state."""
+    if op.action in ("add", "set"):
+        return bool(op.fields)
+    if op.action == "remove":
+        return bool(op.fields.get("imports") or op.fields.get("basins"))
+    if op.action == "select_module":
+        return op.module is not None
+    return False
+
+
+def needs_confirmation(
+    op: "ExtractedOperation", threshold: float = CONFIDENCE_THRESHOLD,
+) -> bool:
+    """Ask before applying? True when the op has an effect AND is uncertain.
+
+    A low-confidence ``none``/``list``/``build`` needs no confirmation —
+    there's nothing to undo. Only an operation that would mutate state and
+    that the model wasn't sure about is worth a confirm round-trip.
+    """
+    return _has_effect(op) and op.confidence < threshold
+
+
+def describe_operation(op: "ExtractedOperation") -> str:
+    """A short human phrase for a confirmation prompt."""
+    if op.action == "select_module":
+        return f"switch to the {op.module} module"
+    bits: list[str] = []
+    if op.fields.get("imports"):
+        bits.append("imports " + ", ".join(op.fields["imports"]))
+    if op.fields.get("basins"):
+        bits.append("basins " + ", ".join(
+            b.get("basin_name", "?") for b in op.fields["basins"]
+        ))
+    if op.fields.get("data_types"):
+        bits.append("parameters " + ", ".join(op.fields["data_types"]))
+    for k in ("grid_resolution", "forecast_horizon_hours", "region",
+              "geoDatum"):
+        if k in op.fields:
+            bits.append(f"{k}={op.fields[k]}")
+    verb = {"add": "add", "set": "set", "remove": "remove"}.get(
+        op.action, "apply"
+    )
+    return f"{verb} {', '.join(bits)}" if bits else op.action
+
+
+def op_to_dict(op: "ExtractedOperation") -> dict[str, Any]:
+    """JSON-serializable form for stashing a pending op in chat state."""
+    return {
+        "action": op.action, "module": op.module,
+        "fields": op.fields, "dropped": op.dropped,
+        "confidence": op.confidence,
+    }
+
+
+def op_from_dict(d: dict[str, Any]) -> "ExtractedOperation":
+    return ExtractedOperation(
+        action=d.get("action", "none"), module=d.get("module"),
+        fields=d.get("fields") or {}, dropped=d.get("dropped") or [],
+        confidence=float(d.get("confidence", 1.0)),
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -237,10 +305,25 @@ _SCHEMA = {
         "action": {"type": "string"},
         "module": {"type": ["string", "null"]},
         "fields": {"type": "object", "additionalProperties": True},
+        "confidence": {"type": "number"},
         "reasoning": {"type": "string"},
     },
     "required": ["action"],
 }
+
+
+def _parse_confidence(raw: Any) -> float:
+    """Coerce the model's confidence to a float in [0, 1]; default 1.0.
+
+    A missing/garbage value defaults HIGH (apply) rather than low, so a
+    model that doesn't report confidence behaves as before — the feature
+    only engages when the model actively signals uncertainty.
+    """
+    try:
+        c = float(raw)
+    except (TypeError, ValueError):
+        return 1.0
+    return max(0.0, min(1.0, c))
 
 
 def extract_operation(
@@ -299,5 +382,6 @@ def extract_operation(
         module=module_key,
         fields=clean_fields,
         dropped=dropped,
+        confidence=_parse_confidence(raw.get("confidence")),
         raw=raw if isinstance(raw, dict) else {},
     )

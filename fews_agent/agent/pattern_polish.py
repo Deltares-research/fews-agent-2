@@ -61,23 +61,15 @@ def polish_variable_names(
     if not mechanical_vars:
         return pattern, var_values_per_instance
 
-    system = (
-        "You rename auto-generated FEWS pattern variables. The mechanical "
-        "names like `import_general_relativeViewPeriod_end` are paths through "
-        "the FEWS XML schema. Your job is to suggest a short, snake_case "
-        "semantic name that reflects what the variable represents at the "
-        "FEWS level (e.g. `forecast_horizon_hours`). Do NOT invent new "
-        "variables. Do NOT change defaults or types. Output ONLY the JSON "
-        "object the schema asks for."
-    )
-    user = (
-        f"Cluster name: {pattern.get('name', '?')}\n"
-        f"Pydantic schemas this pattern emits: {', '.join(schema_names)}\n"
-        f"Label variable (already named): {label_var_name}\n\n"
-        f"Mechanical variables to rename:\n"
-        f"{_format_vars_for_llm(mechanical_vars)}\n\n"
-        f"For each mechanical name, propose a semantic_name (lower_snake_case, "
-        f"<=30 chars) and a one-line description."
+    from fews_agent.agent import prompts
+
+    system = prompts.load("polish_variable_names.system")
+    user = prompts.load(
+        "polish_variable_names.user",
+        cluster_name=pattern.get("name", "?"),
+        schema_names=", ".join(schema_names),
+        label_var_name=label_var_name,
+        mechanical_vars_text=_format_vars_for_llm(mechanical_vars),
     )
     schema = {
         "type": "object",
@@ -289,55 +281,17 @@ def identify_discriminators(
         })
 
     instance_labels = [inst["label"] for inst in instances]
-    system = (
-        "You analyse FEWS pattern structural divergences. Each divergence "
-        "describes how the FEWS XML structure differs across instances of "
-        "the same pattern. Your job: group divergences into one or more "
-        "DISCRIMINATOR variables that classify each instance's structural "
-        "variant.\n\n"
-        "RULES:\n"
-        "- `values_per_instance` keys MUST be the exact instance labels "
-        "given in the prompt (e.g. HRDPS, GDPS, RDPS) — not synthetic keys.\n"
-        "- `values_per_instance` values are short snake_case literals "
-        "(e.g. 'inline', 'delegated', 'bool', 'string').\n"
-        "- One discriminator can group MULTIPLE related review indices.\n"
-        "- Cover EVERY review index — every divergence must be assigned "
-        "to some discriminator.\n"
-        "- Pick semantic names — `workflow_shape`, `properties_kind` — not "
-        "`nwp_shape_a` or path-based names.\n\n"
-        "EXAMPLE:\n"
-        "Given divergences where instances HRDPS, GDPS, RDPS differ in:\n"
-        "  [0] activity list lengths: [4, 3, 3]\n"
-        "  [1] properties.bool present: [True, False, True]\n"
-        "  [2] properties.string present: [False, True, False]\n"
-        "Good output:\n"
-        '  {\n'
-        '    \"discriminators\": [\n'
-        '      {\n'
-        '        \"name\": \"workflow_shape\",\n'
-        '        \"description\": \"how the workflow handles preprocessing\",\n'
-        '        \"values_per_instance\": {\"HRDPS\": \"inline\", \"GDPS\": \"delegated\", \"RDPS\": \"delegated\"},\n'
-        '        \"review_indices_handled\": [0]\n'
-        '      },\n'
-        '      {\n'
-        '        \"name\": \"properties_kind\",\n'
-        '        \"description\": \"property element type\",\n'
-        '        \"values_per_instance\": {\"HRDPS\": \"bool\", \"GDPS\": \"string\", \"RDPS\": \"bool\"},\n'
-        '        \"review_indices_handled\": [1, 2]\n'
-        '      }\n'
-        '    ]\n'
-        '  }\n\n'
-        "Output ONLY the JSON object the schema asks for, nothing else."
-    )
-    user = (
-        f"Cluster: {pattern.get('name', '?')}\n"
-        f"Schemas: {', '.join(schema_names)}\n"
-        f"Instance labels (use these EXACT labels in `values_per_instance` keys): "
-        f"{instance_labels}\n\n"
-        f"Structural divergences ({len(review_summary)} items, each must be "
-        f"assigned to a discriminator):\n"
-        f"{_format_review_for_llm(review_summary)}\n\n"
-        f"Propose discriminators that classify each instance's variant."
+
+    from fews_agent.agent import prompts
+
+    system = prompts.load("identify_discriminators.system")
+    user = prompts.load(
+        "identify_discriminators.user",
+        cluster_name=pattern.get("name", "?"),
+        schema_names=", ".join(schema_names),
+        instance_labels=str(instance_labels),
+        n_review=len(review_summary),
+        review_text=_format_review_for_llm(review_summary),
     )
     schema = {
         "type": "object",

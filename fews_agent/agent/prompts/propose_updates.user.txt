@@ -1,0 +1,11 @@
+Catalog ([[ n_patterns ]] patterns):
+[[ catalog_text ]]
+
+Current project state:
+[[ state_text ]]
+Recent conversation:
+[[ history_text ]]
+
+User just said: [[ user_message ]]
+
+Propose updates and the next question (or set ready_to_write=true).

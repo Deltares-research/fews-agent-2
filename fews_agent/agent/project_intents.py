@@ -2622,33 +2622,13 @@ def compose_status_reply(
         from .providers.factory import get_provider_or_ollama
         provider = get_provider_or_ollama(model)
 
-    system = (
-        "You answer a configurator's status question about a Delft-FEWS "
-        "project. You are given a STATUS REPORT — a snapshot of project "
-        "state produced by deterministic tools. Your only job is to "
-        "paraphrase its contents in prose.\n"
-        "\n"
-        "RULES:\n"
-        "1) Use ONLY values from the report. Do not invent file names, "
-        "   slot values, basins, patterns, or warnings.\n"
-        "2) 2-5 sentences, plain English. No bullet lists, no JSON in "
-        "   the reply body, no emoji.\n"
-        "3) Mention concretely what is filled and what is still needed. "
-        "   If CSVs are missing, name them. If required slots are "
-        "   missing, name them.\n"
-        "4) Never ask the configurator for any file listed under "
-        "   `auto_generated_yamls` — those are produced by the runner.\n"
-        "5) End by gently nudging the user toward the most impactful "
-        "   next step (provide a missing CSV, fill a missing slot, type "
-        "   'done', etc).\n"
-        "6) If `intent` is null, ask the user to describe what they want "
-        "   to build — don't speculate.\n"
-        "7) Output JSON {\"reply\": \"...\"}, nothing else."
-    )
-    user = (
-        f"User question: {user_message!r}\n\n"
-        f"Status report:\n{json.dumps(report, indent=2, default=str)}\n\n"
-        f"Compose the status reply."
+    from fews_agent.agent import prompts
+
+    system = prompts.load("compose_status_reply.system")
+    user = prompts.load(
+        "compose_status_reply.user",
+        user_message=repr(user_message),
+        report_json=json.dumps(report, indent=2, default=str),
     )
     schema = {
         "type": "object",
@@ -3054,6 +3034,29 @@ COMMANDS: list[dict[str, str]] = [
             "as a fenced YAML block, no file created."
         ),
     },
+    # Module commands — build one FEWS-folder module at a time
+    {
+        "name": "/modules",
+        "aliases": "modules",
+        "group": "Modules",
+        "description": (
+            "List the FEWS-folder modules you can build one at a time "
+            "(locations, parameters, processing, display, filters, ...)."
+        ),
+    },
+    {
+        "name": "/module <name>",
+        "aliases": "",
+        "group": "Modules",
+        "description": (
+            "Focus ONE module. While focused, plain language operates on "
+            "just that module — *'add a GFS import with precip'*, *'make it "
+            "half-degree'*, *'switch to the display module'*. Bare `/build` "
+            "then builds that module. You can also enter a module straight "
+            "from prose — *'let's configure locations'*. If I'm unsure what "
+            "you meant, I'll ask you to confirm (yes / no) before applying."
+        ),
+    },
     # Build commands — build / edit the project one module at a time
     {
         "name": "/list",
@@ -3066,11 +3069,12 @@ COMMANDS: list[dict[str, str]] = [
     },
     {
         "name": "/phases",
-        "aliases": "phases, plan, modules",
+        "aliases": "phases, plan",
         "group": "Build",
         "description": (
             "Show the imports→process→model→visualize phase plan with "
-            "built/ready marks. The agent guides you one phase at a time."
+            "built/ready marks (the finer capability groups WITHIN the "
+            "processing/display modules)."
         ),
     },
     {
@@ -3171,8 +3175,9 @@ COMMANDS: list[dict[str, str]] = [
         "aliases": "",
         "group": "State",
         "description": (
-            "Confirm or cancel a pending action — e.g. an "
-            "agent-proposed pattern removal, or a /reset prompt."
+            "Confirm or cancel a pending action — an agent-proposed "
+            "pattern removal, a /reset prompt, or a low-confidence module "
+            "operation the agent asked you to confirm."
         ),
     },
 ]
@@ -3282,38 +3287,14 @@ def compose_help_reply(
         for h in recent_turns
     ) or "(no prior turns)"
 
-    system = (
-        "You are a documentation assistant for the Delft-FEWS "
-        "configurator agent. A configurator is asking how the system "
-        "works. Answer their question using ONLY the documentation "
-        "and glossary entry below.\n"
-        "\n"
-        "RULES:\n"
-        "1) Answer ONLY from the provided documentation. Never invent "
-        "   file paths, function names, behaviours, or examples that "
-        "   aren't in the docs. If something isn't covered, say "
-        "   'that isn't documented' — don't guess.\n"
-        "2) Be conversational and concrete. 2-6 sentences for simple "
-        "   questions; up to a substantial paragraph for nuanced "
-        "   ones. Plain English. No bullet lists unless the user "
-        "   explicitly asks. No emoji.\n"
-        "3) For canonical concepts, treat the glossary entry below as "
-        "   the preferred starting point — paraphrase it, then expand "
-        "   with docs detail if helpful.\n"
-        "4) For follow-up questions ('tell me more', 'give an "
-        "   example', 'and that?'), use the RECENT CONVERSATION to "
-        "   resolve what 'it', 'that', 'more' refer to.\n"
-        "5) For comparative questions ('X vs Y', 'difference between "
-        "   X and Y'), explain how the concepts relate using docs "
-        "   content for both.\n"
-        '6) Output JSON {"reply": "..."}, nothing else.\n'
-        f"\n=== DOCUMENTATION (CLAUDE.md) ===\n{docs}\n"
-        f"{glossary_seed}"
+    from fews_agent.agent import prompts
+
+    system = prompts.load(
+        "compose_help_reply.system", docs=docs, glossary_seed=glossary_seed,
     )
-    user = (
-        f"=== RECENT CONVERSATION ===\n{recent_text}\n\n"
-        f"User asks: {user_message!r}\n\n"
-        f"Compose the help reply."
+    user = prompts.load(
+        "compose_help_reply.user",
+        recent_text=recent_text, user_message=repr(user_message),
     )
     schema = {
         "type": "object",

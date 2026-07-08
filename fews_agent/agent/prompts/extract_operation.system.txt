@@ -11,6 +11,8 @@ The user is focused on a single module (described in the user message). Decide:
     list          : show what the current module currently contains
     none          : nothing actionable (a question, a greeting, small talk)
 
+- confidence: a number from 0 to 1 for how sure you are of this operation. Be honest: use a HIGH value (>= 0.8) when the message clearly names the operation and values; use a LOW value (< 0.6) when the message is vague, could mean several things, or you had to guess the action, module, or a value. A low confidence triggers a confirmation with the user rather than silently applying, so err toward low when unsure.
+
 - module: the target module key — ONLY when action is select_module; otherwise null.
 
 - fields: the values you extracted, using ONLY these keys and drawing values ONLY from the vocabularies given in the user message:

@@ -146,29 +146,14 @@ def propose_updates(
         f"  {h['role']}: {h['message']}" for h in recent_history
     ) or "  (none)"
 
-    system = (
-        "You help a configurator author a FEWS project.yaml. The user "
-        "will tell you about their project across multiple turns; you "
-        "incrementally fill in the project. RULES:\n"
-        "- Pick ONLY patterns that appear in the catalog (use the "
-        "exact `path` value, including 'auto/' prefix where present).\n"
-        "- Each turn, decide what's clear enough to add NOW vs what "
-        "needs ONE follow-up question. Don't ask 5 questions at once.\n"
-        "- If the user mentions data they have (CSVs, station lists), "
-        "note them in `missing_data_to_add`.\n"
-        "- Set `ready_to_write=true` only when at least 1 pattern is "
-        "in state and there are no obvious gaps you'd ask about.\n"
-        "- Be conservative: prefer asking over guessing. The user "
-        "will tell you when they're done.\n"
-        "- Output ONLY the JSON the schema asks for."
-    )
+    from fews_agent.agent import prompts
 
-    user = (
-        f"Catalog ({len(catalog)} patterns):\n{catalog_text}\n\n"
-        f"Current project state:\n{state_text}\n"
-        f"Recent conversation:\n{history_text}\n\n"
-        f"User just said: {user_message!r}\n\n"
-        f"Propose updates and the next question (or set ready_to_write=true)."
+    system = prompts.load("propose_updates.system")
+    user = prompts.load(
+        "propose_updates.user",
+        n_patterns=len(catalog), catalog_text=catalog_text,
+        state_text=state_text, history_text=history_text,
+        user_message=repr(user_message),
     )
 
     schema = {
@@ -371,35 +356,14 @@ def propose_slot_fills(
         f"  {h['role']}: {h['message']}" for h in recent_history
     ) or "  (none)"
 
-    system = (
-        "You help a configurator author a FEWS project. Treat the "
-        "current project state as a FORM with slots that get filled in "
-        "across turns. RULES — strict:\n"
-        "1) NEVER remove or empty a slot that is already filled. If "
-        "you think the user wants something removed, put it in "
-        "`removal_proposals` with a reason; the user will confirm.\n"
-        "2) Patterns are ADDITIVE: each turn you may add patterns to "
-        "`patterns_to_add` (use exact `path` from the catalog). "
-        "Don't re-add patterns already in state.\n"
-        "3) Per pattern, set ONLY the variables the catalog lists for "
-        "that pattern. Hallucinated vars will be silently dropped.\n"
-        "4) Settings (singleton_seeds) are key-value updates: include "
-        "ONLY changes the user explicitly stated.\n"
-        "5) Ask AT MOST ONE clarifying question per turn (the most "
-        "important missing slot). Don't fire 5 questions at once.\n"
-        "6) Output ONLY the JSON the schema asks for."
-    )
+    from fews_agent.agent import prompts
 
-    user = (
-        f"Catalog ({len(catalog)} patterns):\n{catalog_text}\n\n"
-        f"Current project state:\n{state_text}\n"
-        f"Recent conversation:\n{history_text}\n\n"
-        f"User just said: {user_message!r}\n\n"
-        f"Extract slot fills from the user's message. Add patterns "
-        f"or update settings only when the user explicitly mentioned "
-        f"them. Propose removals only if the user explicitly asked. "
-        f"Ask one focused question for the most important missing "
-        f"info, or null if nothing's missing."
+    system = prompts.load("propose_slot_fills.system")
+    user = prompts.load(
+        "propose_slot_fills.user",
+        n_patterns=len(catalog), catalog_text=catalog_text,
+        state_text=state_text, history_text=history_text,
+        user_message=repr(user_message),
     )
 
     schema = {

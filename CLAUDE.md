@@ -620,6 +620,92 @@ Three pieces:
    auto-generated yamls. The reply LLM uses this to know what to
    ask the user for and what NOT to ask for.
 
+## Module-mode (build one FEWS-folder module at a time)
+
+The newest chat UX. Instead of eliciting a whole-project *intent*
+(`build_forecasting_project`, ...) and resolving everything at once, the
+configurator **focuses one module and operates on it in plain language**.
+Configurator feedback drove this: "stop making me do the whole project at
+once." The whole-project intent flow still exists and is the fallback when
+no module is in focus; module-mode is additive on top of it.
+
+**A "module" = one coherent unit of config work.** This mostly lines up
+with the always-present FEWS output folders, with two principled
+exceptions baked into the registry (`fews_agent/agent/modules.py`):
+
+- **Weld:** `ModuleConfigFiles` + `WorkflowFiles` (+ `ModuleParFiles`) are
+  ONE `processing` module — because a single capability (an import, a
+  model run) emits its config + workflow + id-map row *together*.
+  Splitting them would re-introduce the cross-file coordination the
+  patterns exist to eliminate.
+- **Split:** `RegionConfigFiles` fans out into `locations` / `parameters`
+  / `filters` / `topology` — one folder holding independent files from
+  four unrelated sources.
+
+The 9 modules: `locations`, `parameters`, **`processing`** (the weld),
+`display`, `filters`, `topology`, `idmap`, `system`, `root`.
+`processing` is intentionally broad; the fine granularity comes from the
+*operations* inside it ("add an import", "add a model run"), not from
+splitting the folder. `phases.py` still classifies patterns into
+capability phases *within* `processing`/`display` for scoped builds.
+
+**The pieces (all under `fews_agent/agent/`):**
+
+- **`modules.py`** — the static `Module` registry: each module's folders,
+  backing source, capability `phases`, `variables`, `shared_reads/writes`,
+  `inputs`, allowed `operations`, and a focused prompt. Plus
+  `normalize_module`, `module_for_pattern`, `modules_present`.
+- **`module_focus.py`** — the pure, state-aware focus layer:
+  `set_focus`/`get_focus`, `focus_card` (what loads + what's inherited +
+  what's still needed), `module_shared_context`, `next_unfilled_variable`,
+  and **`detect_module_entry`** (deterministic cold entry — see below).
+  There is **no separate shared-variable store**: `state["slots"]` already
+  persists across turns and `project.yaml` is its serialized form, so
+  "shared variables persist" is free.
+- **`extractor.py`** — the LLM operation extractor: `extract_operation(
+  message, focus_module, provider) -> ExtractedOperation{action, module,
+  fields, dropped, confidence}`. The model extracts freely; then
+  **deterministic `validate_fields` checks every value against the catalog**
+  (import names + aliases, adapters, `_DATA_TYPE_TO_PARAMETER`, resolutions,
+  `normalize_module`) and drops anything unknown into `dropped` (surfaced
+  loudly, never applied) — the same "validate, don't trust" boundary as the
+  filter drafter. `fields` is the SAME slot shape `extract_skills` produces,
+  so add/set flow through the existing additive slot-fill + resolve
+  unchanged.
+
+**Turn flow when a module is in focus** (both drivers, before the intent
+pipeline): prose → `extract_operation` → route the action:
+`add`/`set` → `turn_engine.apply_extracted_fields` (honours add=fill vs
+set=override) → resolve; `remove` → `extracted_removal_edits`;
+`select_module` → `set_focus`; `build`/`list` → the scoped handlers.
+`turn_engine.apply_operation` is the shared router so "apply now" and
+"apply after confirm" can't diverge.
+
+**Cold entry** (`detect_module_entry`, deterministic + conservative): when
+nothing is in focus, a clear single-module request enters that module
+before the intent pipeline. Fires only on (1) the literal word "module"
+("the imports module"), (2) an entry verb + a distinct-name module
+("configure locations"), or (3) a bare module name ("filters"). It
+**ignores bare imports/model** (they read as a whole-project spec), so it
+never hijacks a forecasting request. One-shot ("set up the imports module
+with a GFS import" → enter + add) and pure entry (→ focus card) both work.
+
+**Confidence gate** (extractor `confidence` 0..1 + `needs_confirmation`):
+a low-confidence op that WOULD change state is stashed in
+`state["_pending_operation"]` and the agent asks "did you want to …?
+(yes/no)" instead of applying silently. Missing/garbage confidence defaults
+HIGH (apply), so existing behaviour is unchanged. `resolve_pending_operation`
+maps the yes/no; an unclear answer drops the stale pending op and processes
+the message fresh.
+
+**Commands** (both CLI `chat_step.py` and app `chatter.py`): `/modules`
+(list the 9), `/module <name>` (focus + card), bare `/build` (builds the
+focused module's phases). All documented in `/help` (the `Modules` group in
+`project_intents.COMMANDS`). Tests: `test_modules.py`, `test_extractor.py`,
+`test_chatter_module_mode.py`, and `test_module_mode_e2e.py` (drives cold
+entry → extractor add → done → build, asserting 36/36 XSD-valid + the
+weld — the durable oracle since `projects/` fixtures are gitignored).
+
 ## Module-by-module building (enforced flow)
 
 The agent does **not** build the whole project in one shot. It guides
@@ -957,29 +1043,50 @@ The agent has **two halves**:
 
 1. **Elicitation half (chat).** LLM talks to the user, extracts
    structured facts, decides which patterns are needed, writes
-   `project.yaml`. The per-turn pipeline lives in
-   `fews_agent/agent/turn_engine.py` (shared by the CLI driver
+   `project.yaml`. Two modes: **module-mode** (focus one FEWS-folder
+   module, operate on it in plain language via `extractor.py` — the newer,
+   preferred UX; see "Module-mode") and the older **whole-project intent**
+   flow (fallback when no module is in focus). The per-turn pipeline lives
+   in `fews_agent/agent/turn_engine.py` (shared by the CLI driver
    `runners/agent/chat_step.py` and the Streamlit driver
    `app/chatter.py`); skills/intents/resolvers in
-   `fews_agent/agent/project_intents.py`.
+   `fews_agent/agent/project_intents.py`; the module registry + focus in
+   `modules.py` / `module_focus.py`.
 2. **Generation half (build).** Deterministic pipeline reads
    `project.yaml`, expands patterns, ingests CSVs, fills with
    bundled standards, runs derivers, validates twice (Pydantic +
    XSD), writes XML. Lives in `runners/agent/build_from_blueprint.py`.
 
-Only **4 LLM jobs** in the whole system — everything else is templating
-or deterministic code:
+The core **LLM jobs** — everything else is templating or deterministic
+code. The **model is provider-configurable** via `FEWS_AGENT_PROVIDER` /
+`FEWS_AGENT_MODEL` (Ollama / Azure / LiteLLM — see `providers/factory.py`);
+the "qwen2.5" default is just the Ollama fallback, not a hard dependency.
 
-| # | Where | Job | Model |
-|---|---|---|---|
-| 1 | chat | Intent classification (build_forecasting_project / data_import_only / basin_model_only) | qwen2.5 |
-| 2 | chat | Entity extraction backup (when regex skills miss) | qwen2.5 |
-| 3 | chat | Compose user-facing reply | qwen2.5 |
-| 4 | build | Draft `Filters.xml` from project IDs | qwen2.5 |
+| # | Where | Job |
+|---|---|---|
+| 1 | chat (whole-project) | Intent classification (build_forecasting_project / data_import_only / basin_model_only) + its own entity extraction |
+| 2 | chat (whole-project) | Compose user-facing reply |
+| 3 | chat (**module-mode**) | **Operation extractor**: prose → `{action, module, fields, confidence}`, catalog-validated (`extractor.py`) |
+| 4 | build | Draft `Filters.xml` from project IDs (falls back to the bundled `filtersFile.yaml`) |
 
-If Ollama is down, the chat half fails loudly; the build half still
-works end-to-end (job 4 falls back to the bundled standard
-`filtersFile.yaml`).
+(Plus the app-only `compose_status_reply` / `compose_help_reply` meta
+replies.) If the LLM is down, the chat half fails loudly; the build half
+still works end-to-end.
+
+**The regex skills are no longer fed to the classifier.** `extract_skills`
+still runs and fills slots deterministically, but its output is NOT shown
+to the LLM (feeding a regex pre-pass to a capable model anchors it to, and
+via the old "skills win" merge is overridden by, the weaker extractor). The
+model now classifies + extracts from prose alone; validation-against-catalog
+is the trust boundary.
+
+**All LLM prompts live as `.txt` files** in `fews_agent/agent/prompts/`,
+loaded via `prompts.load("name", **vars)` — never inline in Python
+(standing rule). The loader is Jinja with **`[[ ]]` / `[% %]` delimiters**
+so literal `{ }` (JSON) and `$…$` (FEWS placeholders) in prompt text never
+collide; `StrictUndefined` fails loud on a missing var. The blanket
+`*.txt` gitignore is negated for this folder (`!fews_agent/agent/prompts/
+*.txt`) — without it the loader `FileNotFoundError`s on a fresh clone.
 
 ### One pattern per *shape*, not per instance
 
@@ -1217,9 +1324,13 @@ CLAUDE.md                                         this file (top-of-mind context
 fews_agent/agent/turn_engine.py                   SHARED per-turn pipeline (Phases 1-5) both drivers call
 runners/agent/chat_step.py                        CLI driver: command dispatch + console I/O around turn_engine
 app/chatter.py                                     Streamlit driver: command dispatch + TurnResult around turn_engine
-fews_agent/agent/project_intents.py               skills, intent registry, resolvers, blocklist
+fews_agent/agent/project_intents.py               skills, intent registry, resolvers, blocklist, COMMANDS (/help)
+fews_agent/agent/modules.py                        module registry (module = FEWS folder; the weld + RegionConfig split)
+fews_agent/agent/module_focus.py                   focus layer + cold entry (detect_module_entry)
+fews_agent/agent/extractor.py                      module-mode prose → validated operation (+ confidence gate)
+fews_agent/agent/prompts/                          ALL LLM prompts as .txt (loader in __init__.py; [[ ]] delimiters)
 fews_agent/agent/project_chat.py                  state I/O, pattern catalog loading
-fews_agent/agent/providers/ollama_provider.py     the only place that talks to qwen2.5
+fews_agent/agent/providers/factory.py              provider resolution (Ollama / Azure / LiteLLM via env)
 
 # Generation half
 runners/agent/build_from_blueprint.py             the orchestrator; read this to follow the pipeline

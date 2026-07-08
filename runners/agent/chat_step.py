@@ -314,12 +314,32 @@ def _run_module_operation(
     the catalog validation dropped are surfaced loudly, never silently
     applied.
     """
-    from fews_agent.agent.extractor import extract_operation
-    from fews_agent.agent.turn_engine import (
-        apply_edit_action,
-        apply_extracted_fields,
-        extracted_removal_edits,
+    from fews_agent.agent.extractor import (
+        describe_operation, extract_operation, needs_confirmation,
+        op_from_dict, op_to_dict,
     )
+    from fews_agent.agent.turn_engine import (
+        apply_operation, resolve_pending_operation,
+    )
+
+    # A low-confidence op from a prior turn is awaiting a yes/no.
+    pending = state.get("_pending_operation")
+    if pending:
+        decision = resolve_pending_operation(message)
+        if decision is not None:
+            state["_pending_operation"] = None
+            if decision == "discard":
+                _emit(project_dir, state, history, turn,
+                      "Okay — cancelled, nothing applied.",
+                      "module op: cancelled", console)
+                return 0
+            reply, _ = apply_operation(state, op_from_dict(pending), catalog)
+            reply += "\n\n" + _module_list_text(state, catalog)
+            _emit(project_dir, state, history, turn, reply,
+                  "module op: confirmed", console)
+            return 0
+        # Unclear answer → drop the stale pending op, process this fresh.
+        state["_pending_operation"] = None
 
     provider = _resolve_provider(model)
     op = extract_operation(message, focus_module=focus, provider=provider)
@@ -332,45 +352,37 @@ def _run_module_operation(
         _save(project_dir, state, history)
         return rc
     if op.action == "list":
-        reply = _module_list_text(state, catalog)
-        _emit(project_dir, state, history, turn, reply, "module op: list", console)
+        _emit(project_dir, state, history, turn,
+              _module_list_text(state, catalog), "module op: list", console)
         return 0
 
-    if op.action == "select_module" and op.module:
-        _module, reply = module_focus.set_focus(state, op.module)
-        _emit(project_dir, state, history, turn, reply, "module op: select", console)
-        return 0
-
-    if op.action == "remove":
-        edits = extracted_removal_edits(op)
-        if edits:
-            notes = [apply_edit_action(state, e, catalog) for e in edits]
-            reply = "\n".join(notes)
-        else:
-            reply = "Nothing recognised to remove."
-    else:  # add / set / none
-        note, new_patterns = apply_extracted_fields(state, op, catalog)
-        # Pure cold entry ("configure locations") with no operation to apply:
-        # welcome the user into the module with its focus card instead of a
-        # flat "nothing to change".
+    # Uncertain AND effectful → confirm instead of applying silently.
+    if needs_confirmation(op):
+        state["_pending_operation"] = op_to_dict(op)
         reply = (
-            module_focus.focus_card(state, focus)
-            if just_entered and not op.fields
-            else note
+            f"Just to confirm — did you want to {describe_operation(op)}? "
+            f"(yes / no)"
         )
+        _emit(project_dir, state, history, turn, reply,
+              "module op: confirm?", console)
+        return 0
 
+    reply, _new = apply_operation(state, op, catalog)
+    # Pure cold entry ("configure locations") with no operation to apply:
+    # welcome the user with the focus card instead of a flat "nothing to
+    # change".
+    if just_entered and op.action == "none" and not op.fields:
+        reply = module_focus.focus_card(state, focus)
     if op.dropped:
         reply += (
             "\n\n[!] Ignored (not in the catalog, so not applied): "
             + ", ".join(op.dropped)
             + ". Rephrase with a known name if you meant something valid."
         )
-
-    _emit(
-        project_dir, state, history, turn, reply,
-        f"module op: {op.action}", console,
-    )
-    console.print("\n" + _module_list_text(state, catalog))
+    if op.action != "select_module":
+        reply += "\n\n" + _module_list_text(state, catalog)
+    _emit(project_dir, state, history, turn, reply,
+          f"module op: {op.action}", console)
     return 0
 
 

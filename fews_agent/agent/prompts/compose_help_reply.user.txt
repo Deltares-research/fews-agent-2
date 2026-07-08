@@ -1,0 +1,6 @@
+=== RECENT CONVERSATION ===
+[[ recent_text ]]
+
+User asks: [[ user_message ]]
+
+Compose the help reply.

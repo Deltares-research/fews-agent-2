@@ -332,6 +332,45 @@ def apply_extracted_fields(state: dict, op, catalog) -> tuple[str, list[str]]:
     return note, new
 
 
+def apply_operation(state: dict, op, catalog) -> tuple[str, list[str]]:
+    """Route one ExtractedOperation's effect; return (reply, new_patterns).
+
+    Handles add/set (merge fields + resolve), remove (removal edits), and
+    select_module (switch focus). ``build``/``list`` are the DRIVER's
+    responsibility (they do console/build I/O), so they're not routed here.
+    Shared by the fresh-extract path and the pending-confirmation path so
+    "apply now" and "apply after you confirm" can't diverge.
+    """
+    if op.action == "select_module":
+        module, card = module_focus.set_focus(state, op.module)
+        return card, []
+    if op.action == "remove":
+        edits = extracted_removal_edits(op)
+        if edits:
+            notes = [apply_edit_action(state, e, catalog) for e in edits]
+            return "\n".join(notes), []
+        return "Nothing recognised to remove.", []
+    # add / set / none
+    return apply_extracted_fields(state, op, catalog)
+
+
+_AFFIRM = frozenset({
+    "yes", "y", "ok", "okay", "confirm", "sure", "yep", "yeah", "do it",
+    "correct", "right",
+})
+_DENY = frozenset({"no", "n", "cancel", "nope", "stop", "nevermind", "never mind"})
+
+
+def resolve_pending_operation(message: str) -> str | None:
+    """Map a confirmation answer to 'apply' | 'discard' | None (unclear)."""
+    low = (message or "").strip().lower().rstrip("!.")
+    if low in _AFFIRM:
+        return "apply"
+    if low in _DENY:
+        return "discard"
+    return None
+
+
 def apply_disambiguation_answer(state: dict, message: str) -> None:
     """Consume a pending intent-disambiguation answer, if one is awaited.
 

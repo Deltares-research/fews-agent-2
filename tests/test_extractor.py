@@ -184,3 +184,61 @@ def test_extracted_removal_edits_shape():
     assert {"op": "remove", "target": "GFS", "target_kind": "import"} in edits
     assert {"op": "remove", "target": {"basin_name": "Liard"},
             "target_kind": "basin"} in edits
+
+
+# --- confidence signal + confirmation gate --------------------------------
+
+def test_confidence_parsed_and_defaulted():
+    assert _run({"action": "add", "fields": {"imports": ["GFS"]},
+                 "confidence": 0.3}).confidence == 0.3
+    # missing → defaults HIGH (apply as before)
+    assert _run({"action": "add", "fields": {"imports": ["GFS"]}}).confidence == 1.0
+    # garbage → defaults high
+    assert _run({"action": "add", "fields": {"imports": ["GFS"]},
+                 "confidence": "abc"}).confidence == 1.0
+    # clamped to [0, 1]
+    assert _run({"action": "add", "fields": {"imports": ["GFS"]},
+                 "confidence": 1.7}).confidence == 1.0
+    assert _run({"action": "add", "fields": {"imports": ["GFS"]},
+                 "confidence": -2}).confidence == 0.0
+
+
+def test_needs_confirmation_only_when_effectful_and_uncertain():
+    low_effect = _run({"action": "add", "fields": {"imports": ["GFS"]},
+                       "confidence": 0.3})
+    assert E.needs_confirmation(low_effect) is True
+    # high confidence → apply directly
+    high = _run({"action": "add", "fields": {"imports": ["GFS"]},
+                 "confidence": 0.95})
+    assert E.needs_confirmation(high) is False
+    # low confidence but NO effect (a question / none) → no confirm needed
+    none_op = _run({"action": "none", "fields": {}, "confidence": 0.1})
+    assert E.needs_confirmation(none_op) is False
+    # low-confidence list → nothing to undo, no confirm
+    assert E.needs_confirmation(_run({"action": "list", "confidence": 0.1})) is False
+
+
+def test_describe_operation_reads_naturally():
+    op = _run({"action": "add",
+               "fields": {"imports": ["GFS"], "data_types": ["precipitation"]},
+               "confidence": 0.3})
+    desc = E.describe_operation(op)
+    assert "add" in desc and "GFS" in desc and "precipitation" in desc
+
+
+def test_op_dict_roundtrip():
+    op = _run({"action": "set", "fields": {"grid_resolution": "0p50"},
+               "confidence": 0.4})
+    back = E.op_from_dict(E.op_to_dict(op))
+    assert back.action == "set"
+    assert back.fields == {"grid_resolution": "0p50"}
+    assert back.confidence == 0.4
+
+
+def test_resolve_pending_operation():
+    from fews_agent.agent.turn_engine import resolve_pending_operation as r
+    assert r("yes") == "apply"
+    assert r("Yes.") == "apply"
+    assert r("no") == "discard"
+    assert r("cancel") == "discard"
+    assert r("add HRDPS instead") is None

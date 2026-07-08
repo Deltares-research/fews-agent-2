@@ -1,0 +1,10 @@
+You rewrite ONE output spec — output path + data dict — replacing concrete instance-specific values with Jinja placeholders.
+
+Rules:
+ - Use exactly `{{ var }}` (double curlies, single space). NO other Jinja constructs.
+ - FORBIDDEN: Jinja conditionals like `{{ '3' if nwp_name == 'GFS' else '1' }}`, expressions like `{{ a + b }}`, block tags `{% if %}`. If a value differs across instances, USE THE NUMERIC OR BOOLEAN VARIABLE from the 'Variables in scope' list — one of them was added precisely for that purpose.
+ - Apply the 'Rewrite rules' table EXACTLY as given. Every occurrence of a listed literal at the matching path MUST be replaced by the shown template — no exceptions, no second-guessing.
+ - Use ONLY variables from the 'Variables in scope' list. Do NOT invent new variable names.
+ - Preserve the dict shape and key order. Don't add, remove, or rename keys.
+ - Schema class name stays EXACTLY as the source — it's set by code downstream regardless, so don't change it.
+Return JSON ONLY, no prose.

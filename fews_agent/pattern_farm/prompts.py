@@ -10,29 +10,14 @@ from __future__ import annotations
 import json
 from typing import Any
 
+from fews_agent.agent import prompts as _prompts
 from .diff_finder import DiffReport
 from .ir import InstanceInput
 
 
 # --- Job 1: propose variables -----------------------------------------
 
-VARIABLES_SYSTEM = (
-    "You abstract a reusable FEWS pattern. Your ONLY job in this turn: "
-    "name each atomic value-set listed below. ONE variable per atomic "
-    "value-set.\n\n"
-    "The diff has already been preprocessed: token-groups that derive "
-    "from another via a constant prefix are NOT shown to you — they "
-    "will be rewritten automatically downstream (e.g. 'ImportHRDPS' → "
-    "'Import{{ nwp_name }}'). You see only the atomic value-sets.\n\n"
-    "Rules:\n"
-    " - Output EXACTLY ONE variable per atomic value-set shown.\n"
-    " - Do NOT propose variables for any value-set not listed.\n"
-    " - Use snake_case names. Pick the canonical, suffix-stripped form "
-    "(e.g. 'nwp_name' for {HRDPS, GFS}, not 'module_instance_id').\n"
-    " - Number/bool atomic groups → type int/float/bool.\n"
-    " - variable_hints from the user override your judgement on conflict.\n"
-    "Return JSON ONLY, no prose."
-)
+VARIABLES_SYSTEM = _prompts.load("farm_variables.system")
 
 
 def variables_user_prompt(
@@ -110,27 +95,7 @@ VARIABLES_SCHEMA = {
 
 # --- Job 2: abstract one output ---------------------------------------
 
-ABSTRACT_SYSTEM = (
-    "You rewrite ONE output spec — output path + data dict — replacing "
-    "concrete instance-specific values with Jinja placeholders.\n\n"
-    "Rules:\n"
-    " - Use exactly `{{ var }}` (double curlies, single space). NO other "
-    "Jinja constructs.\n"
-    " - FORBIDDEN: Jinja conditionals like `{{ '3' if nwp_name == 'GFS' else "
-    "'1' }}`, expressions like `{{ a + b }}`, block tags `{% if %}`. If a "
-    "value differs across instances, USE THE NUMERIC OR BOOLEAN VARIABLE "
-    "from the 'Variables in scope' list — one of them was added precisely "
-    "for that purpose.\n"
-    " - Apply the 'Rewrite rules' table EXACTLY as given. Every occurrence "
-    "of a listed literal at the matching path MUST be replaced by the "
-    "shown template — no exceptions, no second-guessing.\n"
-    " - Use ONLY variables from the 'Variables in scope' list. Do NOT "
-    "invent new variable names.\n"
-    " - Preserve the dict shape and key order. Don't add, remove, or rename keys.\n"
-    " - Schema class name stays EXACTLY as the source — it's set by code "
-    "downstream regardless, so don't change it.\n"
-    "Return JSON ONLY, no prose."
-)
+ABSTRACT_SYSTEM = _prompts.load("farm_abstract.system")
 
 
 def abstract_user_prompt(
@@ -188,13 +153,7 @@ ABSTRACT_SCHEMA = {
 
 # --- Job 3: repair ----------------------------------------------------
 
-REPAIR_SYSTEM = (
-    "You repair ONE output spec whose Jinja substitution didn't "
-    "reproduce the input instances. You're told exactly which paths "
-    "diverged. Edit ONLY the failing positions; preserve everything "
-    "else byte-for-byte.\n\n"
-    "Return the FULL corrected output spec as JSON. No prose."
-)
+REPAIR_SYSTEM = _prompts.load("farm_repair.system")
 
 
 def repair_user_prompt(

@@ -52,6 +52,8 @@ _env = Environment(
     keep_trailing_newline=True,
     autoescape=False,
     undefined=StrictUndefined,
+    trim_blocks=True,
+    lstrip_blocks=True,
 )
 
 
@@ -113,41 +115,12 @@ def _tool_summary() -> str:
 
 
 def build_system_prompt(spec_name: str, project_data: dict[str, Any]) -> str:
-    return (
-        "You are a FEWS configuration assistant. You help a user author "
-        "Delft-FEWS XML configs. Drive the conversation: read the "
-        "checklist below, ask the user for fields you need, persist via "
-        "the provided tools, then call `generate` to produce XML. Never "
-        "write XML yourself.\n"
-        "\n"
-        "Behaviour:\n"
-        "  - When the user provides data, USE the matching tool. Do not "
-        "    say 'Got it, adding...' without invoking the tool — only "
-        "    real tool calls persist anything.\n"
-        "  - Group elicitation: ask 'Tell me about a location — id, name, "
-        "    x, y, and any optional fields like shortName' rather than "
-        "    field-by-field. After upsert, ask 'Next or done?'.\n"
-        "  - On 'done', call `generate(name=\"<spec>\")` with no params; "
-        "    the tool reads project state directly, which avoids "
-        "    paraphrasing.\n"
-        "  - Pass coordinates as STRINGS, byte-exact. '0' stays '0'; "
-        "    '-180' stays '-180'; no padding, no decimal expansion.\n"
-        "  - Pass names verbatim — no paraphrasing. Preserve special "
-        "    chars literally (e.g. dollar signs in '$MODELNAME1$Grid').\n"
-        "  - 'no shortName' / 'omit shortName' means leave the field out "
-        "    of the tool call — do not pass an empty string.\n"
-        "  - Don't seed placeholder items. If you have nothing yet, ask.\n"
-        "\n"
-        "Available tools:\n"
-        f"{_tool_summary()}\n"
-        "\n"
-        f"Active spec: {spec_name}\n"
-        "\n"
-        "Checklist for this spec:\n"
-        f"{_render_checklist(spec_name)}\n"
-        "\n"
-        "Current project state (live; reload each turn):\n"
-        f"{_short_snapshot(project_data)}\n"
+    return load(
+        "wizard_system",
+        tool_summary=_tool_summary(),
+        spec_name=spec_name,
+        checklist=_render_checklist(spec_name),
+        snapshot=_short_snapshot(project_data),
     )
 
 

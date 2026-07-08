@@ -47,6 +47,20 @@ def _session(tmp_path, monkeypatch, payload):
     )
 
 
+# --- discoverability -------------------------------------------------------
+
+def test_module_mode_commands_are_documented_in_help():
+    # If these drop out of /help, module-mode becomes invisible to users
+    # even though both drivers support it.
+    from fews_agent.agent.project_intents import compose_help_reply
+    help_text = compose_help_reply("help")
+    assert "/modules" in help_text
+    assert "/module <name>" in help_text
+    # the natural-language + confirmation affordances are mentioned
+    assert "plain language" in help_text.lower()
+    assert "confirm" in help_text.lower()
+
+
 # --- deterministic module commands ----------------------------------------
 
 def test_modules_lists_the_registry(tmp_path, monkeypatch):
@@ -87,6 +101,33 @@ def test_prose_add_applies_and_drops_hallucination(tmp_path, monkeypatch):
     assert "auto/nwp_grid_noaa" in {
         p["pattern"] for p in s.state["patterns"]
     }
+
+
+def test_low_confidence_add_asks_before_applying(tmp_path, monkeypatch):
+    s = _session(tmp_path, monkeypatch, {
+        "action": "add", "fields": {"imports": ["GFS"]}, "confidence": 0.3,
+    })
+    s.send("/module processing")
+    res = s.send("hmm maybe pull in gfs?")
+    assert "confirm" in res.agent_message.lower()
+    assert s.state.get("_pending_operation") is not None
+    assert not s.state["slots"].get("imports")     # NOT applied yet
+    # confirming applies it (the 'yes' is intercepted before re-extraction)
+    s.send("yes")
+    assert s.state["slots"]["imports"] == ["GFS"]
+    assert s.state.get("_pending_operation") is None
+
+
+def test_low_confidence_add_can_be_declined(tmp_path, monkeypatch):
+    s = _session(tmp_path, monkeypatch, {
+        "action": "add", "fields": {"imports": ["GFS"]}, "confidence": 0.2,
+    })
+    s.send("/module processing")
+    s.send("uh, gfs?")
+    res = s.send("no")
+    assert "cancel" in res.agent_message.lower()
+    assert not s.state["slots"].get("imports")
+    assert s.state.get("_pending_operation") is None
 
 
 def test_prose_without_focus_uses_intent_pipeline(tmp_path, monkeypatch):

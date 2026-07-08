@@ -56,14 +56,20 @@ from fews_agent.agent.turn_engine import (
     _format_internals,
     apply_disambiguation_answer,
     apply_edit_action,
-    apply_extracted_fields,
-    extracted_removal_edits,
+    apply_operation,
     resolve_patterns,
+    resolve_pending_operation,
     run_turn_pipeline,
 )
 from fews_agent.agent import module_focus
 from fews_agent.agent.modules import module_for_pattern
-from fews_agent.agent.extractor import extract_operation
+from fews_agent.agent.extractor import (
+    describe_operation,
+    extract_operation,
+    needs_confirmation,
+    op_from_dict,
+    op_to_dict,
+)
 from runners.agent.chat_step import (
     _module_list_text,
     _parse_slash_edit,
@@ -636,6 +642,27 @@ class ChatSession:
         removal edits; select_module → switch focus; build/list → handlers).
         Catalog-dropped values are surfaced loudly, never applied silently.
         """
+        # A low-confidence op from a prior turn is awaiting a yes/no.
+        pending = self.state.get("_pending_operation")
+        if pending:
+            decision = resolve_pending_operation(message)
+            if decision is not None:
+                self.state["_pending_operation"] = None
+                if decision == "discard":
+                    return self._reply(
+                        turn, "Okay — cancelled, nothing applied.",
+                        "module op: cancelled",
+                    )
+                reply, _ = apply_operation(
+                    self.state, op_from_dict(pending), self.catalog,
+                )
+                reply += "\n\n" + _module_list_text(self.state, self.catalog)
+                return self._reply(
+                    turn, reply, "module op: confirmed", kind="edit",
+                )
+            # Unclear answer → drop the stale pending op, process this fresh.
+            self.state["_pending_operation"] = None
+
         op = extract_operation(message, focus_module=focus, provider=provider)
 
         if op.action == "build":
@@ -645,42 +672,31 @@ class ChatSession:
                 turn, _module_list_text(self.state, self.catalog),
                 "module op: list",
             )
-        if op.action == "select_module" and op.module:
-            _m, reply = module_focus.set_focus(self.state, op.module)
-            return self._reply(turn, reply, "module op: select")
 
-        new_patterns: list[str] = []
-        if op.action == "remove":
-            edits = extracted_removal_edits(op)
-            if edits:
-                notes = [
-                    apply_edit_action(self.state, e, self.catalog)
-                    for e in edits
-                ]
-                reply = "\n".join(notes)
-            else:
-                reply = "Nothing recognised to remove."
-        else:  # add / set / none
-            note, new_patterns = apply_extracted_fields(
-                self.state, op, self.catalog,
-            )
-            # Pure cold entry with no operation → welcome with the focus card.
+        # Uncertain AND effectful → confirm instead of applying silently.
+        if needs_confirmation(op):
+            self.state["_pending_operation"] = op_to_dict(op)
             reply = (
-                module_focus.focus_card(self.state, focus)
-                if just_entered and not op.fields
-                else note
+                f"Just to confirm — did you want to {describe_operation(op)}? "
+                f"(yes / no)"
             )
+            return self._reply(turn, reply, "module op: confirm?")
 
+        reply, new_patterns = apply_operation(self.state, op, self.catalog)
+        # Pure cold entry with no operation → welcome with the focus card.
+        if just_entered and op.action == "none" and not op.fields:
+            reply = module_focus.focus_card(self.state, focus)
         if op.dropped:
             reply += (
                 "\n\n[!] Ignored (not in the catalog, so not applied): "
                 + ", ".join(op.dropped)
                 + ". Rephrase with a known name if you meant something valid."
             )
-        reply += "\n\n" + _module_list_text(self.state, self.catalog)
+        if op.action != "select_module":
+            reply += "\n\n" + _module_list_text(self.state, self.catalog)
         self._logger.info(
-            "module_op turn=%d action=%s dropped=%d", turn, op.action,
-            len(op.dropped),
+            "module_op turn=%d action=%s conf=%.2f dropped=%d", turn,
+            op.action, op.confidence, len(op.dropped),
         )
         return self._reply(
             turn, reply, f"module op: {op.action}", kind="edit",
