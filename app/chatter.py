@@ -56,9 +56,14 @@ from fews_agent.agent.turn_engine import (
     _format_internals,
     apply_disambiguation_answer,
     apply_edit_action,
+    apply_extracted_fields,
+    extracted_removal_edits,
     resolve_patterns,
     run_turn_pipeline,
 )
+from fews_agent.agent import module_focus
+from fews_agent.agent.modules import module_for_pattern
+from fews_agent.agent.extractor import extract_operation
 from runners.agent.chat_step import (
     _module_list_text,
     _parse_slash_edit,
@@ -457,6 +462,11 @@ class ChatSession:
         """Route ``/build`` to the next unbuilt phase, a named phase, or a
         single module (``/build GFS``). Mirrors chat_step.py::main."""
         if cmd == "/build":
+            # Module-mode: a bare /build with a module in focus builds THAT
+            # module (its capability phases), not the next unbuilt phase.
+            focus = module_focus.get_focus(self.state)
+            if focus is not None:
+                return self._app_module_scope_build(focus, turn)
             self._resolve_patterns()
             phase = next_unbuilt_phase(
                 self.state.get("patterns") or [], self.state.get("built_phases"),
@@ -568,6 +578,113 @@ class ChatSession:
             agent_message=msg, kind="build",
             project_yaml_path=Path(project_path),
             validation_summary=summary, build_error=error,
+        )
+
+    def _app_module_scope_build(self, focus, turn: int) -> TurnResult:
+        """Build every capability phase the focused FEWS-folder module owns.
+
+        Mirrors the CLI ``_run_module_scope_build``: a folder-module maps to
+        one or more capability phases; build each that has resolved content,
+        reusing the per-phase build. View/deriver modules aren't built on
+        their own.
+        """
+        if not focus.phases:
+            return self._build_note(
+                turn,
+                f"The '{focus.label}' module isn't built on its own — it's "
+                f"produced from your inputs or at final assembly. Type "
+                f"`done` to assemble the project.",
+            )
+        self._resolve_patterns()
+        plan = phase_plan(self.state.get("patterns") or [])
+        target_phases = [
+            e["phase"] for e in plan
+            if e["patterns"]
+            and module_for_pattern(e["patterns"][0]["pattern"]) == focus.key
+        ]
+        if not target_phases:
+            return self._build_note(
+                turn,
+                f"Nothing resolved for the '{focus.label}' module yet. Add "
+                f"something first (e.g. `/add GFS`), then `/build`.",
+            )
+        # Build each phase (each appends its own panel to history); return
+        # the last phase's result for the turn's TurnResult.
+        result: TurnResult | None = None
+        for ph in target_phases:
+            result = self._app_phase_build(ph, turn)
+        return result
+
+    def _reply(
+        self, turn: int, message: str, note: str, kind: str = "reply",
+        **tr_kwargs,
+    ) -> TurnResult:
+        """Append an agent reply to history + transcript, save, return."""
+        self.history.append({"role": "agent", "message": message})
+        self._append_md(turn, "agent", message, note=note)
+        self._save()
+        return TurnResult(agent_message=message, kind=kind, **tr_kwargs)
+
+    def _run_module_operation(
+        self, focus, message: str, turn: int, provider,
+        just_entered: bool = False,
+    ) -> TurnResult:
+        """Module-mode prose turn: extract ONE operation and apply it.
+
+        Mirrors the CLI ``_run_module_operation``. The LLM extracts a single
+        validated operation; we route it (add/set → merge + resolve; remove →
+        removal edits; select_module → switch focus; build/list → handlers).
+        Catalog-dropped values are surfaced loudly, never applied silently.
+        """
+        op = extract_operation(message, focus_module=focus, provider=provider)
+
+        if op.action == "build":
+            return self._app_module_scope_build(focus, turn)
+        if op.action == "list":
+            return self._reply(
+                turn, _module_list_text(self.state, self.catalog),
+                "module op: list",
+            )
+        if op.action == "select_module" and op.module:
+            _m, reply = module_focus.set_focus(self.state, op.module)
+            return self._reply(turn, reply, "module op: select")
+
+        new_patterns: list[str] = []
+        if op.action == "remove":
+            edits = extracted_removal_edits(op)
+            if edits:
+                notes = [
+                    apply_edit_action(self.state, e, self.catalog)
+                    for e in edits
+                ]
+                reply = "\n".join(notes)
+            else:
+                reply = "Nothing recognised to remove."
+        else:  # add / set / none
+            note, new_patterns = apply_extracted_fields(
+                self.state, op, self.catalog,
+            )
+            # Pure cold entry with no operation → welcome with the focus card.
+            reply = (
+                module_focus.focus_card(self.state, focus)
+                if just_entered and not op.fields
+                else note
+            )
+
+        if op.dropped:
+            reply += (
+                "\n\n[!] Ignored (not in the catalog, so not applied): "
+                + ", ".join(op.dropped)
+                + ". Rephrase with a known name if you meant something valid."
+            )
+        reply += "\n\n" + _module_list_text(self.state, self.catalog)
+        self._logger.info(
+            "module_op turn=%d action=%s dropped=%d", turn, op.action,
+            len(op.dropped),
+        )
+        return self._reply(
+            turn, reply, f"module op: {op.action}", kind="edit",
+            new_patterns=new_patterns,
         )
 
     # ---- undo support --------------------------------------------------------
@@ -808,8 +925,39 @@ class ChatSession:
         # CLI driver (runners/agent/chat_step.py::main) so the web app and
         # terminal behave identically.
 
-        # /phases — phase-level plan.
-        if cmd in {"/phases", "phases", "/plan", "plan", "/modules", "modules"}:
+        # /modules — list the FEWS-folder modules you can build one at a time.
+        if cmd in {"/modules", "modules"}:
+            reply = module_focus.modules_overview()
+            cur = self.state.get("current_module")
+            if cur:
+                reply += f"\n\nIn focus now: {cur}."
+            self.history.append({"role": "agent", "message": reply})
+            self._append_md(turn, "agent", reply, note="module overview")
+            self._save()
+            self._logger.info("modules turn=%d", turn)
+            return TurnResult(agent_message=reply, kind="reply")
+
+        # /module [name] — put ONE module in focus (or report current focus).
+        if cmd == "/module" or cmd.startswith("/module "):
+            if cmd == "/module":
+                cur = module_focus.get_focus(self.state)
+                reply = (
+                    module_focus.focus_card(self.state, cur) if cur
+                    else "No module in focus. Pick one with  /module <name>  "
+                         "(see  /modules  for the list)."
+                )
+            else:
+                token = message.strip().split(None, 1)[1].strip()
+                _module, reply = module_focus.set_focus(self.state, token)
+            self.history.append({"role": "agent", "message": reply})
+            self._append_md(turn, "agent", reply, note="module focus")
+            self._save()
+            self._logger.info("module_focus turn=%d cur=%s", turn,
+                              self.state.get("current_module"))
+            return TurnResult(agent_message=reply, kind="reply")
+
+        # /phases — phase-level plan (finer build groups within processing/display).
+        if cmd in {"/phases", "phases", "/plan", "plan"}:
             reply = _phase_plan_text(self.state, self.catalog)
             self.history.append({"role": "agent", "message": reply})
             self._append_md(turn, "agent", reply, note="phase plan")
@@ -1141,6 +1289,25 @@ class ChatSession:
         # returns the reply + diagnostics. nag_suppression=True preserves the
         # app's repeat-turn missing-input snooze (a CLI-absent behaviour).
         provider = get_provider(model=self.model)
+
+        # Module-mode prose path: when a module is in focus, a free-form
+        # message is ONE operation on that module — extract, validate against
+        # the catalog, apply — instead of the whole-project intent pipeline.
+        # When nothing is in focus, a clear "let's build module X" request
+        # (cold entry) enters that module first; otherwise fall through.
+        _focus = module_focus.get_focus(self.state)
+        _just_entered = False
+        if _focus is None:
+            _entry = module_focus.detect_module_entry(message)
+            if _entry:
+                module_focus.set_focus(self.state, _entry)
+                _focus = module_focus.get_focus(self.state)
+                _just_entered = True
+        if _focus is not None:
+            return self._run_module_operation(
+                _focus, message, turn, provider, just_entered=_just_entered,
+            )
+
         result = run_turn_pipeline(
             self.state, message, self.catalog,
             provider=provider,

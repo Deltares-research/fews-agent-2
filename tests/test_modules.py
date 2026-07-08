@@ -167,3 +167,37 @@ def test_module_focus_question_scopes_to_focused_module():
     # not the generic fallback.
     assert prompt and "Processing" in prompt
     assert q != "FALLBACK-Q"
+
+
+# --- cold module entry ----------------------------------------------------
+
+def test_cold_entry_fires_on_clear_module_requests():
+    assert F.detect_module_entry("let's configure locations") == "locations"
+    assert F.detect_module_entry("work on the display") == "display"
+    assert F.detect_module_entry("set up filters") == "filters"
+    # Rule 1: the literal word "module".
+    assert F.detect_module_entry("open the imports module") == "processing"
+    assert F.detect_module_entry("the processing module please") == "processing"
+    # Rule 3: bare module name.
+    assert F.detect_module_entry("filters") == "filters"
+    assert F.detect_module_entry("the display") == "display"
+
+
+def test_cold_entry_does_not_hijack_whole_project_prose():
+    # These are the exact shapes the intent-pipeline tests send cold — cold
+    # entry MUST fall through (return None) so they still reach the classifier.
+    for prose in (
+        "Import NOAA GFS grids for precipitation and temperature.",
+        "Import NOAA GFS grids, no basin model.",
+        "Set up GFS and HRDPS imports and a Raven model for the Liard.",
+        "set up an import project",
+        "I want a forecasting project for the Liard basin",
+    ):
+        assert F.detect_module_entry(prose) is None, prose
+
+
+def test_cold_entry_ignores_generic_import_model_words():
+    # "imports"/"model" alone must not enter processing — too collision-prone
+    # with whole-project descriptions. Only the explicit "module" word or a
+    # distinct-name module does.
+    assert F.detect_module_entry("configure the imports and the model") is None

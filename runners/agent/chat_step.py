@@ -303,7 +303,7 @@ def _run_phase_build(
 
 def _run_module_operation(
     state: dict, focus, message: str, project_dir: Path, console: Console,
-    history: list, turn: int, catalog, model: str,
+    history: list, turn: int, catalog, model: str, just_entered: bool = False,
 ) -> int:
     """Module-mode prose turn: extract ONE operation and apply it.
 
@@ -350,7 +350,14 @@ def _run_module_operation(
             reply = "Nothing recognised to remove."
     else:  # add / set / none
         note, new_patterns = apply_extracted_fields(state, op, catalog)
-        reply = note
+        # Pure cold entry ("configure locations") with no operation to apply:
+        # welcome the user into the module with its focus card instead of a
+        # flat "nothing to change".
+        reply = (
+            module_focus.focus_card(state, focus)
+            if just_entered and not op.fields
+            else note
+        )
 
     if op.dropped:
         reply += (
@@ -954,12 +961,21 @@ def main(argv: list[str] | None = None) -> int:
     # Module-mode prose path: when a module is in focus, a free-form message
     # is ONE operation on that module. Extract it (LLM), validate against the
     # catalog, apply, and reply — instead of the whole-project intent
-    # pipeline. Falls through to the pipeline when no module is in focus.
+    # pipeline. When nothing is in focus, a clear "let's build module X"
+    # request (cold entry) enters that module first; otherwise fall through
+    # to the intent pipeline.
     _focus = module_focus.get_focus(state)
+    _just_entered = False
+    if _focus is None:
+        _entry = module_focus.detect_module_entry(args.message)
+        if _entry:
+            module_focus.set_focus(state, _entry)
+            _focus = module_focus.get_focus(state)
+            _just_entered = True
     if _focus is not None:
         return _run_module_operation(
             state, _focus, args.message, project_dir, console, history, turn,
-            catalog, args.model,
+            catalog, args.model, just_entered=_just_entered,
         )
 
     # Phases 1–5 run in the shared turn engine (fews_agent/agent/turn_engine).

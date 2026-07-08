@@ -19,9 +19,85 @@ LLM, no I/O, no build calls. The drivers own printing and persistence.
 """
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from .modules import Module, get_module, list_modules, normalize_module
+
+
+# ---------------------------------------------------------------------------
+# Cold module entry: enter a module from prose when nothing is in focus
+# ---------------------------------------------------------------------------
+
+# Verbs that signal "let's start building module X". A bare operation verb
+# ("import GFS") is deliberately NOT here — that's an operation, handled once
+# a module is in focus, not a request to enter one.
+_ENTRY_VERBS: tuple[str, ...] = (
+    "set up", "setup", "configure", "work on", "focus on", "start on",
+    "start with", "let's do", "lets do", "let's work on", "lets work on",
+    "build the", "define the",
+)
+
+# Module keywords safe to enter on an entry verb. Deliberately EXCLUDES the
+# generic "imports"/"import"/"model"/"run"/"process" tokens, which collide
+# with whole-project descriptions ("set up imports and a raven model" is a
+# forecasting project, not the processing module). The processing module is
+# entered via the explicit word "module" (rule 1 below) or "/module".
+_DISTINCT_MODULE_KEYWORDS: dict[str, str] = {
+    "locations": "locations", "location": "locations", "stations": "locations",
+    "parameters": "parameters",
+    "spatial display": "display", "display": "display",
+    "filters": "filters",
+    "topology": "topology",
+    "id maps": "idmap", "id map": "idmap", "idmap": "idmap",
+}
+
+
+def detect_module_entry(message: str) -> str | None:
+    """Detect a request to START building a specific module, or None.
+
+    Conservative on purpose — fires only on clear single-module targeting, so
+    it never hijacks a whole-project description on its way to the intent
+    pipeline. Three ways it fires:
+
+      1. The literal word "module": "the imports module", "processing module".
+      2. An entry verb + a distinct-name module keyword: "configure
+         locations", "work on the display", "set up filters". (imports/model
+         are excluded here — they read as a whole-project spec.)
+      3. The whole message is essentially just a module name: "locations",
+         "the display".
+    """
+    low = (message or "").strip().lower()
+    if not low:
+        return None
+
+    # Rule 1: "<something> module" — the user literally said "module".
+    m = re.search(r"\b([a-z][a-z ]*?)\s+module\b", low)
+    if m:
+        words = m.group(1).strip().split()
+        if words:
+            key = normalize_module(words[-1])
+            if key:
+                return key
+
+    # Rule 2: an entry verb + a distinct-name module keyword.
+    if any(v in low for v in _ENTRY_VERBS):
+        for kw, key in sorted(
+            _DISTINCT_MODULE_KEYWORDS.items(), key=lambda kv: -len(kv[0])
+        ):
+            if re.search(rf"\b{re.escape(kw)}\b", low):
+                return key
+
+    # Rule 3: the whole message is basically just a module name (<= 3 words).
+    stripped = low.rstrip(".!?")
+    toks = stripped.split()
+    if 1 <= len(toks) <= 3:
+        for cand in (stripped, toks[-1]):
+            key = normalize_module(cand)
+            if key:
+                return key
+
+    return None
 
 
 # Where a shared/settable variable physically lives in state. Most live in
