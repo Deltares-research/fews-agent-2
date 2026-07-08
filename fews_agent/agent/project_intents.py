@@ -1726,11 +1726,17 @@ def classify_intent(
     provider: OllamaProvider | None = None,
     model: str = "qwen2.5:7b-instruct",
 ) -> dict[str, Any]:
-    """Pick the user's intent + extract entities the skills missed.
+    """Pick the user's intent + independently extract entities from prose.
 
-    The skills already found most structured facts. The LLM's job is
-    smaller: pick which intent matches the prose, optionally fill in
-    missing entities (e.g. basin name for an unrecognised basin).
+    The skills still run and fill slots deterministically elsewhere, but
+    their output is deliberately NOT shown to the model here: feeding a
+    regex pre-pass to a capable model anchors it to (and, via the "skills
+    win" merge, is overridden by) the weaker extractor. So the model
+    classifies the intent and extracts entities purely from the prose; the
+    caller's deterministic merge then combines those with the skill results.
+
+    ``skill_results`` is retained in the signature — call sites still pass
+    it and it may be re-fed later — but is intentionally unused for now.
     """
     if provider is None:
         from .providers.factory import get_provider_or_ollama
@@ -1740,9 +1746,6 @@ def classify_intent(
         f"- {i.name}: {i.description}\n  keywords: {', '.join(i.keywords)}"
         for i in INTENTS.values()
     )
-    skills_text = "\n".join(
-        f"  {k}: {v}" for k, v in skill_results.items() if v
-    ) or "  (none)"
 
     system = (
         "Classify a configurator's project intent and confirm extracted "
@@ -1763,16 +1766,15 @@ def classify_intent(
         "  watershed, forecast workflow, or model adapter (raven, wflow, "
         "  hbv96). Visualization + interpolation in the absence of any "
         "  model reference signals data engineering, not forecasting.\n"
-        "- The deterministic skills already found the entities listed; "
-        "if you spot any the skills missed, add them. Don't override "
-        "what the skills found unless the user explicitly contradicted.\n"
+        "- Extract any entities you can identify from the prose (basins, "
+        "model adapters, imports, datum, region) into `entities`. Only "
+        "include values the user actually stated — never invent one.\n"
         "- Output ONLY the JSON the schema asks for."
     )
     user = (
         f"Configurator prose:\n  {prose!r}\n\n"
-        f"Skills already extracted:\n{skills_text}\n\n"
         f"Available intents:\n{intent_descriptions}\n\n"
-        f"Pick the intent and fill in any entities the skills missed."
+        f"Pick the intent and extract any entities the user stated."
     )
     schema = {
         "type": "object",
