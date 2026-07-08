@@ -23,6 +23,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from fews_agent.agent import module_focus
 from fews_agent.agent.project_chat import (
     add_module,
     remove_module,
@@ -76,6 +77,57 @@ _SET_VAR_CANON = {
     "model": "model_adapter",
     "model_adapter": "model_adapter",
 }
+
+# Question text for a focused module's own variables. When a module is in
+# focus, the reply asks about THIS module's next gap using these, instead of
+# the whole project's intent slots. Falls back to the intent's slot_questions
+# for any variable not listed here.
+_MODULE_VAR_QUESTIONS: dict[str, str] = {
+    "imports": "Which data source(s) should this module import? "
+               "(e.g. HRDPS, GFS, GEFS, IMERG, ERA5, ...)",
+    "basins": "Which basin(s) and what model adapter does each use? "
+              "(e.g. 'Liard uses raven')",
+    "basin_name": "What basin is this model for? (e.g. Liard)",
+    "model_adapter": "Which model adapter? (raven, wflow, hbv96, sfincs, "
+                     "hurrywave, delft3d)",
+    "data_types": "Which physical quantities / parameters? "
+                  "(precipitation, temperature, wind speed, ...)",
+    "geoDatum": "What geographic datum do the locations use? "
+                "(default: WGS 1984)",
+    "region": "Which geographic region? (e.g. Gulf of Guinea, North Sea, "
+              "Mediterranean, ...)",
+    "wants_visualization": "Should the imported grids be shown in the "
+                           "Spatial Display?",
+    "wants_interpolation": "Interpolate the grids to station locations for "
+                           "the Data Viewer?",
+    "grid_resolution": "Which grid resolution? (0p25 / 0p50 / 1p00)",
+    "forecast_horizon_hours": "What forecast horizon? (e.g. 7 days)",
+    "locations_source": "How are the locations provided? (csv / yaml)",
+    "custom_bbox": "What bounding box? (e.g. '8N to -5N, -10E to 10E')",
+}
+
+
+def _module_focus_question(
+    state: dict, intent, fallback: str | None,
+) -> tuple[str | None, str | None]:
+    """When a module is in focus, scope elicitation to its next gap.
+
+    Returns ``(next_question, module_prompt)``. When no module is in focus,
+    returns ``(fallback, None)`` so the intent-driven flow is unchanged.
+    """
+    focus = module_focus.get_focus(state)
+    if focus is None:
+        return fallback, None
+    var = module_focus.next_unfilled_variable(state, focus)
+    q = fallback
+    if var is not None:
+        q = _MODULE_VAR_QUESTIONS.get(var)
+        if q is None and intent is not None:
+            q = (intent.slot_questions or {}).get(var)
+        if q is None:
+            q = f"What is the {var} for the {focus.label} module?"
+    return q, focus.prompt
+
 
 # Strong, explicit intent-naming phrases. When one appears, it is
 # AUTHORITATIVE over the LLM/heuristic intent pick (see
@@ -629,6 +681,10 @@ def run_turn_pipeline(
     intent = INTENTS.get(state.get("intent") or "")
     next_q = next_unfilled_question(intent, slots) if intent else None
     ready = bool(intent) and is_intent_ready(intent, slots)
+    # Module focus (module-mode): scope the elicitation to the focused
+    # module's own next gap and steer the reply with its prompt. A no-op
+    # when nothing is in focus, so the intent-driven flow is unchanged.
+    next_q, module_prompt = _module_focus_question(state, intent, next_q)
     agent_msg = compose_reply(
         user_message=message,
         state=state,
@@ -642,6 +698,7 @@ def run_turn_pipeline(
         warnings=warnings,
         recent_edit=recent_edit_note,
         provider=provider,
+        module_focus_prompt=module_prompt,
     )
 
     internals = _format_internals(

@@ -2202,8 +2202,14 @@ def compose_reply(
     recent_edit: str | None = None,
     provider: OllamaProvider | None = None,
     model: str = "qwen2.5:7b-instruct",
+    module_focus_prompt: str | None = None,
 ) -> str:
     """LLM composes the agent's user-facing reply.
+
+    ``module_focus_prompt`` — when the configurator has a single FEWS module
+    in focus (module-mode), this is that module's steering prompt. It scopes
+    the reply to that module's job so the agent doesn't wander into other
+    modules' concerns.
 
     The deterministic engine already updated state. The LLM's only
     job is to PHRASE a natural acknowledgment + question + optional
@@ -2421,9 +2427,18 @@ def compose_reply(
             f"DONE, past tense; do NOT re-offer it):\n  {recent_edit}\n"
         )
 
+    module_focus_text = ""
+    if module_focus_prompt:
+        module_focus_text = (
+            f"\nMODULE IN FOCUS (module-mode — keep the reply scoped to THIS "
+            f"module's job; do not ask about other modules):\n"
+            f"  {module_focus_prompt}\n"
+        )
+
     user = (
         f"User just said: {user_message!r}\n"
         f"Active intent: {intent_name}\n"
+        f"{module_focus_text}"
         f"\n"
         f"KNOWN (filled slots — safe to reference):\n{known_text}\n"
         f"UNKNOWN (empty slots — DO NOT mention values for these): "

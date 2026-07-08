@@ -52,6 +52,7 @@ from fews_agent.agent.phases import (
     normalize_phase,
     phase_plan,
 )
+from fews_agent.agent import module_focus
 from fews_agent.agent.turn_engine import (
     _IMPORT_LABEL_KEYS,
     apply_disambiguation_answer,
@@ -298,6 +299,52 @@ def _run_phase_build(
         f"see the table above before moving on.[/yellow]"
     )
     return 1
+
+
+def _run_module_scope_build(
+    state: dict, module, project_dir: Path, console: Console,
+    history: list, turn: int,
+) -> int:
+    """Build every capability phase the focused FEWS-folder module owns.
+
+    A folder-module (``processing``, ``display``) maps to one or more
+    capability phases; this builds each that has resolved content, reusing
+    the tested per-phase build. View/deriver modules (filters, topology,
+    idmap, system, root) aren't built on their own — they come from inputs
+    or final assembly — so this reports that instead.
+    """
+    from fews_agent.agent.modules import module_for_pattern
+
+    catalog = build_pattern_catalog(PATTERNS_ROOT)
+    if not module.phases:
+        console.print(
+            f"[yellow]The '{module.label}' module isn't built on its "
+            f"own.[/yellow] It's produced from your inputs or during final "
+            f"assembly — type [bold]done[/bold] to assemble the project."
+        )
+        return 0
+    _resolve_patterns(state, catalog)
+    plan = phase_plan(state.get("patterns") or [])
+    target_phases = [
+        e["phase"] for e in plan
+        if e["patterns"]
+        and module_for_pattern(e["patterns"][0]["pattern"]) == module.key
+    ]
+    if not target_phases:
+        console.print(
+            f"[yellow]Nothing resolved for the '{module.label}' module "
+            f"yet.[/yellow] Add something first (e.g. [bold]/add GFS[/bold]), "
+            f"then [bold]/build[/bold]."
+        )
+        return 0
+    console.print(
+        f"[cyan]Building the '{module.label}' module "
+        f"({len(target_phases)} phase(s): {', '.join(target_phases)}).[/cyan]"
+    )
+    rc = 0
+    for ph in target_phases:
+        rc |= _run_phase_build(state, project_dir, ph, console, history, turn)
+    return rc
 
 
 def _resolve_module_target(
@@ -628,8 +675,40 @@ def main(argv: list[str] | None = None) -> int:
         _save(project_dir, state, history)
         return 0
 
-    # Module-by-module flow: show the phase plan.
-    if cmd in {"/phases", "phases", "/plan", "plan", "/modules", "modules"}:
+    # Module-mode: list the FEWS-folder modules you can build one at a time.
+    if cmd in {"/modules", "modules"}:
+        reply = module_focus.modules_overview()
+        cur = state.get("current_module")
+        if cur:
+            reply += f"\n\nIn focus now: {cur}."
+        history.append({"role": "agent", "message": reply})
+        _append_log(project_dir, turn, "agent", reply, "module overview")
+        _save(project_dir, state, history)
+        console.print(f"\n[bold magenta]agent[/bold magenta]: {reply}")
+        return 0
+
+    # Module-mode: put ONE module in focus. Bare "/module" reports the
+    # current focus; "/module <name>" selects it and prints its focus card.
+    if cmd == "/module" or cmd.startswith("/module "):
+        if cmd == "/module":
+            cur = module_focus.get_focus(state)
+            reply = (
+                module_focus.focus_card(state, cur) if cur
+                else "No module in focus. Pick one with  /module <name>  "
+                     "(see  /modules  for the list)."
+            )
+        else:
+            token = args.message.strip().split(None, 1)[1].strip()
+            module, reply = module_focus.set_focus(state, token)
+        history.append({"role": "agent", "message": reply})
+        _append_log(project_dir, turn, "agent", reply, "module focus")
+        _save(project_dir, state, history)
+        console.print(f"\n[bold magenta]agent[/bold magenta]: {reply}")
+        return 0
+
+    # Module-by-module flow: show the capability phase plan (finer build
+    # groups WITHIN the processing/display modules).
+    if cmd in {"/phases", "phases", "/plan", "plan"}:
         reply = _phase_plan_text(state, catalog)
         history.append({"role": "agent", "message": reply})
         _append_log(project_dir, turn, "agent", reply, "phase plan")
@@ -653,6 +732,18 @@ def main(argv: list[str] | None = None) -> int:
     if cmd.startswith(("/add ", "/remove ", "/drop ", "/set ")):
         verb = args.message.strip().split(None, 1)[0].lstrip("/").lower()
         op = "remove" if verb == "drop" else verb
+        # Module-mode: reject an operation the focused module doesn't allow
+        # (e.g. /add while focused on a view-only module like filters).
+        focus = module_focus.get_focus(state)
+        if focus is not None and not focus.supports(op):
+            console.print(
+                f"[yellow]The '{focus.label}' module doesn't support "
+                f"'{op}'.[/yellow] Its operations: "
+                f"{', '.join(focus.operations)}. "
+                f"Switch focus with [bold]/module <name>[/bold] first."
+            )
+            _save(project_dir, state, history)
+            return 1
         rest = args.message.strip().split(None, 1)[1].strip()
         edits = _parse_slash_edit(op, rest)
         if not edits:
@@ -678,6 +769,15 @@ def main(argv: list[str] | None = None) -> int:
     if cmd == "/build" or cmd.startswith(("/build ", "/build-phase ",
                                           "build phase ")):
         if cmd == "/build":
+            # Module-mode: a bare /build with a module in focus builds THAT
+            # module (its capability phases), not the next unbuilt phase.
+            focus = module_focus.get_focus(state)
+            if focus is not None:
+                rc = _run_module_scope_build(
+                    state, focus, project_dir, console, history, turn,
+                )
+                _save(project_dir, state, history)
+                return rc
             _resolve_patterns(state, catalog)
             phase = next_unbuilt_phase(
                 state.get("patterns") or [], state.get("built_phases"),
