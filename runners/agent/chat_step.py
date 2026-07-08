@@ -301,6 +301,83 @@ def _run_phase_build(
     return 1
 
 
+def _run_module_operation(
+    state: dict, focus, message: str, project_dir: Path, console: Console,
+    history: list, turn: int, catalog, model: str,
+) -> int:
+    """Module-mode prose turn: extract ONE operation and apply it.
+
+    When a module is in focus and the user types plain language (not a slash
+    command), the LLM extracts a single validated operation and we route it:
+    add/set → merge fields into slots + resolve; remove → removal edits;
+    select_module → switch focus; build/list → the existing handlers. Values
+    the catalog validation dropped are surfaced loudly, never silently
+    applied.
+    """
+    from fews_agent.agent.extractor import extract_operation
+    from fews_agent.agent.turn_engine import (
+        apply_edit_action,
+        apply_extracted_fields,
+        extracted_removal_edits,
+    )
+
+    provider = _resolve_provider(model)
+    op = extract_operation(message, focus_module=focus, provider=provider)
+
+    # build / list route straight to the existing scoped handlers.
+    if op.action == "build":
+        rc = _run_module_scope_build(
+            state, focus, project_dir, console, history, turn,
+        )
+        _save(project_dir, state, history)
+        return rc
+    if op.action == "list":
+        reply = _module_list_text(state, catalog)
+        _emit(project_dir, state, history, turn, reply, "module op: list", console)
+        return 0
+
+    if op.action == "select_module" and op.module:
+        _module, reply = module_focus.set_focus(state, op.module)
+        _emit(project_dir, state, history, turn, reply, "module op: select", console)
+        return 0
+
+    if op.action == "remove":
+        edits = extracted_removal_edits(op)
+        if edits:
+            notes = [apply_edit_action(state, e, catalog) for e in edits]
+            reply = "\n".join(notes)
+        else:
+            reply = "Nothing recognised to remove."
+    else:  # add / set / none
+        note, new_patterns = apply_extracted_fields(state, op, catalog)
+        reply = note
+
+    if op.dropped:
+        reply += (
+            "\n\n[!] Ignored (not in the catalog, so not applied): "
+            + ", ".join(op.dropped)
+            + ". Rephrase with a known name if you meant something valid."
+        )
+
+    _emit(
+        project_dir, state, history, turn, reply,
+        f"module op: {op.action}", console,
+    )
+    console.print("\n" + _module_list_text(state, catalog))
+    return 0
+
+
+def _emit(
+    project_dir: Path, state: dict, history: list, turn: int,
+    reply: str, note: str, console: Console,
+) -> None:
+    """Append an agent reply to history + transcript, save, and print."""
+    history.append({"role": "agent", "message": reply})
+    _append_log(project_dir, turn, "agent", reply, note)
+    _save(project_dir, state, history)
+    console.print(f"\n[bold magenta]agent[/bold magenta]: {reply}")
+
+
 def _run_module_scope_build(
     state: dict, module, project_dir: Path, console: Console,
     history: list, turn: int,
@@ -873,6 +950,17 @@ def main(argv: list[str] | None = None) -> int:
         _save(project_dir, state, history)
         console.print(f"\n[bold magenta]agent[/bold magenta]: {reply}")
         return 0
+
+    # Module-mode prose path: when a module is in focus, a free-form message
+    # is ONE operation on that module. Extract it (LLM), validate against the
+    # catalog, apply, and reply — instead of the whole-project intent
+    # pipeline. Falls through to the pipeline when no module is in focus.
+    _focus = module_focus.get_focus(state)
+    if _focus is not None:
+        return _run_module_operation(
+            state, _focus, args.message, project_dir, console, history, turn,
+            catalog, args.model,
+        )
 
     # Phases 1–5 run in the shared turn engine (fews_agent/agent/turn_engine).
     # The driver resolves the provider and owns persistence + console output;

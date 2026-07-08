@@ -1,0 +1,7 @@
+Configurator prose:
+  [[ prose ]]
+
+Available intents:
+[[ intent_descriptions ]]
+
+Pick the intent and extract any entities the user stated.

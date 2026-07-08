@@ -1742,39 +1742,18 @@ def classify_intent(
         from .providers.factory import get_provider_or_ollama
         provider = get_provider_or_ollama(model)
 
+    from fews_agent.agent import prompts
+
     intent_descriptions = "\n".join(
         f"- {i.name}: {i.description}\n  keywords: {', '.join(i.keywords)}"
         for i in INTENTS.values()
     )
 
-    system = (
-        "Classify a configurator's project intent and confirm extracted "
-        "entities. RULES:\n"
-        "- Pick exactly one intent from the list (or 'unknown' if none "
-        "fits).\n"
-        "- DEFAULT to build_forecasting_project. Only pick the narrower "
-        "  build_basin_model_only or build_data_import_only when the "
-        "  user EXPLICITLY says they want just one half — e.g. "
-        "  'imports only', 'model only', 'no imports yet', 'without a "
-        "  model', 'just data ingestion'. A mention of a basin without "
-        "  imports is NOT enough to pick the narrower intent.\n"
-        "- ALSO prefer build_data_import_only when the user describes a "
-        "  pure data pipeline — they mention interpolating gridded data "
-        "  to locations/stations/points, viewing imported series in the "
-        "  Data Viewer, or displaying grids in the Spatial Display — "
-        "  AND they do NOT mention a hydrological model, basin, "
-        "  watershed, forecast workflow, or model adapter (raven, wflow, "
-        "  hbv96). Visualization + interpolation in the absence of any "
-        "  model reference signals data engineering, not forecasting.\n"
-        "- Extract any entities you can identify from the prose (basins, "
-        "model adapters, imports, datum, region) into `entities`. Only "
-        "include values the user actually stated — never invent one.\n"
-        "- Output ONLY the JSON the schema asks for."
-    )
-    user = (
-        f"Configurator prose:\n  {prose!r}\n\n"
-        f"Available intents:\n{intent_descriptions}\n\n"
-        f"Pick the intent and extract any entities the user stated."
+    system = prompts.load("classify_intent.system")
+    user = prompts.load(
+        "classify_intent.user",
+        prose=repr(prose),
+        intent_descriptions=intent_descriptions,
     )
     schema = {
         "type": "object",
@@ -2226,6 +2205,8 @@ def compose_reply(
 
     Style: 1-3 sentences, plain English, no JSON, no bullet lists.
     """
+    from fews_agent.agent import prompts
+
     if provider is None:
         from .providers.factory import get_provider_or_ollama
         provider = get_provider_or_ollama(model)
@@ -2319,102 +2300,7 @@ def compose_reply(
     else:
         input_text = "  (input directory not scanned)\n"
 
-    system = (
-        "You are a helpful assistant guiding a configurator through "
-        "authoring a Delft-FEWS project ONE MODULE AT A TIME (an import, "
-        "a basin model, a visualization) — not by generating the whole "
-        "project in one shot. The configurator can edit the in-progress "
-        "project mid-chat: add a module, remove a module, or change a "
-        "variable (e.g. grid resolution, forecast horizon), either with "
-        "slash commands (/add, /remove, /set, /build, /list) or in plain "
-        "language ('also drop RDPS', 'make GFS half-degree').\n"
-        "The deterministic engine has ALREADY applied any such edit and "
-        "updated state before you reply — your job is to PHRASE a natural "
-        "reply. You do not mutate state yourself; you acknowledge what the "
-        "engine already did, ask the next question, or suggest a next "
-        "step.\n"
-        "\n"
-        "ANTI-FABRICATION RULE — read carefully:\n"
-        "Only reference values that appear under KNOWN. Treat values "
-        "under UNKNOWN as unstated by the user. NEVER fill in a value "
-        "from your own training. If `model_adapter` is in UNKNOWN, do "
-        "NOT mention raven/wflow/hbv/etc. — even if they sound "
-        "plausible for that basin. If `imports` is in UNKNOWN, do NOT "
-        "name HRDPS/GFS/etc. The user said what they said; don't "
-        "extrapolate.\n"
-        "\n"
-        "Bad reply (fabricated): 'Mackenzie uses raven.' (when "
-        "model_adapter is in UNKNOWN)\n"
-        "Good reply: 'Got it — Mackenzie basin. Which hydrological "
-        "model adapter does it use (raven, wflow, hbv96)?'\n"
-        "\n"
-        "ACTIONS — offers vs. completed edits (read carefully):\n"
-        "You do NOT mutate state yourself, and you must NEVER make a "
-        "phantom OFFER that waits on a 'yes' — phrases like 'Would you "
-        "like me to add…?', 'Shall I include…?', 'Want me to remove…?'. "
-        "If the user said 'yes' to such an offer, nothing would happen "
-        "and they'd be confused. The only engine-wired yes/no flow is a "
-        "pattern-removal proposal that appears in Engine notes (you "
-        "don't invent it).\n"
-        "BUT: when a RECENT EDIT line is present below, the engine has "
-        "ALREADY performed that edit this turn — acknowledge it as DONE, "
-        "in the past tense ('Removed RDPS', 'Set GFS to half-degree'), "
-        "and never re-offer it. When the user wants a change that has "
-        "NOT happened, don't ask permission — tell them the exact "
-        "phrasing to use ('say \"also drop RDPS\"', 'say \"make GFS "
-        "half-degree\"', or use /remove, /set).\n"
-        "\n"
-        "Bad (phantom offer): 'Would you like me to add the Snare "
-        "basin?' (nothing happens on 'yes')\n"
-        "Good (not yet done): 'Snare isn't in the project yet — to add "
-        "it, say \"also add the Snare basin using raven\".'\n"
-        "Good (RECENT EDIT confirms it): 'Done — removed RDPS. Build "
-        "the next import with /build <name>, or keep adding modules.'\n"
-        "\n"
-        "RULES:\n"
-        "1) Reply in 1-3 sentences. Plain English. No JSON, no "
-        "   bullets, no emoji.\n"
-        "2) Reference KNOWN values BY NAME (e.g. 'Mackenzie basin', "
-        "   'HRDPS and GFS'). Don't say 'your basin' when you know "
-        "   the name.\n"
-        "3) Never ask the configurator for any file listed under "
-        "   AUTO-GENERATED — those are produced by the runner. Only "
-        "   ask for files under 'Configurator-required yamls' or in "
-        "   'REQUIRED CSVs missing'.\n"
-        "4) If a `next_question` is given, ask it naturally. If "
-        "   `is_ready` is true AND no required CSVs missing, "
-        "   encourage 'done'. If `is_ready` but CSVs missing, mention "
-        "   which.\n"
-        "5) Flag concerns ONLY when warranted by the data: "
-        "   contradictions across turns, or unusual basin/adapter "
-        "   pairings AMONG KNOWN VALUES. Don't invent concerns.\n"
-        "6) If nothing was understood (KNOWN is empty), ask for "
-        "   clarification — don't pretend.\n"
-        "7) WARNINGS are LOUD FAILURES — if any are listed below, you "
-        "   MUST mention each one verbatim or paraphrased, and ask the "
-        "   user to confirm, correct, or 'continue anyway'. Never bury "
-        "   a warning. Never silently accept inputs that are flagged.\n"
-        "8) Don't make a phantom OFFER that waits on a 'yes' "
-        "   ('Want me to…?', 'Shall I…?'). Two allowed moves instead: "
-        "   (a) if a RECENT EDIT line is present, acknowledge that edit "
-        "   as already DONE (past tense); (b) for a change the user "
-        "   hasn't requested yet, tell them the exact phrasing or slash "
-        "   command to use. The only engine-wired yes/no is a "
-        "   pattern-removal proposal in Engine notes.\n"
-        "9) NEVER ask whether to add/include something that is "
-        "   ALREADY in KNOWN. If a basin or import appears under "
-        "   'Basins already in project' or 'Imports already in "
-        "   project', it is DONE — do not ask 'should I also add "
-        "   X?'. The engine already added it. You MAY, however, "
-        "   suggest how to remove or change it ('to drop it, say "
-        "   \"remove X\"').\n"
-        "10) STEPWISE: after acknowledging, nudge toward ONE concrete "
-        "   next step — build the module just configured (/build "
-        "   <name>), add the next module, or (if ready) 'done' to "
-        "   assemble. Prefer one small module over pushing the whole "
-        "   project at once.\n"
-        "11) Output JSON {\"reply\": \"...\"}, nothing else."
-    )
+    system = prompts.load("compose_reply.system")
 
     warnings_text = ""
     if warnings:
@@ -2437,23 +2323,20 @@ def compose_reply(
             f"  {module_focus_prompt}\n"
         )
 
-    user = (
-        f"User just said: {user_message!r}\n"
-        f"Active intent: {intent_name}\n"
-        f"{module_focus_text}"
-        f"\n"
-        f"KNOWN (filled slots — safe to reference):\n{known_text}\n"
-        f"UNKNOWN (empty slots — DO NOT mention values for these): "
-        f"{unknown_text}\n"
-        f"{warnings_text}"
-        f"{recent_edit_text}"
-        f"\n"
-        f"New patterns added this turn: {new_pat_text}\n"
-        f"Engine notes: {'; '.join(notes) or '(none)'}\n"
-        f"Input directory status:\n{input_text}"
-        f"Next deterministic question: {next_question or '(none)'}\n"
-        f"Ready to write: {is_ready}\n\n"
-        f"Compose the reply."
+    user = prompts.load(
+        "compose_reply.user",
+        user_message=repr(user_message),
+        intent_name=intent_name,
+        module_focus_text=module_focus_text,
+        known_text=known_text,
+        unknown_text=unknown_text,
+        warnings_text=warnings_text,
+        recent_edit_text=recent_edit_text,
+        new_pat_text=new_pat_text,
+        notes_joined="; ".join(notes) or "(none)",
+        input_text=input_text,
+        next_question_display=next_question or "(none)",
+        is_ready=is_ready,
     )
 
     schema = {

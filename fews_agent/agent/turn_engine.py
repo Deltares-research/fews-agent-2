@@ -254,6 +254,84 @@ def apply_edit_action(state: dict, edit: dict, catalog) -> str:
     return note
 
 
+def extracted_removal_edits(op) -> list[dict]:
+    """Translate a `remove` ExtractedOperation's fields into edit dicts."""
+    edits: list[dict] = []
+    for name in op.fields.get("imports") or []:
+        edits.append({"op": "remove", "target": name, "target_kind": "import"})
+    for b in op.fields.get("basins") or []:
+        if isinstance(b, dict) and b.get("basin_name"):
+            edits.append({
+                "op": "remove",
+                "target": {"basin_name": b["basin_name"]},
+                "target_kind": "basin",
+            })
+    return edits
+
+
+def apply_extracted_fields(state: dict, op, catalog) -> tuple[str, list[str]]:
+    """Apply an add/set/none ExtractedOperation's fields to slots, then resolve.
+
+    Mirrors the pipeline's additive slot-fill (Phase 3) + resolve (Phase 4),
+    but honours the operation's explicit ``action``: a ``set`` OVERRIDES a
+    scalar the user is changing ("make it half-degree"), whereas ``add`` /
+    ``none`` only fill an empty scalar (never clobber an earlier value).
+    List fields (imports, basins, data_types) always merge additively.
+
+    Returns ``(human_note, new_pattern_paths)``.
+    """
+    slots = state.setdefault("slots", {})
+    applied: list[str] = []
+    for k, v in (op.fields or {}).items():
+        if isinstance(v, list):
+            merged = list(slots.get(k) or [])
+            for item in v:
+                if item not in merged:
+                    merged.append(item)
+            if merged != (slots.get(k) or []):
+                slots[k] = merged
+                applied.append(f"{k}={merged}")
+        else:
+            if op.action == "set" or slots.get(k) in (None, "", []):
+                if slots.get(k) != v:
+                    slots[k] = v
+                    applied.append(f"{k}={v}")
+
+    # Mirror the pipeline's geo → Locations singleton sync.
+    for key, seed_key in (("geoDatum", "geoDatum"), ("region", "region")):
+        if slots.get(key):
+            state.setdefault("singleton_seeds", {}).setdefault(
+                "Locations", {}
+            )[seed_key] = slots[key]
+
+    # Cross-turn basin promotion (same as the pipeline).
+    if (
+        not slots.get("basins")
+        and slots.get("basin_name")
+        and slots.get("model_adapter")
+    ):
+        slots["basins"] = [{
+            "basin_name": slots["basin_name"],
+            "model_adapter": slots["model_adapter"],
+        }]
+
+    if not state.get("intent"):
+        inferred = heuristic_intent_from_slots(slots)
+        if inferred:
+            state["intent"] = inferred
+
+    before = {p["pattern"] for p in state.get("patterns", [])}
+    resolve_patterns(state, catalog)
+    new = [
+        p["pattern"] for p in state.get("patterns", [])
+        if p["pattern"] not in before
+    ]
+    note = "Applied: " + "; ".join(applied) if applied else (
+        "Noted — nothing new to change."
+    )
+    return note, new
+
+
 def apply_disambiguation_answer(state: dict, message: str) -> None:
     """Consume a pending intent-disambiguation answer, if one is awaited.
 
