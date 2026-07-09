@@ -255,7 +255,7 @@ def apply_edit_action(state: dict, edit: dict, catalog) -> str:
 
 
 def extracted_removal_edits(op) -> list[dict]:
-    """Translate a `remove` ExtractedOperation's fields into edit dicts."""
+    """Translate a `remove` op's imports/basins into whole-item edit dicts."""
     edits: list[dict] = []
     for name in op.fields.get("imports") or []:
         edits.append({"op": "remove", "target": name, "target_kind": "import"})
@@ -267,6 +267,56 @@ def extracted_removal_edits(op) -> list[dict]:
                 "target_kind": "basin",
             })
     return edits
+
+
+# Scalar / boolean slots a `remove` can unset (imports/basins are removed as
+# whole items by extracted_removal_edits; data_types is subtracted below).
+_REMOVABLE_SCALAR_FIELDS = (
+    "grid_resolution", "forecast_horizon_hours", "region", "geoDatum",
+)
+_REMOVABLE_BOOL_FIELDS = ("wants_interpolation", "wants_visualization")
+
+
+def apply_field_removals(state: dict, fields: dict) -> list[str]:
+    """Remove field VALUES from slots (a data_type, a scalar/bool setting).
+
+    Complements :func:`extracted_removal_edits` (whole imports/basins):
+    subtracts the named entries from the ``data_types`` list and unsets any
+    scalar/boolean setting the user asked to drop. Returns human notes; the
+    caller re-resolves.
+    """
+    slots = state.setdefault("slots", {})
+    notes: list[str] = []
+
+    # data_types (list) — subtract the named phrases, case-insensitively.
+    want = fields.get("data_types")
+    if want and isinstance(slots.get("data_types"), list):
+        drop = {str(v).strip().lower() for v in want}
+        before = list(slots["data_types"])
+        slots["data_types"] = [
+            x for x in before if str(x).strip().lower() not in drop
+        ]
+        removed = [x for x in before if x not in slots["data_types"]]
+        if removed:
+            notes.append(f"Removed data_types: {removed}")
+
+    # scalars — unset when the user named them.
+    for f in _REMOVABLE_SCALAR_FIELDS:
+        if f in fields and slots.get(f) not in (None, "", []):
+            old = slots.pop(f, None)
+            notes.append(f"Cleared {f} (was {old})")
+            if f in ("region", "geoDatum"):
+                seed = (state.get("singleton_seeds") or {}).get("Locations")
+                if isinstance(seed, dict):
+                    seed.pop(f, None)
+
+    # booleans — turn off.
+    for f in _REMOVABLE_BOOL_FIELDS:
+        if f in fields and slots.get(f):
+            slots.pop(f, None)
+            notes.append(f"Turned off {f}")
+
+    return notes
 
 
 def apply_extracted_fields(state: dict, op, catalog) -> tuple[str, list[str]]:
@@ -345,11 +395,22 @@ def apply_operation(state: dict, op, catalog) -> tuple[str, list[str]]:
         module, card = module_focus.set_focus(state, op.module)
         return card, []
     if op.action == "remove":
-        edits = extracted_removal_edits(op)
-        if edits:
-            notes = [apply_edit_action(state, e, catalog) for e in edits]
-            return "\n".join(notes), []
-        return "Nothing recognised to remove.", []
+        notes: list[str] = []
+        # Whole items (imports/basins) — each re-resolves via apply_edit_action.
+        for e in extracted_removal_edits(op):
+            notes.append(apply_edit_action(state, e, catalog))
+        # Field values (a data_type, a scalar/bool setting).
+        field_notes = apply_field_removals(state, op.fields or {})
+        if field_notes:
+            notes.extend(field_notes)
+            if not state.get("intent"):
+                inferred = heuristic_intent_from_slots(state.get("slots", {}))
+                if inferred:
+                    state["intent"] = inferred
+            resolve_patterns(state, catalog)  # propagate dropped values
+        if not notes:
+            return "Nothing recognised to remove.", []
+        return "\n".join(notes), []
     # add / set / none
     return apply_extracted_fields(state, op, catalog)
 

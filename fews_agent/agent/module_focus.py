@@ -100,6 +100,67 @@ def detect_module_entry(message: str) -> str | None:
     return None
 
 
+# ---------------------------------------------------------------------------
+# Deterministic switch safety-net: leave a focused module for a named one
+# ---------------------------------------------------------------------------
+
+# Navigation verbs that signal moving to a DIFFERENT module mid-session.
+_SWITCH_VERBS: tuple[str, ...] = (
+    "switch to", "go back to", "go to", "back to", "move to", "jump to",
+    "return to", "head to", "over to", "work on", "let's work on",
+    "lets work on", "let's do", "lets do", "open the",
+)
+
+# Module keywords for switching — BROADER than cold-entry's distinct-name set:
+# mid-session navigation to imports/processing/model is unambiguous (there's
+# no whole-project-spec to collide with once you're already in a module), so
+# those generic tokens are included here.
+_SWITCH_MODULE_KEYWORDS: dict[str, str] = {
+    **_DISTINCT_MODULE_KEYWORDS,
+    "imports": "processing", "import": "processing",
+    "processing": "processing", "process": "processing",
+    "model": "processing", "models": "processing",
+    "system": "system", "timesteps": "system",
+    "root": "root", "idmaps": "idmap",
+}
+
+
+def detect_module_switch(message: str, current_focus: str | None) -> str | None:
+    """When focused, detect an explicit navigation to a DIFFERENT module.
+
+    A deterministic safety-net for the module-op path: the LLM won't reliably
+    LEAVE a focused module on "go back to X" / "let's work on X" phrasings
+    (it confidently keeps the focused intent), so an explicit navigation
+    command overrides the parse. Fires only on (1) the literal "X module", or
+    (2) a navigation verb + a module keyword — and only when the target
+    differs from the module already in focus. Returns the target key or None.
+    """
+    low = (message or "").strip().lower()
+    if not low or not current_focus:
+        return None
+
+    target: str | None = None
+    # Rule 1: "<something> module" — a literal module reference.
+    m = re.search(r"\b([a-z][a-z ]*?)\s+module\b", low)
+    if m:
+        words = m.group(1).strip().split()
+        if words:
+            target = normalize_module(words[-1])
+
+    # Rule 2: a navigation verb + a module keyword.
+    if target is None and any(v in low for v in _SWITCH_VERBS):
+        for kw, key in sorted(
+            _SWITCH_MODULE_KEYWORDS.items(), key=lambda kv: -len(kv[0])
+        ):
+            if re.search(rf"\b{re.escape(kw)}\b", low):
+                target = key
+                break
+
+    if target is None or target == current_focus:
+        return None
+    return target
+
+
 # Where a shared/settable variable physically lives in state. Most live in
 # ``slots``; the geo scalars are also mirrored into
 # ``singleton_seeds["Locations"]`` by the turn pipeline, so we read there as a

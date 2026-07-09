@@ -1,0 +1,13 @@
+Message: [[ message ]]
+
+Intent currently in focus: [[ focus ]]
+
+INTENTS you can classify to (pick exactly one):
+[[ intent_catalog ]]
+
+Vocabularies — choose field values ONLY from these:
+- imports: [[ vocab_imports ]]
+- model adapters: [[ vocab_adapters ]]
+- parameters / data types: [[ vocab_data_types ]]
+
+Return the single parsed turn as JSON: {intent, action, fields, confidence}.

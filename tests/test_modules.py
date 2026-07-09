@@ -201,3 +201,34 @@ def test_cold_entry_ignores_generic_import_model_words():
     # with whole-project descriptions. Only the explicit "module" word or a
     # distinct-name module does.
     assert F.detect_module_entry("configure the imports and the model") is None
+
+
+# --- deterministic module switch (safety-net) -----------------------------
+
+def test_switch_fires_on_navigation_to_different_module():
+    # From display focus — the exact phrasings the LLM got wrong live.
+    for msg in (
+        "go back to the processing module",
+        "switch to the processing module",
+        "switch to processing",
+        "let's work on the imports",
+        "go back to processing",
+        "go to imports",
+    ):
+        assert F.detect_module_switch(msg, "display") == "processing", msg
+
+
+def test_switch_none_when_staying_or_same_module():
+    # No navigation → None (the op stays in the focused module).
+    assert F.detect_module_switch("now visualize the grids", "display") is None
+    assert F.detect_module_switch("stay here and add a plot", "display") is None
+    assert F.detect_module_switch("add a GFS import", "processing") is None
+    # Naming the SAME module is not a switch.
+    assert F.detect_module_switch("switch to the display module", "display") is None
+    # No focus → no switch.
+    assert F.detect_module_switch("switch to processing", None) is None
+
+
+def test_switch_to_a_distinct_module():
+    assert F.detect_module_switch("go to the display", "processing") == "display"
+    assert F.detect_module_switch("work on locations now", "processing") == "locations"

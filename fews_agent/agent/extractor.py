@@ -355,11 +355,21 @@ def extract_operation(
     ``select_module``; otherwise the action applies to the current module.
     Never raises — a bad reply yields ``action="none"``.
     """
+    from .module_focus import detect_module_switch
+
     pt = parse_turn(message, focus_module=focus_module, provider=provider,
                     model=model)
-    if pt.module and pt.module != focus_module.key:
+
+    # Deterministic switch safety-net. The model reliably handles "switch to
+    # X" but confidently REFUSES to leave a focused module on "go back to X" /
+    # "let's work on X", so an explicit navigation command overrides the parse.
+    switch_target = detect_module_switch(message, focus_module.key)
+    target = switch_target or (
+        pt.module if pt.module and pt.module != focus_module.key else None
+    )
+    if target:
         return ExtractedOperation(
-            action="select_module", module=pt.module,
+            action="select_module", module=target,
             fields=pt.fields, dropped=pt.dropped,
             confidence=pt.confidence, raw=pt.raw,
         )

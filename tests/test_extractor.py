@@ -186,6 +186,38 @@ def test_extracted_removal_edits_shape():
             "target_kind": "basin"} in edits
 
 
+def test_remove_data_type_field():
+    # Field-level removal: subtract a data_type from the list (the live gap).
+    from fews_agent.agent.turn_engine import apply_operation
+    state = {"slots": {"imports": ["GFS"],
+                       "data_types": ["temperature", "precipitation"]},
+             "patterns": [], "intent": "build_data_import_only"}
+    reply, _ = apply_operation(
+        state, _Op("remove", {"data_types": ["temperature"]}), _CATALOG,
+    )
+    assert state["slots"]["data_types"] == ["precipitation"]
+    assert "temperature" in reply
+
+
+def test_remove_scalar_field_unsets_it():
+    from fews_agent.agent.turn_engine import apply_operation
+    state = {"slots": {"imports": ["GFS"], "grid_resolution": "0p50"},
+             "patterns": [], "intent": "build_data_import_only"}
+    reply, _ = apply_operation(
+        state, _Op("remove", {"grid_resolution": "0p50"}), _CATALOG,
+    )
+    assert "grid_resolution" not in state["slots"]
+    assert "grid_resolution" in reply
+
+
+def test_remove_nothing_recognised():
+    from fews_agent.agent.turn_engine import apply_operation
+    state = {"slots": {"imports": ["GFS"]}, "patterns": [],
+             "intent": "build_data_import_only"}
+    reply, _ = apply_operation(state, _Op("remove", {}), _CATALOG)
+    assert "Nothing recognised" in reply
+
+
 # --- confidence signal + confirmation gate --------------------------------
 
 def test_confidence_parsed_and_defaulted():
