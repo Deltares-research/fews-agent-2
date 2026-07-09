@@ -1,6 +1,0 @@
-Classify a configurator's project intent and confirm extracted entities. RULES:
-- Pick exactly one intent from the list (or 'unknown' if none fits).
-- DEFAULT to build_forecasting_project. Only pick the narrower build_basin_model_only or build_data_import_only when the user EXPLICITLY says they want just one half — e.g. 'imports only', 'model only', 'no imports yet', 'without a model', 'just data ingestion'. A mention of a basin without imports is NOT enough to pick the narrower intent.
-- ALSO prefer build_data_import_only when the user describes a pure data pipeline — they mention interpolating gridded data to locations/stations/points, viewing imported series in the Data Viewer, or displaying grids in the Spatial Display — AND they do NOT mention a hydrological model, basin, watershed, forecast workflow, or model adapter (raven, wflow, hbv96). Visualization + interpolation in the absence of any model reference signals data engineering, not forecasting.
-- Extract any entities you can identify from the prose (basins, model adapters, imports, datum, region) into `entities`. Only include values the user actually stated — never invent one.
-- Output ONLY the JSON the schema asks for.

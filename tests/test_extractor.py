@@ -242,3 +242,67 @@ def test_resolve_pending_operation():
     assert r("no") == "discard"
     assert r("cancel") == "discard"
     assert r("add HRDPS instead") is None
+
+
+# --- unified turn parser (LLM classifies from all 12 intents) -------------
+
+def _parse(payload, focus=None, message="do it"):
+    fm = M.get_module(focus) if focus else None
+    return E.parse_turn(
+        message, focus_module=fm, provider=_Provider(payload),
+    )
+
+
+def test_parse_turn_classifies_a_module_intent():
+    p = _parse({"intent": "build_processing", "action": "add",
+                "fields": {"imports": ["GFS"]}, "confidence": 0.9})
+    assert p.intent == "build_processing"
+    assert p.module == "processing"           # derived from the module-intent
+    assert p.is_project_intent is False
+    assert p.action == "add"
+    assert p.fields["imports"] == ["GFS"]
+
+
+def test_parse_turn_classifies_a_project_intent():
+    p = _parse({"intent": "build_data_import_only", "action": "add",
+                "fields": {"imports": ["GFS"]}})
+    assert p.intent == "build_data_import_only"
+    assert p.is_project_intent is True
+    assert p.module is None                    # not a module-intent
+
+
+def test_parse_turn_defaults_to_focus_when_model_silent():
+    p = _parse({"intent": None, "action": "add",
+                "fields": {"imports": ["HRDPS"]}}, focus="processing")
+    assert p.intent == "build_processing"
+    assert p.module == "processing"
+
+
+def test_parse_turn_detects_module_switch():
+    p = _parse({"intent": "build_display", "action": "none", "fields": {}},
+               focus="processing")
+    assert p.module == "display"               # switched away from processing
+
+
+def test_parse_turn_normalizes_build_synonym_and_validates():
+    # 'build_imports' → build_processing; hallucinated import dropped.
+    p = _parse({"intent": "build_imports", "action": "add",
+                "fields": {"imports": ["GFS", "NOPE"]}})
+    assert p.intent == "build_processing"
+    assert p.fields["imports"] == ["GFS"]
+    assert "import:NOPE" in p.dropped
+
+
+def test_parse_turn_unknown_intent_with_no_focus_is_none():
+    p = _parse({"intent": "build_banana", "action": "none", "fields": {}})
+    assert p.intent is None
+
+
+def test_parse_turn_confidence_and_bad_response():
+    assert _parse({"intent": "build_processing", "action": "add",
+                   "fields": {"imports": ["GFS"]},
+                   "confidence": 0.3}).confidence == 0.3
+    # provider error → no-op parse keeping focus's intent
+    p = E.parse_turn("x", focus_module=M.get_module("display"),
+                     provider=_BoomProvider())
+    assert p.action == "none" and p.intent == "build_display"

@@ -38,15 +38,39 @@ from .project_intents import (
     _DATUM_PHRASES,
     _IMPORT_ALIASES,
     _IMPORT_NAMES,
+    INTENTS,
     REGION_BBOX,
     detect_geo_datum,
     detect_grid_resolution,
 )
 
-# Valid actions the extractor may return.
-_ACTIONS = frozenset({
-    "add", "set", "remove", "select_module", "build", "list", "none",
-})
+# The unified intent taxonomy the LLM classifies from (option 2 — both
+# coexist): the 3 whole-project intents (from INTENTS) PLUS one "build the X
+# module" intent per FEWS-folder module. build_<key> ↔ module key.
+_MODULE_INTENTS: dict[str, str] = {
+    f"build_{m.key}": m.key for m in list_modules()
+}
+# intent name -> module key, for module-intents only (project-intents absent).
+_ALL_INTENTS: frozenset[str] = frozenset(INTENTS) | frozenset(_MODULE_INTENTS)
+
+
+def _normalize_intent(raw_intent: Any) -> str | None:
+    """Resolve a model-supplied intent to a known one, or None.
+
+    Accepts a project-intent verbatim, a module-intent verbatim, or a
+    ``build_<synonym>`` whose suffix normalizes to a module
+    (``build_imports`` -> ``build_processing``). None when unrecognised.
+    """
+    if not raw_intent:
+        return None
+    s = str(raw_intent).strip()
+    if s in _ALL_INTENTS:
+        return s
+    if s.startswith("build_"):
+        key = normalize_module(s[len("build_"):])
+        if key:
+            return f"build_{key}"
+    return None
 
 # Grid-resolution slugs the NOAA pattern understands.
 _RESOLUTIONS = frozenset({"0p25", "0p50", "1p00"})
@@ -291,26 +315,15 @@ def _vocab_data_types() -> str:
     return ", ".join(sorted(_DATA_TYPE_TO_PARAMETER))
 
 
-def _vocab_modules() -> str:
-    return ", ".join(f"{m.key} ({m.label})" for m in list_modules())
+def _vocab_modules_full() -> str:
+    """Each module as 'key: description' — the classification target for
+    the unified parser (the "build module X" overarching intent)."""
+    return "\n".join(f"- {m.key}: {m.description}" for m in list_modules())
 
 
 # ---------------------------------------------------------------------------
-# The extraction call
+# The extraction calls
 # ---------------------------------------------------------------------------
-
-_SCHEMA = {
-    "type": "object",
-    "properties": {
-        "action": {"type": "string"},
-        "module": {"type": ["string", "null"]},
-        "fields": {"type": "object", "additionalProperties": True},
-        "confidence": {"type": "number"},
-        "reasoning": {"type": "string"},
-    },
-    "required": ["action"],
-}
-
 
 def _parse_confidence(raw: Any) -> float:
     """Coerce the model's confidence to a float in [0, 1]; default 1.0.
@@ -333,53 +346,163 @@ def extract_operation(
     provider,
     model: str = "qwen2.5:7b-instruct",
 ) -> ExtractedOperation:
-    """Parse ``message`` into one validated operation on ``focus_module``.
+    """Parse one operation on ``focus_module`` — an ADAPTER over parse_turn.
 
-    The model proposes ``{action, module, fields}``; this then validates the
-    action against the known set, normalizes any ``select_module`` target,
-    and runs every field through :func:`validate_fields` so only
-    catalog-resolvable values survive. Never raises for a bad model response
-    — an unparseable or empty reply yields ``action="none"``.
+    Kept for its call sites (the module-op path in both drivers) and test
+    seams, but the parsing itself is now the unified :func:`parse_turn`. This
+    projects the ParsedTurn onto the operation shape: when the classified
+    intent targets a DIFFERENT module than the one in focus, that's a
+    ``select_module``; otherwise the action applies to the current module.
+    Never raises — a bad reply yields ``action="none"``.
+    """
+    pt = parse_turn(message, focus_module=focus_module, provider=provider,
+                    model=model)
+    if pt.module and pt.module != focus_module.key:
+        return ExtractedOperation(
+            action="select_module", module=pt.module,
+            fields=pt.fields, dropped=pt.dropped,
+            confidence=pt.confidence, raw=pt.raw,
+        )
+    return ExtractedOperation(
+        action=pt.action, module=None,
+        fields=pt.fields, dropped=pt.dropped,
+        confidence=pt.confidence, raw=pt.raw,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Unified turn parser — ONE LLM call classifies the overarching intent
+# ("build module X" = the target module) + the operation + the fields.
+# ---------------------------------------------------------------------------
+#
+# This subsumes the two older LLM parsers: classify_intent (whole-project
+# intent) and extract_operation (module-focused op). The overarching intent
+# a turn carries is now WHICH MODULE the user wants to build/work on — the
+# module IS the intent. The whole-project intent needed by the pattern
+# resolver (build_forecasting_project / ...) is NOT classified here; it is
+# derived deterministically downstream from the extracted fields.
+
+# Actions the unified parser may return. `select_module` is gone — a module
+# switch is just a different module-intent than the current focus.
+_TURN_ACTIONS = frozenset({"add", "set", "remove", "build", "list", "none"})
+
+_TURN_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "intent": {"type": ["string", "null"]},
+        "action": {"type": "string"},
+        "fields": {"type": "object", "additionalProperties": True},
+        "confidence": {"type": "number"},
+        "reasoning": {"type": "string"},
+    },
+    "required": ["intent", "action"],
+}
+
+
+def _intent_catalog() -> str:
+    """The 12-way intent list the model classifies from (for the prompt)."""
+    lines = [
+        "Whole-project intents (the user describes a complete config in one "
+        "go):",
+    ]
+    for k, i in INTENTS.items():
+        lines.append(f"- {k}: {i.description}")
+    lines.append("")
+    lines.append("Module intents (the user builds/works on ONE FEWS module):")
+    for m in list_modules():
+        lines.append(f"- build_{m.key}: build the {m.label} module — "
+                     f"{m.description}")
+    return "\n".join(lines)
+
+
+@dataclass
+class ParsedTurn:
+    """One turn parsed by the unified LLM call.
+
+    ``intent`` is the overarching intent the model classified — ONE of the 12
+    (3 whole-project + 9 ``build_<module>``). ``action``/``fields`` are the
+    operation on that target. ``fields`` keeps the extract_skills slot shape,
+    so downstream reuse (additive slot-fill + resolve) is unchanged. The
+    module (for a module-intent) and project-vs-module split are derived
+    properties, so callers don't re-parse the intent string.
+    """
+
+    intent: str | None = None
+    action: str = "none"
+    fields: dict[str, Any] = field(default_factory=dict)
+    dropped: list[str] = field(default_factory=list)
+    confidence: float = 1.0
+    raw: dict[str, Any] = field(default_factory=dict)
+
+    @property
+    def module(self) -> str | None:
+        """Module key when ``intent`` is a module-intent, else None."""
+        return _MODULE_INTENTS.get(self.intent or "")
+
+    @property
+    def is_project_intent(self) -> bool:
+        """True when ``intent`` is one of the whole-project intents."""
+        return self.intent in INTENTS
+
+
+def parse_turn(
+    message: str,
+    *,
+    focus_module: Module | None = None,
+    provider,
+    model: str = "qwen2.5:7b-instruct",
+) -> ParsedTurn:
+    """Classify the overarching intent + operation + fields in one LLM call.
+
+    The model picks ONE intent from the 12-way taxonomy (3 whole-project +
+    one ``build_<module>`` per module), defaulting to the focused module's
+    intent when the user doesn't indicate otherwise, plus the operation and
+    any field values. Intent is validated against the taxonomy; fields are
+    catalog-validated (unknowns dropped). Never raises — a bad/empty reply
+    yields a no-op parse that keeps the current focus.
     """
     from fews_agent.agent import prompts
 
-    system = prompts.load("extract_operation.system")
+    focus_intent = f"build_{focus_module.key}" if focus_module else None
+
+    system = prompts.load("parse_turn.system")
     user = prompts.load(
-        "extract_operation.user",
+        "parse_turn.user",
         message=repr(message),
-        module_key=focus_module.key,
-        module_label=focus_module.label,
-        module_prompt=focus_module.prompt or focus_module.description,
-        module_operations=", ".join(focus_module.operations),
+        focus=focus_intent or "(none — the user hasn't picked one yet)",
+        intent_catalog=_intent_catalog(),
         vocab_imports=_vocab_imports(),
         vocab_adapters=_vocab_adapters(),
         vocab_data_types=_vocab_data_types(),
-        vocab_modules=_vocab_modules(),
     )
 
     try:
-        resp = provider.generate_json(system=system, user=user, schema=_SCHEMA)
+        resp = provider.generate_json(
+            system=system, user=user, schema=_TURN_SCHEMA
+        )
         raw = resp.data or {}
     except Exception:
-        return ExtractedOperation(action="none")
+        return ParsedTurn(intent=focus_intent, action="none")
+
+    intent = _normalize_intent(raw.get("intent"))
+    if intent is None:
+        # Backward-compat with the old operation schema ({module: <key>}):
+        # let a bare module key stand in for its build-intent.
+        m = normalize_module(raw.get("module"))
+        if m:
+            intent = f"build_{m}"
+    if intent is None:
+        intent = focus_intent  # keep current focus when the model is silent
 
     action = str(raw.get("action") or "none").strip().lower()
-    if action not in _ACTIONS:
+    if action not in _TURN_ACTIONS:
         action = "none"
-
-    # An operation that names another module → normalize; if it doesn't
-    # resolve, treat as no module switch.
-    module_key = None
-    if action == "select_module":
-        module_key = normalize_module(raw.get("module"))
-        if module_key is None:
-            action = "none"
 
     clean_fields, dropped = validate_fields(raw.get("fields") or {})
 
-    return ExtractedOperation(
+    return ParsedTurn(
+        intent=intent,
         action=action,
-        module=module_key,
         fields=clean_fields,
         dropped=dropped,
         confidence=_parse_confidence(raw.get("confidence")),

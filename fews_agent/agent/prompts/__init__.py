@@ -7,9 +7,9 @@ must be editable without touching logic. Load them with :func:`load`::
 
     from fews_agent.agent import prompts
 
-    system = prompts.load("classify_intent.system")            # static
-    user = prompts.load("classify_intent.user", prose=repr(p),  # templated
-                        intent_descriptions=descs)
+    system = prompts.load("parse_turn.system")                 # static
+    user = prompts.load("parse_turn.user", message=repr(m),     # templated
+                        focus=focus, intent_catalog=cat, ...)
 
 Templating is Jinja2 with **square-bracket delimiters** (``[[ var ]]``,
 ``[% if %]``) instead of curly braces, because prompt text is full of

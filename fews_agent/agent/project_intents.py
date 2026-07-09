@@ -1726,80 +1726,46 @@ def classify_intent(
     provider: OllamaProvider | None = None,
     model: str = "qwen2.5:7b-instruct",
 ) -> dict[str, Any]:
-    """Pick the user's intent + independently extract entities from prose.
+    """Classify the whole-project intent — an ADAPTER over ``parse_turn``.
 
-    The skills still run and fill slots deterministically elsewhere, but
-    their output is deliberately NOT shown to the model here: feeding a
-    regex pre-pass to a capable model anchors it to (and, via the "skills
-    win" merge, is overridden by) the weaker extractor. So the model
-    classifies the intent and extracts entities purely from the prose; the
-    caller's deterministic merge then combines those with the skill results.
+    Kept for its call site (the whole-project turn-1 path in
+    ``run_turn_pipeline``) and its test seam, but the parsing is now the
+    unified :func:`extractor.parse_turn`, which classifies from all 12
+    intents (3 whole-project + 9 ``build_<module>``). This projects that onto
+    the ``{intent, entities}`` shape the pipeline expects: a whole-project
+    intent is returned as-is (with the default-to-forecasting demotion
+    preserved); a module-intent or ``unknown`` is passed through, and the
+    pipeline's own ``llm_picked if in INTENTS else heuristic`` fallback maps
+    it to a project shape from the extracted fields.
 
-    ``skill_results`` is retained in the signature — call sites still pass
-    it and it may be re-fed later — but is intentionally unused for now.
+    ``skill_results`` is retained in the signature (call sites still pass it)
+    but is intentionally unused — the model parses from prose alone.
     """
     if provider is None:
         from .providers.factory import get_provider_or_ollama
         provider = get_provider_or_ollama(model)
 
-    from fews_agent.agent import prompts
+    from fews_agent.agent.extractor import parse_turn
 
-    intent_descriptions = "\n".join(
-        f"- {i.name}: {i.description}\n  keywords: {', '.join(i.keywords)}"
-        for i in INTENTS.values()
-    )
+    pt = parse_turn(prose, focus_module=None, provider=provider, model=model)
+    intent = pt.intent or "unknown"
+    reasoning = pt.raw.get("reasoning", "") if isinstance(pt.raw, dict) else ""
 
-    system = prompts.load("classify_intent.system")
-    user = prompts.load(
-        "classify_intent.user",
-        prose=repr(prose),
-        intent_descriptions=intent_descriptions,
-    )
-    schema = {
-        "type": "object",
-        "properties": {
-            "intent": {"type": "string"},
-            "entities": {
-                "type": "object",
-                "additionalProperties": True,
-            },
-            "reasoning": {"type": "string"},
-        },
-        "required": ["intent"],
-    }
-    resp = provider.generate_json(system=system, user=user, schema=schema)
-    data = resp.data or {}
-    data.setdefault("intent", "unknown")
-    data.setdefault("entities", {})
-    data.setdefault("reasoning", "")
+    # Default-to-forecasting bias (unchanged policy): a narrower whole-project
+    # intent with no explicit narrowing signal in the prose → forecasting.
+    # Only applies to the whole-project intents; module-intents pass through.
+    if (
+        intent in {"build_basin_model_only", "build_data_import_only"}
+        and not _prose_signals_narrower_intent(prose)
+    ):
+        note = (
+            f"promoted {intent} → build_forecasting_project "
+            "(no explicit narrowing signal; default-to-forecasting policy)"
+        )
+        reasoning = f"{reasoning}\n{note}" if reasoning else note
+        intent = "build_forecasting_project"
 
-    # Default-to-forecasting bias: the narrower build_*_only intents
-    # are easy for a small LLM to overfit to when the user's prose
-    # mentions a basin without imports (or imports without a basin)
-    # — even if no explicit "only / just / no model / no imports"
-    # signal is present. Demote a narrower pick to forecasting when
-    # the prose contains no narrowing keyword. This preserves the
-    # narrower intents for cases where the user is explicit
-    # ("set up imports only", "model only — no NWP yet") but defaults
-    # to the richer build in ambiguous cases.
-    picked = data.get("intent") or ""
-    if picked in {"build_basin_model_only", "build_data_import_only"}:
-        if not _prose_signals_narrower_intent(prose):
-            data["intent"] = "build_forecasting_project"
-            note = (
-                f"promoted {picked} → build_forecasting_project "
-                "(no explicit 'only' / 'no imports' / 'model only' "
-                "signal in prose; default-to-forecasting policy)"
-            )
-            data["reasoning"] = (
-                f"{data['reasoning']}\n{note}" if data["reasoning"] else note
-            )
-    elif picked not in INTENTS and picked != "unknown":
-        # LLM made up an intent name not in the registry. Treat as
-        # ambiguous and default to forecasting.
-        data["intent"] = "build_forecasting_project"
-
-    return data
+    return {"intent": intent, "entities": pt.fields, "reasoning": reasoning}
 
 
 # Words/phrases that signal the user *deliberately* wants a narrower

@@ -662,19 +662,26 @@ capability phases *within* `processing`/`display` for scoped builds.
   There is **no separate shared-variable store**: `state["slots"]` already
   persists across turns and `project.yaml` is its serialized form, so
   "shared variables persist" is free.
-- **`extractor.py`** — the LLM operation extractor: `extract_operation(
-  message, focus_module, provider) -> ExtractedOperation{action, module,
-  fields, dropped, confidence}`. The model extracts freely; then
-  **deterministic `validate_fields` checks every value against the catalog**
-  (import names + aliases, adapters, `_DATA_TYPE_TO_PARAMETER`, resolutions,
-  `normalize_module`) and drops anything unknown into `dropped` (surfaced
-  loudly, never applied) — the same "validate, don't trust" boundary as the
-  filter drafter. `fields` is the SAME slot shape `extract_skills` produces,
-  so add/set flow through the existing additive slot-fill + resolve
-  unchanged.
+- **`extractor.py`** — the **single unified LLM parser** `parse_turn(
+  message, focus_module, provider) -> ParsedTurn{intent, action, fields,
+  dropped, confidence}`. ONE call classifies the overarching intent from
+  **all 12** (the 3 whole-project intents + one `build_<module>` per
+  FEWS-folder module), plus the operation and fields. `.module` /
+  `.is_project_intent` are derived properties. The model extracts freely;
+  then **deterministic `validate_fields` checks every value against the
+  catalog** (import names + aliases, adapters, `_DATA_TYPE_TO_PARAMETER`,
+  resolutions, `normalize_module`) and drops anything unknown into `dropped`
+  (surfaced loudly, never applied) — the same "validate, don't trust"
+  boundary as the filter drafter. `fields` is the SAME slot shape
+  `extract_skills` produces, so add/set flow through the existing additive
+  slot-fill + resolve unchanged. **`classify_intent` (whole-project) and
+  `extract_operation` (module-op) are now thin ADAPTERS over `parse_turn`** —
+  kept for their call sites + test seams, so both drivers, the pipeline, the
+  reply split, and cold-entry are unchanged, but the LLM parsing is one
+  implementation + one prompt (`prompts/parse_turn.{system,user}.txt`).
 
 **Turn flow when a module is in focus** (both drivers, before the intent
-pipeline): prose → `extract_operation` → route the action:
+pipeline): prose → `extract_operation` (→ `parse_turn`) → route the action:
 `add`/`set` → `turn_engine.apply_extracted_fields` (honours add=fill vs
 set=override) → resolve; `remove` → `extracted_removal_edits`;
 `select_module` → `set_focus`; `build`/`list` → the scoped handlers.
@@ -1064,14 +1071,14 @@ the "qwen2.5" default is just the Ollama fallback, not a hard dependency.
 
 | # | Where | Job |
 |---|---|---|
-| 1 | chat (whole-project) | Intent classification (build_forecasting_project / data_import_only / basin_model_only) + its own entity extraction |
-| 2 | chat (whole-project) | Compose user-facing reply |
-| 3 | chat (**module-mode**) | **Operation extractor**: prose → `{action, module, fields, confidence}`, catalog-validated (`extractor.py`) |
-| 4 | build | Draft `Filters.xml` from project IDs (falls back to the bundled `filtersFile.yaml`) |
+| 1 | chat | **`parse_turn`** (`extractor.py`) — ONE unified parser: classifies the intent from all 12 (3 whole-project + 9 `build_<module>`) + the operation + catalog-validated fields + confidence. `classify_intent`/`extract_operation` are thin adapters over it. |
+| 2 | chat (whole-project) | Compose user-facing reply (`compose_reply`; module-ops use deterministic replies) |
+| 3 | build | Draft `Filters.xml` from project IDs (falls back to the bundled `filtersFile.yaml`) |
 
 (Plus the app-only `compose_status_reply` / `compose_help_reply` meta
 replies.) If the LLM is down, the chat half fails loudly; the build half
-still works end-to-end.
+still works end-to-end. Note: job 1 subsumes what used to be two separate
+LLM calls (intent classification + operation extraction).
 
 **The regex skills are no longer fed to the classifier.** `extract_skills`
 still runs and fills slots deterministically, but its output is NOT shown
@@ -1345,7 +1352,7 @@ app/chatter.py                                     Streamlit driver: command dis
 fews_agent/agent/project_intents.py               skills, intent registry, resolvers, blocklist, COMMANDS (/help)
 fews_agent/agent/modules.py                        module registry (module = FEWS folder; the weld + RegionConfig split)
 fews_agent/agent/module_focus.py                   focus layer + cold entry (detect_module_entry)
-fews_agent/agent/extractor.py                      module-mode prose → validated operation (+ confidence gate)
+fews_agent/agent/extractor.py                      parse_turn — the ONE unified LLM parser (intent+operation+fields); classify_intent/extract_operation are adapters over it
 fews_agent/agent/prompts/                          ALL LLM prompts as .txt (loader in __init__.py; [[ ]] delimiters)
 fews_agent/agent/project_chat.py                  state I/O, pattern catalog loading
 fews_agent/agent/providers/factory.py              provider resolution (Ollama / Azure / LiteLLM via env)
