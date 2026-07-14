@@ -910,13 +910,20 @@ def detect_edit_action(text: str) -> dict | None:
 # Composite: extract everything the skills can find
 # ---------------------------------------------------------------------------
 
-def extract_skills(text: str) -> dict[str, Any]:
-    """Run every skill on text; return everything found.
+def filter_prose(text: str) -> dict[str, Any]:
+    """Prose filtering: run every deterministic detector over the text and
+    return the structured facts they surface.
 
-    ``basins`` (list of {basin_name, model_adapter} pairs) is the
-    canonical multi-basin slot. ``basin_name`` and ``model_adapter``
-    remain for backwards compatibility with single-basin intents and
-    are populated only when exactly one basin is detected.
+    These are the old "regex skills" — renamed to what they actually are: a
+    prose FILTER (scan for known tokens; decide nothing, act on nothing),
+    NOT a skill. A "skill" now means an intent-connected action (see
+    ``skills.py``). ``filter_prose`` structures raw prose into candidate
+    facts; the LLM parser and the skills act on them.
+
+    ``basins`` (list of {basin_name, model_adapter} pairs) is the canonical
+    multi-basin slot. ``basin_name`` and ``model_adapter`` remain for
+    backwards compatibility and are populated only when exactly one basin is
+    detected.
     """
     pairs = detect_basins_with_adapters(text)
     single_basin = detect_basin(text) if len(pairs) <= 1 else None
@@ -946,6 +953,10 @@ def extract_skills(text: str) -> dict[str, Any]:
         "grid_resolution": detect_grid_resolution(text),
         "forecast_horizon_hours": detect_forecast_horizon_hours(text),
     }
+
+
+# Backwards-compat alias for the old name. Prefer ``filter_prose``.
+extract_skills = filter_prose
 
 
 # ---------------------------------------------------------------------------
@@ -1964,7 +1975,7 @@ def fill_slots_from_text(
     only when the slot is empty (so we never overwrite an explicit user
     value with a later skill match).
     """
-    extracted = extract_skills(text)
+    extracted = filter_prose(text)
     new_slots = dict(slots)
     notes: list[str] = []
     for k, v in extracted.items():
@@ -3304,7 +3315,8 @@ __all__ = [
     "detect_wants_archive_import",
     "detect_region",
     "detect_status_query",
-    "extract_skills",
+    "filter_prose",
+    "extract_skills",  # deprecated alias for filter_prose
     "fill_slots_from_text",
     "heuristic_intent_from_slots",
     "intent_disambiguation_needed",

@@ -320,20 +320,20 @@ def test_detect_nl_no_edit_verb_returns_none():
 
 def _apply_nl_edit(state, message, catalog):
     """Mimic chat_step Phase 2.5: apply NL edits + re-add suppression."""
-    skill = turn_engine.extract_skills(message)
+    facts = turn_engine.filter_prose(message)
     edit = detect_edit_action(message)
     notes = []
     if edit and edit.get("edits"):
         for e in edit["edits"]:
             notes.append(chat_step.apply_edit_action(state, e, catalog))
         ri = {x.lower() for x in edit.get("removed_imports", [])}
-        if ri and isinstance(skill.get("imports"), list):
-            skill["imports"] = [
-                x for x in skill["imports"] if str(x).lower() not in ri
+        if ri and isinstance(facts.get("imports"), list):
+            facts["imports"] = [
+                x for x in facts["imports"] if str(x).lower() not in ri
             ]
     # Additive merge (imports only, mirroring the real loop's list union).
     slots = state.setdefault("slots", {})
-    for x in skill.get("imports", []):
+    for x in facts.get("imports", []):
         imports = slots.setdefault("imports", [])
         if all(str(i).lower() != str(x).lower() for i in imports):
             imports.append(x)

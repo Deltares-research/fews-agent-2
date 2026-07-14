@@ -1249,7 +1249,7 @@ class ChatSession:
                     provider=provider,
                 )
             internals = _format_internals(
-                skill_results={"status_query": True},
+                prose_facts={"status_query": True},
                 llm_intent=None,
                 llm_entities=None,
                 chosen_intent=self.state.get("intent"),

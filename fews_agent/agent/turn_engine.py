@@ -39,7 +39,7 @@ from fews_agent.agent.project_intents import (
     detect_forecast_horizon_hours,
     detect_grid_resolution,
     detect_model_adapter,
-    extract_skills,
+    filter_prose,
     heuristic_intent_from_slots,
     intent_disambiguation_needed,
     intent_disambiguation_question,
@@ -382,37 +382,67 @@ def apply_extracted_fields(state: dict, op, catalog) -> tuple[str, list[str]]:
     return note, new
 
 
-def apply_operation(state: dict, op, catalog) -> tuple[str, list[str]]:
-    """Route one ExtractedOperation's effect; return (reply, new_patterns).
+def apply_removal(state: dict, op, catalog) -> tuple[str, list[str]]:
+    """The `remove` skill handler: remove whole imports/basins + field values.
 
-    Handles add/set (merge fields + resolve), remove (removal edits), and
-    select_module (switch focus). ``build``/``list`` are the DRIVER's
-    responsibility (they do console/build I/O), so they're not routed here.
-    Shared by the fresh-extract path and the pending-confirmation path so
-    "apply now" and "apply after you confirm" can't diverge.
+    (Registered as the ``remove`` skill in ``skills.py``.)
+    """
+    notes: list[str] = []
+    # Whole items (imports/basins) — each re-resolves via apply_edit_action.
+    for e in extracted_removal_edits(op):
+        notes.append(apply_edit_action(state, e, catalog))
+    # Field values (a data_type, a scalar/bool setting).
+    field_notes = apply_field_removals(state, op.fields or {})
+    if field_notes:
+        notes.extend(field_notes)
+        if not state.get("intent"):
+            inferred = heuristic_intent_from_slots(state.get("slots", {}))
+            if inferred:
+                state["intent"] = inferred
+        resolve_patterns(state, catalog)  # propagate dropped values
+    if not notes:
+        return "Nothing recognised to remove.", []
+    return "\n".join(notes), []
+
+
+def _current_intent(state: dict) -> str | None:
+    """The intent a module-op turn is operating under: the focused module's
+    build-intent, falling back to the whole-project intent."""
+    cm = state.get("current_module")
+    if cm:
+        return f"build_{cm}"
+    return state.get("intent")
+
+
+def apply_operation(state: dict, op, catalog) -> tuple[str, list[str]]:
+    """Route one operation's effect through the SKILL registry.
+
+    ``select_module`` (focus change) and ``none`` (fill any fields) are handled
+    directly. Every state-mutating action (add/set/remove) is dispatched to the
+    skill registered for ``(current intent, action)`` — so which actions an
+    intent supports, and how they're handled, is data in ``skills.py`` rather
+    than an inline if-ladder. ``build``/``list`` are DRIVER-executed (I/O), not
+    skills. Shared by the fresh-extract and pending-confirmation paths.
     """
     if op.action == "select_module":
         module, card = module_focus.set_focus(state, op.module)
         return card, []
-    if op.action == "remove":
-        notes: list[str] = []
-        # Whole items (imports/basins) — each re-resolves via apply_edit_action.
-        for e in extracted_removal_edits(op):
-            notes.append(apply_edit_action(state, e, catalog))
-        # Field values (a data_type, a scalar/bool setting).
-        field_notes = apply_field_removals(state, op.fields or {})
-        if field_notes:
-            notes.extend(field_notes)
-            if not state.get("intent"):
-                inferred = heuristic_intent_from_slots(state.get("slots", {}))
-                if inferred:
-                    state["intent"] = inferred
-            resolve_patterns(state, catalog)  # propagate dropped values
-        if not notes:
-            return "Nothing recognised to remove.", []
-        return "\n".join(notes), []
-    # add / set / none
-    return apply_extracted_fields(state, op, catalog)
+    if op.action == "none":
+        return apply_extracted_fields(state, op, catalog)
+
+    from .skills import find_skill
+
+    intent = _current_intent(state)
+    skill = find_skill(intent, op.action)
+    if skill is None:
+        focus = module_focus.get_focus(state)
+        label = focus.label if focus else "this module"
+        avail = ", ".join(focus.operations) if focus else "(none)"
+        return (
+            f"The {label} doesn't support '{op.action}'. "
+            f"Available here: {avail}."
+        ), []
+    return skill.handler(state, op, catalog)
 
 
 _AFFIRM = frozenset({
@@ -458,7 +488,7 @@ def apply_disambiguation_answer(state: dict, message: str) -> None:
 
 
 def _format_internals(
-    skill_results: dict,
+    prose_facts: dict,
     llm_intent: str | None,
     llm_entities: dict | None,
     chosen_intent: str | None,
@@ -474,8 +504,8 @@ def _format_internals(
     lines: list[str] = []
 
     lines.append("**1. Skills (deterministic regex pass)**")
-    if skill_results:
-        for k, v in skill_results.items():
+    if prose_facts:
+        for k, v in prose_facts.items():
             if v in (None, [], {}):
                 continue
             lines.append(f"- `{k}` = {v!r}")
@@ -599,7 +629,7 @@ def run_turn_pipeline(
     CLI passes False and the suppression state is never touched.
     """
     # Phase 1: skills.
-    skill_results = extract_skills(message)
+    prose_facts = filter_prose(message)
 
     # Phase 2: intent classification (only if no intent yet).
     notes: list[str] = []
@@ -609,24 +639,24 @@ def run_turn_pipeline(
 
     if state.get("intent") is None:
         try:
-            cls = classify_intent(message, skill_results, provider=provider)
+            cls = classify_intent(message, prose_facts, provider=provider)
             llm_picked = cls.get("intent")
             llm_entities = cls.get("entities", {}) or {}
             # Merge LLM-supplied entities into skill results (skills win).
             # Empty-list slots (data_types) are treated as missing so the
             # LLM extraction isn't shadowed by a zero-result regex pass.
             for k, v in llm_entities.items():
-                existing = skill_results.get(k)
-                if (k not in skill_results or existing is None
+                existing = prose_facts.get(k)
+                if (k not in prose_facts or existing is None
                         or (isinstance(existing, list) and not existing)):
-                    skill_results[k] = v
+                    prose_facts[k] = v
                     notes.append(f"LLM filled {k}={v}")
         except Exception as exc:  # noqa: BLE001
             notes.append(f"intent classify failed: {str(exc)[:60]}")
 
         chosen_intent = (
             llm_picked if llm_picked in INTENTS
-            else heuristic_intent_from_slots(skill_results)
+            else heuristic_intent_from_slots(prose_facts)
         )
         state["intent"] = chosen_intent
         if chosen_intent:
@@ -653,7 +683,7 @@ def run_turn_pipeline(
     # Verb-gated and target-required, so descriptive prose never parses as an
     # edit. Runs AFTER intent + LLM-entity merge but BEFORE the additive
     # merge: applied edits mutate slots immediately, then the just-removed
-    # targets are stripped from skill_results so the additive merge below
+    # targets are stripped from prose_facts so the additive merge below
     # cannot re-add them on the same turn.
     recent_edit_note: str | None = None  # per-turn; stale notes must not leak
     edit_action = detect_edit_action(message)
@@ -665,31 +695,31 @@ def run_turn_pipeline(
             applied_notes.append(note)
         if edit_action.get("removed_imports"):
             ri = {x.lower() for x in edit_action["removed_imports"]}
-            if isinstance(skill_results.get("imports"), list):
-                skill_results["imports"] = [
-                    x for x in skill_results["imports"]
+            if isinstance(prose_facts.get("imports"), list):
+                prose_facts["imports"] = [
+                    x for x in prose_facts["imports"]
                     if str(x).lower() not in ri
                 ]
         if edit_action.get("removed_basins"):
             rb = {x.lower() for x in edit_action["removed_basins"]}
-            if isinstance(skill_results.get("basins"), list):
-                skill_results["basins"] = [
-                    b for b in skill_results["basins"]
+            if isinstance(prose_facts.get("basins"), list):
+                prose_facts["basins"] = [
+                    b for b in prose_facts["basins"]
                     if not (
                         isinstance(b, dict)
                         and str(b.get("basin_name", "")).lower() in rb
                     )
                 ]
             if (
-                isinstance(skill_results.get("basin_name"), str)
-                and skill_results["basin_name"].lower() in rb
+                isinstance(prose_facts.get("basin_name"), str)
+                and prose_facts["basin_name"].lower() in rb
             ):
-                skill_results["basin_name"] = None
+                prose_facts["basin_name"] = None
         recent_edit_note = "; ".join(applied_notes)
 
     # Phase 3: slot filling — additive, no overwrites.
     slots = state.setdefault("slots", {})
-    for k, v in skill_results.items():
+    for k, v in prose_facts.items():
         if v is None or v == []:
             continue
         existing = slots.get(k)
@@ -880,7 +910,7 @@ def run_turn_pipeline(
     )
 
     internals = _format_internals(
-        skill_results=skill_results,
+        prose_facts=prose_facts,
         llm_intent=llm_picked,
         llm_entities=llm_entities,
         chosen_intent=chosen_intent,

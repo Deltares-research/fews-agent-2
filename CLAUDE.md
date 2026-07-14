@@ -600,14 +600,46 @@ regression) and `tests/test_intent_disambiguation_turn.py` (the turn
 loop end-to-end with `classify_intent` / `compose_reply` stubbed — no
 Ollama).
 
-### Adding a new skill
+### Vocabulary: "prose filtering" vs "skills"
 
-A skill is a deterministic function `text → value` (or `→ list[value]`).
-Add it to `project_intents.py`, wire it into `extract_skills(text)`,
-and add the slot key to the relevant intent's `required_slots` /
-`optional_slots`. Skills are regex/keyword based — no LLM. If the
-extraction is genuinely fuzzy, push it into the LLM intent classifier
-instead.
+The word **skill** was reclaimed this session — mind the two distinct
+concepts:
+
+- **Prose filtering** — the old regex layer. Deterministic functions
+  `text → value` (`detect_*`, aggregated by `filter_prose`, formerly
+  `extract_skills`) that scan prose and surface known tokens (basins,
+  imports, data types, ...). They **decide and act on nothing** — their
+  output fills slots via the additive merge and is *not* fed to the LLM.
+- **Skills** — intent-connected **actions**. A skill is a `(intent,
+  action)` pair bound to a handler that mutates project state (e.g.
+  `build_processing` + `add`). They live in `skills.py`; the registry is
+  the single source of truth for which actions an intent supports.
+
+#### Adding a new prose filter
+
+A prose filter is a deterministic function `text → value` (or
+`→ list[value]`). Add it to `project_intents.py`, wire it into
+`filter_prose(text)`, and add the slot key to the relevant intent's
+`required_slots` / `optional_slots`. Prose filters are regex/keyword
+based — no LLM. If the extraction is genuinely fuzzy, let the unified
+`parse_turn` LLM parser handle it instead (validate its output against
+the catalog — never trust it raw).
+
+#### Adding a new skill
+
+Skills are **derived from the module registry**, so you rarely hand-write
+one: `skills._build_registry()` emits a skill per `(build_<module>,
+action)` for every mutating action (`add`/`set`/`remove`) a module
+declares in its `operations`, plus the full editing surface for each
+whole-project intent. To give a module a new capability, add the action
+to that module's `operations` in `modules.py` (a view-only module that
+lists only `list`/`build` registers no mutating skills — exactly the
+support policy). To change *how* an action executes, edit its handler in
+`turn_engine` (`apply_extracted_fields` for add/set, `apply_removal` for
+remove); `skills._action_handlers` binds them (lazily, to avoid a
+load-time cycle — `turn_engine.apply_operation` imports `skills`, not the
+reverse). Dispatch flows `apply_operation → find_skill(intent, action) →
+skill.handler`.
 
 ### Adding a new intent
 
