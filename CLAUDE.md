@@ -1207,9 +1207,38 @@ Build-side wiring lives in `runners/agent/build_from_blueprint.py`:
   `nwp_grid_*` instances to extract names and resolutions for the
   rewriters.
 
-Today the bbox/resolution/horizon plumbing is NOAA-only (the only
-pattern hard-wired into `_PARAMETERIZED_NWP_PATTERNS`). Extending to
-ECCC (HRDPS/GDPS/RDPS/REPS) is symmetric work if anyone wants it.
+**What actually reaches ECCC vs what doesn't** (the earlier "all
+NOAA-only" note was imprecise — the three legs differ, and prose
+extraction is generic to all of them). The prose slots
+(`detect_grid_resolution` / `detect_custom_bbox` /
+`detect_forecast_horizon_hours`) are source-agnostic — the agent
+extracts them from ECCC prose today; the *application* to grid geometry
+is what varies by source:
+
+- **bbox / region crop — already covers ECCC.** `_apply_region_to_grids`
+  + `_nwp_location_ids_from_blueprint` key on the `auto/nwp_grid_`
+  *prefix*, so they crop HRDPS/GDPS/RDPS grid entries (present in the
+  bundled `gridsFile.yaml`) exactly as they crop GFS. Pinned by
+  `tests/test_nwp_grid_rewriters.py::test_bbox_crop_covers_eccc_grids`.
+- **forecast horizon — already covers any source.** It's emitted as a
+  `relativeViewPeriod` by the `spatial_display_grid` visualize pattern
+  from `forecast_horizon_hours`, independent of NWP lineage.
+- **resolution — NOAA-shaped, and correctly so.** NOAA's DODS URL takes
+  a resolution *slug* (`gfs_0p50`), so it's a real user-selectable knob;
+  `_apply_nwp_resolutions_to_grids` fires only for an instance carrying a
+  known slug (`_GRID_RESOLUTION_DEGREES`). ECCC products (HRDPS ≈2.5 km,
+  RDPS ≈10 km, GDPS ≈15 km) are **fixed native resolution** served from a
+  WCS endpoint — there is no slug to request, so the override
+  deliberately no-ops on them (pinned by
+  `test_resolution_override_noops_on_eccc_without_slug`). "Extending
+  resolution to ECCC" is largely a category error; the right behaviour is
+  for the agent to *state* the resolution is fixed, not accept a knob.
+
+Separately, `_PARAMETERIZED_NWP_PATTERNS` (in `project_intents.py`) is
+about **parameter selection** — which pattern accepts a `data_types` ->
+`parameters` variable — and is genuinely NOAA-only (ECCC imports a fixed
+parameter set, intersected at resolve). It is unrelated to the
+bbox/resolution/horizon plumbing above.
 
 ### Demo / experiment projects on disk (reference fixtures, not regression oracles)
 
