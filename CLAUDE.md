@@ -1276,14 +1276,21 @@ composes with, and takes precedence over, the region-bbox crop.
   rewriters; leaves cell size; skips projected `polarStereographic`/
   `gridCorners` grids, which have no `firstCellCenter`).
 - **UX (Streamlit-only for now).** `/coordinates [<name>]` in the app returns
-  `TurnResult(kind="coordinates", coordinates_request=[{name, geometry}, ...])`;
-  `frontend/web_app.py` opens an `st.dialog` modal (expander fallback) with
-  number inputs, and submitting calls `ChatSession.apply_grid_geometry(...)`.
-  The CLI has a stub pointing at the web app (no modal); the build/data model
-  is shared, so CLI/API can adopt it later. Tests:
-  `test_nwp_grid_rewriters.py` (mutator + rewriter + precedence + skip-cases,
-  the durable oracle) and `test_chatter_module_mode.py` (the `/coordinates`
-  command + `apply_grid_geometry`).
+  `TurnResult(kind="coordinates", coordinates_request=[{name, geometry,
+  cell_size}, ...])`; `frontend/web_app.py` opens an `st.dialog` modal
+  (expander fallback) with number inputs, and submitting calls
+  `ChatSession.apply_grid_geometry(...)`. **Live map:** the modal draws the
+  grid box + first-cell-centre on a pydeck map that re-renders on every input
+  change — computed by the pure `project_chat.grid_bbox(...)` from the point +
+  counts + the **effective inherited cell size** (`ChatSession._effective_cell_
+  size` → resolution slug degrees, else the bundled gridsFile default via
+  `_bundled_grid_cell_size`, else 0.25). pydeck ships with Streamlit; a missing
+  import degrades to a numeric extent readout. The CLI has a stub pointing at
+  the web app (no modal); the build/data model is shared, so CLI/API can adopt
+  it later. Tests: `test_nwp_grid_rewriters.py` (mutator + rewriter +
+  precedence + skip-cases + `grid_bbox`, the durable oracle) and
+  `test_chatter_module_mode.py` (the `/coordinates` command +
+  `apply_grid_geometry` + effective cell size).
 
 ### Demo / experiment projects on disk (reference fixtures, not regression oracles)
 

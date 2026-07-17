@@ -435,10 +435,54 @@ if prompt:
 # an inline panel) to set a firstCellCenter + rows/columns; submitting calls
 # ChatSession.apply_grid_geometry (cell size is inherited). Rendered outside the
 # prompt block so the modal survives the reruns its own widgets trigger.
+def _render_grid_map(west, south, east, north, cx, cy) -> None:
+    """Draw the grid box + its first-cell-centre on a map, live. Degrades to a
+    numeric readout if pydeck (bundled with Streamlit) isn't importable."""
+    try:
+        import math
+
+        import pydeck as pdk
+    except Exception:  # noqa: BLE001
+        st.info(
+            f"Grid extent: lon [{west:.3f}, {east:.3f}], "
+            f"lat [{south:.3f}, {north:.3f}] "
+            "(install pydeck for the live map)."
+        )
+        return
+
+    poly = [[west, north], [east, north], [east, south], [west, south],
+            [west, north]]
+    box = pdk.Layer(
+        "PolygonLayer", data=[{"polygon": poly}], get_polygon="polygon",
+        get_fill_color=[255, 140, 0, 55], get_line_color=[255, 140, 0, 220],
+        line_width_min_pixels=2, stroked=True, filled=True, pickable=False,
+    )
+    origin = pdk.Layer(
+        "ScatterplotLayer", data=[{"position": [cx, cy]}],
+        get_position="position", get_fill_color=[220, 30, 30, 230],
+        get_radius=4, radius_min_pixels=4, radius_max_pixels=8,
+    )
+    extent = max(east - west, north - south, 1e-6)
+    zoom = max(1.0, min(10.0, math.log2(360.0 / extent) - 1.0))
+    view = pdk.ViewState(
+        latitude=(north + south) / 2, longitude=(west + east) / 2,
+        zoom=zoom, pitch=0,
+    )
+    st.pydeck_chart(
+        pdk.Deck(layers=[box, origin], initial_view_state=view),
+        use_container_width=True,
+    )
+
+
 def _render_coords_form(chat, grids: list[dict]) -> None:
+    from fews_agent.agent.project_chat import grid_bbox
+
     names = [g["name"] for g in grids]
     sel = st.selectbox("NWP grid import", names, key="_coords_sel")
-    cur = next((g.get("geometry") for g in grids if g["name"] == sel), None) or {}
+    g = next((g for g in grids if g["name"] == sel), {})
+    cur = g.get("geometry") or {}
+    cell_size = float(g.get("cell_size") or 0.25)
+
     c1, c2 = st.columns(2)
     x = c1.number_input(
         "First cell centre — longitude (x)",
@@ -457,11 +501,18 @@ def _render_coords_form(chat, grids: list[dict]) -> None:
         "Rows (rows-Y)", min_value=1, step=1,
         value=int(cur.get("rows", 100)), key="_coords_rows",
     )
+
+    # Live box: recomputed on every widget change (Streamlit reruns the form).
+    west, south, east, north = grid_bbox(x, y, int(cols), int(rows), cell_size)
+    _render_grid_map(west, south, east, north, x, y)
     st.caption(
-        "The top-left cell centre + grid size. Cell size is inherited from the "
-        "import's resolution / bundled default — this only repositions and "
-        "resizes the grid."
+        f"Cell size {cell_size:g}° (inherited) · extent "
+        f"{(east - west):g}° x {(north - south):g}° · "
+        f"lon [{west:g}, {east:g}], lat [{south:g}, {north:g}]. "
+        "The point is the top-left cell centre; this only repositions/resizes "
+        "the grid (cell size stays inherited)."
     )
+
     apply_col, cancel_col = st.columns(2)
     if apply_col.button("Apply", type="primary", use_container_width=True):
         chat.apply_grid_geometry(

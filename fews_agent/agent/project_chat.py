@@ -766,6 +766,26 @@ def set_variable(
     return f"Don't know how to set {variable!r}."
 
 
+def grid_bbox(
+    first_x: float, first_y: float, columns: int, rows: int, cell_size: float,
+) -> tuple[float, float, float, float]:
+    """West/south/east/north extent of a north-up lat/lon grid.
+
+    ``first_x``/``first_y`` are the FEWS ``firstCellCenter`` — the CENTRE of
+    the top-left (north-west) cell — so the grid's west/north edges sit half a
+    cell beyond it, and rows run south. Used by the coordinates subwindow to
+    draw the grid box on a map in real time.
+    """
+    cs = float(cell_size)
+    cols = int(columns)
+    r = int(rows)
+    west = float(first_x) - cs / 2
+    north = float(first_y) + cs / 2
+    east = west + cols * cs
+    south = north - r * cs
+    return (west, south, east, north)
+
+
 def set_grid_geometry(
     state: dict, name: str, *,
     first_x: float, first_y: float, columns: int, rows: int,
@@ -815,5 +835,6 @@ __all__ = [
     "remove_module",
     "set_variable",
     "set_grid_geometry",
+    "grid_bbox",
     "write_project",
 ]

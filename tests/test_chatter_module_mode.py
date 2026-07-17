@@ -129,6 +129,24 @@ def test_coordinates_opens_subwindow_for_resolved_grids(tmp_path, monkeypatch):
     assert all(g["geometry"] is None for g in res.coordinates_request)
 
 
+def test_coordinates_payload_carries_effective_cell_size(tmp_path, monkeypatch):
+    s = _session(tmp_path, monkeypatch, {
+        "action": "add", "fields": {"imports": ["GFS"]},
+    })
+    s.send("/module processing")
+    s.send("add a GFS import")
+    res = s.send("/coordinates")
+    gfs = next(g for g in res.coordinates_request if g["name"] == "GFS")
+    # Effective cell size drives the live map box; GFS's bundled default is 0.25.
+    assert gfs["cell_size"] == 0.25
+    # A resolution override changes the effective cell size the map draws with.
+    s.state["slots"].setdefault("import_overrides", {}).setdefault(
+        "GFS", {})["grid_resolution"] = "0p50"
+    res2 = s.send("/coordinates")
+    gfs2 = next(g for g in res2.coordinates_request if g["name"] == "GFS")
+    assert gfs2["cell_size"] == 0.5
+
+
 def test_apply_grid_geometry_sets_scoped_override_and_reflows(tmp_path, monkeypatch):
     s = _session(tmp_path, monkeypatch, {
         "action": "add", "fields": {"imports": ["GFS"]},

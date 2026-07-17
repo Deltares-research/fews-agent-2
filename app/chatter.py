@@ -64,6 +64,39 @@ from fews_agent.agent.turn_engine import (
 from fews_agent.agent import module_focus
 from fews_agent.agent.modules import module_for_pattern
 from fews_agent.agent.project_chat import set_grid_geometry
+
+
+_BUNDLED_CELL_SIZES: dict[str, float] | None = None
+
+
+def _bundled_grid_cell_size(name: str) -> float | None:
+    """xCellSize (deg) for ``name`` from the bundled standard gridsFile, or
+    None (unknown / projected grid). Cached; case-insensitive on locationId."""
+    global _BUNDLED_CELL_SIZES
+    if _BUNDLED_CELL_SIZES is None:
+        _BUNDLED_CELL_SIZES = {}
+        try:
+            import yaml
+            from runners.agent.build_from_blueprint import STANDARD_INPUTS_DIR
+            data = yaml.safe_load(
+                (STANDARD_INPUTS_DIR / "gridsFile.yaml").read_text(
+                    encoding="utf-8"
+                )
+            )
+            for entry in (data or {}).get("body") or []:
+                reg = entry.get("regular") if isinstance(entry, dict) else None
+                if not isinstance(reg, dict):
+                    continue
+                loc = reg.get("@locationId")
+                cs = reg.get("xCellSize")
+                if isinstance(loc, str) and cs is not None:
+                    try:
+                        _BUNDLED_CELL_SIZES[loc.lower()] = float(cs)
+                    except (TypeError, ValueError):
+                        pass
+        except Exception:  # noqa: BLE001 — a missing/odd bundle just means no default
+            _BUNDLED_CELL_SIZES = {}
+    return _BUNDLED_CELL_SIZES.get(str(name).lower())
 from runners.agent.chat_step import (
     _parse_slash_edit,
     _phase_plan_text,
@@ -656,7 +689,12 @@ class ChatSession:
 
     def _nwp_grid_imports(self) -> list[dict]:
         """The project's NWP grid imports eligible for /coordinates, each as
-        ``{"name", "geometry"}`` (geometry = current override, or None)."""
+        ``{"name", "geometry", "cell_size"}``.
+
+        ``geometry`` is the current override (or None); ``cell_size`` is the
+        *effective inherited* cell size in degrees, so the subwindow can draw
+        the grid box on a map without asking for it (it's what the build will
+        use)."""
         resolve_patterns(self.state, self.catalog)
         overrides = (self.state.get("slots") or {}).get("import_overrides") or {}
         out: list[dict] = []
@@ -670,8 +708,23 @@ class ChatSession:
                     continue
                 seen.add(name)
                 geom = (overrides.get(name) or {}).get("grid_geometry")
-                out.append({"name": name, "geometry": geom})
+                out.append({
+                    "name": name, "geometry": geom,
+                    "cell_size": self._effective_cell_size(name),
+                })
         return out
+
+    def _effective_cell_size(self, name: str) -> float:
+        """The cell size (deg) the build will use for ``name`` — a resolution
+        override's slug if set, else the bundled gridsFile default, else 0.25.
+        Used only to DRAW the grid box (cell size stays inherited)."""
+        slots = self.state.get("slots") or {}
+        ov = (slots.get("import_overrides") or {}).get(name) or {}
+        slug = ov.get("grid_resolution") or slots.get("grid_resolution")
+        from runners.agent.build_from_blueprint import _GRID_RESOLUTION_DEGREES
+        if slug and slug in _GRID_RESOLUTION_DEGREES:
+            return _GRID_RESOLUTION_DEGREES[slug]
+        return _bundled_grid_cell_size(name) or 0.25
 
     def apply_grid_geometry(
         self, name: str, *,

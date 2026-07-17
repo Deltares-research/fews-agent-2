@@ -170,3 +170,13 @@ def test_set_grid_geometry_mutator_scopes_to_named_import():
     ov = state["slots"]["import_overrides"]
     assert ov["HRDPS"]["grid_geometry"] == _GEOM
     assert "GFS" not in ov  # scoped to the named import only
+
+
+def test_grid_bbox_from_firstcellcenter_and_counts():
+    from fews_agent.agent.project_chat import grid_bbox
+    # firstCellCenter is the CENTRE of the NW cell → edges sit half a cell out;
+    # rows run south.
+    west, south, east, north = grid_bbox(-11.75, 8.75, 48, 30, 0.5)
+    assert (west, south, east, north) == (-12.0, -6.0, 12.0, 9.0)
+    # A 1x1 grid's box is exactly one cell centred on the point.
+    assert grid_bbox(0.0, 0.0, 1, 1, 2.0) == (-1.0, -1.0, 1.0, 1.0)
