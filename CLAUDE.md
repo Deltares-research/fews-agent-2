@@ -543,6 +543,21 @@ State persists under
 `done` writes the project.yaml (validates intent readiness first);
 `yes`/`no` confirm a proposed pattern removal.
 
+**`projects/` is the single, shared session store for all three shells.**
+The CLI (`_resolve_project_dir`), the HTTP API (`_new_session_dir`), and the
+Streamlit app all persist under `projects/<name>/<name>_<datetime>/`, so a
+project started in any shell is resumable in the others. The Streamlit app
+opens on a **project picker** (`web_app._render_project_picker`, gated before
+the chat renders): *New project* (name → `new_project_session_dir`) or *Load
+existing* (dropdown of `list_projects` → `latest_project_session_dir` resumes
+the newest session). `list_projects` only surfaces folders that carry a
+`.chat_state.json`, so build-only regression fixtures (tutorial/small) stay
+out of the picker. The app's old username-keyed `sessions/` store is retired
+(the `SESSIONS_ROOT` helpers remain in `chatter` but are no longer wired into
+the UI). Helpers live in `app/chatter.py`
+(`list_projects`/`new_project_session_dir`/`latest_project_session_dir`/
+`safe_project_name`); tested in `tests/test_project_store.py`.
+
 ### Ask on ambiguous intent (Phase 3.5 gate)
 
 The default-to-forecasting bias used to silently promote a single-half
@@ -1461,7 +1476,8 @@ CLAUDE.md                                         this file (top-of-mind context
 # Elicitation half
 fews_agent/agent/turn_engine.py                   SHARED per-turn pipeline (Phases 1-5) + run_module_turn (module-mode); all 3 shells call it
 runners/agent/chat_step.py                        CLI driver: command dispatch + console I/O around turn_engine
-app/chatter.py                                     Streamlit driver: command dispatch + TurnResult around turn_engine
+app/chatter.py                                     Streamlit driver: command dispatch + TurnResult around turn_engine; projects/ store helpers (list_projects, new/latest_project_session_dir)
+frontend/web_app.py                                Streamlit UI: startup project picker (new/load) + chat render + coordinates map
 app/api/server.py                                  HTTP API driver: FastAPI endpoints (/turn does module-mode + intent pipeline; /build does full OR scoped phase/module) around turn_engine
 fews_agent/agent/project_intents.py               skills, intent registry, resolvers, blocklist, COMMANDS (/help)
 fews_agent/agent/modules.py                        module registry (module = FEWS folder; the weld + RegionConfig split)

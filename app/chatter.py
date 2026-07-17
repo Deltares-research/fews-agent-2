@@ -165,6 +165,71 @@ def list_sessions(username: str | None = None, root: Path = SESSIONS_ROOT) -> li
     )
 
 
+# --- projects/ store (the app's project picker; shared layout with the CLI) --
+#
+# A *project* is a folder ``projects/<name>/`` holding one or more
+# datetime-stamped chat sessions ``<name>_<YYYY-MM-DD_HHMMSS>/`` — the same
+# layout ``runners/agent/chat_step.py`` and ``app/api/server.py`` use, so a
+# project started in any shell is listable/resumable in the app.
+
+def safe_project_name(name: str) -> str:
+    """Filesystem-safe project name (the folder + instance-name stem)."""
+    cleaned = "".join(
+        c if (c.isalnum() or c in "-_.") else "-" for c in str(name).strip()
+    )
+    return cleaned or "project"
+
+
+def list_projects(root: Path = OUTPUT_ROOT) -> list[str]:
+    """Project names under ``projects/`` that hold at least one chat session,
+    most-recently-active first (so the picker shows resumable work, not the
+    build-only regression fixtures that carry no ``.chat_state.json``)."""
+    if not root.is_dir():
+        return []
+    entries: list[tuple[float, str]] = []
+    for d in root.iterdir():
+        if not d.is_dir():
+            continue
+        instances = [
+            i for i in d.iterdir()
+            if i.is_dir() and i.name.startswith(f"{d.name}_")
+            and (i / ".chat_state.json").is_file()
+        ]
+        if instances:
+            entries.append((max(i.stat().st_mtime for i in instances), d.name))
+    return [name for _, name in sorted(entries, reverse=True)]
+
+
+def latest_project_session_dir(
+    name: str, root: Path = OUTPUT_ROOT,
+) -> Path | None:
+    """The newest chat-session instance for a project, or None if it has none."""
+    parent = root / name
+    if not parent.is_dir():
+        return None
+    instances = sorted(
+        i for i in parent.iterdir()
+        if i.is_dir() and i.name.startswith(f"{name}_")
+    )
+    return instances[-1] if instances else None
+
+
+def new_project_session_dir(name: str, root: Path = OUTPUT_ROOT) -> Path:
+    """Mint a fresh ``projects/<name>/<name>_<YYYY-MM-DD_HHMMSS>/`` instance."""
+    safe = safe_project_name(name)
+    parent = root / safe
+    parent.mkdir(parents=True, exist_ok=True)
+    dt = datetime.now().strftime("%Y-%m-%d_%H%M%S")
+    out = parent / f"{safe}_{dt}"
+    if out.exists():  # two clicks in the same second
+        n = 2
+        while (parent / f"{safe}_{dt}_{n}").exists():
+            n += 1
+        out = parent / f"{safe}_{dt}_{n}"
+    out.mkdir(parents=True, exist_ok=True)
+    return out
+
+
 def _ollama_model_names(raw: object) -> list[str]:
     """Best-effort extraction of model names from an ``ollama.list()`` response.
 

@@ -4,8 +4,11 @@ Run with:
 
     streamlit run frontend/web_app.py
 
-Each chat lives in a session folder
-``sessions/<username>_<YYYY-MM-DD_HHMMSS>/`` containing:
+On start the app shows a **project picker**: create a new project (by
+name) or load an existing one from a dropdown. Each project lives under
+``projects/<name>/`` — the dedicated store, shared with the CLI and HTTP
+API — holding one or more datetime-stamped chat sessions
+``<name>_<YYYY-MM-DD_HHMMSS>/`` with:
 
   * ``.chat_state.json``    — current state (intent, slots, patterns)
   * ``.chat_history.json``  — full role/message history
@@ -13,12 +16,12 @@ Each chat lives in a session folder
   * ``_app.log``            — structured turn events
   * ``project.yaml``        — written here when the user types ``done``
 
-The sidebar lets the user pick their username (defaults to the system
-user) and either start a new session or resume one of their existing
-ones.
+Loading a project resumes its latest session; the sidebar's
+**Switch project** button returns to the picker.
 """
 from __future__ import annotations
 
+import getpass
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -44,10 +47,11 @@ import streamlit as st
 
 from app.chatter import (
     ChatSession,
-    SESSIONS_ROOT,
     list_ollama_models,
-    list_sessions,
-    new_session_dir,
+    list_projects,
+    latest_project_session_dir,
+    new_project_session_dir,
+    safe_project_name,
 )
 from fews_agent.agent.project_intents import (
     INTENTS,
@@ -66,27 +70,91 @@ st.set_page_config(
 
 
 def _ensure_session(
-    username: str, project_name: str, model: str, resume_path: str | None
+    username: str, project_name: str, model: str, session_dir: str,
 ) -> ChatSession:
-    """Cache one ChatSession in Streamlit session_state, keyed by chosen folder."""
-    key = f"chat::{resume_path or 'new'}::{username}::{model}"
+    """Cache one ChatSession in Streamlit session_state, keyed by the resolved
+    project session folder (see the project picker)."""
+    key = f"chat::{session_dir}::{username}::{model}"
     if st.session_state.get("_chat_key") != key:
-        if resume_path:
-            session_dir = SESSIONS_ROOT / resume_path
-        else:
-            session_dir = new_session_dir(username)
         st.session_state["chat"] = ChatSession(
             project_name=project_name,
             model=model,
-            session_dir=session_dir,
+            session_dir=Path(session_dir),
             username=username,
         )
         st.session_state["_chat_key"] = key
-        # Drop the previous session's validation stash so the panel
-        # doesn't bleed across sessions. The panel's render guard
-        # also checks chat_key, so this is belt-and-braces.
+        # Drop the previous session's validation / coordinates stashes so
+        # panels don't bleed across projects (their render guards also check
+        # chat_key, so this is belt-and-braces).
         st.session_state.pop("_last_done", None)
+        st.session_state.pop("_coords_request", None)
     return st.session_state["chat"]
+
+
+# ----- startup project picker -----------------------------------------------
+
+def _render_project_picker() -> None:
+    """The start screen: create a new project or load an existing one.
+
+    Resolves the chosen project's session folder under ``projects/`` and
+    stashes ``{name, session_dir}`` in ``st.session_state["_project"]``; the
+    main app renders once that's set.
+    """
+    st.title("💧 FEWS configurator agent")
+    st.subheader("Choose a project to work on")
+    st.caption(
+        "Projects live under `projects/` — each keeps its own chat state, "
+        "history and generated config."
+    )
+
+    tab_new, tab_load = st.tabs(["🆕 New project", "📂 Load existing"])
+
+    with tab_new:
+        name = st.text_input(
+            "Project name", key="_pick_new_name",
+            placeholder="e.g. liard-forecast",
+        )
+        clean = safe_project_name(name) if name.strip() else ""
+        if clean and clean != name.strip():
+            st.caption(f"Will be stored as `{clean}`.")
+        if st.button(
+            "Create project", type="primary", disabled=not clean,
+            use_container_width=True,
+        ):
+            sd = new_project_session_dir(clean)
+            st.session_state["_project"] = {"name": clean, "session_dir": str(sd)}
+            st.rerun()
+
+    with tab_load:
+        projects = list_projects()
+        if not projects:
+            st.info(
+                "No existing projects yet. Create one in the **New project** "
+                "tab."
+            )
+        else:
+            sel = st.selectbox(
+                "Existing projects", projects, key="_pick_load_sel",
+            )
+            if st.button(
+                "Open project", type="primary", use_container_width=True,
+            ):
+                sd = (
+                    latest_project_session_dir(sel)
+                    or new_project_session_dir(sel)
+                )
+                st.session_state["_project"] = {
+                    "name": sel, "session_dir": str(sd),
+                }
+                st.rerun()
+
+
+# Gate: nothing renders until a project is chosen.
+if "_project" not in st.session_state:
+    _render_project_picker()
+    st.stop()
+
+_project = st.session_state["_project"]
 
 
 # ----- sidebar: user + session ----------------------------------------------
@@ -102,20 +170,18 @@ with st.sidebar:
     _inputs_slot = st.empty()
     st.markdown("---")
 
-    st.header("Session")
+    st.header("Project")
+    st.markdown(f"**{_project['name']}**")
+    st.caption(f"`{Path(_project['session_dir']).name}`")
+    if st.button("Switch project", use_container_width=True):
+        for _k in ("_project", "chat", "_chat_key", "_last_done",
+                   "_coords_request"):
+            st.session_state.pop(_k, None)
+        st.rerun()
 
-    username = st.text_input("Username", value="user").strip() or "user"
-
-    existing = list_sessions(username)
-    options = ["<new session>"] + [p.name for p in existing]
-    choice = st.selectbox("Open / create", options=options, index=0)
-
-    if choice == "<new session>":
-        project_name = st.text_input("Project name", value="demo").strip() or "demo"
-        resume_path: str | None = None
-    else:
-        project_name = ""  # loaded from persisted state inside ChatSession
-        resume_path = choice
+    project_name = _project["name"]
+    username = getpass.getuser() or "user"  # attribution in the session log
+    st.markdown("---")
 
     # Provider selection is env-driven (FEWS_AGENT_PROVIDER). For
     # Ollama we list locally-installed models so the user can pick;
@@ -239,7 +305,8 @@ else:
     ) if _missing else ""
 
 chat = _ensure_session(
-    username, project_name or "demo", model or "qwen2.5:7b-instruct", resume_path,
+    username, project_name, model or "qwen2.5:7b-instruct",
+    _project["session_dir"],
 )
 
 # State derivatives are hoisted to the top of the main panel so the
