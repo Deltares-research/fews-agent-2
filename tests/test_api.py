@@ -261,6 +261,70 @@ def test_build_before_resolve_409s(client):
     assert client.post(f"/sessions/{sid}/build").status_code == 409
 
 
+def _resolve_gfs_project(client, name):
+    """Mint a session and resolve a tiny GFS-only import project via one turn."""
+    sid = _new_session(client, name=name)
+    turn = client.post(
+        f"/sessions/{sid}/turn",
+        json={"message": "Import NOAA GFS grids, no basin model."},
+    )
+    assert turn.status_code == 200, turn.text
+    assert {p["pattern"] for p in turn.json()["patterns"]}
+    return sid
+
+
+def test_scoped_phase_build_over_http(client):
+    sid = _resolve_gfs_project(client, "phasebuild")
+    resp = client.post(f"/sessions/{sid}/build", json={"phase": "imports"})
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["scope"] == "phase:imports"
+    assert body["built_phases"] == ["imports"]
+    assert body["files_total"] > 0
+    # Scoped build renders only the phase's pattern outputs, all XSD-valid.
+    assert body["files_xsd_ok"] == body["files_xml"]
+    assert body["ok"] is True
+    # It skips whole-project assembly, so no deriver/singleton files.
+    paths = {f["path"].replace("\\", "/") for f in body["files"]}
+    assert any("Import/NOAA/ImportGFS.xml" in p for p in paths)
+    assert not any("Topology.xml" in p for p in paths)
+
+
+def test_scoped_module_build_over_http(client):
+    sid = _resolve_gfs_project(client, "modbuild")
+    # 'imports' is a synonym for the processing module.
+    resp = client.post(f"/sessions/{sid}/build", json={"module": "imports"})
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["scope"] == "module:processing"
+    assert "imports" in body["built_phases"]
+    assert body["files_xsd_ok"] == body["files_xml"]
+    assert body["ok"] is True
+
+
+def test_scoped_build_rejects_unknown_phase(client):
+    sid = _resolve_gfs_project(client, "badphase")
+    resp = client.post(f"/sessions/{sid}/build", json={"phase": "frobnicate"})
+    assert resp.status_code == 400
+    assert "Unknown phase" in resp.json()["detail"]
+
+
+def test_view_only_module_not_built_on_its_own(client):
+    sid = _resolve_gfs_project(client, "viewonly")
+    resp = client.post(f"/sessions/{sid}/build", json={"module": "filters"})
+    assert resp.status_code == 409
+    assert "isn't built on its own" in resp.json()["detail"]
+
+
+def test_phase_and_module_mutually_exclusive(client):
+    sid = _resolve_gfs_project(client, "bothsel")
+    resp = client.post(
+        f"/sessions/{sid}/build", json={"phase": "imports", "module": "processing"},
+    )
+    assert resp.status_code == 400
+    assert "mutually exclusive" in resp.json()["detail"]
+
+
 def test_build_produces_xsd_valid_files(client):
     sid = _new_session(client, name="buildtest")
     # Resolve a tiny GFS-only import project via one stubbed turn.

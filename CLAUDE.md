@@ -1423,7 +1423,7 @@ CLAUDE.md                                         this file (top-of-mind context
 fews_agent/agent/turn_engine.py                   SHARED per-turn pipeline (Phases 1-5) + run_module_turn (module-mode); all 3 shells call it
 runners/agent/chat_step.py                        CLI driver: command dispatch + console I/O around turn_engine
 app/chatter.py                                     Streamlit driver: command dispatch + TurnResult around turn_engine
-app/api/server.py                                  HTTP API driver: FastAPI endpoints (/turn does module-mode + intent pipeline) around turn_engine
+app/api/server.py                                  HTTP API driver: FastAPI endpoints (/turn does module-mode + intent pipeline; /build does full OR scoped phase/module) around turn_engine
 fews_agent/agent/project_intents.py               skills, intent registry, resolvers, blocklist, COMMANDS (/help)
 fews_agent/agent/modules.py                        module registry (module = FEWS folder; the weld + RegionConfig split)
 fews_agent/agent/module_focus.py                   focus layer + cold entry (detect_module_entry)

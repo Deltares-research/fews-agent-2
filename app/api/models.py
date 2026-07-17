@@ -111,7 +111,22 @@ class BuildRequest(BaseModel):
     force: bool = Field(
         default=False,
         description="Write project.yaml + build even if the intent has "
-        "unfilled required slots or open warnings (mirrors force-done).",
+        "unfilled required slots or open warnings (mirrors force-done). "
+        "Ignored for scoped (phase/module) builds — those are meant to run "
+        "mid-elicitation.",
+    )
+    phase: str | None = Field(
+        default=None,
+        description="Scoped build: render + XSD-validate ONLY this capability "
+        "phase (imports | process | model | visualize), skipping singleton "
+        "merge / bundled standards / derivers / cross-file checks (those need "
+        "the whole project). Mutually exclusive with `module`.",
+    )
+    module: str | None = Field(
+        default=None,
+        description="Scoped build: build every capability phase the focused "
+        "FEWS-folder module owns (e.g. 'processing', 'display'). Mutually "
+        "exclusive with `phase`.",
     )
 
 
@@ -123,9 +138,20 @@ class BuildFileResult(BaseModel):
 
 
 class BuildResponse(BaseModel):
-    """The per-file XSD-validation table from build_from_blueprint()."""
+    """The per-file XSD-validation table from a full or scoped build."""
 
     ok: bool
+    scope: str = Field(
+        default="full",
+        description="What was built: 'full' (whole project assembly), "
+        "'phase:<name>' (one capability phase), or 'module:<key>' (all phases "
+        "a FEWS-folder module owns). Scoped builds skip singleton merge / "
+        "bundled standards / derivers / cross-file checks.",
+    )
+    built_phases: list[str] = Field(
+        default_factory=list,
+        description="Capability phases built (populated for scoped builds).",
+    )
     blueprint: str | None = None
     project_yaml: str = Field(description="Absolute path to the written "
                              "project.yaml.")

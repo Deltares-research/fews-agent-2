@@ -47,6 +47,8 @@ from fews_agent.agent.project_chat import (
     write_project,
 )
 from fews_agent.agent import module_focus
+from fews_agent.agent.modules import get_module, module_for_pattern, normalize_module
+from fews_agent.agent.phases import normalize_phase, phase_plan
 from fews_agent.agent.providers.factory import get_provider_or_ollama
 from fews_agent.agent.turn_engine import (
     _module_list_text,
@@ -55,7 +57,7 @@ from fews_agent.agent.turn_engine import (
     run_module_turn,
     run_turn_pipeline,
 )
-from runners.agent.build_from_blueprint import build_from_blueprint
+from runners.agent.build_from_blueprint import build_from_blueprint, build_phase
 
 # The generic "is the LLM reachable?" pre-flight, shared with the Streamlit
 # driver. Imported into this module's namespace so tests can patch
@@ -411,59 +413,8 @@ def run_turn(session_id: str, req: TurnRequest) -> TurnResponse:
     )
 
 
-@app.post("/sessions/{session_id}/build", response_model=BuildResponse)
-def build_session(session_id: str, req: BuildRequest | None = None) -> BuildResponse:
-    """Assemble the project: write project.yaml (the ``done`` path) and run
-    the deterministic build, returning the per-file XSD table as JSON.
-
-    Fully deterministic — needs no LLM. The filter drafter falls back to a
-    bundled standard when Ollama is unreachable.
-    """
-    req = req or BuildRequest()
-    project_dir = _resolve_session_dir(session_id)
-    state, history = _load(project_dir)
-    catalog = _catalog()
-
-    # Resolve patterns from the current slots (the ``done`` path), then write
-    # project.yaml. Guard against an empty project so we don't shell a build
-    # that has nothing to emit.
-    resolve_patterns(state, catalog)
-    if not state.get("patterns"):
-        raise HTTPException(
-            status_code=409,
-            detail="No patterns resolved yet — run at least one turn that "
-            "describes what to build before building.",
-        )
-    warnings = list(state.get("warnings") or [])
-    if warnings and not req.force:
-        raise HTTPException(
-            status_code=409,
-            detail={
-                "message": f"{len(warnings)} unresolved warning(s); pass "
-                "force=true to build anyway.",
-                "warnings": warnings,
-            },
-        )
-
-    project_path = write_project(state, project_dir)
-    _save(project_dir, state, history)
-
-    inputs_dir = project_dir / "inputs"
-    silent = Console(file=io.StringIO(), force_terminal=False)
-    try:
-        summary = build_from_blueprint(
-            blueprint_path=Path(project_path),
-            pattern_root=PATTERNS_ROOT,
-            inputs_dir=inputs_dir if inputs_dir.is_dir() else None,
-            console=silent,
-        )
-    except Exception as exc:  # noqa: BLE001
-        raise HTTPException(
-            status_code=500,
-            detail=f"Build failed ({type(exc).__name__}: {exc}).",
-        ) from exc
-
-    files = [
+def _files_from_summary(summary: dict) -> list[BuildFileResult]:
+    return [
         BuildFileResult(
             path=f.get("path", ""),
             xsd_ok=bool(f.get("xsd_ok")),
@@ -472,8 +423,151 @@ def build_session(session_id: str, req: BuildRequest | None = None) -> BuildResp
         )
         for f in summary.get("files", [])
     ]
+
+
+def _merge_summaries(summaries: list[dict]) -> dict:
+    """Aggregate several per-phase build summaries into one (module scope)."""
+    merged: dict = {
+        "ok": all(s.get("ok") for s in summaries) if summaries else True,
+        "files_total": 0, "files_xml": 0, "files_non_xml": 0,
+        "files_xsd_ok": 0, "errors": [], "files": [],
+    }
+    for s in summaries:
+        merged["files_total"] += s.get("files_total", 0)
+        merged["files_xml"] += s.get("files_xml", 0)
+        merged["files_non_xml"] += s.get("files_non_xml", 0)
+        merged["files_xsd_ok"] += s.get("files_xsd_ok", 0)
+        merged["errors"].extend(s.get("errors") or [])
+        merged["files"].extend(s.get("files") or [])
+    return merged
+
+
+def _module_target_phases(state: dict, module) -> list[str]:
+    """The capability phases a focused folder-module owns that have resolved
+    content — the same mapping the CLI's ``_run_module_scope_build`` uses."""
+    plan = phase_plan(state.get("patterns") or [])
+    return [
+        e["phase"] for e in plan
+        if e["patterns"]
+        and module_for_pattern(e["patterns"][0]["pattern"]) == module.key
+    ]
+
+
+@app.post("/sessions/{session_id}/build", response_model=BuildResponse)
+def build_session(session_id: str, req: BuildRequest | None = None) -> BuildResponse:
+    """Build the project — full assembly (default) or a scoped phase/module.
+
+    Full (no ``phase``/``module``): write project.yaml (the ``done`` path) and
+    run the whole deterministic pipeline (singletons + bundled standards +
+    derivers + cross-file check). Scoped: render + XSD-validate ONLY one
+    capability phase (``phase``) or every phase a FEWS-folder module owns
+    (``module``) — the mid-elicitation build the CLI/Streamlit shells run on
+    ``/build``, now over HTTP. Scoped builds skip the whole-project stages and
+    ignore ``force`` (they're meant to run before the project is complete).
+
+    Fully deterministic — needs no LLM. The filter drafter falls back to a
+    bundled standard when Ollama is unreachable.
+    """
+    req = req or BuildRequest()
+    if req.phase and req.module:
+        raise HTTPException(
+            status_code=400,
+            detail="Pass at most one of `phase` / `module` — they're "
+            "mutually exclusive scoped-build selectors.",
+        )
+    project_dir = _resolve_session_dir(session_id)
+    state, history = _load(project_dir)
+    catalog = _catalog()
+
+    # Resolve patterns from the current slots, then write project.yaml. Guard
+    # against an empty project so we don't shell a build with nothing to emit.
+    resolve_patterns(state, catalog)
+    if not state.get("patterns"):
+        raise HTTPException(
+            status_code=409,
+            detail="No patterns resolved yet — run at least one turn that "
+            "describes what to build before building.",
+        )
+
+    # Resolve the scoped selector to a concrete list of phases to build.
+    scope = "full"
+    target_phases: list[str] = []
+    if req.phase is not None:
+        phase = normalize_phase(req.phase)
+        if phase is None:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Unknown phase {req.phase!r}. Valid phases: "
+                "imports, process, model, visualize.",
+            )
+        scope, target_phases = f"phase:{phase}", [phase]
+    elif req.module is not None:
+        mod_key = normalize_module(req.module)
+        module = get_module(mod_key) if mod_key else None
+        if module is None:
+            raise HTTPException(
+                status_code=400, detail=f"Unknown module {req.module!r}.",
+            )
+        if not module.phases:
+            raise HTTPException(
+                status_code=409,
+                detail=f"The '{module.label}' module isn't built on its own — "
+                "it comes from inputs or final assembly. Build the full "
+                "project (omit `phase`/`module`) to include it.",
+            )
+        target_phases = _module_target_phases(state, module)
+        if not target_phases:
+            raise HTTPException(
+                status_code=409,
+                detail=f"Nothing resolved for the '{module.label}' module yet "
+                "— add something (e.g. an import) before building it.",
+            )
+        scope = f"module:{mod_key}"
+    else:
+        # Full assembly honours the warnings gate (scoped builds don't).
+        warnings = list(state.get("warnings") or [])
+        if warnings and not req.force:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "message": f"{len(warnings)} unresolved warning(s); pass "
+                    "force=true to build anyway.",
+                    "warnings": warnings,
+                },
+            )
+
+    project_path = write_project(state, project_dir)
+    _save(project_dir, state, history)
+
+    inputs_dir = project_dir / "inputs"
+    silent = Console(file=io.StringIO(), force_terminal=False)
+    try:
+        if target_phases:
+            summaries = [
+                build_phase(
+                    blueprint_path=Path(project_path),
+                    pattern_root=PATTERNS_ROOT, phase=ph, console=silent,
+                )
+                for ph in target_phases
+            ]
+            summary = _merge_summaries(summaries)
+        else:
+            summary = build_from_blueprint(
+                blueprint_path=Path(project_path),
+                pattern_root=PATTERNS_ROOT,
+                inputs_dir=inputs_dir if inputs_dir.is_dir() else None,
+                console=silent,
+            )
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(
+            status_code=500,
+            detail=f"Build failed ({type(exc).__name__}: {exc}).",
+        ) from exc
+
     return BuildResponse(
         ok=bool(summary.get("ok")),
+        scope=scope,
+        built_phases=target_phases,
         blueprint=summary.get("blueprint"),
         project_yaml=str(project_path),
         output_root=summary.get("output_root"),
@@ -485,5 +579,5 @@ def build_session(session_id: str, req: BuildRequest | None = None) -> BuildResp
         unbacked_interpolation_sets=list(
             summary.get("unbacked_interpolation_sets") or []
         ),
-        files=files,
+        files=_files_from_summary(summary),
     )
