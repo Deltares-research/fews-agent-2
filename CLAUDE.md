@@ -1517,6 +1517,51 @@ The narrative the user has been refining for the talk:
 7. **What's deterministic vs LLM.** Reuse the 4-LLM-jobs table from
    the mental model. Audience-friendly: "we use LLMs exactly where
    the structure is unknown, and not one place more."
+8. **Same engine, three shells — the HTTP API (optional, for a
+   technical audience).** The whole elicitation+build loop is a
+   library, not a CLI: the CLI, the Streamlit app, and a FastAPI
+   service (`app/api/server.py`) are three thin shells over one
+   `turn_engine`. Bring it up and drive the *same* module-mode loop
+   over HTTP:
+
+   ```
+   uvicorn app.api.server:app --reload            # or --port 8000
+   # curl needs --json (curl >=7.82) so FastAPI parses the body as JSON;
+   # plain `-d` sends form-encoding and 422s. `-H 'Content-Type:
+   # application/json' -d '...'` works on older curl.
+
+   # 1) a session (a fresh project instance on disk, same layout as the CLI)
+   curl -s --json '{"project_name":"api-demo"}' localhost:8000/sessions
+
+   # 2) module-mode over HTTP: cold entry + one-shot add (returns
+   #    module_mode=true, current_module="processing", the resolved patterns)
+   curl -s --json '{"message":"set up the imports module with a NOAA GFS import for precip and temperature"}' \
+     localhost:8000/sessions/<id>/turn
+   #    then a follow-up edit in the same focused module
+   curl -s --json '{"message":"also add an HRDPS import"}' localhost:8000/sessions/<id>/turn
+
+   # 3) scoped build over HTTP — render + XSD-validate just the imports phase
+   curl -s --json '{"phase":"imports"}' localhost:8000/sessions/<id>/build
+   #    (scope="phase:imports", per-file XSD table; no derivers/singletons)
+
+   # 4) full assembly — the `done` path as JSON
+   curl -s --json '{"force":true}' localhost:8000/sessions/<id>/build
+   ```
+   (Chat/turn steps need the LLM backend reachable; the two `/build`
+   calls are deterministic and work even when it isn't. Or skip curl
+   entirely and drive it from the interactive docs at
+   `localhost:8000/docs`.)
+
+   Talking points: (a) **one brain, many faces** — the API reuses
+   `run_turn_pipeline` + `run_module_turn`, so a terminal, the web
+   app, and an HTTP client behave identically; (b) **the trust
+   boundary is in the engine, not the UI** — POST a bogus model name
+   and the response's `dropped`/reply shows it was rejected, over
+   HTTP, by the same `validate_fields`; (c) **it's automatable** —
+   scoped `/build` returns a machine-readable per-file XSD table, so
+   CI or another service can drive config generation without a human.
+   Nice contrast slide to "this isn't a chatbot demo, it's a
+   service."
 
 ### Open threads / next likely tasks
 
