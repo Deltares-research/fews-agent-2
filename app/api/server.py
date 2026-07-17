@@ -46,10 +46,13 @@ from fews_agent.agent.project_chat import (
     initial_state,
     write_project,
 )
+from fews_agent.agent import module_focus
 from fews_agent.agent.providers.factory import get_provider_or_ollama
 from fews_agent.agent.turn_engine import (
+    _module_list_text,
     apply_disambiguation_answer,
     resolve_patterns,
+    run_module_turn,
     run_turn_pipeline,
 )
 from runners.agent.build_from_blueprint import build_from_blueprint
@@ -259,17 +262,48 @@ def get_session(session_id: str) -> SessionStateResponse:
     )
 
 
+def _module_command(state: dict, message: str, catalog) -> str | None:
+    """Deterministic module-mode commands (no LLM): /modules, /module[ <name>],
+    /list. Returns the reply text, or None if the message isn't one of them.
+
+    Mirrors the CLI/Streamlit command set so an HTTP client drives module-mode
+    with the same verbs. Kept here (transport concern) but every reply comes
+    from the shared ``module_focus`` / ``_module_list_text`` helpers.
+    """
+    cmd = message.lower().strip()
+    if cmd in {"/modules", "modules"}:
+        reply = module_focus.modules_overview()
+        cur = state.get("current_module")
+        return reply + (f"\n\nIn focus now: {cur}." if cur else "")
+    if cmd == "/module" or cmd.startswith("/module "):
+        if cmd == "/module":
+            cur = module_focus.get_focus(state)
+            return (
+                module_focus.focus_card(state, cur) if cur
+                else "No module in focus. Pick one with  /module <name>  "
+                     "(see  /modules  for the list)."
+            )
+        token = message.strip().split(None, 1)[1].strip()
+        _module, reply = module_focus.set_focus(state, token)
+        return reply
+    if cmd in {"/list", "list", "/show", "show"}:
+        return _module_list_text(state, catalog)
+    return None
+
+
 @app.post("/sessions/{session_id}/turn", response_model=TurnResponse)
 def run_turn(session_id: str, req: TurnRequest) -> TurnResponse:
-    """Run one elicitation turn through the shared turn-engine pipeline.
+    """Run one turn — module-mode when a module is in focus, else the
+    whole-project intent pipeline.
 
-    Mirrors the CLI/Streamlit turn loop: append the user message →
-    consume any pending disambiguation answer → resolve the provider →
-    ``run_turn_pipeline`` → persist → render the result. Honours the
+    Mirrors the CLI/Streamlit turn loop: append the user message → consume any
+    pending disambiguation answer → handle deterministic module commands →
+    route to module-mode (focus / cold entry → ``run_module_turn``) or the
+    shared ``run_turn_pipeline``. Persists + renders the result, honouring the
     disambiguation short-circuit.
 
-    Returns 503 (not 500) when the LLM backend is unreachable, so a
-    client gets an actionable message rather than a crash.
+    Returns 503 (not 500) when the LLM backend is unreachable, so a client
+    gets an actionable message rather than a crash.
     """
     project_dir = _resolve_session_dir(session_id)
     state, history = _load(project_dir)
@@ -283,17 +317,68 @@ def run_turn(session_id: str, req: TurnRequest) -> TurnResponse:
     # (same seam both other drivers call before command dispatch).
     apply_disambiguation_answer(state, message)
 
-    # Pre-flight the LLM. The whole pipeline ends at compose_reply (an LLM
-    # call), so fail loudly + actionably here rather than 500-ing deep in
-    # the engine. Patched to None in tests so they run offline.
+    # Deterministic module-mode commands run without the LLM.
+    cmd_reply = _module_command(state, message, catalog)
+    if cmd_reply is not None:
+        history.append({"role": "agent", "message": cmd_reply})
+        _save(project_dir, state, history)
+        return TurnResponse(
+            reply=cmd_reply, short_circuit=False, intent=state.get("intent"),
+            patterns=state.get("patterns", []) or [],
+            slots=state.get("slots", {}) or {},
+            module_mode=True, current_module=state.get("current_module"),
+        )
+
+    # Pre-flight the LLM. Both the module-op path (extractor) and the whole
+    # pipeline (compose_reply) end at an LLM call, so fail loudly + actionably
+    # here rather than 500-ing deep in the engine. Patched to None in tests.
     llm_err = _llm_preflight(model)
     if llm_err:
-        # Persist the user turn so the session records what was asked, then
-        # surface the readiness problem as a 503.
         _save(project_dir, state, history)
         raise HTTPException(status_code=503, detail=llm_err)
 
     provider = get_provider_or_ollama(model)
+
+    # Module-mode prose path: a focused module (or a cold-entry request that
+    # enters one) means this message is ONE operation on that module — the
+    # same routing the CLI/Streamlit shells do, via the shared engine.
+    focus = module_focus.get_focus(state)
+    just_entered = False
+    if focus is None:
+        entry = module_focus.detect_module_entry(message)
+        if entry:
+            module_focus.set_focus(state, entry)
+            focus = module_focus.get_focus(state)
+            just_entered = True
+    if focus is not None:
+        try:
+            res = run_module_turn(
+                state, message, catalog, focus, provider=provider,
+                just_entered=just_entered,
+            )
+        except Exception as exc:  # noqa: BLE001
+            _save(project_dir, state, history)
+            raise HTTPException(
+                status_code=503,
+                detail=f"Module-mode turn failed ({type(exc).__name__}: "
+                f"{exc}). Is the LLM backend reachable?",
+            ) from exc
+        reply = res.reply or (
+            f"Ready to build the {focus.label} module. POST "
+            f"/sessions/{session_id}/build to assemble the project."
+        )
+        history.append({"role": "agent", "message": reply})
+        _save(project_dir, state, history)
+        return TurnResponse(
+            reply=reply, short_circuit=False, intent=state.get("intent"),
+            patterns=state.get("patterns", []) or [],
+            slots=state.get("slots", {}) or {},
+            new_patterns=res.new_patterns,
+            module_mode=True, current_module=state.get("current_module"),
+            wants_build=res.wants_build,
+        )
+
+    # Whole-project intent pipeline (no module in focus).
     try:
         result = run_turn_pipeline(
             state, message, catalog,
@@ -322,6 +407,7 @@ def run_turn(session_id: str, req: TurnRequest) -> TurnResponse:
         next_question=result.next_question,
         new_patterns=result.new_patterns,
         internals=result.internals,
+        current_module=state.get("current_module"),
     )
 
 

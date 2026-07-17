@@ -54,22 +54,18 @@ from fews_agent.agent.phases import (
 )
 from fews_agent.agent import module_focus
 from fews_agent.agent.turn_engine import (
-    _IMPORT_LABEL_KEYS,
+    _LABEL_VAR_KEYS,
+    _module_list_text,
     apply_disambiguation_answer,
     apply_edit_action,
     resolve_patterns as _resolve_patterns,
+    run_module_turn,
     run_turn_pipeline,
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 PATTERNS_ROOT = REPO_ROOT / "patterns"
 OUTPUT_ROOT = REPO_ROOT / "projects"
-
-# Instance-variable keys that name a module. ``_IMPORT_LABEL_KEYS`` (the
-# import-labelling group, imported from turn_engine) plus basin_name form the
-# full set used to resolve a user-typed module name (e.g. "GFS", "Liard")
-# back to its pattern instance.
-_LABEL_VAR_KEYS = _IMPORT_LABEL_KEYS + ("basin_name",)
 
 
 def _resolve_provider(model: str):
@@ -305,84 +301,24 @@ def _run_module_operation(
     state: dict, focus, message: str, project_dir: Path, console: Console,
     history: list, turn: int, catalog, model: str, just_entered: bool = False,
 ) -> int:
-    """Module-mode prose turn: extract ONE operation and apply it.
+    """Module-mode prose turn (CLI shell over ``turn_engine.run_module_turn``).
 
-    When a module is in focus and the user types plain language (not a slash
-    command), the LLM extracts a single validated operation and we route it:
-    add/set → merge fields into slots + resolve; remove → removal edits;
-    select_module → switch focus; build/list → the existing handlers. Values
-    the catalog validation dropped are surfaced loudly, never silently
-    applied.
+    The shared engine extracts + applies the one operation and returns a
+    driver-agnostic result; this shell renders it to the console + transcript
+    and, on a ``build`` action, runs the CLI's scoped phase build.
     """
-    from fews_agent.agent.extractor import (
-        describe_operation, extract_operation, needs_confirmation,
-        op_from_dict, op_to_dict,
-    )
-    from fews_agent.agent.turn_engine import (
-        apply_operation, resolve_pending_operation,
-    )
-
-    # A low-confidence op from a prior turn is awaiting a yes/no.
-    pending = state.get("_pending_operation")
-    if pending:
-        decision = resolve_pending_operation(message)
-        if decision is not None:
-            state["_pending_operation"] = None
-            if decision == "discard":
-                _emit(project_dir, state, history, turn,
-                      "Okay — cancelled, nothing applied.",
-                      "module op: cancelled", console)
-                return 0
-            reply, _ = apply_operation(state, op_from_dict(pending), catalog)
-            reply += "\n\n" + _module_list_text(state, catalog)
-            _emit(project_dir, state, history, turn, reply,
-                  "module op: confirmed", console)
-            return 0
-        # Unclear answer → drop the stale pending op, process this fresh.
-        state["_pending_operation"] = None
-
     provider = _resolve_provider(model)
-    op = extract_operation(message, focus_module=focus, provider=provider)
-
-    # build / list route straight to the existing scoped handlers.
-    if op.action == "build":
+    res = run_module_turn(
+        state, message, catalog, focus, provider=provider,
+        just_entered=just_entered,
+    )
+    if res.wants_build:
         rc = _run_module_scope_build(
             state, focus, project_dir, console, history, turn,
         )
         _save(project_dir, state, history)
         return rc
-    if op.action == "list":
-        _emit(project_dir, state, history, turn,
-              _module_list_text(state, catalog), "module op: list", console)
-        return 0
-
-    # Uncertain AND effectful → confirm instead of applying silently.
-    if needs_confirmation(op):
-        state["_pending_operation"] = op_to_dict(op)
-        reply = (
-            f"Just to confirm — did you want to {describe_operation(op)}? "
-            f"(yes / no)"
-        )
-        _emit(project_dir, state, history, turn, reply,
-              "module op: confirm?", console)
-        return 0
-
-    reply, _new = apply_operation(state, op, catalog)
-    # Pure cold entry ("configure locations") with no operation to apply:
-    # welcome the user with the focus card instead of a flat "nothing to
-    # change".
-    if just_entered and op.action == "none" and not op.fields:
-        reply = module_focus.focus_card(state, focus)
-    if op.dropped:
-        reply += (
-            "\n\n[!] Ignored (not in the catalog, so not applied): "
-            + ", ".join(op.dropped)
-            + ". Rephrase with a known name if you meant something valid."
-        )
-    if op.action != "select_module":
-        reply += "\n\n" + _module_list_text(state, catalog)
-    _emit(project_dir, state, history, turn, reply,
-          f"module op: {op.action}", console)
+    _emit(project_dir, state, history, turn, res.reply, res.note, console)
     return 0
 
 
@@ -466,54 +402,6 @@ def _resolve_module_target(
                 if isinstance(v, str) and v.lower() == name_l:
                     return pat, {k: v}
     return None
-
-
-def _module_list_text(state: dict, catalog) -> str:
-    """Instance-level listing of the project, grouped by phase.
-
-    Finer than ``/phases`` (which is phase-level): shows each module
-    instance, its built status, and its editable variables so the user
-    knows exactly what they can /set or /remove.
-    """
-    _resolve_patterns(state, catalog)
-    plan = phase_plan(state.get("patterns") or [])
-    if not plan:
-        return (
-            "No modules yet. Add one with e.g.  /add GFS  (import) or "
-            "/add Liard uses raven  (basin), then  /build <name>."
-        )
-    built = set(state.get("built_modules") or [])
-    built_phases = set(state.get("built_phases") or [])
-    lines = ["Modules in this project (one per line):"]
-    for entry in plan:
-        ph = entry["phase"]
-        lines.append(f"\n{ph} — {entry['label']}")
-        for p in entry["patterns"]:
-            pat = p["pattern"]
-            short = pat.rsplit("/", 1)[-1]
-            for inst in p.get("instances") or [{}]:
-                label = next(
-                    (str(inst[k]) for k in _LABEL_VAR_KEYS if inst.get(k)),
-                    short,
-                )
-                is_built = (
-                    f"{pat}::{label}" in built or ph in built_phases
-                )
-                mark = "(built)" if is_built else "(ready)"
-                extras = []
-                for vk in ("grid_resolution", "forecast_horizon_hours",
-                           "model_adapter"):
-                    if inst.get(vk):
-                        extras.append(f"{vk}={inst[vk]}")
-                if inst.get("parameters"):
-                    extras.append(f"{len(inst['parameters'])} param(s)")
-                extra_txt = f"  ({'; '.join(extras)})" if extras else ""
-                lines.append(f"  {mark} {label}  ·{short}{extra_txt}")
-    lines.append(
-        "\nEdit: /add <name> · /remove <name> · /set <name> <var> <value>"
-        "  ·  Build one: /build <name>"
-    )
-    return "\n".join(lines)
 
 
 def _parse_slash_edit(op: str, rest: str) -> list[dict]:

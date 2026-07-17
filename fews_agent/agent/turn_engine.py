@@ -24,6 +24,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from fews_agent.agent import module_focus
+from fews_agent.agent.phases import phase_plan
 from fews_agent.agent.project_chat import (
     add_module,
     remove_module,
@@ -56,6 +57,10 @@ from fews_agent.agent.project_intents import (
 _IMPORT_LABEL_KEYS = (
     "nwp_name", "source_name", "wsc_variant", "snow_source", "template_name",
 )
+
+# Instance-variable keys that give a human label to a resolved pattern
+# instance in the module listing — imports plus a basin's name.
+_LABEL_VAR_KEYS = _IMPORT_LABEL_KEYS + ("basin_name",)
 
 # Synonyms → canonical settable variable name for the /set command and NL
 # edits. The canonical set is enforced by project_chat.set_variable.
@@ -460,6 +465,157 @@ def resolve_pending_operation(message: str) -> str | None:
     if low in _DENY:
         return "discard"
     return None
+
+
+def _module_list_text(state: dict, catalog) -> str:
+    """Instance-level listing of the project, grouped by phase.
+
+    Finer than ``/phases`` (which is phase-level): shows each module
+    instance, its built status, and its editable variables so the user
+    knows exactly what they can /set or /remove. Lives here (not in a
+    driver) so all three shells render the listing identically.
+    """
+    resolve_patterns(state, catalog)
+    plan = phase_plan(state.get("patterns") or [])
+    if not plan:
+        return (
+            "No modules yet. Add one with e.g.  /add GFS  (import) or "
+            "/add Liard uses raven  (basin), then  /build <name>."
+        )
+    built = set(state.get("built_modules") or [])
+    built_phases = set(state.get("built_phases") or [])
+    lines = ["Modules in this project (one per line):"]
+    for entry in plan:
+        ph = entry["phase"]
+        lines.append(f"\n{ph} — {entry['label']}")
+        for p in entry["patterns"]:
+            pat = p["pattern"]
+            short = pat.rsplit("/", 1)[-1]
+            for inst in p.get("instances") or [{}]:
+                label = next(
+                    (str(inst[k]) for k in _LABEL_VAR_KEYS if inst.get(k)),
+                    short,
+                )
+                is_built = (
+                    f"{pat}::{label}" in built or ph in built_phases
+                )
+                mark = "(built)" if is_built else "(ready)"
+                extras = []
+                for vk in ("grid_resolution", "forecast_horizon_hours",
+                           "model_adapter"):
+                    if inst.get(vk):
+                        extras.append(f"{vk}={inst[vk]}")
+                if inst.get("parameters"):
+                    extras.append(f"{len(inst['parameters'])} param(s)")
+                extra_txt = f"  ({'; '.join(extras)})" if extras else ""
+                lines.append(f"  {mark} {label}  ·{short}{extra_txt}")
+    lines.append(
+        "\nEdit: /add <name> · /remove <name> · /set <name> <var> <value>"
+        "  ·  Build one: /build <name>"
+    )
+    return "\n".join(lines)
+
+
+@dataclass
+class ModuleTurnResult:
+    """The outcome of one module-mode prose turn — driver-agnostic.
+
+    ``reply`` is the user-facing text; ``note`` the transcript/log tag;
+    ``kind`` distinguishes a plain reply from a state edit. ``wants_build``
+    is set when the extracted operation was ``build`` — the shells execute
+    their own scoped build (console table / TurnResult / JSON) because the
+    build I/O legitimately differs; everything else is fully shared.
+    """
+
+    reply: str
+    note: str
+    kind: str = "reply"          # "reply" | "edit"
+    action: str = "none"
+    new_patterns: list[str] = field(default_factory=list)
+    wants_build: bool = False
+
+
+def run_module_turn(
+    state: dict, message: str, catalog, focus, *, provider,
+    just_entered: bool = False,
+) -> ModuleTurnResult:
+    """Module-mode prose turn — the ONE shared implementation all shells call.
+
+    When a module is in focus, a free-form message is exactly ONE operation
+    on it. Resolve a pending confirmation first; otherwise extract the
+    operation (LLM), validate it against the catalog, and route it:
+    ``build``/``list`` → the driver's handlers; a low-confidence effectful op
+    → stash + ask to confirm; otherwise apply and reply. Catalog-dropped
+    values are surfaced loudly, never applied silently. Mutates ``state`` in
+    place; does no history/log/print I/O (the shells own that).
+
+    Previously duplicated verbatim in ``chat_step._run_module_operation`` and
+    ``chatter._run_module_operation`` — unifying here is what lets the HTTP
+    API get module-mode without a third copy (and stops the two from
+    drifting, which is how the API missed module-mode in the first place).
+    """
+    from .extractor import (
+        describe_operation, extract_operation, needs_confirmation,
+        op_from_dict, op_to_dict,
+    )
+
+    # A low-confidence op from a prior turn is awaiting a yes/no.
+    pending = state.get("_pending_operation")
+    if pending:
+        decision = resolve_pending_operation(message)
+        if decision is not None:
+            state["_pending_operation"] = None
+            if decision == "discard":
+                return ModuleTurnResult(
+                    "Okay — cancelled, nothing applied.",
+                    "module op: cancelled",
+                )
+            reply, _ = apply_operation(state, op_from_dict(pending), catalog)
+            reply += "\n\n" + _module_list_text(state, catalog)
+            return ModuleTurnResult(
+                reply, "module op: confirmed", kind="edit",
+            )
+        # Unclear answer → drop the stale pending op, process this fresh.
+        state["_pending_operation"] = None
+
+    op = extract_operation(message, focus_module=focus, provider=provider)
+
+    # build / list are DRIVER-executed (I/O differs per shell).
+    if op.action == "build":
+        return ModuleTurnResult(
+            "", "module op: build", action="build", wants_build=True,
+        )
+    if op.action == "list":
+        return ModuleTurnResult(
+            _module_list_text(state, catalog), "module op: list",
+        )
+
+    # Uncertain AND effectful → confirm instead of applying silently.
+    if needs_confirmation(op):
+        state["_pending_operation"] = op_to_dict(op)
+        reply = (
+            f"Just to confirm — did you want to {describe_operation(op)}? "
+            f"(yes / no)"
+        )
+        return ModuleTurnResult(reply, "module op: confirm?")
+
+    reply, new_patterns = apply_operation(state, op, catalog)
+    # Pure cold entry ("configure locations") with no operation to apply:
+    # welcome with the focus card instead of a flat "nothing to change".
+    if just_entered and op.action == "none" and not op.fields:
+        reply = module_focus.focus_card(state, focus)
+    if op.dropped:
+        reply += (
+            "\n\n[!] Ignored (not in the catalog, so not applied): "
+            + ", ".join(op.dropped)
+            + ". Rephrase with a known name if you meant something valid."
+        )
+    if op.action != "select_module":
+        reply += "\n\n" + _module_list_text(state, catalog)
+    return ModuleTurnResult(
+        reply, f"module op: {op.action}", kind="edit", action=op.action,
+        new_patterns=new_patterns,
+    )
 
 
 def apply_disambiguation_answer(state: dict, message: str) -> None:

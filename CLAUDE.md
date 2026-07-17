@@ -465,16 +465,18 @@ instances, `TIMEZONE` from singleton seeds, derives
 **Do not** "fix" placeholders by substituting them into the XML at
 config-author time. They're FEWS-owned, not agent-owned.
 
-## Chat agent (shared `turn_engine` + two driver shells)
+## Chat agent (shared `turn_engine` + three driver shells)
 
-There are **two driver shells** — the CLI (`runners/agent/chat_step.py`)
-and the Streamlit app (`app/chatter.py::ChatSession`) — but they share a
-**single per-turn pipeline**, `fews_agent/agent/turn_engine.py`. The
-shells differ only where they legitimately must (command sets, I/O,
-persistence, provider resolution, app-only meta-intents like
-greeting/help/status/undo/reset/preview/pre-flight); the elicitation
-*logic* lives in one place so it can't drift (it did, twice, before the
-unification).
+There are **three driver shells** — the CLI (`runners/agent/chat_step.py`),
+the Streamlit app (`app/chatter.py::ChatSession`), and the HTTP API
+(`app/api/server.py`) — but they share a **single per-turn pipeline**,
+`fews_agent/agent/turn_engine.py`, and a **single module-mode turn**
+(`turn_engine.run_module_turn`). The shells differ only where they
+legitimately must (command sets, I/O, persistence, provider resolution,
+app-only meta-intents like greeting/help/status/undo/reset/preview/pre-flight);
+the elicitation *logic* lives in one place so it can't drift (it did, twice,
+before the pipeline unification — and again with module-mode, which the API
+shell missed entirely until `run_module_turn` was extracted).
 
 **`turn_engine.run_turn_pipeline(state, message, catalog, *, provider,
 inputs_dir, nag_suppression=False) -> PipelineResult`** runs Phases 1–5
@@ -712,13 +714,24 @@ capability phases *within* `processing`/`display` for scoped builds.
   reply split, and cold-entry are unchanged, but the LLM parsing is one
   implementation + one prompt (`prompts/parse_turn.{system,user}.txt`).
 
-**Turn flow when a module is in focus** (both drivers, before the intent
-pipeline): prose → `extract_operation` (→ `parse_turn`) → route the action:
-`add`/`set` → `turn_engine.apply_extracted_fields` (honours add=fill vs
-set=override) → resolve; `remove` → `extracted_removal_edits`;
-`select_module` → `set_focus`; `build`/`list` → the scoped handlers.
-`turn_engine.apply_operation` is the shared router so "apply now" and
-"apply after confirm" can't diverge.
+**Turn flow when a module is in focus** — the ONE shared implementation
+`turn_engine.run_module_turn(state, message, catalog, focus, *, provider,
+just_entered)` that **all three shells** (CLI, Streamlit, HTTP API) call:
+prose → `extract_operation` (→ `parse_turn`) → route the action: `add`/`set`
+→ `turn_engine.apply_extracted_fields` (honours add=fill vs set=override) →
+resolve; `remove` → `extracted_removal_edits`; `select_module` → `set_focus`;
+`build`/`list` → the scoped handlers. `apply_operation` is the shared action
+router so "apply now" and "apply after confirm" can't diverge. It returns a
+driver-agnostic `ModuleTurnResult` (reply, note, kind, new_patterns,
+`wants_build`); each shell only renders it (console / `TurnResult` / JSON) and
+runs its own scoped build on `wants_build`. The instance listing
+(`_module_list_text`) also lives in `turn_engine` (its own docstring: "fews_agent
+must not import runners, so every pipeline helper lives here"). This unification
+is what let the **HTTP API driver gain module-mode without a third copy** — it
+had drifted (whole-project intents only) precisely because the routing was
+duplicated in the CLI + Streamlit shells and never ported. `run_module_turn`,
+`ModuleTurnResult`, and `_module_list_text` are the shared seam; add a
+module-mode feature there once.
 
 **Cold entry** (`detect_module_entry`, deterministic + conservative): when
 nothing is in focus, a clear single-module request enters that module
@@ -1407,9 +1420,10 @@ this order to recover context fast:
 CLAUDE.md                                         this file (top-of-mind context)
 
 # Elicitation half
-fews_agent/agent/turn_engine.py                   SHARED per-turn pipeline (Phases 1-5) both drivers call
+fews_agent/agent/turn_engine.py                   SHARED per-turn pipeline (Phases 1-5) + run_module_turn (module-mode); all 3 shells call it
 runners/agent/chat_step.py                        CLI driver: command dispatch + console I/O around turn_engine
 app/chatter.py                                     Streamlit driver: command dispatch + TurnResult around turn_engine
+app/api/server.py                                  HTTP API driver: FastAPI endpoints (/turn does module-mode + intent pipeline) around turn_engine
 fews_agent/agent/project_intents.py               skills, intent registry, resolvers, blocklist, COMMANDS (/help)
 fews_agent/agent/modules.py                        module registry (module = FEWS folder; the weld + RegionConfig split)
 fews_agent/agent/module_focus.py                   focus layer + cold entry (detect_module_entry)

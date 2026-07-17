@@ -83,6 +83,24 @@ class TurnResponse(BaseModel):
         description="Engine-internals diagnostics markdown (skills → intent "
         "→ slot-fill → resolution). Null on a disambiguation short-circuit.",
     )
+    # --- module-mode ---
+    module_mode: bool = Field(
+        default=False,
+        description="True when this turn was handled in module-mode (a "
+        "FEWS-folder module is in focus) rather than the whole-project "
+        "intent pipeline.",
+    )
+    current_module: str | None = Field(
+        default=None,
+        description="The module in focus after this turn (module-mode), e.g. "
+        "'processing'. Null when no module is focused.",
+    )
+    wants_build: bool = Field(
+        default=False,
+        description="True when the turn asked to build the focused module. "
+        "The turn endpoint does not build; POST /sessions/{id}/build to "
+        "assemble, or build the scoped phase via the build tooling.",
+    )
 
 
 # --------------------------------------------------------------------------
