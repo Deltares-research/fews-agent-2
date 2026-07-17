@@ -1231,6 +1231,14 @@ def _resolve_import_patterns(
         # plot shows just that window instead of the full forecast.
         if _hor and path == "auto/nwp_grid_noaa":
             instance["forecast_horizon_hours"] = _hor
+        # Explicit grid geometry (firstCellCenter + rows/columns). Rides on
+        # the instance for ANY nwp_grid_* import (NOAA and ECCC) — the pattern
+        # doesn't reference it (so rendering ignores it), but it serializes to
+        # project.yaml where the build's geometry rewriter reads it back and
+        # stamps it onto the matching gridsFile entry.
+        _geom = _ov.get("grid_geometry")
+        if _geom and path.startswith("auto/nwp_grid_"):
+            instance["grid_geometry"] = _geom
         existing = next((p for p in out if p["pattern"] == path), None)
         if existing:
             existing["instances"].append(instance)
@@ -3052,6 +3060,17 @@ COMMANDS: list[dict[str, str]] = [
             "Show the imports→process→model→visualize phase plan with "
             "built/ready marks (the finer capability groups WITHIN the "
             "processing/display modules)."
+        ),
+    },
+    {
+        "name": "/coordinates [<name>]",
+        "aliases": "coords",
+        "group": "Build",
+        "description": (
+            "Open the grid-coordinates subwindow (web app) to set an NWP "
+            "grid's firstCellCenter (x, y) + columns/rows. Cell size is "
+            "inherited — this repositions/resizes the grid. Optionally name "
+            "the import to pre-select it."
         ),
     },
     {

@@ -1253,6 +1253,38 @@ about **parameter selection** — which pattern accepts a `data_types` ->
 parameter set, intersected at resolve). It is unrelated to the
 bbox/resolution/horizon plumbing above.
 
+### Explicit grid coordinates (`/coordinates` subwindow)
+
+Beyond the prose knobs (region/bbox/resolution), a configurator can set an
+NWP grid's geometry **directly**: `firstCellCenter` (x, y) + `columns`
+(rows-X) + `rows` (rows-Y). Chosen shape: **point + counts, cell size
+inherited** — the override only repositions/resizes the grid; `xCellSize`/
+`yCellSize` stay whatever the resolution rewriter or bundled default set. This
+composes with, and takes precedence over, the region-bbox crop.
+
+- **Data model.** A per-import `grid_geometry` override
+  (`slots["import_overrides"][<name>]["grid_geometry"] = {first_x, first_y,
+  columns, rows}`), the same scoped channel as `grid_resolution` /
+  `forecast_horizon_hours`. Written by
+  `project_chat.set_grid_geometry(state, name, ...)`.
+- **Flow.** The resolver attaches `grid_geometry` to the instance for **any**
+  `auto/nwp_grid_*` import (NOAA and ECCC) — the pattern doesn't reference it,
+  so `_apply_defaults` ignores it during rendering, but it serializes to
+  `project.yaml`. At build time
+  `_nwp_geometries_from_blueprint` → `_apply_grid_geometry_to_grids` stamps it
+  onto the matching `<regular>` entry (runs AFTER the resolution + bbox
+  rewriters; leaves cell size; skips projected `polarStereographic`/
+  `gridCorners` grids, which have no `firstCellCenter`).
+- **UX (Streamlit-only for now).** `/coordinates [<name>]` in the app returns
+  `TurnResult(kind="coordinates", coordinates_request=[{name, geometry}, ...])`;
+  `frontend/web_app.py` opens an `st.dialog` modal (expander fallback) with
+  number inputs, and submitting calls `ChatSession.apply_grid_geometry(...)`.
+  The CLI has a stub pointing at the web app (no modal); the build/data model
+  is shared, so CLI/API can adopt it later. Tests:
+  `test_nwp_grid_rewriters.py` (mutator + rewriter + precedence + skip-cases,
+  the durable oracle) and `test_chatter_module_mode.py` (the `/coordinates`
+  command + `apply_grid_geometry`).
+
 ### Demo / experiment projects on disk (reference fixtures, not regression oracles)
 
 Created during the recent presentation prep — each captures a specific

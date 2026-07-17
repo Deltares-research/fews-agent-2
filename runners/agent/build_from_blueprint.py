@@ -521,6 +521,73 @@ def _nwp_resolutions_from_blueprint(bp) -> dict[str, float]:
     return out
 
 
+def _nwp_geometries_from_blueprint(bp) -> dict[str, dict]:
+    """Walk blueprint NWP instances; return {locationId: grid_geometry}.
+
+    ``grid_geometry`` is the configurator-set ``{first_x, first_y, columns,
+    rows}`` override (see ``project_chat.set_grid_geometry``). Only instances
+    carrying a well-formed geometry are returned; the rest keep the bundled /
+    resolution / region-cropped geometry.
+    """
+    out: dict[str, dict] = {}
+    for p in bp.patterns:
+        if not any(p.pattern.startswith(pref) for pref in _NWP_PATTERN_PREFIXES):
+            continue
+        for inst in p.instances:
+            if not isinstance(inst, dict):
+                continue
+            name = inst.get("nwp_name") or inst.get("source_name")
+            geom = inst.get("grid_geometry")
+            if not isinstance(name, str) or not isinstance(geom, dict):
+                continue
+            if all(k in geom for k in ("first_x", "first_y", "columns", "rows")):
+                out[name] = geom
+    return out
+
+
+def _apply_grid_geometry_to_grids(
+    data: dict, geometries: dict[str, dict],
+) -> dict:
+    """Stamp an explicit grid geometry onto matching ``<regular>`` entries.
+
+    Sets ``firstCellCenter`` (x, y), ``rows`` and ``columns`` on any entry
+    whose ``@locationId`` has a configurator-set geometry. **Cell size is left
+    untouched** (inherited from the resolution rewriter or the bundled
+    default), and only lat/lon ``firstCellCenter`` grids are eligible —
+    ``polarStereographic`` / ``gridCorners`` grids use a different model and
+    are skipped. Runs AFTER the resolution + region-bbox rewriters so an
+    explicit geometry wins over the region crop.
+    """
+    if not geometries or not isinstance(data, dict):
+        return data
+    body = data.get("body") or []
+    if not body:
+        return data
+    rewritten = []
+    for entry in body:
+        if not isinstance(entry, dict) or "regular" not in entry:
+            rewritten.append(entry)
+            continue
+        inner = entry["regular"]
+        loc_id = inner.get("@locationId") if isinstance(inner, dict) else None
+        geom = geometries.get(loc_id) if isinstance(loc_id, str) else None
+        # Only lat/lon firstCellCenter grids are eligible — skip projected
+        # (polarStereographic / gridCorners) entries, which have no
+        # firstCellCenter to reposition.
+        if geom is None or "firstCellCenter" not in inner:
+            rewritten.append(entry)
+            continue
+        new_inner = {**inner}
+        new_inner["rows"] = str(int(geom["rows"]))
+        new_inner["columns"] = str(int(geom["columns"]))
+        new_inner["firstCellCenter"] = {
+            "x": str(geom["first_x"]),
+            "y": str(geom["first_y"]),
+        }
+        rewritten.append({"regular": new_inner})
+    return {**data, "body": rewritten}
+
+
 def _apply_nwp_resolutions_to_grids(
     data: dict, nwp_resolutions: dict[str, float],
 ) -> dict:
@@ -686,6 +753,7 @@ def _render_yaml_inputs(
     nwp_location_ids: set[str] | None = None,
     custom_bbox: tuple[float, float, float, float] | list | None = None,
     nwp_resolutions: dict[str, float] | None = None,
+    nwp_geometries: dict[str, dict] | None = None,
 ) -> int:
     """Walk ``inputs_dir`` for *.yaml and *.yml files, render each as a spec.
 
@@ -762,6 +830,11 @@ def _render_yaml_inputs(
                 data = _apply_region_to_grids(
                     data, region, nwp_location_ids or set(),
                     custom_bbox=custom_bbox,
+                )
+                # Explicit configurator geometry wins over the region crop
+                # (runs last; leaves cell size from the resolution rewriter).
+                data = _apply_grid_geometry_to_grids(
+                    data, nwp_geometries or {},
                 )
             # Trim displayGroups body to project-used module instances.
             if (
@@ -1159,6 +1232,7 @@ def build_from_blueprint(
             nwp_location_ids=_nwp_location_ids_from_blueprint(bp),
             custom_bbox=_bbox_seed,
             nwp_resolutions=_nwp_resolutions_from_blueprint(bp),
+            nwp_geometries=_nwp_geometries_from_blueprint(bp),
         )
         if n_std:
             console.print(

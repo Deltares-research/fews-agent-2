@@ -709,6 +709,21 @@ def main(argv: list[str] | None = None) -> int:
         console.print(f"\n[bold magenta]agent[/bold magenta]: {reply}")
         return 0
 
+    # /coordinates — the grid-coordinates subwindow is a web-app affordance
+    # (st.dialog). The CLI has no modal, so point the user at the app and the
+    # equivalent scriptable path rather than silently parsing it as prose.
+    if cmd == "/coordinates" or cmd.startswith(("/coordinates ", "/coords")):
+        reply = (
+            "The grid-coordinates subwindow lives in the web app "
+            "(type /coordinates there to open it). It sets an NWP grid's "
+            "firstCellCenter + rows/columns (cell size inherited)."
+        )
+        history.append({"role": "agent", "message": reply})
+        _append_log(project_dir, turn, "agent", reply, "coordinates: cli-stub")
+        _save(project_dir, state, history)
+        console.print(f"\n[yellow]{reply}[/yellow]")
+        return 0
+
     # Explicit edits: /add, /remove (/drop), /set. Deterministic — mutate
     # slots then re-resolve. No LLM, no confirmation (the command IS the
     # confirmation; the engine-proposed yes/no flow stays for ambiguous

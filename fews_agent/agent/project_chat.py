@@ -766,6 +766,40 @@ def set_variable(
     return f"Don't know how to set {variable!r}."
 
 
+def set_grid_geometry(
+    state: dict, name: str, *,
+    first_x: float, first_y: float, columns: int, rows: int,
+) -> str:
+    """Set an NWP import's grid geometry: firstCellCenter (x, y) + columns (X)
+    + rows (Y). Cell size is **inherited** — the build's resolution/default
+    rewriter sets ``xCellSize``/``yCellSize``; this only repositions the grid's
+    top-left cell centre and resizes the row/column count, so it composes with
+    (and overrides) the region-bbox crop.
+
+    Stored as the per-import ``grid_geometry`` override
+    (``slots["import_overrides"][<import>]``, scoped like grid_resolution). The
+    build stamps it onto the matching ``<regular>`` gridsFile entry. Returns a
+    human note; the caller re-resolves patterns.
+    """
+    slots = state.setdefault("slots", {})
+    imports = [str(x) for x in (slots.get("imports") or [])]
+    canonical = next(
+        (x for x in imports if x.lower() == str(name).lower()), str(name),
+    )
+    geom = {
+        "first_x": float(first_x), "first_y": float(first_y),
+        "columns": int(columns), "rows": int(rows),
+    }
+    overrides = slots.setdefault("import_overrides", {})
+    overrides.setdefault(canonical, {})["grid_geometry"] = geom
+    _clear_built_for_label(state, canonical)
+    return (
+        f"Set grid geometry for {canonical}: firstCellCenter="
+        f"({first_x}, {first_y}), {columns} cols x {rows} rows "
+        f"(cell size inherited)."
+    )
+
+
 __all__ = [
     "PatternSummary",
     "build_pattern_catalog",
@@ -780,5 +814,6 @@ __all__ = [
     "add_module",
     "remove_module",
     "set_variable",
+    "set_grid_geometry",
     "write_project",
 ]

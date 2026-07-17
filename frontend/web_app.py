@@ -413,11 +413,78 @@ if prompt:
                 "build_error": result.build_error,
                 "validation_summary": result.validation_summary,
             }
+        elif result.kind == "coordinates":
+            # Open the grid-coordinates subwindow on the next rerun. Stash the
+            # eligible grids keyed by the active session so a stray rerun
+            # doesn't reopen it for the wrong chat.
+            st.session_state["_coords_request"] = {
+                "chat_key": st.session_state.get("_chat_key"),
+                "grids": result.coordinates_request or [],
+            }
         elif result.kind == "error":
             st.error(result.agent_message)
         if show_internals and result.internals:
             with st.expander("Engine internals (this turn)", expanded=False):
                 st.markdown(result.internals)
+
+
+# ----- grid coordinates subwindow -------------------------------------------
+
+# Opened by the ``/coordinates`` command (ChatSession returns kind=="coordinates"
+# with the eligible NWP grids). Renders a modal (st.dialog when available, else
+# an inline panel) to set a firstCellCenter + rows/columns; submitting calls
+# ChatSession.apply_grid_geometry (cell size is inherited). Rendered outside the
+# prompt block so the modal survives the reruns its own widgets trigger.
+def _render_coords_form(chat, grids: list[dict]) -> None:
+    names = [g["name"] for g in grids]
+    sel = st.selectbox("NWP grid import", names, key="_coords_sel")
+    cur = next((g.get("geometry") for g in grids if g["name"] == sel), None) or {}
+    c1, c2 = st.columns(2)
+    x = c1.number_input(
+        "First cell centre — longitude (x)",
+        value=float(cur.get("first_x", 0.0)), format="%.4f", key="_coords_x",
+    )
+    y = c2.number_input(
+        "First cell centre — latitude (y)",
+        value=float(cur.get("first_y", 0.0)), format="%.4f", key="_coords_y",
+    )
+    c3, c4 = st.columns(2)
+    cols = c3.number_input(
+        "Columns (rows-X)", min_value=1, step=1,
+        value=int(cur.get("columns", 100)), key="_coords_cols",
+    )
+    rows = c4.number_input(
+        "Rows (rows-Y)", min_value=1, step=1,
+        value=int(cur.get("rows", 100)), key="_coords_rows",
+    )
+    st.caption(
+        "The top-left cell centre + grid size. Cell size is inherited from the "
+        "import's resolution / bundled default — this only repositions and "
+        "resizes the grid."
+    )
+    apply_col, cancel_col = st.columns(2)
+    if apply_col.button("Apply", type="primary", use_container_width=True):
+        chat.apply_grid_geometry(
+            sel, first_x=float(x), first_y=float(y),
+            columns=int(cols), rows=int(rows),
+        )
+        st.session_state.pop("_coords_request", None)
+        st.rerun()
+    if cancel_col.button("Cancel", use_container_width=True):
+        st.session_state.pop("_coords_request", None)
+        st.rerun()
+
+
+_coords_req = st.session_state.get("_coords_request")
+if _coords_req and _coords_req.get("chat_key") == st.session_state.get("_chat_key"):
+    _grids = _coords_req.get("grids") or []
+    if hasattr(st, "dialog"):  # Streamlit >= 1.31 modal
+        st.dialog("Set grid coordinates")(
+            lambda: _render_coords_form(chat, _grids)
+        )()
+    else:  # graceful fallback: inline panel
+        with st.expander("Set grid coordinates", expanded=True):
+            _render_coords_form(chat, _grids)
 
 
 # ----- validation panel (persists across reruns) ----------------------------

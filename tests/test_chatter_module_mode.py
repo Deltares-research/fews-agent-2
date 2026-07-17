@@ -103,6 +103,57 @@ def test_prose_add_applies_and_drops_hallucination(tmp_path, monkeypatch):
     }
 
 
+# --- grid coordinates subwindow (/coordinates) -----------------------------
+
+def test_coordinates_with_no_grids_is_a_plain_reply(tmp_path, monkeypatch):
+    s = _session(tmp_path, monkeypatch, {})
+    res = s.send("/coordinates")
+    # Nothing to set coordinates for yet → a normal reply, no subwindow.
+    assert res.kind == "reply"
+    assert res.coordinates_request is None
+    assert "Add one first" in res.agent_message
+
+
+def test_coordinates_opens_subwindow_for_resolved_grids(tmp_path, monkeypatch):
+    s = _session(tmp_path, monkeypatch, {
+        "action": "add", "fields": {"imports": ["GFS"]},
+    })
+    s.send("/module processing")
+    s.send("add a GFS import")
+    res = s.send("/coordinates")
+    # kind="coordinates" signals the web app to open the modal; the payload
+    # carries the eligible NWP grids (geometry None until set).
+    assert res.kind == "coordinates"
+    names = {g["name"] for g in res.coordinates_request}
+    assert "GFS" in names
+    assert all(g["geometry"] is None for g in res.coordinates_request)
+
+
+def test_apply_grid_geometry_sets_scoped_override_and_reflows(tmp_path, monkeypatch):
+    s = _session(tmp_path, monkeypatch, {
+        "action": "add", "fields": {"imports": ["GFS"]},
+    })
+    s.send("/module processing")
+    s.send("add a GFS import")
+    res = s.apply_grid_geometry(
+        "GFS", first_x=-11.75, first_y=8.75, columns=48, rows=30,
+    )
+    assert res.kind == "edit"
+    geom = s.state["slots"]["import_overrides"]["GFS"]["grid_geometry"]
+    assert geom == {"first_x": -11.75, "first_y": 8.75,
+                    "columns": 48, "rows": 30}
+    # It rides onto the resolved instance (→ project.yaml → build rewriter).
+    inst = next(
+        i for p in s.state["patterns"] if p["pattern"] == "auto/nwp_grid_noaa"
+        for i in p["instances"]
+    )
+    assert inst["grid_geometry"] == geom
+    # A re-open now prefills the current geometry.
+    reopened = s.send("/coordinates GFS")
+    gfs = next(g for g in reopened.coordinates_request if g["name"] == "GFS")
+    assert gfs["geometry"] == geom
+
+
 def test_low_confidence_add_asks_before_applying(tmp_path, monkeypatch):
     s = _session(tmp_path, monkeypatch, {
         "action": "add", "fields": {"imports": ["GFS"]}, "confidence": 0.3,

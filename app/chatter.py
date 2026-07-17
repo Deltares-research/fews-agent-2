@@ -63,6 +63,7 @@ from fews_agent.agent.turn_engine import (
 )
 from fews_agent.agent import module_focus
 from fews_agent.agent.modules import module_for_pattern
+from fews_agent.agent.project_chat import set_grid_geometry
 from runners.agent.chat_step import (
     _parse_slash_edit,
     _phase_plan_text,
@@ -235,6 +236,8 @@ class TurnResult:
       ``refused`` — done refused (warnings present, or required slots unfilled)
       ``edit``    — message handled by edit-mode
       ``pending`` — confirm/cancel of a pending-removal proposal
+      ``coordinates`` — open the grid-coordinates subwindow (see
+                        ``coordinates_request``)
       ``error``   — exception during turn processing
     """
     agent_message: str
@@ -245,6 +248,10 @@ class TurnResult:
     next_question: str | None = None
     new_patterns: list[str] = field(default_factory=list)
     project_yaml_path: Path | None = None
+    # Populated when kind=="coordinates": the eligible NWP grid imports the
+    # subwindow lets the user set a firstCellCenter + rows/columns for. Each
+    # is {"name": str, "geometry": {...} | None} (None = not yet set).
+    coordinates_request: list[dict] | None = None
     # Populated after kind=="done": the summary dict returned by
     # build_from_blueprint() — see runners/agent/build_from_blueprint.py
     # for the schema. None when /done refused or when the build failed
@@ -645,6 +652,49 @@ class ChatSession:
             new_patterns=res.new_patterns,
         )
 
+    # ---- grid coordinates subwindow -----------------------------------------
+
+    def _nwp_grid_imports(self) -> list[dict]:
+        """The project's NWP grid imports eligible for /coordinates, each as
+        ``{"name", "geometry"}`` (geometry = current override, or None)."""
+        resolve_patterns(self.state, self.catalog)
+        overrides = (self.state.get("slots") or {}).get("import_overrides") or {}
+        out: list[dict] = []
+        seen: set[str] = set()
+        for p in self.state.get("patterns") or []:
+            if not str(p.get("pattern", "")).startswith("auto/nwp_grid_"):
+                continue
+            for inst in p.get("instances") or []:
+                name = inst.get("nwp_name") or inst.get("source_name")
+                if not name or name in seen:
+                    continue
+                seen.add(name)
+                geom = (overrides.get(name) or {}).get("grid_geometry")
+                out.append({"name": name, "geometry": geom})
+        return out
+
+    def apply_grid_geometry(
+        self, name: str, *,
+        first_x: float, first_y: float, columns: int, rows: int,
+    ) -> TurnResult:
+        """Apply a grid geometry from the coordinates subwindow.
+
+        Sets the per-import ``grid_geometry`` override (firstCellCenter +
+        rows/columns; cell size inherited), re-resolves, persists, and returns
+        an ``edit`` result. Called by the web app when the modal is submitted.
+        """
+        note = set_grid_geometry(
+            self.state, name, first_x=first_x, first_y=first_y,
+            columns=columns, rows=rows,
+        )
+        resolve_patterns(self.state, self.catalog)
+        turn = len([h for h in self.history if h.get("role") == "user"]) or 1
+        reply = note + "\n\n" + _module_list_text(self.state, self.catalog)
+        self._logger.info(
+            "grid_geometry name=%s cols=%d rows=%d", name, columns, rows,
+        )
+        return self._reply(turn, reply, "coordinates: applied", kind="edit")
+
     # ---- undo support --------------------------------------------------------
 
     # Max snapshots kept; older ones evicted. Each snapshot is a
@@ -931,6 +981,39 @@ class ChatSession:
             self._save()
             self._logger.info("list turn=%d", turn)
             return TurnResult(agent_message=reply, kind="reply")
+
+        # /coordinates [<name>] — open the grid-coordinates subwindow to set a
+        # firstCellCenter + rows/columns for an NWP grid import. Deterministic:
+        # returns a UI signal (kind="coordinates") the web app turns into a
+        # modal; submitting it calls apply_grid_geometry().
+        if cmd == "/coordinates" or cmd.startswith(("/coordinates ", "/coords")):
+            grids = self._nwp_grid_imports()
+            if not grids:
+                reply = (
+                    "No NWP grid imports to set coordinates for yet. Add one "
+                    "first (e.g.  /add GFS  or  \"add an HRDPS import\")."
+                )
+                self.history.append({"role": "agent", "message": reply})
+                self._append_md(turn, "agent", reply, note="coordinates: none")
+                self._save()
+                return TurnResult(agent_message=reply, kind="reply")
+            # An optional name pre-selects one grid; otherwise offer all.
+            token = ""
+            parts = message.strip().split(None, 1)
+            if len(parts) > 1:
+                token = parts[1].strip().lower()
+            if token:
+                grids = [g for g in grids if g["name"].lower() == token] or grids
+            names = ", ".join(g["name"] for g in grids)
+            reply = f"Set grid coordinates for: {names}."
+            self.history.append({"role": "agent", "message": reply})
+            self._append_md(turn, "agent", reply, note="coordinates: open")
+            self._save()
+            self._logger.info("coordinates turn=%d grids=%d", turn, len(grids))
+            return TurnResult(
+                agent_message=reply, kind="coordinates",
+                coordinates_request=grids,
+            )
 
         # /add /remove /drop /set — explicit edits. The command IS the
         # confirmation; the engine-proposed yes/no flow stays for ambiguous
