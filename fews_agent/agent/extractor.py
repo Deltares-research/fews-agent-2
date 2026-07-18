@@ -28,6 +28,7 @@ standing rule; nothing here embeds prompt text.
 """
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -339,6 +340,101 @@ def _parse_confidence(raw: Any) -> float:
     return max(0.0, min(1.0, c))
 
 
+# Add-context cues. "set up" / "setup" read as add here even though "set" is
+# a CHANGE cue elsewhere — so cold entry ("set up the imports module with a GFS
+# import") adds GFS. Checked before the change-cue guard.
+_ADD_CUES: tuple[str, ...] = (
+    "add", "include", "also", "another", "use ", "using", "pull", "import",
+    "want", "need", "set up", "setup", "bring in", "ingest", "with ", "plus",
+)
+
+# Words that may remain around a bare entity mention ("GFS and HRDPS") without
+# making it something other than an add.
+_BARE_FILLER: frozenset[str] = frozenset({
+    "and", "the", "a", "an", "import", "imports", "grid", "grids", "please",
+    "model", "models", "data", "or", "both", "just",
+})
+
+
+def _is_bare_entity(text: str, names: list[str]) -> bool:
+    """True when the message is essentially just entity name(s) + filler
+    ("GFS", "GFS and HRDPS") — a bare mention we can treat as an add."""
+    low = text.lower()
+    for name in names:
+        low = low.replace(name.lower(), " ")
+    words = [w for w in re.split(r"[^a-z0-9]+", low) if w]
+    return all(w in _BARE_FILLER for w in words)
+
+
+def deterministic_module_op(
+    message: str, focus_module: Module | None,
+) -> ExtractedOperation | None:
+    """Parse an unambiguous add/remove of catalog entities from prose — no LLM.
+
+    "add GFS" should be as reliable as "/add GFS": a verb (or bare mention) +
+    a catalog entity is *known structure*, so it belongs to the deterministic
+    detectors, not the fuzzy LLM parser. Returns None when the message isn't an
+    obvious add/remove (a scalar change, a module switch, or genuinely fuzzy
+    phrasing) so the caller falls back to :func:`parse_turn`.
+    """
+    from .project_intents import (
+        _EDIT_CHANGE_CUES, _EDIT_REMOVE_CUES, _has_cue,
+        detect_basins_with_adapters, detect_data_types, detect_edit_action,
+        detect_imports,
+    )
+
+    text = (message or "").strip()
+    if not text:
+        return None
+    low = text.lower()
+
+    imports = detect_imports(text)
+    basins = detect_basins_with_adapters(text)
+    dtypes = detect_data_types(text)  # weather variables (precipitation, ...)
+    if not (imports or basins or dtypes):
+        return None  # nothing from the catalog → let the LLM read the prose
+
+    has_remove = _has_cue(low, _EDIT_REMOVE_CUES)
+    has_add = _has_cue(low, _ADD_CUES)
+    has_change = _has_cue(low, _EDIT_CHANGE_CUES)
+
+    def _op(action, imps, bsns, dts) -> ExtractedOperation | None:
+        if focus_module is not None and not focus_module.supports(action):
+            return None
+        fields: dict[str, Any] = {}
+        if imps:
+            fields["imports"] = imps
+        if bsns:
+            fields["basins"] = bsns
+        if dts:
+            fields["data_types"] = dts
+        return ExtractedOperation(action=action, fields=fields, confidence=1.0)
+
+    # REMOVE — use the cue-position-aware NL edit detector so a mixed sentence
+    # removes only the intended targets. Defer only when the SAME message also
+    # carries a scalar SET edit ("drop RDPS and make GFS half-degree"), which
+    # this path can't represent — a bare discourse marker ("Actually, drop
+    # HRDPS") is still a clean remove. (Removing a data_type is rarer and not
+    # cue-associated here → defer to the LLM.)
+    if has_remove:
+        edit = detect_edit_action(text) or {}
+        if any(e.get("op") == "set" for e in edit.get("edits") or []):
+            return None
+        rem_imports = list(edit.get("removed_imports") or [])
+        rem_basins = [{"basin_name": b} for b in (edit.get("removed_basins") or [])]
+        if not (rem_imports or rem_basins):
+            return None
+        return _op("remove", rem_imports, rem_basins, None)
+
+    # ADD — an add cue (incl. "set up"), or a bare mention, and no change cue.
+    # The add-cue guard stops questions ("what is precipitation?") from applying.
+    names = list(imports) + [b.get("basin_name", "") for b in basins] + list(dtypes)
+    if has_add or (not has_change and _is_bare_entity(text, names)):
+        return _op("add", imports, basins, dtypes)
+
+    return None  # a scalar change / ambiguous → the LLM parser
+
+
 def extract_operation(
     message: str,
     *,
@@ -357,12 +453,23 @@ def extract_operation(
     """
     from .module_focus import detect_module_switch
 
+    # Deterministic FIRST: an explicit module switch, then a clear add/remove of
+    # catalog entities ("add GFS" ≡ "/add GFS"). Known structure belongs to the
+    # detectors, not the fuzzy LLM — this is what makes prose as reliable as the
+    # slash commands (and fixes the cold-entry one-shot). Only genuinely fuzzy
+    # turns reach parse_turn.
+    switch_target = detect_module_switch(message, focus_module.key)
+    if switch_target:
+        return ExtractedOperation(action="select_module", module=switch_target,
+                                  confidence=1.0)
+    det = deterministic_module_op(message, focus_module)
+    if det is not None:
+        return det
+
     pt = parse_turn(message, focus_module=focus_module, provider=provider,
                     model=model)
 
-    # Deterministic switch safety-net. The model reliably handles "switch to
-    # X" but confidently REFUSES to leave a focused module on "go back to X" /
-    # "let's work on X", so an explicit navigation command overrides the parse.
+    # Deterministic switch safety-net (also from the LLM's classification).
     switch_target = detect_module_switch(message, focus_module.key)
     target = switch_target or (
         pt.module if pt.module and pt.module != focus_module.key else None

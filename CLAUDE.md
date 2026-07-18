@@ -671,12 +671,28 @@ Three pieces:
 
 ## Module-mode (build one FEWS-folder module at a time)
 
-The newest chat UX. Instead of eliciting a whole-project *intent*
+The chat UX. Instead of eliciting a whole-project *intent*
 (`build_forecasting_project`, ...) and resolving everything at once, the
 configurator **focuses one module and operates on it in plain language**.
 Configurator feedback drove this: "stop making me do the whole project at
-once." The whole-project intent flow still exists and is the fallback when
-no module is in focus; module-mode is additive on top of it.
+once."
+
+**The Streamlit app is PURE module-mode** — there is no user-facing
+whole-project intent (no "build a forecasting project", no "imports only or a
+full project?" disambiguation). Un-focused prose either enters a module (cold
+entry), **auto-focuses `processing`** for a clear catalog op ("add GFS"), or
+asks which module to work on (`chatter._module_pick_prompt`); the app never
+calls `run_turn_pipeline`. **`state["intent"]` is now only an internal
+resolver-selector**, DERIVED from the slots each module-mode turn by
+`turn_engine._sync_module_intent` (imports-only → `build_data_import_only` so
+`/done` doesn't demand a basin; imports+basins → `build_forecasting_project`) —
+so the three whole-project intents survive **only** as
+`resolve_patterns`'s slot→pattern mapper, never as a choice the user sees. The
+current module is shown in a grey caption **below** the conversation
+(`web_app`), not as a top metric. The CLI/API drivers still carry the
+whole-project `run_turn_pipeline` (with its disambiguation gate) for now —
+retiring it there is a follow-up; the app is the reference for the pure-module
+UX.
 
 **A "module" = one coherent unit of config work.** This mostly lines up
 with the always-present FEWS output folders, with two principled
@@ -732,11 +748,25 @@ capability phases *within* `processing`/`display` for scoped builds.
 **Turn flow when a module is in focus** — the ONE shared implementation
 `turn_engine.run_module_turn(state, message, catalog, focus, *, provider,
 just_entered)` that **all three shells** (CLI, Streamlit, HTTP API) call:
-prose → `extract_operation` (→ `parse_turn`) → route the action: `add`/`set`
+prose → `extract_operation` → route the action: `add`/`set`
 → `turn_engine.apply_extracted_fields` (honours add=fill vs set=override) →
 resolve; `remove` → `extracted_removal_edits`; `select_module` → `set_focus`;
 `build`/`list` → the scoped handlers. `apply_operation` is the shared action
-router so "apply now" and "apply after confirm" can't diverge. It returns a
+router so "apply now" and "apply after confirm" can't diverge.
+
+**Prose is as reliable as the slash commands** — `extract_operation` runs a
+**deterministic pre-pass** (`extractor.deterministic_module_op`) *before*
+`parse_turn`: a clear add/remove of catalog entities ("add GFS", "GFS and
+HRDPS", bare "GFS", "drop RDPS") is *known structure*, so the regex detectors
+(`detect_imports`/`detect_basins_with_adapters` + the `_EDIT_*` cue sets) parse
+it — no LLM, `confidence=1.0`, so `"add GFS" ≡ "/add GFS"`. It also fixes the
+cold-entry one-shot ("set up the imports module with a GFS import" now enters
+*and* adds — "set up" reads as an add cue even though bare "set" is a change
+cue). It defers to the LLM (`parse_turn`) only when the message is genuinely
+fuzzy — a scalar change ("make GFS half-degree"), a question ("what is GFS?"),
+or an entity the detectors miss ("the usual american forecast"); those still
+get catalog-validated so a hallucinated import is dropped. An explicit module
+switch (`detect_module_switch`) still wins over both. It returns a
 driver-agnostic `ModuleTurnResult` (reply, note, kind, new_patterns,
 `wants_build`); each shell only renders it (console / `TurnResult` / JSON) and
 runs its own scoped build on `wants_build`. The instance listing
@@ -747,6 +777,18 @@ had drifted (whole-project intents only) precisely because the routing was
 duplicated in the CLI + Streamlit shells and never ported. `run_module_turn`,
 `ModuleTurnResult`, and `_module_list_text` are the shared seam; add a
 module-mode feature there once.
+
+**Conversational replies (short confirmation + ONE focused question).** An
+edit reply is `module_edit_reply(note, state)` = the confirmation + a single
+progress-aware follow-up **question** from `_next_step_hint` (deterministic,
+not LLM) — e.g. add an import → *"Which weather variables should GFS carry?
+(e.g. precipitation, temperature)"*; once variables are set → *"Want to set
+GFS's map area (/coordinates), add another source, or /build?"*. It does **not**
+dump the full module list / command menu on every turn (configurator feedback:
+"it dumps a pile and never asks"). The full listing lives in `/list`
+(`module_list_reply` = list + the same question). Used by the shared
+`run_module_turn` apply branch **and** each shell's `/add`//`set`//`remove`
+slash handlers, so every edit path is equally terse and guiding.
 
 **Cold entry** (`detect_module_entry`, deterministic + conservative): when
 nothing is in focus, a clear single-module request enters that module

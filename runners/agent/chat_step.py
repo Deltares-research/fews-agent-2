@@ -58,6 +58,8 @@ from fews_agent.agent.turn_engine import (
     _module_list_text,
     apply_disambiguation_answer,
     apply_edit_action,
+    module_edit_reply,
+    module_list_reply,
     resolve_patterns as _resolve_patterns,
     run_module_turn,
     run_turn_pipeline,
@@ -700,9 +702,9 @@ def main(argv: list[str] | None = None) -> int:
         console.print(f"\n[bold magenta]agent[/bold magenta]: {reply}")
         return 0
 
-    # Instance-level listing (finer than /phases).
+    # Instance-level listing (finer than /phases) + next-step hint.
     if cmd in {"/list", "list", "/show", "show"}:
-        reply = _module_list_text(state, catalog)
+        reply = module_list_reply(state, catalog)
         history.append({"role": "agent", "message": reply})
         _append_log(project_dir, turn, "agent", reply, "module list")
         _save(project_dir, state, history)
@@ -754,12 +756,11 @@ def main(argv: list[str] | None = None) -> int:
             _save(project_dir, state, history)
             return 1
         notes = [apply_edit_action(state, e, catalog) for e in edits]
-        reply = "\n".join(notes)
+        reply = module_edit_reply("\n".join(notes), state)
         history.append({"role": "agent", "message": reply})
         _append_log(project_dir, turn, "agent", reply, f"edit:{op}")
         _save(project_dir, state, history)
         console.print(f"\n[bold magenta]agent[/bold magenta]: {reply}")
-        console.print("\n" + _module_list_text(state, catalog))
         return 0
 
     # Module-by-module flow: build ONE capability group (phase).

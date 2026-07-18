@@ -53,6 +53,7 @@ from fews_agent.agent.providers.factory import get_provider_or_ollama
 from fews_agent.agent.turn_engine import (
     _module_list_text,
     apply_disambiguation_answer,
+    module_list_reply,
     resolve_patterns,
     run_module_turn,
     run_turn_pipeline,
@@ -289,7 +290,7 @@ def _module_command(state: dict, message: str, catalog) -> str | None:
         _module, reply = module_focus.set_focus(state, token)
         return reply
     if cmd in {"/list", "list", "/show", "show"}:
-        return _module_list_text(state, catalog)
+        return module_list_reply(state, catalog)
     return None
 
 

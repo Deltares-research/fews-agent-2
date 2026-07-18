@@ -57,6 +57,8 @@ from fews_agent.agent.turn_engine import (
     _module_list_text,
     apply_disambiguation_answer,
     apply_edit_action,
+    module_edit_reply,
+    module_list_reply,
     resolve_patterns,
     run_module_turn,
     run_turn_pipeline,
@@ -1091,9 +1093,9 @@ class ChatSession:
             self._logger.info("phases turn=%d", turn)
             return TurnResult(agent_message=reply, kind="reply")
 
-        # /list — instance-level listing (finer than /phases).
+        # /list — instance-level listing (finer than /phases) + next-step hint.
         if cmd in {"/list", "list", "/show", "show"}:
-            reply = _module_list_text(self.state, self.catalog)
+            reply = module_list_reply(self.state, self.catalog)
             self.history.append({"role": "agent", "message": reply})
             self._append_md(turn, "agent", reply, note="module list")
             self._save()
@@ -1153,11 +1155,7 @@ class ChatSession:
             edit_notes = [
                 apply_edit_action(self.state, e, self.catalog) for e in edits
             ]
-            reply = (
-                "\n".join(edit_notes)
-                + "\n\n"
-                + _module_list_text(self.state, self.catalog)
-            )
+            reply = module_edit_reply("\n".join(edit_notes), self.state)
             self.history.append({"role": "agent", "message": reply})
             self._append_md(turn, "agent", reply, note=f"edit:{op}")
             self._save()
@@ -1449,15 +1447,21 @@ class ChatSession:
         # app's repeat-turn missing-input snooze (a CLI-absent behaviour).
         provider = get_provider(model=self.model)
 
-        # Module-mode prose path: when a module is in focus, a free-form
-        # message is ONE operation on that module — extract, validate against
-        # the catalog, apply — instead of the whole-project intent pipeline.
-        # When nothing is in focus, a clear "let's build module X" request
-        # (cold entry) enters that module first; otherwise fall through.
+        # Pure module-mode: the app builds one FEWS-folder module at a time —
+        # there is NO whole-project intent flow ("build a forecasting project"
+        # etc.). Un-focused prose either enters a module (cold entry),
+        # auto-focuses `processing` for a clear catalog op ("add GFS"), or asks
+        # which module to work on.
         _focus = module_focus.get_focus(self.state)
         _just_entered = False
         if _focus is None:
             _entry = module_focus.detect_module_entry(message)
+            if not _entry:
+                from fews_agent.agent.extractor import deterministic_module_op
+                _op = deterministic_module_op(message, None)
+                if _op is not None and _op.fields:
+                    # imports / basins / weather variables all live in processing
+                    _entry = "processing"
             if _entry:
                 module_focus.set_focus(self.state, _entry)
                 _focus = module_focus.get_focus(self.state)
@@ -1467,52 +1471,13 @@ class ChatSession:
                 _focus, message, turn, provider, just_entered=_just_entered,
             )
 
-        result = run_turn_pipeline(
-            self.state, message, self.catalog,
-            provider=provider,
-            inputs_dir=self.session_dir / "inputs",
-            nag_suppression=True,
-        )
+        # Nothing focused and nothing to act on → guide into a module.
+        return self._reply(turn, self._module_pick_prompt(), "module: pick")
 
-        # Disambiguation short-circuit: the gate asked a question and resolved
-        # nothing. Persist + return the question as a plain reply.
-        if result.short_circuit:
-            self.history.append(
-                {"role": "agent", "message": result.agent_message}
-            )
-            self._append_md(
-                turn, "agent", result.agent_message, note=result.log_note,
-            )
-            self._save()
-            self._logger.info(
-                "intent_disambiguation turn=%d which=%s",
-                turn, self.state.get("intent_disambiguation_which"),
-            )
-            return TurnResult(agent_message=result.agent_message, kind="reply")
-
-        self.history.append(
-            {"role": "agent", "message": result.agent_message}
-        )
-        self._append_md(
-            turn, "agent", result.agent_message, internals=result.internals,
-        )
-        self._save()
-        self._logger.info(
-            "turn_end turn=%d intent=%s slots_filled=%d patterns=%d ready=%s warnings=%d",
-            turn,
-            self.state.get("intent"),
-            sum(1 for v in (self.state.get("slots") or {}).values() if v),
-            len(self.state.get("patterns") or []),
-            result.ready,
-            len(result.warnings),
-        )
-
-        return TurnResult(
-            agent_message=result.agent_message,
-            kind="reply",
-            internals=result.internals,
-            warnings=result.warnings,
-            ready=result.ready,
-            next_question=result.next_question,
-            new_patterns=result.new_patterns,
+    def _module_pick_prompt(self) -> str:
+        """Ask which module to work on (pure module-mode has no intent flow)."""
+        return (
+            "Which part of the config would you like to work on? Say e.g. "
+            "**'the imports module'**, **'configure locations'**, or just tell "
+            "me what to add — **'add a GFS import'**, **'Liard uses raven'**."
         )

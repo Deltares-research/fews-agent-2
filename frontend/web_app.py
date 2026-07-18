@@ -314,7 +314,6 @@ chat = _ensure_session(
 # Reused throughout the rest of the panel — metrics, warnings, status.
 state = chat.state
 slots = state.get("slots") or {}
-intent = state.get("intent") or "—"
 patterns_count = len(state.get("patterns") or [])
 warnings_count = len(state.get("warnings") or [])
 
@@ -343,7 +342,7 @@ _ready_for_done = (
 # Why-not-ready reasons for the disabled-button tooltip.
 _done_reasons: list[str] = []
 if not _intent_obj:
-    _done_reasons.append("no project intent yet — describe what you want to build")
+    _done_reasons.append("nothing added yet — add an import or model (e.g. 'add a GFS import')")
 elif not is_intent_ready(_intent_obj, _slots):
     _done_reasons.append(
         f"missing slot: {next_unfilled_question(_intent_obj, _slots)}"
@@ -413,7 +412,7 @@ with _inputs_slot.container():
             st.caption("_No input files yet._")
         st.caption(
             "Auto-detected on the next message; missing/recommended "
-            "files for the active intent are flagged."
+            "files for the modules you've added are flagged."
         )
 
 # ----- header ---------------------------------------------------------------
@@ -425,14 +424,12 @@ st.caption(f"`{chat.session_dir}`  ·  model: `{chat.model}`")
 if not _llm_ok:
     st.error(_llm_err_msg)
 
-# Project-level snapshot. "project intent" is explicit so it's clear
-# the metric only reflects the build_* intent (slot/pattern driver);
-# the per-turn meta intents — status_check, help — fire without
-# mutating state["intent"] and so are intentionally invisible here.
-c1, c2, c3 = st.columns(3)
-c1.metric("project intent", intent)
-c2.metric("patterns", patterns_count)
-c3.metric("warnings", warnings_count)
+# Project-level snapshot. Pure module-mode: there is no user-facing
+# whole-project intent, so it isn't shown here — the current module is
+# tracked in a grey caption BELOW the conversation instead.
+c1, c2 = st.columns(2)
+c1.metric("patterns", patterns_count)
+c2.metric("warnings", warnings_count)
 
 # Standing warnings (carry over from the previous turn until cleared).
 for w in state.get("warnings") or []:
@@ -493,6 +490,14 @@ if prompt:
         if show_internals and result.internals:
             with st.expander("Engine internals (this turn)", expanded=False):
                 st.markdown(result.internals)
+
+# Current context, tracked in a grey caption BELOW the conversation (not at the
+# top): which FEWS-folder module is in focus. Pure module-mode — no intent.
+_cur_mod = chat.state.get("current_module")
+st.caption(
+    f"module: **{_cur_mod}**" if _cur_mod
+    else "no module in focus yet — tell me what to work on to begin"
+)
 
 
 # ----- grid coordinates subwindow -------------------------------------------

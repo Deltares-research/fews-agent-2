@@ -370,6 +370,7 @@ def apply_extracted_fields(state: dict, op, catalog) -> tuple[str, list[str]]:
             "model_adapter": slots["model_adapter"],
         }]
 
+    _sync_module_intent(state)
     if not state.get("intent"):
         inferred = heuristic_intent_from_slots(slots)
         if inferred:
@@ -387,6 +388,19 @@ def apply_extracted_fields(state: dict, op, catalog) -> tuple[str, list[str]]:
     return note, new
 
 
+def _sync_module_intent(state: dict) -> None:
+    """In module-mode there is NO user-facing whole-project intent; ``intent``
+    is only an internal resolver-selector. Re-derive it from the current slots
+    each turn (when a module is focused) so it tracks content — imports-only →
+    ``build_data_import_only`` (no basin required for /done), imports+basins →
+    ``build_forecasting_project``. The whole-project chat flow keeps whatever
+    intent it explicitly classified (no ``current_module`` set)."""
+    if state.get("current_module"):
+        inferred = heuristic_intent_from_slots(state.get("slots") or {})
+        if inferred:
+            state["intent"] = inferred
+
+
 def apply_removal(state: dict, op, catalog) -> tuple[str, list[str]]:
     """The `remove` skill handler: remove whole imports/basins + field values.
 
@@ -400,11 +414,12 @@ def apply_removal(state: dict, op, catalog) -> tuple[str, list[str]]:
     field_notes = apply_field_removals(state, op.fields or {})
     if field_notes:
         notes.extend(field_notes)
-        if not state.get("intent"):
-            inferred = heuristic_intent_from_slots(state.get("slots", {}))
-            if inferred:
-                state["intent"] = inferred
-        resolve_patterns(state, catalog)  # propagate dropped values
+    _sync_module_intent(state)
+    if not state.get("intent"):
+        inferred = heuristic_intent_from_slots(state.get("slots", {}))
+        if inferred:
+            state["intent"] = inferred
+    resolve_patterns(state, catalog)  # propagate dropped values / derived intent
     if not notes:
         return "Nothing recognised to remove.", []
     return "\n".join(notes), []
@@ -535,6 +550,63 @@ class ModuleTurnResult:
     wants_build: bool = False
 
 
+def _next_step_hint(state: dict, focus) -> str:
+    """The single, focused follow-up QUESTION for the module's current state —
+    so the agent guides one step at a time ("GFS added. Which weather
+    variables?") instead of dumping the whole option menu every turn.
+
+    Progress-aware and deterministic (control-flow guidance must not drift),
+    plain text so it reads the same in console / app / API JSON. Returns "" when
+    there's nothing sensible to ask.
+    """
+    if focus is None:
+        return ""
+    slots = state.get("slots") or {}
+    key = getattr(focus, "key", None)
+
+    if key == "processing":
+        imports = [str(i) for i in (slots.get("imports") or [])]
+        has_basin = bool(slots.get("basins") or slots.get("basin_name"))
+        if not imports and not has_basin:
+            return ("What would you like to import? (e.g. GFS, HRDPS) — or say "
+                    "'Liard uses raven' to add a model.")
+        if imports and not slots.get("data_types"):
+            return (f"Which weather variables should {imports[-1]} carry? "
+                    "(e.g. precipitation, temperature) — or /build to generate.")
+        target = imports[-1] if imports else "the model"
+        return (f"Want to set {target}'s map area (/coordinates), add another "
+                "source, or /build to generate + validate?")
+
+    if key == "display":
+        return "Ready to /build the display?"
+
+    if getattr(focus, "supports", lambda _op: False)("set"):
+        var = module_focus.next_unfilled_variable(state, focus)
+        if var:
+            return f"What should {var} be? (or /build when this module is ready)"
+        return "Ready to /build this module?"
+
+    # View-only module (filters, topology, ...) — nothing to add/set here.
+    return "Ready to /build this module, or 'done' to assemble everything?"
+
+
+def module_edit_reply(note: str, state: dict) -> str:
+    """A concise edit reply: the confirmation + the ONE focused follow-up
+    question — no full module list / command menu (that's what /list is for).
+    Shared by every shell's edit paths so replies stay short and identical."""
+    q = _next_step_hint(state, module_focus.get_focus(state))
+    return note + (f"\n\n{q}" if q else "")
+
+
+def module_list_reply(state: dict, catalog) -> str:
+    """The instance listing + the proactive 'Next:' nudge for the focused
+    module. Shared by every shell's ``/list`` handler and the prose-``list``
+    path, so the guidance is identical everywhere (and appears once)."""
+    text = _module_list_text(state, catalog)
+    hint = _next_step_hint(state, module_focus.get_focus(state))
+    return text + (f"\n\n{hint}" if hint else "")
+
+
 def run_module_turn(
     state: dict, message: str, catalog, focus, *, provider,
     just_entered: bool = False,
@@ -586,9 +658,7 @@ def run_module_turn(
             "", "module op: build", action="build", wants_build=True,
         )
     if op.action == "list":
-        return ModuleTurnResult(
-            _module_list_text(state, catalog), "module op: list",
-        )
+        return ModuleTurnResult(module_list_reply(state, catalog), "module op: list")
 
     # Uncertain AND effectful → confirm instead of applying silently.
     if needs_confirmation(op):
@@ -602,7 +672,8 @@ def run_module_turn(
     reply, new_patterns = apply_operation(state, op, catalog)
     # Pure cold entry ("configure locations") with no operation to apply:
     # welcome with the focus card instead of a flat "nothing to change".
-    if just_entered and op.action == "none" and not op.fields:
+    is_card = just_entered and op.action == "none" and not op.fields
+    if is_card:
         reply = module_focus.focus_card(state, focus)
     if op.dropped:
         reply += (
@@ -610,8 +681,10 @@ def run_module_turn(
             + ", ".join(op.dropped)
             + ". Rephrase with a known name if you meant something valid."
         )
-    if op.action != "select_module":
-        reply += "\n\n" + _module_list_text(state, catalog)
+    # Concise: confirmation + ONE focused question (no full list every turn —
+    # /list is for that). The cold-entry card already ends with its own nudge.
+    if op.action != "select_module" and not is_card:
+        reply = module_edit_reply(reply, state)
     return ModuleTurnResult(
         reply, f"module op: {op.action}", kind="edit", action=op.action,
         new_patterns=new_patterns,

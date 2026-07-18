@@ -86,14 +86,76 @@ def test_module_unknown_token_does_not_change_focus(tmp_path, monkeypatch):
 
 # --- prose-operation path (extractor) -------------------------------------
 
-def test_prose_add_applies_and_drops_hallucination(tmp_path, monkeypatch):
+def test_reply_guides_with_a_next_step(tmp_path, monkeypatch):
+    # After adding an import, the agent proactively suggests what to do next
+    # (choose variables / coordinates / build) instead of only confirming.
+    s = _session(tmp_path, monkeypatch, {
+        "action": "add", "fields": {"imports": ["GFS"]},
+    })
+    s.send("/module processing")
+    res = s.send("add a GFS import")
+    # After adding an import it ASKS the one focused next question (weather
+    # variables), rather than dumping the full list + a command menu.
+    assert "weather variables" in res.agent_message.lower()
+    assert "GFS" in res.agent_message
+    assert "Modules in this project" not in res.agent_message   # no pile-dump
+    # /list is where the full listing lives (and it still guides).
+    listing = s.send("/list").agent_message
+    assert "Modules in this project" in listing
+    # The /add slash command (deterministic edit path) also asks a question.
+    assert "?" in s.send("/add HRDPS").agent_message
+
+
+def test_deterministic_prose_add_needs_no_llm(tmp_path, monkeypatch):
+    # "add GFS and HRDPS" is known structure (verb + catalog entities) → parsed
+    # deterministically; the provider (which would blow up) is never called.
+    class _Boom:
+        def generate_json(self, *a, **k):
+            raise AssertionError("LLM extractor should not be called")
+
+    monkeypatch.setattr(chatter, "check_ollama_for_model", lambda *a, **k: None)
+    monkeypatch.setattr(chatter, "get_provider", lambda *a, **k: _Boom())
+    s = chatter.ChatSession(
+        project_name="det", session_dir=tmp_path, username="t",
+    )
+    s.send("/module processing")
+    res = s.send("add GFS and HRDPS")
+    assert res.kind == "edit"
+    assert set(s.state["slots"]["imports"]) == {"GFS", "HRDPS"}
+    assert "auto/nwp_grid_noaa" in {p["pattern"] for p in s.state["patterns"]}
+
+
+def test_prose_sets_weather_variables_no_llm(tmp_path, monkeypatch):
+    # "we will use precipitation" is known structure too → deterministic; the
+    # provider is never called. This is the gap the /coordinates-era testing
+    # surfaced: the hint says to set variables, so prose must set them.
+    class _Boom:
+        def generate_json(self, *a, **k):
+            raise AssertionError("LLM extractor should not be called")
+
+    monkeypatch.setattr(chatter, "check_ollama_for_model", lambda *a, **k: None)
+    monkeypatch.setattr(chatter, "get_provider", lambda *a, **k: _Boom())
+    s = chatter.ChatSession(
+        project_name="dt", session_dir=tmp_path, username="t",
+    )
+    s.send("/module processing")
+    s.send("add GFS")
+    res = s.send("we will use precipitation and temperature")
+    assert res.kind == "edit"
+    assert set(s.state["slots"]["data_types"]) == {"precipitation", "temperature"}
+
+
+def test_prose_add_via_llm_drops_hallucination(tmp_path, monkeypatch):
+    # A FUZZY phrase (no literal catalog token) bypasses the deterministic
+    # pre-pass and reaches the LLM parser, whose output is catalog-validated:
+    # a hallucinated import is dropped and surfaced loudly.
     s = _session(tmp_path, monkeypatch, {
         "action": "add",
         "fields": {"imports": ["GFS", "NOTREAL"],
                    "data_types": ["precipitation"]},
     })
     s.send("/module processing")
-    res = s.send("add a GFS import with precipitation")
+    res = s.send("pull in the usual american forecast source")
     assert res.kind == "edit"
     assert s.state["slots"]["imports"] == ["GFS"]        # NOTREAL dropped
     assert s.state["slots"]["data_types"] == ["precipitation"]
@@ -177,7 +239,9 @@ def test_low_confidence_add_asks_before_applying(tmp_path, monkeypatch):
         "action": "add", "fields": {"imports": ["GFS"]}, "confidence": 0.3,
     })
     s.send("/module processing")
-    res = s.send("hmm maybe pull in gfs?")
+    # Fuzzy phrase (no literal catalog token) → deterministic pass defers, the
+    # LLM parser's low confidence triggers the confirm gate.
+    res = s.send("hmm, maybe that global weather source?")
     assert "confirm" in res.agent_message.lower()
     assert s.state.get("_pending_operation") is not None
     assert not s.state["slots"].get("imports")     # NOT applied yet
@@ -199,18 +263,13 @@ def test_low_confidence_add_can_be_declined(tmp_path, monkeypatch):
     assert s.state.get("_pending_operation") is None
 
 
-def test_prose_without_focus_uses_intent_pipeline(tmp_path, monkeypatch):
-    # No module in focus → the extractor path must NOT fire; the message
-    # goes to the normal pipeline. We assert the extractor didn't apply by
-    # checking current_module is unset and the payload wasn't used.
-    from fews_agent.agent import turn_engine
-    monkeypatch.setattr(
-        turn_engine, "classify_intent",
-        lambda *a, **k: {"intent": "build_data_import_only", "entities": {}},
-    )
-    monkeypatch.setattr(turn_engine, "compose_reply", lambda *a, **k: "STUB")
-    s = _session(tmp_path, monkeypatch, {"action": "add",
-                                         "fields": {"imports": ["GFS"]}})
+def test_prose_without_focus_is_pure_module_mode(tmp_path, monkeypatch):
+    # Pure module-mode: with no module in focus, a clear catalog request
+    # auto-focuses `processing` and applies — it does NOT run a whole-project
+    # intent pipeline. (The LLM stub would raise if reached.)
+    s = _session(tmp_path, monkeypatch, {})
     assert s.state.get("current_module") is None
-    res = s.send("set up an import project")
-    assert res.agent_message == "STUB"                    # pipeline reply, not extractor
+    res = s.send("set up an import project with GFS")
+    assert res.kind == "edit"
+    assert s.state["current_module"] == "processing"
+    assert s.state["slots"]["imports"] == ["GFS"]
