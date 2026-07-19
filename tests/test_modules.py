@@ -173,12 +173,15 @@ def test_compose_module_reply_falls_back_without_provider():
     from fews_agent.agent import turn_engine as TE
     proc = M.get_module("processing")
     state = {"slots": {"imports": ["GFS"]}, "current_module": "processing"}
-    # No provider → deterministic template (note + the focused question).
+    # No provider → the focused QUESTION alone (the "what changed" note is shown
+    # separately as the grey confirmation, so it must NOT be repeated here —
+    # that was the double "Applied: …" bug).
     reply = TE.compose_module_reply(
         state, proc, "Applied: imports=['GFS']", catalog=None, provider=None
     )
-    assert "Applied: imports=['GFS']" in reply
-    assert "?" in reply  # carries the focused follow-up question
+    assert "Applied:" not in reply           # the note is NOT in the reply
+    assert "?" in reply                      # carries the focused follow-up
+    assert "weather variables" in reply      # ...the next-step question
 
 
 def test_run_module_turn_edit_splits_confirmation_from_reply():

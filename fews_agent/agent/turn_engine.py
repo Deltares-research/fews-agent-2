@@ -21,6 +21,7 @@ this module's namespace so tests patch ``turn_engine.classify_intent`` /
 """
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 
 from fews_agent.agent import module_focus
@@ -676,14 +677,18 @@ def compose_module_reply(
     The engine has already applied the edit; this phrases a warm, natural reply
     that acknowledges ``changed_note`` and guides toward completing the module,
     using the deterministic checklist (:func:`_module_progress`) as the anchor.
-    Falls back to the deterministic :func:`module_edit_reply` when no provider
-    is wired or the call fails, so the turn never breaks. The mechanical "what
+    Falls back to just the deterministic next-step question when no provider is
+    wired or the call fails, so the turn never breaks. The mechanical "what
     changed" fact is shown separately (muted) by the shells — this reply is the
-    guidance, not the confirmation."""
+    guidance, NOT the confirmation, so the fallback is the QUESTION ALONE (never
+    the note again: that would double-print "Applied: …" once grey, once here)."""
     from . import prompts
 
+    def _fallback() -> str:
+        return _next_step_hint(state, focus) or "Done — this module is ready to /build."
+
     if provider is None:
-        return module_edit_reply(changed_note, state)
+        return _fallback()
 
     prog = _module_progress(state, focus, catalog)
     label = getattr(focus, "label", "this")
@@ -711,9 +716,14 @@ def compose_module_reply(
         text = (resp.data or {}).get("reply", "").strip()
         if text:
             return text
-    except Exception:
-        pass
-    return module_edit_reply(changed_note, state)
+    except Exception as exc:  # noqa: BLE001
+        # Don't fail the turn, but don't hide WHY the model reply was skipped —
+        # a silent fallback reads to the user as "the LLM did nothing".
+        logging.getLogger(__name__).warning(
+            "compose_module_reply fell back to the deterministic question: "
+            "%s: %s", type(exc).__name__, exc,
+        )
+    return _fallback()
 
 
 def module_welcome(state: dict, module) -> str:
