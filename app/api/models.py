@@ -101,6 +101,12 @@ class TurnResponse(BaseModel):
         "The turn endpoint does not build; POST /sessions/{id}/build to "
         "assemble, or build the scoped phase via the build tooling.",
     )
+    confirmation: str = Field(
+        default="",
+        description="The mechanical 'what changed' fact for a module-mode edit "
+        "(e.g. \"Applied: imports=['GFS']\"). The UI renders this muted/grey "
+        "above the model-composed `reply`. Empty for non-edit turns.",
+    )
 
 
 # --------------------------------------------------------------------------

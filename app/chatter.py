@@ -59,6 +59,7 @@ from fews_agent.agent.turn_engine import (
     apply_edit_action,
     module_edit_reply,
     module_list_reply,
+    module_welcome,
     resolve_patterns,
     run_module_turn,
     run_turn_pipeline,
@@ -342,6 +343,10 @@ class TurnResult:
     """
     agent_message: str
     kind: str = "reply"
+    # The mechanical "what changed" fact (e.g. "Applied: imports=['GFS']"),
+    # rendered MUTED (grey) above the main reply so the LLM's guidance is the
+    # main voice. Empty for non-edit turns.
+    confirmation: str = ""
     internals: str | None = None
     warnings: list[str] = field(default_factory=list)
     ready: bool = False
@@ -724,8 +729,16 @@ class ChatSession:
         self, turn: int, message: str, note: str, kind: str = "reply",
         **tr_kwargs,
     ) -> TurnResult:
-        """Append an agent reply to history + transcript, save, return."""
-        self.history.append({"role": "agent", "message": message})
+        """Append an agent reply to history + transcript, save, return.
+
+        A muted ``confirmation`` (the "what changed" fact) is stored on the
+        history entry too, so the grey caption survives Streamlit reruns that
+        replay the conversation."""
+        confirmation = tr_kwargs.get("confirmation", "")
+        entry = {"role": "agent", "message": message}
+        if confirmation:
+            entry["confirmation"] = confirmation
+        self.history.append(entry)
         self._append_md(turn, "agent", message, note=note)
         self._save()
         return TurnResult(agent_message=message, kind=kind, **tr_kwargs)
@@ -749,7 +762,7 @@ class ChatSession:
         self._logger.info("module_op turn=%d note=%s", turn, res.note)
         return self._reply(
             turn, res.reply, res.note, kind=res.kind,
-            new_patterns=res.new_patterns,
+            new_patterns=res.new_patterns, confirmation=res.confirmation,
         )
 
     # ---- grid coordinates subwindow -----------------------------------------
@@ -1070,13 +1083,15 @@ class ChatSession:
             if cmd == "/module":
                 cur = module_focus.get_focus(self.state)
                 reply = (
-                    module_focus.focus_card(self.state, cur) if cur
+                    module_welcome(self.state, cur) if cur
                     else "No module in focus. Pick one with  /module <name>  "
                          "(see  /modules  for the list)."
                 )
             else:
                 token = message.strip().split(None, 1)[1].strip()
                 _module, reply = module_focus.set_focus(self.state, token)
+                if _module is not None:
+                    reply = module_welcome(self.state, _module)
             self.history.append({"role": "agent", "message": reply})
             self._append_md(turn, "agent", reply, note="module focus")
             self._save()

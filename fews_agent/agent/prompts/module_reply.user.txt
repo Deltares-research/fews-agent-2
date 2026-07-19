@@ -1,0 +1,14 @@
+Focused module: [[ module_label ]]
+This module's job: [[ module_job ]]
+
+User just said: [[ user_message ]]
+WHAT CHANGED this turn (engine already applied it — acknowledge past tense): [[ changed ]]
+
+CHECKLIST for this module
+  DONE (already set — safe to reference by name): [[ done_text ]]
+  TODO (not yet set — ask for these, never invent): [[ todo_text ]]
+  READY TO BUILD: [[ ready ]]
+
+SUGGESTED NEXT STEP (guide toward this, phrased naturally): [[ suggested_next ]]
+
+Compose the guiding reply.

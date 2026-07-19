@@ -535,11 +535,14 @@ def _module_list_text(state: dict, catalog) -> str:
 class ModuleTurnResult:
     """The outcome of one module-mode prose turn — driver-agnostic.
 
-    ``reply`` is the user-facing text; ``note`` the transcript/log tag;
-    ``kind`` distinguishes a plain reply from a state edit. ``wants_build``
-    is set when the extracted operation was ``build`` — the shells execute
-    their own scoped build (console table / TurnResult / JSON) because the
-    build I/O legitimately differs; everything else is fully shared.
+    ``reply`` is the user-facing text (the LLM-composed guidance); ``note`` the
+    transcript/log tag; ``confirmation`` the mechanical "what changed" fact,
+    which shells render MUTED (grey) above/around the reply so the model's
+    guidance reads as the main voice. ``kind`` distinguishes a plain reply from
+    a state edit. ``wants_build`` is set when the extracted operation was
+    ``build`` — the shells execute their own scoped build (console table /
+    TurnResult / JSON) because the build I/O legitimately differs; everything
+    else is fully shared.
     """
 
     reply: str
@@ -548,6 +551,7 @@ class ModuleTurnResult:
     action: str = "none"
     new_patterns: list[str] = field(default_factory=list)
     wants_build: bool = False
+    confirmation: str = ""       # muted "what changed" fact (grey in the UI)
 
 
 def _next_step_hint(state: dict, focus) -> str:
@@ -593,9 +597,132 @@ def _next_step_hint(state: dict, focus) -> str:
 def module_edit_reply(note: str, state: dict) -> str:
     """A concise edit reply: the confirmation + the ONE focused follow-up
     question — no full module list / command menu (that's what /list is for).
-    Shared by every shell's edit paths so replies stay short and identical."""
+    Shared by every shell's edit paths so replies stay short and identical.
+
+    This is the DETERMINISTIC fallback. The live path composes the guiding
+    reply with the LLM (:func:`compose_module_reply`) and shows ``note`` as a
+    separate muted confirmation; this template is what renders when no provider
+    is available or the LLM call fails."""
     q = _next_step_hint(state, module_focus.get_focus(state))
     return note + (f"\n\n{q}" if q else "")
+
+
+# Slots that count as "done" for a module's checklist but read nicer with a
+# friendly label than the raw slot key.
+_CHECKLIST_LABELS = {
+    "imports": "imports",
+    "basins": "basin model(s)",
+    "data_types": "weather variables",
+    "grid_resolution": "grid resolution",
+    "forecast_horizon_hours": "forecast horizon",
+    "region": "map region",
+    "custom_bbox": "map area",
+    "grid_geometry": "grid coordinates",
+    "geoDatum": "geo datum",
+}
+
+
+def _module_progress(state: dict, focus, catalog) -> dict:
+    """A structured completion checklist for the focused module.
+
+    Splits the module's variables into done/todo (via
+    :func:`module_focus.module_slot_status`), decides whether the module has
+    enough to build, and carries the deterministic next-step hint as the anchor
+    the LLM should guide toward. Pure — no LLM, no I/O — so the guidance can't
+    drift on WHICH step is next, only on how it's phrased.
+    """
+    slots = state.get("slots") or {}
+    status = module_focus.module_slot_status(state, focus) if focus else {
+        "filled": [], "unfilled": []
+    }
+
+    def _label(k: str) -> str:
+        return _CHECKLIST_LABELS.get(k, k)
+
+    done = []
+    for k in status.get("filled", []):
+        val = slots.get(k)
+        if isinstance(val, list) and val:
+            done.append(f"{_label(k)}: {', '.join(str(v) for v in val)}")
+        elif val not in (None, "", [], {}):
+            done.append(f"{_label(k)}: {val}")
+        else:
+            done.append(_label(k))
+    todo = [_label(k) for k in status.get("unfilled", [])]
+
+    key = getattr(focus, "key", None)
+    if key == "processing":
+        ready = bool(slots.get("imports") or slots.get("basins")
+                     or slots.get("basin_name"))
+    elif focus is not None and getattr(focus, "supports", lambda _o: False)("set"):
+        ready = module_focus.next_unfilled_variable(state, focus) is None
+    else:
+        ready = True  # view-only modules are always buildable
+
+    return {
+        "done": done,
+        "todo": todo,
+        "ready": ready,
+        "suggested_next": _next_step_hint(state, focus),
+    }
+
+
+def compose_module_reply(
+    state: dict, focus, changed_note: str, catalog, *, provider,
+    model: str = "qwen2.5:7b-instruct",
+) -> str:
+    """LLM-composed guiding reply for a module-mode turn.
+
+    The engine has already applied the edit; this phrases a warm, natural reply
+    that acknowledges ``changed_note`` and guides toward completing the module,
+    using the deterministic checklist (:func:`_module_progress`) as the anchor.
+    Falls back to the deterministic :func:`module_edit_reply` when no provider
+    is wired or the call fails, so the turn never breaks. The mechanical "what
+    changed" fact is shown separately (muted) by the shells — this reply is the
+    guidance, not the confirmation."""
+    from . import prompts
+
+    if provider is None:
+        return module_edit_reply(changed_note, state)
+
+    prog = _module_progress(state, focus, catalog)
+    label = getattr(focus, "label", "this")
+    job = getattr(focus, "prompt", "") or getattr(focus, "description", "") or ""
+
+    system = prompts.load("module_reply.system")
+    user = prompts.load(
+        "module_reply.user",
+        module_label=label,
+        module_job=job,
+        user_message=repr(state.get("_last_user_message", "")),
+        changed=changed_note or "(nothing new)",
+        done_text="; ".join(prog["done"]) or "(nothing yet)",
+        todo_text="; ".join(prog["todo"]) or "(nothing left)",
+        ready="yes" if prog["ready"] else "not yet",
+        suggested_next=prog["suggested_next"] or "(module is complete)",
+    )
+    schema = {
+        "type": "object",
+        "properties": {"reply": {"type": "string"}},
+        "required": ["reply"],
+    }
+    try:
+        resp = provider.generate_json(system=system, user=user, schema=schema)
+        text = (resp.data or {}).get("reply", "").strip()
+        if text:
+            return text
+    except Exception:
+        pass
+    return module_edit_reply(changed_note, state)
+
+
+def module_welcome(state: dict, module) -> str:
+    """The module-entry message: a short friendly welcome + the ONE focused
+    question ("What would you like to import?"). Shared by cold entry and the
+    /module command so entering a module is conversational, not a pile."""
+    card = module_focus.focus_card(state, module)
+    q = _next_step_hint(state, module)
+    return card + (f"\n\n{q}" if q else "")
 
 
 def module_list_reply(state: dict, catalog) -> str:
@@ -631,6 +758,8 @@ def run_module_turn(
         op_from_dict, op_to_dict,
     )
 
+    state["_last_user_message"] = message  # read by compose_module_reply
+
     # A low-confidence op from a prior turn is awaiting a yes/no.
     pending = state.get("_pending_operation")
     if pending:
@@ -642,10 +771,15 @@ def run_module_turn(
                     "Okay — cancelled, nothing applied.",
                     "module op: cancelled",
                 )
-            reply, _ = apply_operation(state, op_from_dict(pending), catalog)
-            reply += "\n\n" + _module_list_text(state, catalog)
+            changed, new_patterns = apply_operation(
+                state, op_from_dict(pending), catalog
+            )
+            guidance = compose_module_reply(
+                state, focus, changed, catalog, provider=provider
+            )
             return ModuleTurnResult(
-                reply, "module op: confirmed", kind="edit",
+                guidance, "module op: confirmed", kind="edit",
+                new_patterns=new_patterns, confirmation=changed,
             )
         # Unclear answer → drop the stale pending op, process this fresh.
         state["_pending_operation"] = None
@@ -669,25 +803,43 @@ def run_module_turn(
         )
         return ModuleTurnResult(reply, "module op: confirm?")
 
-    reply, new_patterns = apply_operation(state, op, catalog)
+    changed, new_patterns = apply_operation(state, op, catalog)
+
     # Pure cold entry ("configure locations") with no operation to apply:
-    # welcome with the focus card instead of a flat "nothing to change".
+    # a friendly welcome + the one focused question, not the old pile.
     is_card = just_entered and op.action == "none" and not op.fields
     if is_card:
-        reply = module_focus.focus_card(state, focus)
+        return ModuleTurnResult(
+            module_welcome(state, focus), f"module op: {op.action}",
+            kind="edit", action=op.action, new_patterns=new_patterns,
+        )
+
+    # A module switch: friendly welcome for the module now in focus.
+    if op.action == "select_module":
+        return ModuleTurnResult(
+            module_welcome(state, module_focus.get_focus(state)),
+            f"module op: {op.action}", kind="edit", action=op.action,
+            new_patterns=new_patterns,
+        )
+
+    # An edit (add / set / remove / none-with-fields): the LLM composes the
+    # guiding reply from the module checklist; the mechanical "what changed"
+    # note rides along as the muted confirmation (grey in the UI). Falls back
+    # to the deterministic template inside compose_module_reply if the LLM is
+    # unavailable. Catalog-dropped values stay LOUD — appended to the main
+    # reply, never buried in the grey confirmation.
+    guidance = compose_module_reply(
+        state, focus, changed, catalog, provider=provider
+    )
     if op.dropped:
-        reply += (
+        guidance += (
             "\n\n[!] Ignored (not in the catalog, so not applied): "
             + ", ".join(op.dropped)
             + ". Rephrase with a known name if you meant something valid."
         )
-    # Concise: confirmation + ONE focused question (no full list every turn —
-    # /list is for that). The cold-entry card already ends with its own nudge.
-    if op.action != "select_module" and not is_card:
-        reply = module_edit_reply(reply, state)
     return ModuleTurnResult(
-        reply, f"module op: {op.action}", kind="edit", action=op.action,
-        new_patterns=new_patterns,
+        guidance, f"module op: {op.action}", kind="edit", action=op.action,
+        new_patterns=new_patterns, confirmation=changed,
     )
 
 

@@ -60,6 +60,7 @@ from fews_agent.agent.turn_engine import (
     apply_edit_action,
     module_edit_reply,
     module_list_reply,
+    module_welcome,
     resolve_patterns as _resolve_patterns,
     run_module_turn,
     run_turn_pipeline,
@@ -320,18 +321,25 @@ def _run_module_operation(
         )
         _save(project_dir, state, history)
         return rc
-    _emit(project_dir, state, history, turn, res.reply, res.note, console)
+    _emit(project_dir, state, history, turn, res.reply, res.note, console,
+          confirmation=res.confirmation)
     return 0
 
 
 def _emit(
     project_dir: Path, state: dict, history: list, turn: int,
-    reply: str, note: str, console: Console,
+    reply: str, note: str, console: Console, confirmation: str = "",
 ) -> None:
-    """Append an agent reply to history + transcript, save, and print."""
+    """Append an agent reply to history + transcript, save, and print.
+
+    A muted ``confirmation`` (the "what changed" fact) prints dim above the
+    reply so the LLM guidance is the main voice, mirroring the app's grey
+    caption."""
     history.append({"role": "agent", "message": reply})
     _append_log(project_dir, turn, "agent", reply, note)
     _save(project_dir, state, history)
+    if confirmation:
+        console.print(f"\n[dim]{confirmation}[/dim]")
     console.print(f"\n[bold magenta]agent[/bold magenta]: {reply}")
 
 
@@ -679,13 +687,15 @@ def main(argv: list[str] | None = None) -> int:
         if cmd == "/module":
             cur = module_focus.get_focus(state)
             reply = (
-                module_focus.focus_card(state, cur) if cur
+                module_welcome(state, cur) if cur
                 else "No module in focus. Pick one with  /module <name>  "
                      "(see  /modules  for the list)."
             )
         else:
             token = args.message.strip().split(None, 1)[1].strip()
             module, reply = module_focus.set_focus(state, token)
+            if module is not None:
+                reply = module_welcome(state, module)
         history.append({"role": "agent", "message": reply})
         _append_log(project_dir, turn, "agent", reply, "module focus")
         _save(project_dir, state, history)

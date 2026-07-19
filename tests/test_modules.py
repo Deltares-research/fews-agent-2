@@ -119,13 +119,17 @@ def test_module_slot_status_splits_filled_unfilled():
     assert "basins" in status["unfilled"]
 
 
-def test_focus_card_surfaces_inherited_context():
+def test_focus_card_is_a_short_friendly_welcome():
     state: dict = {"slots": {"geoDatum": "WGS 1984", "region": "Caribbean"}}
     proc = M.get_module("processing")
     card = F.focus_card(state, proc)
-    assert "Inherited from this session" in card
-    assert "geoDatum" in card
-    assert "ModuleConfigFiles/" in card
+    # Names the module + mentions inherited context in one line...
+    assert "Processing" in card
+    assert "Carrying over" in card and "geoDatum" in card
+    # ...but is NOT the old folders / operations / "still to set" pile.
+    assert "ModuleConfigFiles/" not in card
+    assert "Still to set" not in card
+    assert card.count("\n") <= 2
 
 
 def test_modules_overview_lists_all():
@@ -147,6 +151,60 @@ def test_next_unfilled_variable_none_when_complete():
     params = M.get_module("parameters")  # variables=("data_types",)
     state = {"slots": {"data_types": ["precipitation"]}}
     assert F.next_unfilled_variable(state, params) is None
+
+
+# --- module-mode guiding reply (LLM main voice + grey confirmation) -------
+
+def test_module_progress_splits_done_todo_and_readiness():
+    from fews_agent.agent import turn_engine as TE
+    proc = M.get_module("processing")
+    # An import present → processing is buildable; imports shows under done.
+    state = {"slots": {"imports": ["GFS"]}}
+    prog = TE._module_progress(state, proc, catalog=None)
+    assert prog["ready"] is True
+    assert any("GFS" in d for d in prog["done"])
+    assert prog["suggested_next"]  # a concrete next step to guide toward
+    # Empty processing → not yet buildable.
+    empty = TE._module_progress({"slots": {}}, proc, catalog=None)
+    assert empty["ready"] is False
+
+
+def test_compose_module_reply_falls_back_without_provider():
+    from fews_agent.agent import turn_engine as TE
+    proc = M.get_module("processing")
+    state = {"slots": {"imports": ["GFS"]}, "current_module": "processing"}
+    # No provider → deterministic template (note + the focused question).
+    reply = TE.compose_module_reply(
+        state, proc, "Applied: imports=['GFS']", catalog=None, provider=None
+    )
+    assert "Applied: imports=['GFS']" in reply
+    assert "?" in reply  # carries the focused follow-up question
+
+
+def test_run_module_turn_edit_splits_confirmation_from_reply():
+    """An edit's mechanical fact rides in `confirmation` (grey); the guiding
+    reply is composed separately (deterministic fallback when the provider
+    can't compose)."""
+    from fews_agent.agent import turn_engine as TE
+
+    class _FakeProvider:
+        # Extracts nothing useful and can't compose → both paths fall back to
+        # the deterministic detectors / template.
+        def generate_json(self, *a, **k):
+            raise RuntimeError("no LLM in this test")
+
+    state = {"slots": {}, "current_module": "processing"}
+    catalog = {}
+    proc = M.get_module("processing")
+    # "add GFS" is caught by the deterministic pre-pass (no LLM needed).
+    res = TE.run_module_turn(
+        state, "add GFS", catalog, proc, provider=_FakeProvider(),
+    )
+    assert res.kind == "edit"
+    # The mechanical fact is the muted confirmation, not the main reply.
+    assert "GFS" in res.confirmation
+    assert res.reply  # a guiding reply is present
+    assert "GFS" in (state["slots"].get("imports") or [])
 
 
 # --- turn-engine focus scoping --------------------------------------------

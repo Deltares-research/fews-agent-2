@@ -414,17 +414,18 @@ def deterministic_module_op(
     # removes only the intended targets. Defer only when the SAME message also
     # carries a scalar SET edit ("drop RDPS and make GFS half-degree"), which
     # this path can't represent — a bare discourse marker ("Actually, drop
-    # HRDPS") is still a clean remove. (Removing a data_type is rarer and not
-    # cue-associated here → defer to the LLM.)
+    # HRDPS") is still a clean remove. A named data_type ("remove temperature")
+    # is a clean remove too: apply_field_removals subtracts it from the slot.
     if has_remove:
         edit = detect_edit_action(text) or {}
         if any(e.get("op") == "set" for e in edit.get("edits") or []):
             return None
         rem_imports = list(edit.get("removed_imports") or [])
         rem_basins = [{"basin_name": b} for b in (edit.get("removed_basins") or [])]
-        if not (rem_imports or rem_basins):
+        rem_dtypes = list(dtypes)  # weather variables named with a remove cue
+        if not (rem_imports or rem_basins or rem_dtypes):
             return None
-        return _op("remove", rem_imports, rem_basins, None)
+        return _op("remove", rem_imports, rem_basins, rem_dtypes)
 
     # ADD — an add cue (incl. "set up"), or a bare mention, and no change cue.
     # The add-cue guard stops questions ("what is precipitation?") from applying.

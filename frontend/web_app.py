@@ -441,6 +441,9 @@ for w in state.get("warnings") or []:
 for msg in chat.messages:
     role = "user" if msg["role"] == "user" else "assistant"
     with st.chat_message(role):
+        # The muted "what changed" fact (grey), above the model's guidance.
+        if msg.get("confirmation"):
+            st.caption(msg["confirmation"])
         st.markdown(msg["message"])
 
 # ----- input + new turn -----------------------------------------------------
@@ -459,6 +462,8 @@ if prompt:
     with st.chat_message("assistant"):
         with st.spinner("Thinking…"):
             result = chat.send(prompt)
+        if result.confirmation:
+            st.caption(result.confirmation)
         st.markdown(result.agent_message)
         for w in result.warnings:
             st.warning(w)

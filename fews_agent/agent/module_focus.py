@@ -262,28 +262,19 @@ def next_unfilled_variable(state: dict, module: Module) -> str | None:
 
 
 def focus_card(state: dict, module: Module) -> str:
-    """Human-readable summary of what's now in focus.
+    """A short, friendly module-entry line (the follow-up question is appended
+    by the caller via ``turn_engine.module_welcome``).
 
-    Shows the module's job, where its output lands, what operations are
-    available, what it inherits from the session so far, and what it still
-    needs. Deterministic — the driver prints it verbatim on selection.
+    Deliberately NOT the old folders / operations / "still to set → [pile]"
+    dump — configurator feedback: "a generic pile of instructions, not user
+    friendly." Just names the module and, if anything carries over from the
+    session, mentions it in one grey line.
     """
-    lines = [f"Now building the **{module.label}** module."]
-    lines.append(module.description)
-    lines.append("")
-    lines.append(f"Output -> {', '.join(module.folders)}")
-    lines.append(f"Operations -> {', '.join(module.operations)}")
-    if module.inputs:
-        lines.append(f"Inputs -> {', '.join(module.inputs)}")
-
+    lines = [f"You're now on the **{module.label}** module."]
     inherited = module_shared_context(state, module)
     if inherited:
         pretty = ", ".join(f"{k}={v!r}" for k, v in inherited.items())
-        lines.append(f"Inherited from this session -> {pretty}")
-
-    status = module_slot_status(state, module)
-    if status["unfilled"]:
-        lines.append(f"Still to set -> {', '.join(status['unfilled'])}")
+        lines.append(f"_Carrying over from this session: {pretty}._")
     return "\n".join(lines)
 
 

@@ -54,6 +54,7 @@ from fews_agent.agent.turn_engine import (
     _module_list_text,
     apply_disambiguation_answer,
     module_list_reply,
+    module_welcome,
     resolve_patterns,
     run_module_turn,
     run_turn_pipeline,
@@ -282,13 +283,13 @@ def _module_command(state: dict, message: str, catalog) -> str | None:
         if cmd == "/module":
             cur = module_focus.get_focus(state)
             return (
-                module_focus.focus_card(state, cur) if cur
+                module_welcome(state, cur) if cur
                 else "No module in focus. Pick one with  /module <name>  "
                      "(see  /modules  for the list)."
             )
         token = message.strip().split(None, 1)[1].strip()
         _module, reply = module_focus.set_focus(state, token)
-        return reply
+        return module_welcome(state, _module) if _module is not None else reply
     if cmd in {"/list", "list", "/show", "show"}:
         return module_list_reply(state, catalog)
     return None
@@ -378,7 +379,7 @@ def run_turn(session_id: str, req: TurnRequest) -> TurnResponse:
             slots=state.get("slots", {}) or {},
             new_patterns=res.new_patterns,
             module_mode=True, current_module=state.get("current_module"),
-            wants_build=res.wants_build,
+            wants_build=res.wants_build, confirmation=res.confirmation,
         )
 
     # Whole-project intent pipeline (no module in focus).
