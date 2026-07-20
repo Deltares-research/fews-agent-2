@@ -52,23 +52,23 @@ from fews_agent.agent.phases import (
     normalize_phase,
     phase_plan,
 )
+from fews_agent.agent import module_focus
 from fews_agent.agent.turn_engine import (
-    _IMPORT_LABEL_KEYS,
+    _LABEL_VAR_KEYS,
+    _module_list_text,
     apply_disambiguation_answer,
     apply_edit_action,
+    module_edit_reply,
+    module_list_reply,
+    module_welcome,
     resolve_patterns as _resolve_patterns,
+    run_module_turn,
     run_turn_pipeline,
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 PATTERNS_ROOT = REPO_ROOT / "patterns"
 OUTPUT_ROOT = REPO_ROOT / "projects"
-
-# Instance-variable keys that name a module. ``_IMPORT_LABEL_KEYS`` (the
-# import-labelling group, imported from turn_engine) plus basin_name form the
-# full set used to resolve a user-typed module name (e.g. "GFS", "Liard")
-# back to its pattern instance.
-_LABEL_VAR_KEYS = _IMPORT_LABEL_KEYS + ("basin_name",)
 
 
 def _resolve_provider(model: str):
@@ -300,6 +300,95 @@ def _run_phase_build(
     return 1
 
 
+def _run_module_operation(
+    state: dict, focus, message: str, project_dir: Path, console: Console,
+    history: list, turn: int, catalog, model: str, just_entered: bool = False,
+) -> int:
+    """Module-mode prose turn (CLI shell over ``turn_engine.run_module_turn``).
+
+    The shared engine extracts + applies the one operation and returns a
+    driver-agnostic result; this shell renders it to the console + transcript
+    and, on a ``build`` action, runs the CLI's scoped phase build.
+    """
+    provider = _resolve_provider(model)
+    res = run_module_turn(
+        state, message, catalog, focus, provider=provider,
+        just_entered=just_entered,
+    )
+    if res.wants_build:
+        rc = _run_module_scope_build(
+            state, focus, project_dir, console, history, turn,
+        )
+        _save(project_dir, state, history)
+        return rc
+    _emit(project_dir, state, history, turn, res.reply, res.note, console,
+          confirmation=res.confirmation)
+    return 0
+
+
+def _emit(
+    project_dir: Path, state: dict, history: list, turn: int,
+    reply: str, note: str, console: Console, confirmation: str = "",
+) -> None:
+    """Append an agent reply to history + transcript, save, and print.
+
+    A muted ``confirmation`` (the "what changed" fact) prints dim above the
+    reply so the LLM guidance is the main voice, mirroring the app's grey
+    caption."""
+    history.append({"role": "agent", "message": reply})
+    _append_log(project_dir, turn, "agent", reply, note)
+    _save(project_dir, state, history)
+    if confirmation:
+        console.print(f"\n[dim]{confirmation}[/dim]")
+    console.print(f"\n[bold magenta]agent[/bold magenta]: {reply}")
+
+
+def _run_module_scope_build(
+    state: dict, module, project_dir: Path, console: Console,
+    history: list, turn: int,
+) -> int:
+    """Build every capability phase the focused FEWS-folder module owns.
+
+    A folder-module (``processing``, ``display``) maps to one or more
+    capability phases; this builds each that has resolved content, reusing
+    the tested per-phase build. View/deriver modules (filters, topology,
+    idmap, system, root) aren't built on their own — they come from inputs
+    or final assembly — so this reports that instead.
+    """
+    from fews_agent.agent.modules import module_for_pattern
+
+    catalog = build_pattern_catalog(PATTERNS_ROOT)
+    if not module.phases:
+        console.print(
+            f"[yellow]The '{module.label}' module isn't built on its "
+            f"own.[/yellow] It's produced from your inputs or during final "
+            f"assembly — type [bold]done[/bold] to assemble the project."
+        )
+        return 0
+    _resolve_patterns(state, catalog)
+    plan = phase_plan(state.get("patterns") or [])
+    target_phases = [
+        e["phase"] for e in plan
+        if e["patterns"]
+        and module_for_pattern(e["patterns"][0]["pattern"]) == module.key
+    ]
+    if not target_phases:
+        console.print(
+            f"[yellow]Nothing resolved for the '{module.label}' module "
+            f"yet.[/yellow] Add something first (e.g. [bold]/add GFS[/bold]), "
+            f"then [bold]/build[/bold]."
+        )
+        return 0
+    console.print(
+        f"[cyan]Building the '{module.label}' module "
+        f"({len(target_phases)} phase(s): {', '.join(target_phases)}).[/cyan]"
+    )
+    rc = 0
+    for ph in target_phases:
+        rc |= _run_phase_build(state, project_dir, ph, console, history, turn)
+    return rc
+
+
 def _resolve_module_target(
     state: dict, catalog, name: str,
 ) -> tuple[str, dict] | None:
@@ -323,54 +412,6 @@ def _resolve_module_target(
                 if isinstance(v, str) and v.lower() == name_l:
                     return pat, {k: v}
     return None
-
-
-def _module_list_text(state: dict, catalog) -> str:
-    """Instance-level listing of the project, grouped by phase.
-
-    Finer than ``/phases`` (which is phase-level): shows each module
-    instance, its built status, and its editable variables so the user
-    knows exactly what they can /set or /remove.
-    """
-    _resolve_patterns(state, catalog)
-    plan = phase_plan(state.get("patterns") or [])
-    if not plan:
-        return (
-            "No modules yet. Add one with e.g.  /add GFS  (import) or "
-            "/add Liard uses raven  (basin), then  /build <name>."
-        )
-    built = set(state.get("built_modules") or [])
-    built_phases = set(state.get("built_phases") or [])
-    lines = ["Modules in this project (one per line):"]
-    for entry in plan:
-        ph = entry["phase"]
-        lines.append(f"\n{ph} — {entry['label']}")
-        for p in entry["patterns"]:
-            pat = p["pattern"]
-            short = pat.rsplit("/", 1)[-1]
-            for inst in p.get("instances") or [{}]:
-                label = next(
-                    (str(inst[k]) for k in _LABEL_VAR_KEYS if inst.get(k)),
-                    short,
-                )
-                is_built = (
-                    f"{pat}::{label}" in built or ph in built_phases
-                )
-                mark = "(built)" if is_built else "(ready)"
-                extras = []
-                for vk in ("grid_resolution", "forecast_horizon_hours",
-                           "model_adapter"):
-                    if inst.get(vk):
-                        extras.append(f"{vk}={inst[vk]}")
-                if inst.get("parameters"):
-                    extras.append(f"{len(inst['parameters'])} param(s)")
-                extra_txt = f"  ({'; '.join(extras)})" if extras else ""
-                lines.append(f"  {mark} {label}  ·{short}{extra_txt}")
-    lines.append(
-        "\nEdit: /add <name> · /remove <name> · /set <name> <var> <value>"
-        "  ·  Build one: /build <name>"
-    )
-    return "\n".join(lines)
 
 
 def _parse_slash_edit(op: str, rest: str) -> list[dict]:
@@ -628,8 +669,47 @@ def main(argv: list[str] | None = None) -> int:
         _save(project_dir, state, history)
         return 0
 
-    # Module-by-module flow: show the phase plan.
-    if cmd in {"/phases", "phases", "/plan", "plan", "/modules", "modules"}:
+    # Module-mode: list the FEWS-folder modules you can build one at a time.
+    if cmd in {"/modules", "modules"}:
+        reply = module_focus.modules_overview()
+        cur = state.get("current_module")
+        if cur:
+            reply += f"\n\nIn focus now: {cur}."
+        history.append({"role": "agent", "message": reply})
+        _append_log(project_dir, turn, "agent", reply, "module overview")
+        _save(project_dir, state, history)
+        console.print(f"\n[bold magenta]agent[/bold magenta]: {reply}")
+        return 0
+
+    # Module-mode: put ONE module in focus. Bare "/module" reports the
+    # current focus; "/module <name>" selects it and prints its focus card.
+    if cmd == "/module" or cmd.startswith("/module "):
+        confirmation = ""
+        if cmd == "/module":
+            cur = module_focus.get_focus(state)
+            if cur:
+                reply = module_welcome(state, cur)
+                confirmation = module_focus.focus_card(state, cur)
+            else:
+                reply = ("No module in focus. Pick one with  /module <name>  "
+                         "(see  /modules  for the list).")
+        else:
+            token = args.message.strip().split(None, 1)[1].strip()
+            module, reply = module_focus.set_focus(state, token)
+            if module is not None:
+                reply = module_welcome(state, module)
+                confirmation = module_focus.focus_card(state, module)
+        history.append({"role": "agent", "message": reply})
+        _append_log(project_dir, turn, "agent", reply, "module focus")
+        _save(project_dir, state, history)
+        if confirmation:
+            console.print(f"\n[dim]{confirmation}[/dim]")
+        console.print(f"\n[bold magenta]agent[/bold magenta]: {reply}")
+        return 0
+
+    # Module-by-module flow: show the capability phase plan (finer build
+    # groups WITHIN the processing/display modules).
+    if cmd in {"/phases", "phases", "/plan", "plan"}:
         reply = _phase_plan_text(state, catalog)
         history.append({"role": "agent", "message": reply})
         _append_log(project_dir, turn, "agent", reply, "phase plan")
@@ -637,13 +717,28 @@ def main(argv: list[str] | None = None) -> int:
         console.print(f"\n[bold magenta]agent[/bold magenta]: {reply}")
         return 0
 
-    # Instance-level listing (finer than /phases).
+    # Instance-level listing (finer than /phases) + next-step hint.
     if cmd in {"/list", "list", "/show", "show"}:
-        reply = _module_list_text(state, catalog)
+        reply = module_list_reply(state, catalog)
         history.append({"role": "agent", "message": reply})
         _append_log(project_dir, turn, "agent", reply, "module list")
         _save(project_dir, state, history)
         console.print(f"\n[bold magenta]agent[/bold magenta]: {reply}")
+        return 0
+
+    # /coordinates — the grid-coordinates subwindow is a web-app affordance
+    # (st.dialog). The CLI has no modal, so point the user at the app and the
+    # equivalent scriptable path rather than silently parsing it as prose.
+    if cmd == "/coordinates" or cmd.startswith(("/coordinates ", "/coords")):
+        reply = (
+            "The grid-coordinates subwindow lives in the web app "
+            "(type /coordinates there to open it). It sets an NWP grid's "
+            "firstCellCenter + rows/columns (cell size inherited)."
+        )
+        history.append({"role": "agent", "message": reply})
+        _append_log(project_dir, turn, "agent", reply, "coordinates: cli-stub")
+        _save(project_dir, state, history)
+        console.print(f"\n[yellow]{reply}[/yellow]")
         return 0
 
     # Explicit edits: /add, /remove (/drop), /set. Deterministic — mutate
@@ -653,6 +748,18 @@ def main(argv: list[str] | None = None) -> int:
     if cmd.startswith(("/add ", "/remove ", "/drop ", "/set ")):
         verb = args.message.strip().split(None, 1)[0].lstrip("/").lower()
         op = "remove" if verb == "drop" else verb
+        # Module-mode: reject an operation the focused module doesn't allow
+        # (e.g. /add while focused on a view-only module like filters).
+        focus = module_focus.get_focus(state)
+        if focus is not None and not focus.supports(op):
+            console.print(
+                f"[yellow]The '{focus.label}' module doesn't support "
+                f"'{op}'.[/yellow] Its operations: "
+                f"{', '.join(focus.operations)}. "
+                f"Switch focus with [bold]/module <name>[/bold] first."
+            )
+            _save(project_dir, state, history)
+            return 1
         rest = args.message.strip().split(None, 1)[1].strip()
         edits = _parse_slash_edit(op, rest)
         if not edits:
@@ -664,12 +771,11 @@ def main(argv: list[str] | None = None) -> int:
             _save(project_dir, state, history)
             return 1
         notes = [apply_edit_action(state, e, catalog) for e in edits]
-        reply = "\n".join(notes)
+        reply = module_edit_reply("\n".join(notes), state)
         history.append({"role": "agent", "message": reply})
         _append_log(project_dir, turn, "agent", reply, f"edit:{op}")
         _save(project_dir, state, history)
         console.print(f"\n[bold magenta]agent[/bold magenta]: {reply}")
-        console.print("\n" + _module_list_text(state, catalog))
         return 0
 
     # Module-by-module flow: build ONE capability group (phase).
@@ -678,6 +784,15 @@ def main(argv: list[str] | None = None) -> int:
     if cmd == "/build" or cmd.startswith(("/build ", "/build-phase ",
                                           "build phase ")):
         if cmd == "/build":
+            # Module-mode: a bare /build with a module in focus builds THAT
+            # module (its capability phases), not the next unbuilt phase.
+            focus = module_focus.get_focus(state)
+            if focus is not None:
+                rc = _run_module_scope_build(
+                    state, focus, project_dir, console, history, turn,
+                )
+                _save(project_dir, state, history)
+                return rc
             _resolve_patterns(state, catalog)
             phase = next_unbuilt_phase(
                 state.get("patterns") or [], state.get("built_phases"),
@@ -773,6 +888,26 @@ def main(argv: list[str] | None = None) -> int:
         _save(project_dir, state, history)
         console.print(f"\n[bold magenta]agent[/bold magenta]: {reply}")
         return 0
+
+    # Module-mode prose path: when a module is in focus, a free-form message
+    # is ONE operation on that module. Extract it (LLM), validate against the
+    # catalog, apply, and reply — instead of the whole-project intent
+    # pipeline. When nothing is in focus, a clear "let's build module X"
+    # request (cold entry) enters that module first; otherwise fall through
+    # to the intent pipeline.
+    _focus = module_focus.get_focus(state)
+    _just_entered = False
+    if _focus is None:
+        _entry = module_focus.detect_module_entry(args.message)
+        if _entry:
+            module_focus.set_focus(state, _entry)
+            _focus = module_focus.get_focus(state)
+            _just_entered = True
+    if _focus is not None:
+        return _run_module_operation(
+            state, _focus, args.message, project_dir, console, history, turn,
+            catalog, args.model, just_entered=_just_entered,
+        )
 
     # Phases 1–5 run in the shared turn engine (fews_agent/agent/turn_engine).
     # The driver resolves the provider and owns persistence + console output;

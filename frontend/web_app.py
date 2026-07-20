@@ -2,10 +2,13 @@
 
 Run with:
 
-    streamlit run app/web_app.py
+    streamlit run frontend/web_app.py
 
-Each chat lives in a session folder
-``sessions/<username>_<YYYY-MM-DD_HHMMSS>/`` containing:
+On start the app shows a **project picker**: create a new project (by
+name) or load an existing one from a dropdown. Each project lives under
+``projects/<name>/`` — the dedicated store, shared with the CLI and HTTP
+API — holding one or more datetime-stamped chat sessions
+``<name>_<YYYY-MM-DD_HHMMSS>/`` with:
 
   * ``.chat_state.json``    — current state (intent, slots, patterns)
   * ``.chat_history.json``  — full role/message history
@@ -13,20 +16,20 @@ Each chat lives in a session folder
   * ``_app.log``            — structured turn events
   * ``project.yaml``        — written here when the user types ``done``
 
-The sidebar lets the user pick their username (defaults to the system
-user) and either start a new session or resume one of their existing
-ones.
+Loading a project resumes its latest session; the sidebar's
+**Switch project** button returns to the picker.
 """
 from __future__ import annotations
 
+import getpass
 import sys
 from datetime import datetime
 from pathlib import Path
 
-# Streamlit launches this script with ``app/`` (not the repo root) on
-# ``sys.path``, so ``chatter.py``'s imports of ``fews_agent`` and
-# ``runners`` only resolve when the project is editable-installed.
-# Prepend the repo root defensively so the app runs out of the box.
+# Streamlit launches this script with ``frontend/`` (not the repo root)
+# on ``sys.path``, so importing ``app.chatter`` (and its imports of
+# ``fews_agent`` / ``runners``) only resolves once the repo root is on
+# the path. Prepend it defensively so the app runs out of the box.
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
@@ -42,12 +45,13 @@ except ImportError:  # python-dotenv missing → silently skip
 
 import streamlit as st
 
-from chatter import (
+from app.chatter import (
     ChatSession,
-    SESSIONS_ROOT,
     list_ollama_models,
-    list_sessions,
-    new_session_dir,
+    list_projects,
+    latest_project_session_dir,
+    new_project_session_dir,
+    safe_project_name,
 )
 from fews_agent.agent.project_intents import (
     INTENTS,
@@ -66,27 +70,91 @@ st.set_page_config(
 
 
 def _ensure_session(
-    username: str, project_name: str, model: str, resume_path: str | None
+    username: str, project_name: str, model: str, session_dir: str,
 ) -> ChatSession:
-    """Cache one ChatSession in Streamlit session_state, keyed by chosen folder."""
-    key = f"chat::{resume_path or 'new'}::{username}::{model}"
+    """Cache one ChatSession in Streamlit session_state, keyed by the resolved
+    project session folder (see the project picker)."""
+    key = f"chat::{session_dir}::{username}::{model}"
     if st.session_state.get("_chat_key") != key:
-        if resume_path:
-            session_dir = SESSIONS_ROOT / resume_path
-        else:
-            session_dir = new_session_dir(username)
         st.session_state["chat"] = ChatSession(
             project_name=project_name,
             model=model,
-            session_dir=session_dir,
+            session_dir=Path(session_dir),
             username=username,
         )
         st.session_state["_chat_key"] = key
-        # Drop the previous session's validation stash so the panel
-        # doesn't bleed across sessions. The panel's render guard
-        # also checks chat_key, so this is belt-and-braces.
+        # Drop the previous session's validation / coordinates stashes so
+        # panels don't bleed across projects (their render guards also check
+        # chat_key, so this is belt-and-braces).
         st.session_state.pop("_last_done", None)
+        st.session_state.pop("_coords_request", None)
     return st.session_state["chat"]
+
+
+# ----- startup project picker -----------------------------------------------
+
+def _render_project_picker() -> None:
+    """The start screen: create a new project or load an existing one.
+
+    Resolves the chosen project's session folder under ``projects/`` and
+    stashes ``{name, session_dir}`` in ``st.session_state["_project"]``; the
+    main app renders once that's set.
+    """
+    st.title("💧 FEWS configurator agent")
+    st.subheader("Choose a project to work on")
+    st.caption(
+        "Projects live under `projects/` — each keeps its own chat state, "
+        "history and generated config."
+    )
+
+    tab_new, tab_load = st.tabs(["🆕 New project", "📂 Load existing"])
+
+    with tab_new:
+        name = st.text_input(
+            "Project name", key="_pick_new_name",
+            placeholder="e.g. liard-forecast",
+        )
+        clean = safe_project_name(name) if name.strip() else ""
+        if clean and clean != name.strip():
+            st.caption(f"Will be stored as `{clean}`.")
+        if st.button(
+            "Create project", type="primary", disabled=not clean,
+            use_container_width=True,
+        ):
+            sd = new_project_session_dir(clean)
+            st.session_state["_project"] = {"name": clean, "session_dir": str(sd)}
+            st.rerun()
+
+    with tab_load:
+        projects = list_projects()
+        if not projects:
+            st.info(
+                "No existing projects yet. Create one in the **New project** "
+                "tab."
+            )
+        else:
+            sel = st.selectbox(
+                "Existing projects", projects, key="_pick_load_sel",
+            )
+            if st.button(
+                "Open project", type="primary", use_container_width=True,
+            ):
+                sd = (
+                    latest_project_session_dir(sel)
+                    or new_project_session_dir(sel)
+                )
+                st.session_state["_project"] = {
+                    "name": sel, "session_dir": str(sd),
+                }
+                st.rerun()
+
+
+# Gate: nothing renders until a project is chosen.
+if "_project" not in st.session_state:
+    _render_project_picker()
+    st.stop()
+
+_project = st.session_state["_project"]
 
 
 # ----- sidebar: user + session ----------------------------------------------
@@ -102,20 +170,18 @@ with st.sidebar:
     _inputs_slot = st.empty()
     st.markdown("---")
 
-    st.header("Session")
+    st.header("Project")
+    st.markdown(f"**{_project['name']}**")
+    st.caption(f"`{Path(_project['session_dir']).name}`")
+    if st.button("Switch project", use_container_width=True):
+        for _k in ("_project", "chat", "_chat_key", "_last_done",
+                   "_coords_request"):
+            st.session_state.pop(_k, None)
+        st.rerun()
 
-    username = st.text_input("Username", value="user").strip() or "user"
-
-    existing = list_sessions(username)
-    options = ["<new session>"] + [p.name for p in existing]
-    choice = st.selectbox("Open / create", options=options, index=0)
-
-    if choice == "<new session>":
-        project_name = st.text_input("Project name", value="demo").strip() or "demo"
-        resume_path: str | None = None
-    else:
-        project_name = ""  # loaded from persisted state inside ChatSession
-        resume_path = choice
+    project_name = _project["name"]
+    username = getpass.getuser() or "user"  # attribution in the session log
+    st.markdown("---")
 
     # Provider selection is env-driven (FEWS_AGENT_PROVIDER). For
     # Ollama we list locally-installed models so the user can pick;
@@ -239,7 +305,8 @@ else:
     ) if _missing else ""
 
 chat = _ensure_session(
-    username, project_name or "demo", model or "qwen2.5:7b-instruct", resume_path,
+    username, project_name, model or "qwen2.5:7b-instruct",
+    _project["session_dir"],
 )
 
 # State derivatives are hoisted to the top of the main panel so the
@@ -247,7 +314,6 @@ chat = _ensure_session(
 # Reused throughout the rest of the panel — metrics, warnings, status.
 state = chat.state
 slots = state.get("slots") or {}
-intent = state.get("intent") or "—"
 patterns_count = len(state.get("patterns") or [])
 warnings_count = len(state.get("warnings") or [])
 
@@ -276,7 +342,7 @@ _ready_for_done = (
 # Why-not-ready reasons for the disabled-button tooltip.
 _done_reasons: list[str] = []
 if not _intent_obj:
-    _done_reasons.append("no project intent yet — describe what you want to build")
+    _done_reasons.append("nothing added yet — add an import or model (e.g. 'add a GFS import')")
 elif not is_intent_ready(_intent_obj, _slots):
     _done_reasons.append(
         f"missing slot: {next_unfilled_question(_intent_obj, _slots)}"
@@ -346,7 +412,7 @@ with _inputs_slot.container():
             st.caption("_No input files yet._")
         st.caption(
             "Auto-detected on the next message; missing/recommended "
-            "files for the active intent are flagged."
+            "files for the modules you've added are flagged."
         )
 
 # ----- header ---------------------------------------------------------------
@@ -358,14 +424,12 @@ st.caption(f"`{chat.session_dir}`  ·  model: `{chat.model}`")
 if not _llm_ok:
     st.error(_llm_err_msg)
 
-# Project-level snapshot. "project intent" is explicit so it's clear
-# the metric only reflects the build_* intent (slot/pattern driver);
-# the per-turn meta intents — status_check, help — fire without
-# mutating state["intent"] and so are intentionally invisible here.
-c1, c2, c3 = st.columns(3)
-c1.metric("project intent", intent)
-c2.metric("patterns", patterns_count)
-c3.metric("warnings", warnings_count)
+# Project-level snapshot. Pure module-mode: there is no user-facing
+# whole-project intent, so it isn't shown here — the current module is
+# tracked in a grey caption BELOW the conversation instead.
+c1, c2 = st.columns(2)
+c1.metric("patterns", patterns_count)
+c2.metric("warnings", warnings_count)
 
 # Standing warnings (carry over from the previous turn until cleared).
 for w in state.get("warnings") or []:
@@ -377,6 +441,9 @@ for w in state.get("warnings") or []:
 for msg in chat.messages:
     role = "user" if msg["role"] == "user" else "assistant"
     with st.chat_message(role):
+        # The muted "what changed" fact (grey), above the model's guidance.
+        if msg.get("confirmation"):
+            st.caption(msg["confirmation"])
         st.markdown(msg["message"])
 
 # ----- input + new turn -----------------------------------------------------
@@ -395,6 +462,8 @@ if prompt:
     with st.chat_message("assistant"):
         with st.spinner("Thinking…"):
             result = chat.send(prompt)
+        if result.confirmation:
+            st.caption(result.confirmation)
         st.markdown(result.agent_message)
         for w in result.warnings:
             st.warning(w)
@@ -413,11 +482,137 @@ if prompt:
                 "build_error": result.build_error,
                 "validation_summary": result.validation_summary,
             }
+        elif result.kind == "coordinates":
+            # Open the grid-coordinates subwindow on the next rerun. Stash the
+            # eligible grids keyed by the active session so a stray rerun
+            # doesn't reopen it for the wrong chat.
+            st.session_state["_coords_request"] = {
+                "chat_key": st.session_state.get("_chat_key"),
+                "grids": result.coordinates_request or [],
+            }
         elif result.kind == "error":
             st.error(result.agent_message)
         if show_internals and result.internals:
             with st.expander("Engine internals (this turn)", expanded=False):
                 st.markdown(result.internals)
+
+# Current context, tracked in a grey caption BELOW the conversation (not at the
+# top): which FEWS-folder module is in focus. Pure module-mode — no intent.
+_cur_mod = chat.state.get("current_module")
+st.caption(
+    f"module: **{_cur_mod}**" if _cur_mod
+    else "no module in focus yet — tell me what to work on to begin"
+)
+
+
+# ----- grid coordinates subwindow -------------------------------------------
+
+# Opened by the ``/coordinates`` command (ChatSession returns kind=="coordinates"
+# with the eligible NWP grids). Renders a modal (st.dialog when available, else
+# an inline panel) to set a firstCellCenter + rows/columns; submitting calls
+# ChatSession.apply_grid_geometry (cell size is inherited). Rendered outside the
+# prompt block so the modal survives the reruns its own widgets trigger.
+def _render_grid_map(west, south, east, north, cx, cy) -> None:
+    """Draw the grid box + its first-cell-centre on a map, live. Degrades to a
+    numeric readout if pydeck (bundled with Streamlit) isn't importable."""
+    try:
+        import math
+
+        import pydeck as pdk
+    except Exception:  # noqa: BLE001
+        st.info(
+            f"Grid extent: lon [{west:.3f}, {east:.3f}], "
+            f"lat [{south:.3f}, {north:.3f}] "
+            "(install pydeck for the live map)."
+        )
+        return
+
+    poly = [[west, north], [east, north], [east, south], [west, south],
+            [west, north]]
+    box = pdk.Layer(
+        "PolygonLayer", data=[{"polygon": poly}], get_polygon="polygon",
+        get_fill_color=[255, 140, 0, 55], get_line_color=[255, 140, 0, 220],
+        line_width_min_pixels=2, stroked=True, filled=True, pickable=False,
+    )
+    origin = pdk.Layer(
+        "ScatterplotLayer", data=[{"position": [cx, cy]}],
+        get_position="position", get_fill_color=[220, 30, 30, 230],
+        get_radius=4, radius_min_pixels=4, radius_max_pixels=8,
+    )
+    extent = max(east - west, north - south, 1e-6)
+    zoom = max(1.0, min(10.0, math.log2(360.0 / extent) - 1.0))
+    view = pdk.ViewState(
+        latitude=(north + south) / 2, longitude=(west + east) / 2,
+        zoom=zoom, pitch=0,
+    )
+    st.pydeck_chart(
+        pdk.Deck(layers=[box, origin], initial_view_state=view),
+        use_container_width=True,
+    )
+
+
+def _render_coords_form(chat, grids: list[dict]) -> None:
+    from fews_agent.agent.project_chat import grid_bbox
+
+    names = [g["name"] for g in grids]
+    sel = st.selectbox("NWP grid import", names, key="_coords_sel")
+    g = next((g for g in grids if g["name"] == sel), {})
+    cur = g.get("geometry") or {}
+    cell_size = float(g.get("cell_size") or 0.25)
+
+    c1, c2 = st.columns(2)
+    x = c1.number_input(
+        "First cell centre — longitude (x)",
+        value=float(cur.get("first_x", 0.0)), format="%.4f", key="_coords_x",
+    )
+    y = c2.number_input(
+        "First cell centre — latitude (y)",
+        value=float(cur.get("first_y", 0.0)), format="%.4f", key="_coords_y",
+    )
+    c3, c4 = st.columns(2)
+    cols = c3.number_input(
+        "Columns (rows-X)", min_value=1, step=1,
+        value=int(cur.get("columns", 100)), key="_coords_cols",
+    )
+    rows = c4.number_input(
+        "Rows (rows-Y)", min_value=1, step=1,
+        value=int(cur.get("rows", 100)), key="_coords_rows",
+    )
+
+    # Live box: recomputed on every widget change (Streamlit reruns the form).
+    west, south, east, north = grid_bbox(x, y, int(cols), int(rows), cell_size)
+    _render_grid_map(west, south, east, north, x, y)
+    st.caption(
+        f"Cell size {cell_size:g}° (inherited) · extent "
+        f"{(east - west):g}° x {(north - south):g}° · "
+        f"lon [{west:g}, {east:g}], lat [{south:g}, {north:g}]. "
+        "The point is the top-left cell centre; this only repositions/resizes "
+        "the grid (cell size stays inherited)."
+    )
+
+    apply_col, cancel_col = st.columns(2)
+    if apply_col.button("Apply", type="primary", use_container_width=True):
+        chat.apply_grid_geometry(
+            sel, first_x=float(x), first_y=float(y),
+            columns=int(cols), rows=int(rows),
+        )
+        st.session_state.pop("_coords_request", None)
+        st.rerun()
+    if cancel_col.button("Cancel", use_container_width=True):
+        st.session_state.pop("_coords_request", None)
+        st.rerun()
+
+
+_coords_req = st.session_state.get("_coords_request")
+if _coords_req and _coords_req.get("chat_key") == st.session_state.get("_chat_key"):
+    _grids = _coords_req.get("grids") or []
+    if hasattr(st, "dialog"):  # Streamlit >= 1.31 modal
+        st.dialog("Set grid coordinates")(
+            lambda: _render_coords_form(chat, _grids)
+        )()
+    else:  # graceful fallback: inline panel
+        with st.expander("Set grid coordinates", expanded=True):
+            _render_coords_form(chat, _grids)
 
 
 # ----- validation panel (persists across reruns) ----------------------------

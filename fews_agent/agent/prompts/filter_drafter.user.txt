@@ -1,0 +1,6 @@
+Available moduleInstanceIds ([[ n_modules ]]): [[ module_ids_display ]]
+Available parameterIds ([[ n_params ]]): [[ param_ids_display ]]
+
+Project intent: [[ project_intent ]]
+
+Propose 3-6 filter groups.

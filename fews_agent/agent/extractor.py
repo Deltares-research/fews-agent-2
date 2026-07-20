@@ -1,0 +1,628 @@
+"""LLM operation extractor for module-mode (P2).
+
+When a configurator has a FEWS module in focus (see ``modules.py`` /
+``module_focus.py``) and types plain language — "add the ECCC high-res grids
+with precip", "make it half-degree", "let's do the display module now" — this
+turns that prose into ONE structured operation:
+
+    extract_operation(message, focus_module=..., provider=...)
+      -> ExtractedOperation(action, module, fields, dropped, raw)
+
+**The trust boundary is the point.** The model extracts freely, but every
+value it returns is then validated *deterministically* against the existing
+catalog (import names + aliases, model adapters, parameter phrases, grid
+resolutions, module keys). Anything not in the catalog is **dropped** into
+``dropped`` and never applied — surfaced to the user as a warning, exactly
+like the filter drafter dropping hallucinated ids. So a capable model gives
+prose-robustness, without "trust the LLM blindly": a hallucinated ``GFS2``
+is discarded, while a correct-but-unusual phrasing that maps to ``HRDPS`` is
+kept.
+
+``fields`` is deliberately the SAME slot-dict shape ``extract_skills``
+produces, so an ``add``/``set`` operation flows through the existing additive
+slot-fill + ``resolve_patterns`` untouched — this replaces the *regex* front
+end for the focused-module case, not the downstream machinery.
+
+The prompt lives in ``prompts/extract_operation.{system,user}.txt`` per the
+standing rule; nothing here embeds prompt text.
+"""
+from __future__ import annotations
+
+import re
+from dataclasses import dataclass, field
+from typing import Any
+
+from .modules import Module, list_modules, normalize_module
+from .project_intents import (
+    _ADAPTER_PHRASES,
+    _DATA_TYPE_TO_PARAMETER,
+    _DATUM_PHRASES,
+    _IMPORT_ALIASES,
+    _IMPORT_NAMES,
+    INTENTS,
+    REGION_BBOX,
+    detect_geo_datum,
+    detect_grid_resolution,
+)
+
+# The unified intent taxonomy the LLM classifies from (option 2 — both
+# coexist): the 3 whole-project intents (from INTENTS) PLUS one "build the X
+# module" intent per FEWS-folder module. build_<key> ↔ module key.
+_MODULE_INTENTS: dict[str, str] = {
+    f"build_{m.key}": m.key for m in list_modules()
+}
+# intent name -> module key, for module-intents only (project-intents absent).
+_ALL_INTENTS: frozenset[str] = frozenset(INTENTS) | frozenset(_MODULE_INTENTS)
+
+
+def _normalize_intent(raw_intent: Any) -> str | None:
+    """Resolve a model-supplied intent to a known one, or None.
+
+    Accepts a project-intent verbatim, a module-intent verbatim, or a
+    ``build_<synonym>`` whose suffix normalizes to a module
+    (``build_imports`` -> ``build_processing``). None when unrecognised.
+    """
+    if not raw_intent:
+        return None
+    s = str(raw_intent).strip()
+    if s in _ALL_INTENTS:
+        return s
+    if s.startswith("build_"):
+        key = normalize_module(s[len("build_"):])
+        if key:
+            return f"build_{key}"
+    return None
+
+# Grid-resolution slugs the NOAA pattern understands.
+_RESOLUTIONS = frozenset({"0p25", "0p50", "1p00"})
+
+# Below this confidence, an operation that WOULD change something is
+# confirmed with the user instead of applied silently.
+CONFIDENCE_THRESHOLD = 0.6
+
+
+@dataclass
+class ExtractedOperation:
+    """One validated operation parsed from a configurator's prose."""
+
+    action: str = "none"
+    module: str | None = None            # normalized key, only for select_module
+    fields: dict[str, Any] = field(default_factory=dict)
+    dropped: list[str] = field(default_factory=list)   # invalid values discarded
+    confidence: float = 1.0              # model self-report, 0..1
+    raw: dict[str, Any] = field(default_factory=dict)  # the model's raw output
+
+
+def _has_effect(op: "ExtractedOperation") -> bool:
+    """True when applying ``op`` would actually change project state."""
+    if op.action in ("add", "set"):
+        return bool(op.fields)
+    if op.action == "remove":
+        return bool(op.fields.get("imports") or op.fields.get("basins"))
+    if op.action == "select_module":
+        return op.module is not None
+    return False
+
+
+def needs_confirmation(
+    op: "ExtractedOperation", threshold: float = CONFIDENCE_THRESHOLD,
+) -> bool:
+    """Ask before applying? True when the op has an effect AND is uncertain.
+
+    A low-confidence ``none``/``list``/``build`` needs no confirmation —
+    there's nothing to undo. Only an operation that would mutate state and
+    that the model wasn't sure about is worth a confirm round-trip.
+    """
+    return _has_effect(op) and op.confidence < threshold
+
+
+def describe_operation(op: "ExtractedOperation") -> str:
+    """A short human phrase for a confirmation prompt."""
+    if op.action == "select_module":
+        return f"switch to the {op.module} module"
+    bits: list[str] = []
+    if op.fields.get("imports"):
+        bits.append("imports " + ", ".join(op.fields["imports"]))
+    if op.fields.get("basins"):
+        bits.append("basins " + ", ".join(
+            b.get("basin_name", "?") for b in op.fields["basins"]
+        ))
+    if op.fields.get("data_types"):
+        bits.append("parameters " + ", ".join(op.fields["data_types"]))
+    for k in ("grid_resolution", "forecast_horizon_hours", "region",
+              "geoDatum"):
+        if k in op.fields:
+            bits.append(f"{k}={op.fields[k]}")
+    verb = {"add": "add", "set": "set", "remove": "remove"}.get(
+        op.action, "apply"
+    )
+    return f"{verb} {', '.join(bits)}" if bits else op.action
+
+
+def op_to_dict(op: "ExtractedOperation") -> dict[str, Any]:
+    """JSON-serializable form for stashing a pending op in chat state."""
+    return {
+        "action": op.action, "module": op.module,
+        "fields": op.fields, "dropped": op.dropped,
+        "confidence": op.confidence,
+    }
+
+
+def op_from_dict(d: dict[str, Any]) -> "ExtractedOperation":
+    return ExtractedOperation(
+        action=d.get("action", "none"), module=d.get("module"),
+        fields=d.get("fields") or {}, dropped=d.get("dropped") or [],
+        confidence=float(d.get("confidence", 1.0)),
+    )
+
+
+# ---------------------------------------------------------------------------
+# Catalog canonicalization (deterministic — the trust boundary)
+# ---------------------------------------------------------------------------
+
+def _canonical_import(name: str) -> str | None:
+    """Map a model-supplied import token to a known canonical name, or None."""
+    if not isinstance(name, str):
+        return None
+    up = name.strip().upper()
+    if not up:
+        return None
+    # Alias table (case-insensitive keys).
+    for alias, canonical in _IMPORT_ALIASES.items():
+        if alias.upper() == up:
+            return canonical
+    for known in _IMPORT_NAMES:
+        if known.upper() == up:
+            return known
+    return None
+
+
+def _canonical_adapter(name: str) -> str | None:
+    """Map an adapter token to a known adapter key, or None."""
+    if not isinstance(name, str):
+        return None
+    low = name.strip().lower().replace(" ", "").replace("-", "")
+    for adapter, phrases in _ADAPTER_PHRASES.items():
+        if adapter == low:
+            return adapter
+        for p in phrases:
+            if p.replace(" ", "").replace("-", "") == low:
+                return adapter
+    return None
+
+
+def validate_fields(
+    raw_fields: dict[str, Any],
+) -> tuple[dict[str, Any], list[str]]:
+    """Canonicalize + catalog-check the model's fields.
+
+    Returns ``(clean_fields, dropped)``. ``clean_fields`` carries only values
+    that resolve against the known catalog, in the same slot shape the rest
+    of the pipeline consumes. ``dropped`` lists every value discarded so the
+    caller can warn the user rather than silently ignore a hallucination.
+    """
+    clean: dict[str, Any] = {}
+    dropped: list[str] = []
+
+    if not isinstance(raw_fields, dict):
+        return clean, dropped
+
+    # imports -----------------------------------------------------------
+    raw_imports = raw_fields.get("imports")
+    if isinstance(raw_imports, list):
+        keep: list[str] = []
+        for item in raw_imports:
+            canon = _canonical_import(item)
+            if canon is None:
+                dropped.append(f"import:{item}")
+            elif canon not in keep:
+                keep.append(canon)
+        if keep:
+            clean["imports"] = keep
+
+    # basins (basin_name + model_adapter pairs) -------------------------
+    raw_basins = raw_fields.get("basins")
+    if isinstance(raw_basins, list):
+        keep_b: list[dict[str, str]] = []
+        for b in raw_basins:
+            if not isinstance(b, dict):
+                continue
+            bname = str(b.get("basin_name") or "").strip()
+            adapter = _canonical_adapter(b.get("model_adapter") or "")
+            if not bname:
+                continue
+            if adapter is None:
+                dropped.append(f"adapter:{b.get('model_adapter')}")
+                continue
+            keep_b.append({"basin_name": bname, "model_adapter": adapter})
+        if keep_b:
+            clean["basins"] = keep_b
+
+    # data_types --------------------------------------------------------
+    raw_dt = raw_fields.get("data_types")
+    if isinstance(raw_dt, list):
+        keep_dt: list[str] = []
+        for dt in raw_dt:
+            key = str(dt or "").strip().lower()
+            if key in _DATA_TYPE_TO_PARAMETER:
+                if dt not in keep_dt:
+                    keep_dt.append(dt)
+            else:
+                dropped.append(f"data_type:{dt}")
+        if keep_dt:
+            clean["data_types"] = keep_dt
+
+    # grid_resolution ---------------------------------------------------
+    raw_res = raw_fields.get("grid_resolution")
+    if raw_res is not None:
+        res = str(raw_res).strip()
+        if res in _RESOLUTIONS:
+            clean["grid_resolution"] = res
+        else:
+            mapped = detect_grid_resolution(res)
+            if mapped:
+                clean["grid_resolution"] = mapped
+            else:
+                dropped.append(f"grid_resolution:{raw_res}")
+
+    # forecast_horizon_hours -------------------------------------------
+    raw_hor = raw_fields.get("forecast_horizon_hours")
+    if raw_hor is not None:
+        try:
+            clean["forecast_horizon_hours"] = int(raw_hor)
+        except (ValueError, TypeError):
+            dropped.append(f"forecast_horizon_hours:{raw_hor}")
+
+    # geoDatum ----------------------------------------------------------
+    raw_datum = raw_fields.get("geoDatum")
+    if raw_datum is not None:
+        if raw_datum in _DATUM_PHRASES:
+            clean["geoDatum"] = raw_datum
+        else:
+            mapped = detect_geo_datum(str(raw_datum))
+            if mapped:
+                clean["geoDatum"] = mapped
+            else:
+                dropped.append(f"geoDatum:{raw_datum}")
+
+    # region (free-ish — a named gazetteer region is preferred but a
+    # non-gazetteer name is kept; it simply won't get an auto bbox) -----
+    raw_region = raw_fields.get("region")
+    if isinstance(raw_region, str) and raw_region.strip():
+        clean["region"] = raw_region.strip()
+
+    # boolean intents ---------------------------------------------------
+    for flag in ("wants_interpolation", "wants_visualization"):
+        if flag in raw_fields:
+            clean[flag] = bool(raw_fields[flag])
+
+    return clean, dropped
+
+
+# ---------------------------------------------------------------------------
+# Vocabulary strings for the prompt (so the model draws from known values)
+# ---------------------------------------------------------------------------
+
+def _vocab_imports() -> str:
+    names = sorted(set(_IMPORT_NAMES) | set(_IMPORT_ALIASES))
+    return ", ".join(names)
+
+
+def _vocab_adapters() -> str:
+    return ", ".join(sorted(_ADAPTER_PHRASES))
+
+
+def _vocab_data_types() -> str:
+    return ", ".join(sorted(_DATA_TYPE_TO_PARAMETER))
+
+
+def _vocab_modules_full() -> str:
+    """Each module as 'key: description' — the classification target for
+    the unified parser (the "build module X" overarching intent)."""
+    return "\n".join(f"- {m.key}: {m.description}" for m in list_modules())
+
+
+# ---------------------------------------------------------------------------
+# The extraction calls
+# ---------------------------------------------------------------------------
+
+def _parse_confidence(raw: Any) -> float:
+    """Coerce the model's confidence to a float in [0, 1]; default 1.0.
+
+    A missing/garbage value defaults HIGH (apply) rather than low, so a
+    model that doesn't report confidence behaves as before — the feature
+    only engages when the model actively signals uncertainty.
+    """
+    try:
+        c = float(raw)
+    except (TypeError, ValueError):
+        return 1.0
+    return max(0.0, min(1.0, c))
+
+
+# Add-context cues. "set up" / "setup" read as add here even though "set" is
+# a CHANGE cue elsewhere — so cold entry ("set up the imports module with a GFS
+# import") adds GFS. Checked before the change-cue guard.
+_ADD_CUES: tuple[str, ...] = (
+    "add", "include", "also", "another", "use ", "using", "pull", "import",
+    "want", "need", "set up", "setup", "bring in", "ingest", "with ", "plus",
+)
+
+# Words that may remain around a bare entity mention ("GFS and HRDPS") without
+# making it something other than an add.
+_BARE_FILLER: frozenset[str] = frozenset({
+    "and", "the", "a", "an", "import", "imports", "grid", "grids", "please",
+    "model", "models", "data", "or", "both", "just",
+})
+
+
+def _is_bare_entity(text: str, names: list[str]) -> bool:
+    """True when the message is essentially just entity name(s) + filler
+    ("GFS", "GFS and HRDPS") — a bare mention we can treat as an add."""
+    low = text.lower()
+    for name in names:
+        low = low.replace(name.lower(), " ")
+    words = [w for w in re.split(r"[^a-z0-9]+", low) if w]
+    return all(w in _BARE_FILLER for w in words)
+
+
+def deterministic_module_op(
+    message: str, focus_module: Module | None,
+) -> ExtractedOperation | None:
+    """Parse an unambiguous add/remove of catalog entities from prose — no LLM.
+
+    "add GFS" should be as reliable as "/add GFS": a verb (or bare mention) +
+    a catalog entity is *known structure*, so it belongs to the deterministic
+    detectors, not the fuzzy LLM parser. Returns None when the message isn't an
+    obvious add/remove (a scalar change, a module switch, or genuinely fuzzy
+    phrasing) so the caller falls back to :func:`parse_turn`.
+    """
+    from .project_intents import (
+        _EDIT_CHANGE_CUES, _EDIT_REMOVE_CUES, _has_cue,
+        detect_basins_with_adapters, detect_data_types, detect_edit_action,
+        detect_imports,
+    )
+
+    text = (message or "").strip()
+    if not text:
+        return None
+    low = text.lower()
+
+    imports = detect_imports(text)
+    basins = detect_basins_with_adapters(text)
+    dtypes = detect_data_types(text)  # weather variables (precipitation, ...)
+    if not (imports or basins or dtypes):
+        return None  # nothing from the catalog → let the LLM read the prose
+
+    has_remove = _has_cue(low, _EDIT_REMOVE_CUES)
+    has_add = _has_cue(low, _ADD_CUES)
+    has_change = _has_cue(low, _EDIT_CHANGE_CUES)
+
+    def _op(action, imps, bsns, dts) -> ExtractedOperation | None:
+        if focus_module is not None and not focus_module.supports(action):
+            return None
+        fields: dict[str, Any] = {}
+        if imps:
+            fields["imports"] = imps
+        if bsns:
+            fields["basins"] = bsns
+        if dts:
+            fields["data_types"] = dts
+        return ExtractedOperation(action=action, fields=fields, confidence=1.0)
+
+    # REMOVE — use the cue-position-aware NL edit detector so a mixed sentence
+    # removes only the intended targets. Defer only when the SAME message also
+    # carries a scalar SET edit ("drop RDPS and make GFS half-degree"), which
+    # this path can't represent — a bare discourse marker ("Actually, drop
+    # HRDPS") is still a clean remove. A named data_type ("remove temperature")
+    # is a clean remove too: apply_field_removals subtracts it from the slot.
+    if has_remove:
+        edit = detect_edit_action(text) or {}
+        if any(e.get("op") == "set" for e in edit.get("edits") or []):
+            return None
+        rem_imports = list(edit.get("removed_imports") or [])
+        rem_basins = [{"basin_name": b} for b in (edit.get("removed_basins") or [])]
+        rem_dtypes = list(dtypes)  # weather variables named with a remove cue
+        if not (rem_imports or rem_basins or rem_dtypes):
+            return None
+        return _op("remove", rem_imports, rem_basins, rem_dtypes)
+
+    # ADD — an add cue (incl. "set up"), or a bare mention, and no change cue.
+    # The add-cue guard stops questions ("what is precipitation?") from applying.
+    names = list(imports) + [b.get("basin_name", "") for b in basins] + list(dtypes)
+    if has_add or (not has_change and _is_bare_entity(text, names)):
+        return _op("add", imports, basins, dtypes)
+
+    return None  # a scalar change / ambiguous → the LLM parser
+
+
+def extract_operation(
+    message: str,
+    *,
+    focus_module: Module,
+    provider,
+    model: str = "qwen2.5:7b-instruct",
+) -> ExtractedOperation:
+    """Parse one operation on ``focus_module`` — an ADAPTER over parse_turn.
+
+    Kept for its call sites (the module-op path in both drivers) and test
+    seams, but the parsing itself is now the unified :func:`parse_turn`. This
+    projects the ParsedTurn onto the operation shape: when the classified
+    intent targets a DIFFERENT module than the one in focus, that's a
+    ``select_module``; otherwise the action applies to the current module.
+    Never raises — a bad reply yields ``action="none"``.
+    """
+    from .module_focus import detect_module_switch
+
+    # Deterministic FIRST: an explicit module switch, then a clear add/remove of
+    # catalog entities ("add GFS" ≡ "/add GFS"). Known structure belongs to the
+    # detectors, not the fuzzy LLM — this is what makes prose as reliable as the
+    # slash commands (and fixes the cold-entry one-shot). Only genuinely fuzzy
+    # turns reach parse_turn.
+    switch_target = detect_module_switch(message, focus_module.key)
+    if switch_target:
+        return ExtractedOperation(action="select_module", module=switch_target,
+                                  confidence=1.0)
+    det = deterministic_module_op(message, focus_module)
+    if det is not None:
+        return det
+
+    pt = parse_turn(message, focus_module=focus_module, provider=provider,
+                    model=model)
+
+    # Deterministic switch safety-net (also from the LLM's classification).
+    switch_target = detect_module_switch(message, focus_module.key)
+    target = switch_target or (
+        pt.module if pt.module and pt.module != focus_module.key else None
+    )
+    if target:
+        return ExtractedOperation(
+            action="select_module", module=target,
+            fields=pt.fields, dropped=pt.dropped,
+            confidence=pt.confidence, raw=pt.raw,
+        )
+    return ExtractedOperation(
+        action=pt.action, module=None,
+        fields=pt.fields, dropped=pt.dropped,
+        confidence=pt.confidence, raw=pt.raw,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Unified turn parser — ONE LLM call classifies the overarching intent
+# ("build module X" = the target module) + the operation + the fields.
+# ---------------------------------------------------------------------------
+#
+# This subsumes the two older LLM parsers: classify_intent (whole-project
+# intent) and extract_operation (module-focused op). The overarching intent
+# a turn carries is now WHICH MODULE the user wants to build/work on — the
+# module IS the intent. The whole-project intent needed by the pattern
+# resolver (build_forecasting_project / ...) is NOT classified here; it is
+# derived deterministically downstream from the extracted fields.
+
+# Actions the unified parser may return. `select_module` is gone — a module
+# switch is just a different module-intent than the current focus.
+_TURN_ACTIONS = frozenset({"add", "set", "remove", "build", "list", "none"})
+
+_TURN_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "intent": {"type": ["string", "null"]},
+        "action": {"type": "string"},
+        "fields": {"type": "object", "additionalProperties": True},
+        "confidence": {"type": "number"},
+        "reasoning": {"type": "string"},
+    },
+    "required": ["intent", "action"],
+}
+
+
+def _intent_catalog() -> str:
+    """The 12-way intent list the model classifies from (for the prompt)."""
+    lines = [
+        "Whole-project intents (the user describes a complete config in one "
+        "go):",
+    ]
+    for k, i in INTENTS.items():
+        lines.append(f"- {k}: {i.description}")
+    lines.append("")
+    lines.append("Module intents (the user builds/works on ONE FEWS module):")
+    for m in list_modules():
+        lines.append(f"- build_{m.key}: build the {m.label} module — "
+                     f"{m.description}")
+    return "\n".join(lines)
+
+
+@dataclass
+class ParsedTurn:
+    """One turn parsed by the unified LLM call.
+
+    ``intent`` is the overarching intent the model classified — ONE of the 12
+    (3 whole-project + 9 ``build_<module>``). ``action``/``fields`` are the
+    operation on that target. ``fields`` keeps the extract_skills slot shape,
+    so downstream reuse (additive slot-fill + resolve) is unchanged. The
+    module (for a module-intent) and project-vs-module split are derived
+    properties, so callers don't re-parse the intent string.
+    """
+
+    intent: str | None = None
+    action: str = "none"
+    fields: dict[str, Any] = field(default_factory=dict)
+    dropped: list[str] = field(default_factory=list)
+    confidence: float = 1.0
+    raw: dict[str, Any] = field(default_factory=dict)
+
+    @property
+    def module(self) -> str | None:
+        """Module key when ``intent`` is a module-intent, else None."""
+        return _MODULE_INTENTS.get(self.intent or "")
+
+    @property
+    def is_project_intent(self) -> bool:
+        """True when ``intent`` is one of the whole-project intents."""
+        return self.intent in INTENTS
+
+
+def parse_turn(
+    message: str,
+    *,
+    focus_module: Module | None = None,
+    provider,
+    model: str = "qwen2.5:7b-instruct",
+) -> ParsedTurn:
+    """Classify the overarching intent + operation + fields in one LLM call.
+
+    The model picks ONE intent from the 12-way taxonomy (3 whole-project +
+    one ``build_<module>`` per module), defaulting to the focused module's
+    intent when the user doesn't indicate otherwise, plus the operation and
+    any field values. Intent is validated against the taxonomy; fields are
+    catalog-validated (unknowns dropped). Never raises — a bad/empty reply
+    yields a no-op parse that keeps the current focus.
+    """
+    from fews_agent.agent import prompts
+
+    focus_intent = f"build_{focus_module.key}" if focus_module else None
+
+    system = prompts.load("parse_turn.system")
+    user = prompts.load(
+        "parse_turn.user",
+        message=repr(message),
+        focus=focus_intent or "(none — the user hasn't picked one yet)",
+        intent_catalog=_intent_catalog(),
+        vocab_imports=_vocab_imports(),
+        vocab_adapters=_vocab_adapters(),
+        vocab_data_types=_vocab_data_types(),
+    )
+
+    try:
+        resp = provider.generate_json(
+            system=system, user=user, schema=_TURN_SCHEMA
+        )
+        raw = resp.data or {}
+    except Exception:
+        return ParsedTurn(intent=focus_intent, action="none")
+
+    intent = _normalize_intent(raw.get("intent"))
+    if intent is None:
+        # Backward-compat with the old operation schema ({module: <key>}):
+        # let a bare module key stand in for its build-intent.
+        m = normalize_module(raw.get("module"))
+        if m:
+            intent = f"build_{m}"
+    if intent is None:
+        intent = focus_intent  # keep current focus when the model is silent
+
+    action = str(raw.get("action") or "none").strip().lower()
+    if action not in _TURN_ACTIONS:
+        action = "none"
+
+    clean_fields, dropped = validate_fields(raw.get("fields") or {})
+
+    return ParsedTurn(
+        intent=intent,
+        action=action,
+        fields=clean_fields,
+        dropped=dropped,
+        confidence=_parse_confidence(raw.get("confidence")),
+        raw=raw if isinstance(raw, dict) else {},
+    )

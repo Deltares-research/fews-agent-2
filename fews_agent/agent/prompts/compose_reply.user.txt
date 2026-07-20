@@ -1,0 +1,14 @@
+User just said: [[ user_message ]]
+Active intent: [[ intent_name ]]
+[[ module_focus_text ]]
+KNOWN (filled slots — safe to reference):
+[[ known_text ]]
+UNKNOWN (empty slots — DO NOT mention values for these): [[ unknown_text ]]
+[[ warnings_text ]][[ recent_edit_text ]]
+New patterns added this turn: [[ new_pat_text ]]
+Engine notes: [[ notes_joined ]]
+Input directory status:
+[[ input_text ]]Next deterministic question: [[ next_question_display ]]
+Ready to write: [[ is_ready ]]
+
+Compose the reply.

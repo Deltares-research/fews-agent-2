@@ -289,6 +289,81 @@ The blueprint is the **only** project-level artefact the configurator
 must keep in version control. Everything else is either inputs in
 `inputs/` or derived from the rendered output.
 
+## FEWS-Conform pattern families
+
+A batch of patterns farmed from the **FEWS-Conform** reference config
+(`Deltares/FEWS-Conform` — Australian Coolmunda; ECMWF/GFS/ERA5/IMERG/
+GEFS/GHCND imports; a DIMR-style Wflow). This is a **different source
+lineage** from the older library (which was farmed from the ECCC/Canadian
+tutorial + FEWS-Caribbean), so it added capabilities the library lacked.
+Each was derived directly from the Conform source XML, is XSD-validated for
+every variant, and has a round-trip test (the durable oracle — the
+`projects/` fixtures are gitignored). All are tracked via the
+`!patterns/auto/**/*.yaml` negation.
+
+| Pattern | Capability | Key vars / notes |
+|---|---|---|
+| `archive_export_netcdf` | Export time series to the Open Archive as NetCDF (`exportArchiveModule`) + `To_Archive_<Name>` workflow | `export_kind` (`exportExternalForecast` grid / `exportObserved` scalar); type/mode derived from it |
+| `archive_import` | Import from the Open Archive (`importArchiveModule`) + `From_Archive_<Name>` workflow | `categories` list → per-kind blocks (ts-cats share a `timeSeriesSetIdMap`; `historicalEvents` uses `idMapId`) |
+| `download_via_python_venv` | "Call an external Python venv / CDS API" `generalAdapterRun` (from `DownloadEra5`) | credential-preserving purge, `runinfo.xml` Area/Parameter, venv `executeActivity`; `source_name`-driven |
+| `import_era5` | ERA5 (Copernicus) reanalysis import+process chain (5 artifacts) | folder-based NetCDF import (pairs with `download_via_python_venv`) → `forecastLengthEstimator` → grid→scalar `closestDistance` |
+| `import_imerg` | NASA GPM IMERG satellite precip, Early/Late/Final | `product` bakes the `$ImergPostfix$/$ProductForUrl$/$UrlDash$` encoding; **rate→accumulation `meanToMean`** before interpolation |
+| `nwp_grid_noaa_gefs` | NOAA GEFS ensemble import | two `<import>` blocks (perturbed `gep%COUNTER(01-30-1)%` + control `gec00`), `ensembleId`/`synchLevel` tagged |
+| `tpl_generate_reference_et` | Penman-Monteith / Makkink reference ET (`user/simple` formula transforms + `coefficientSet`) | `tpl_` shared template (FEWS `$PLACEHOLDER$`s literal); `simulation_type` switches type/mode/view |
+
+ECMWF ECWAM **waves** was added as an instance of `nwp_grid_ecmwf_ifs`
+(not a new pattern) via new `s3_subpath` (`oper`/`wave`) + `module_suffix`
+(`Meteo`/`Waves`) knobs — see "One pattern per *shape*, not per instance".
+
+**Alignment features shipped alongside** (opt-in, oracle-safe — gated so
+the byte-equivalent tutorial is untouched):
+
+- **csvFile LocationSets** (`metadata.locations_as_csvfile`): reference
+  `locations.csv` in place from a `LocationSet`'s `<csvFile>` and promote
+  every non-reserved column to a location `<attribute>` (Conform's "column
+  header *is* the attributeId"), suppressing `Locations.xml`. Auto-matches
+  an interpolation target set; merges into an existing `LocationSets.xml`.
+  See `locationsets_derivation.locationset_csvfile_body`.
+- **CSV header lint** (`csv_ingest.lint_conform_headers`): warns on
+  non-PascalCase / duplicate attributeId columns; scoped to locations so
+  minimal lowercase CSVs stay silent.
+- **Widened CSV aliases**: `FewsId`/`Alt` (locations), `allowMissing`/
+  `displayUnit`/`parameterGroupName` (parameters) — Conform-shaped CSVs no
+  longer drop ids/altitude/fields. Fixture: `tests/fixtures/conform_inputs/`.
+- **ModuleInstanceSets + split Filters** for `raven_basin`
+  (`conform_module_instance_sets`): group the basin's runs into a set that
+  a split `Filters<Basin>.xml` references via `<moduleInstanceSetId>`.
+- **Per-basin identity** for `raven_basin` (`basin_local_ids`): replace the
+  farmed `$MODELNAME1$/$MODELNAME2$` project-global placeholders with
+  `basin_name`-derived ids (fixes the single-basin `$MODELNAME2$`-unresolved
+  runtime bug + enables wildcards). Off = byte-identical.
+- **Model-asset stubs** (`model_asset_stubs`, opt-in
+  `metadata.emit_model_asset_stubs`): detect general-adapter model runs and
+  loudly flag / scaffold the external ColdState + ModuleDataSet files no
+  layer generates (Conform folders-ending-in-`.zip`).
+
+### Farming gotchas (recurring — hit while farming the above)
+
+- **Dict-typed pattern variables break variable discovery.** The
+  empty-context discovery pass raises on `{{ dict.field }}`. Flatten to
+  scalar vars (`period_unit`, not `relative_period.unit`). Iterating a list
+  of dicts is fine (0 iterations during discovery → no access).
+- **A Jinja var in YAML *key* position** (`- {{ export_kind }}:`) renders
+  to `- :` during discovery → give it a non-empty fallback via a
+  top-of-file `{% set ek = export_kind or '...' %}`.
+- **`{% set %}` must be at the very top of the file** — mid-file placement
+  throws `'x' is undefined`.
+- **Typed vs generic-body rendering.** Inside a *typed* schema
+  (GeneralAdapterRun, TimeSeriesImportRun, TransformationModule), `timeStep`
+  takes plain `unit`/`multiplier` — **not** the `@unit` generic-body form.
+  A `transformation.body` dict *is* generic, so attributes there need
+  `@id`/`@value` (e.g. `coefficient`), and each transform nests under
+  `body:`.
+- **`extra="forbid"`.** Fields the schema doesn't model are rejected, not
+  ignored — e.g. `GeneralAdapterGeneral` has no `importUnitConversionsId`,
+  `PurgeActivity` no `description`, `Tolerance` no `locationId`. Omit them
+  (usually a redundant/default element).
+
 ## Auto-generation layers
 
 The runner produces FEWS XML from five sources, applied in order. Files
@@ -390,16 +465,18 @@ instances, `TIMEZONE` from singleton seeds, derives
 **Do not** "fix" placeholders by substituting them into the XML at
 config-author time. They're FEWS-owned, not agent-owned.
 
-## Chat agent (shared `turn_engine` + two driver shells)
+## Chat agent (shared `turn_engine` + three driver shells)
 
-There are **two driver shells** — the CLI (`runners/agent/chat_step.py`)
-and the Streamlit app (`app/chatter.py::ChatSession`) — but they share a
-**single per-turn pipeline**, `fews_agent/agent/turn_engine.py`. The
-shells differ only where they legitimately must (command sets, I/O,
-persistence, provider resolution, app-only meta-intents like
-greeting/help/status/undo/reset/preview/pre-flight); the elicitation
-*logic* lives in one place so it can't drift (it did, twice, before the
-unification).
+There are **three driver shells** — the CLI (`runners/agent/chat_step.py`),
+the Streamlit app (`app/chatter.py::ChatSession`), and the HTTP API
+(`app/api/server.py`) — but they share a **single per-turn pipeline**,
+`fews_agent/agent/turn_engine.py`, and a **single module-mode turn**
+(`turn_engine.run_module_turn`). The shells differ only where they
+legitimately must (command sets, I/O, persistence, provider resolution,
+app-only meta-intents like greeting/help/status/undo/reset/preview/pre-flight);
+the elicitation *logic* lives in one place so it can't drift (it did, twice,
+before the pipeline unification — and again with module-mode, which the API
+shell missed entirely until `run_module_turn` was extracted).
 
 **`turn_engine.run_turn_pipeline(state, message, catalog, *, provider,
 inputs_dir, nag_suppression=False) -> PipelineResult`** runs Phases 1–5
@@ -466,6 +543,21 @@ State persists under
 `done` writes the project.yaml (validates intent readiness first);
 `yes`/`no` confirm a proposed pattern removal.
 
+**`projects/` is the single, shared session store for all three shells.**
+The CLI (`_resolve_project_dir`), the HTTP API (`_new_session_dir`), and the
+Streamlit app all persist under `projects/<name>/<name>_<datetime>/`, so a
+project started in any shell is resumable in the others. The Streamlit app
+opens on a **project picker** (`web_app._render_project_picker`, gated before
+the chat renders): *New project* (name → `new_project_session_dir`) or *Load
+existing* (dropdown of `list_projects` → `latest_project_session_dir` resumes
+the newest session). `list_projects` only surfaces folders that carry a
+`.chat_state.json`, so build-only regression fixtures (tutorial/small) stay
+out of the picker. The app's old username-keyed `sessions/` store is retired
+(the `SESSIONS_ROOT` helpers remain in `chatter` but are no longer wired into
+the UI). Helpers live in `app/chatter.py`
+(`list_projects`/`new_project_session_dir`/`latest_project_session_dir`/
+`safe_project_name`); tested in `tests/test_project_store.py`.
+
 ### Ask on ambiguous intent (Phase 3.5 gate)
 
 The default-to-forecasting bias used to silently promote a single-half
@@ -525,14 +617,46 @@ regression) and `tests/test_intent_disambiguation_turn.py` (the turn
 loop end-to-end with `classify_intent` / `compose_reply` stubbed — no
 Ollama).
 
-### Adding a new skill
+### Vocabulary: "prose filtering" vs "skills"
 
-A skill is a deterministic function `text → value` (or `→ list[value]`).
-Add it to `project_intents.py`, wire it into `extract_skills(text)`,
-and add the slot key to the relevant intent's `required_slots` /
-`optional_slots`. Skills are regex/keyword based — no LLM. If the
-extraction is genuinely fuzzy, push it into the LLM intent classifier
-instead.
+The word **skill** was reclaimed this session — mind the two distinct
+concepts:
+
+- **Prose filtering** — the old regex layer. Deterministic functions
+  `text → value` (`detect_*`, aggregated by `filter_prose`, formerly
+  `extract_skills`) that scan prose and surface known tokens (basins,
+  imports, data types, ...). They **decide and act on nothing** — their
+  output fills slots via the additive merge and is *not* fed to the LLM.
+- **Skills** — intent-connected **actions**. A skill is a `(intent,
+  action)` pair bound to a handler that mutates project state (e.g.
+  `build_processing` + `add`). They live in `skills.py`; the registry is
+  the single source of truth for which actions an intent supports.
+
+#### Adding a new prose filter
+
+A prose filter is a deterministic function `text → value` (or
+`→ list[value]`). Add it to `project_intents.py`, wire it into
+`filter_prose(text)`, and add the slot key to the relevant intent's
+`required_slots` / `optional_slots`. Prose filters are regex/keyword
+based — no LLM. If the extraction is genuinely fuzzy, let the unified
+`parse_turn` LLM parser handle it instead (validate its output against
+the catalog — never trust it raw).
+
+#### Adding a new skill
+
+Skills are **derived from the module registry**, so you rarely hand-write
+one: `skills._build_registry()` emits a skill per `(build_<module>,
+action)` for every mutating action (`add`/`set`/`remove`) a module
+declares in its `operations`, plus the full editing surface for each
+whole-project intent. To give a module a new capability, add the action
+to that module's `operations` in `modules.py` (a view-only module that
+lists only `list`/`build` registers no mutating skills — exactly the
+support policy). To change *how* an action executes, edit its handler in
+`turn_engine` (`apply_extracted_fields` for add/set, `apply_removal` for
+remove); `skills._action_handlers` binds them (lazily, to avoid a
+load-time cycle — `turn_engine.apply_operation` imports `skills`, not the
+reverse). Dispatch flows `apply_operation → find_skill(intent, action) →
+skill.handler`.
 
 ### Adding a new intent
 
@@ -544,6 +668,152 @@ Three pieces:
    recommended CSVs, configurator-required yamls, and
    auto-generated yamls. The reply LLM uses this to know what to
    ask the user for and what NOT to ask for.
+
+## Module-mode (build one FEWS-folder module at a time)
+
+The chat UX. Instead of eliciting a whole-project *intent*
+(`build_forecasting_project`, ...) and resolving everything at once, the
+configurator **focuses one module and operates on it in plain language**.
+Configurator feedback drove this: "stop making me do the whole project at
+once."
+
+**The Streamlit app is PURE module-mode** — there is no user-facing
+whole-project intent (no "build a forecasting project", no "imports only or a
+full project?" disambiguation). Un-focused prose either enters a module (cold
+entry), **auto-focuses `processing`** for a clear catalog op ("add GFS"), or
+asks which module to work on (`chatter._module_pick_prompt`); the app never
+calls `run_turn_pipeline`. **`state["intent"]` is now only an internal
+resolver-selector**, DERIVED from the slots each module-mode turn by
+`turn_engine._sync_module_intent` (imports-only → `build_data_import_only` so
+`/done` doesn't demand a basin; imports+basins → `build_forecasting_project`) —
+so the three whole-project intents survive **only** as
+`resolve_patterns`'s slot→pattern mapper, never as a choice the user sees. The
+current module is shown in a grey caption **below** the conversation
+(`web_app`), not as a top metric. The CLI/API drivers still carry the
+whole-project `run_turn_pipeline` (with its disambiguation gate) for now —
+retiring it there is a follow-up; the app is the reference for the pure-module
+UX.
+
+**A "module" = one coherent unit of config work.** This mostly lines up
+with the always-present FEWS output folders, with two principled
+exceptions baked into the registry (`fews_agent/agent/modules.py`):
+
+- **Weld:** `ModuleConfigFiles` + `WorkflowFiles` (+ `ModuleParFiles`) are
+  ONE `processing` module — because a single capability (an import, a
+  model run) emits its config + workflow + id-map row *together*.
+  Splitting them would re-introduce the cross-file coordination the
+  patterns exist to eliminate.
+- **Split:** `RegionConfigFiles` fans out into `locations` / `parameters`
+  / `filters` / `topology` — one folder holding independent files from
+  four unrelated sources.
+
+The 9 modules: `locations`, `parameters`, **`processing`** (the weld),
+`display`, `filters`, `topology`, `idmap`, `system`, `root`.
+`processing` is intentionally broad; the fine granularity comes from the
+*operations* inside it ("add an import", "add a model run"), not from
+splitting the folder. `phases.py` still classifies patterns into
+capability phases *within* `processing`/`display` for scoped builds.
+
+**The pieces (all under `fews_agent/agent/`):**
+
+- **`modules.py`** — the static `Module` registry: each module's folders,
+  backing source, capability `phases`, `variables`, `shared_reads/writes`,
+  `inputs`, allowed `operations`, and a focused prompt. Plus
+  `normalize_module`, `module_for_pattern`, `modules_present`.
+- **`module_focus.py`** — the pure, state-aware focus layer:
+  `set_focus`/`get_focus`, `focus_card` (what loads + what's inherited +
+  what's still needed), `module_shared_context`, `next_unfilled_variable`,
+  and **`detect_module_entry`** (deterministic cold entry — see below).
+  There is **no separate shared-variable store**: `state["slots"]` already
+  persists across turns and `project.yaml` is its serialized form, so
+  "shared variables persist" is free.
+- **`extractor.py`** — the **single unified LLM parser** `parse_turn(
+  message, focus_module, provider) -> ParsedTurn{intent, action, fields,
+  dropped, confidence}`. ONE call classifies the overarching intent from
+  **all 12** (the 3 whole-project intents + one `build_<module>` per
+  FEWS-folder module), plus the operation and fields. `.module` /
+  `.is_project_intent` are derived properties. The model extracts freely;
+  then **deterministic `validate_fields` checks every value against the
+  catalog** (import names + aliases, adapters, `_DATA_TYPE_TO_PARAMETER`,
+  resolutions, `normalize_module`) and drops anything unknown into `dropped`
+  (surfaced loudly, never applied) — the same "validate, don't trust"
+  boundary as the filter drafter. `fields` is the SAME slot shape
+  `extract_skills` produces, so add/set flow through the existing additive
+  slot-fill + resolve unchanged. **`classify_intent` (whole-project) and
+  `extract_operation` (module-op) are now thin ADAPTERS over `parse_turn`** —
+  kept for their call sites + test seams, so both drivers, the pipeline, the
+  reply split, and cold-entry are unchanged, but the LLM parsing is one
+  implementation + one prompt (`prompts/parse_turn.{system,user}.txt`).
+
+**Turn flow when a module is in focus** — the ONE shared implementation
+`turn_engine.run_module_turn(state, message, catalog, focus, *, provider,
+just_entered)` that **all three shells** (CLI, Streamlit, HTTP API) call:
+prose → `extract_operation` → route the action: `add`/`set`
+→ `turn_engine.apply_extracted_fields` (honours add=fill vs set=override) →
+resolve; `remove` → `extracted_removal_edits`; `select_module` → `set_focus`;
+`build`/`list` → the scoped handlers. `apply_operation` is the shared action
+router so "apply now" and "apply after confirm" can't diverge.
+
+**Prose is as reliable as the slash commands** — `extract_operation` runs a
+**deterministic pre-pass** (`extractor.deterministic_module_op`) *before*
+`parse_turn`: a clear add/remove of catalog entities ("add GFS", "GFS and
+HRDPS", bare "GFS", "drop RDPS") is *known structure*, so the regex detectors
+(`detect_imports`/`detect_basins_with_adapters` + the `_EDIT_*` cue sets) parse
+it — no LLM, `confidence=1.0`, so `"add GFS" ≡ "/add GFS"`. It also fixes the
+cold-entry one-shot ("set up the imports module with a GFS import" now enters
+*and* adds — "set up" reads as an add cue even though bare "set" is a change
+cue). It defers to the LLM (`parse_turn`) only when the message is genuinely
+fuzzy — a scalar change ("make GFS half-degree"), a question ("what is GFS?"),
+or an entity the detectors miss ("the usual american forecast"); those still
+get catalog-validated so a hallucinated import is dropped. An explicit module
+switch (`detect_module_switch`) still wins over both. It returns a
+driver-agnostic `ModuleTurnResult` (reply, note, kind, new_patterns,
+`wants_build`); each shell only renders it (console / `TurnResult` / JSON) and
+runs its own scoped build on `wants_build`. The instance listing
+(`_module_list_text`) also lives in `turn_engine` (its own docstring: "fews_agent
+must not import runners, so every pipeline helper lives here"). This unification
+is what let the **HTTP API driver gain module-mode without a third copy** — it
+had drifted (whole-project intents only) precisely because the routing was
+duplicated in the CLI + Streamlit shells and never ported. `run_module_turn`,
+`ModuleTurnResult`, and `_module_list_text` are the shared seam; add a
+module-mode feature there once.
+
+**Conversational replies (short confirmation + ONE focused question).** An
+edit reply is `module_edit_reply(note, state)` = the confirmation + a single
+progress-aware follow-up **question** from `_next_step_hint` (deterministic,
+not LLM) — e.g. add an import → *"Which weather variables should GFS carry?
+(e.g. precipitation, temperature)"*; once variables are set → *"Want to set
+GFS's map area (/coordinates), add another source, or /build?"*. It does **not**
+dump the full module list / command menu on every turn (configurator feedback:
+"it dumps a pile and never asks"). The full listing lives in `/list`
+(`module_list_reply` = list + the same question). Used by the shared
+`run_module_turn` apply branch **and** each shell's `/add`//`set`//`remove`
+slash handlers, so every edit path is equally terse and guiding.
+
+**Cold entry** (`detect_module_entry`, deterministic + conservative): when
+nothing is in focus, a clear single-module request enters that module
+before the intent pipeline. Fires only on (1) the literal word "module"
+("the imports module"), (2) an entry verb + a distinct-name module
+("configure locations"), or (3) a bare module name ("filters"). It
+**ignores bare imports/model** (they read as a whole-project spec), so it
+never hijacks a forecasting request. One-shot ("set up the imports module
+with a GFS import" → enter + add) and pure entry (→ focus card) both work.
+
+**Confidence gate** (extractor `confidence` 0..1 + `needs_confirmation`):
+a low-confidence op that WOULD change state is stashed in
+`state["_pending_operation"]` and the agent asks "did you want to …?
+(yes/no)" instead of applying silently. Missing/garbage confidence defaults
+HIGH (apply), so existing behaviour is unchanged. `resolve_pending_operation`
+maps the yes/no; an unclear answer drops the stale pending op and processes
+the message fresh.
+
+**Commands** (both CLI `chat_step.py` and app `chatter.py`): `/modules`
+(list the 9), `/module <name>` (focus + card), bare `/build` (builds the
+focused module's phases). All documented in `/help` (the `Modules` group in
+`project_intents.COMMANDS`). Tests: `test_modules.py`, `test_extractor.py`,
+`test_chatter_module_mode.py`, and `test_module_mode_e2e.py` (drives cold
+entry → extractor add → done → build, asserting 36/36 XSD-valid + the
+weld — the durable oracle since `projects/` fixtures are gitignored).
 
 ## Module-by-module building (enforced flow)
 
@@ -882,29 +1152,50 @@ The agent has **two halves**:
 
 1. **Elicitation half (chat).** LLM talks to the user, extracts
    structured facts, decides which patterns are needed, writes
-   `project.yaml`. The per-turn pipeline lives in
-   `fews_agent/agent/turn_engine.py` (shared by the CLI driver
+   `project.yaml`. Two modes: **module-mode** (focus one FEWS-folder
+   module, operate on it in plain language via `extractor.py` — the newer,
+   preferred UX; see "Module-mode") and the older **whole-project intent**
+   flow (fallback when no module is in focus). The per-turn pipeline lives
+   in `fews_agent/agent/turn_engine.py` (shared by the CLI driver
    `runners/agent/chat_step.py` and the Streamlit driver
    `app/chatter.py`); skills/intents/resolvers in
-   `fews_agent/agent/project_intents.py`.
+   `fews_agent/agent/project_intents.py`; the module registry + focus in
+   `modules.py` / `module_focus.py`.
 2. **Generation half (build).** Deterministic pipeline reads
    `project.yaml`, expands patterns, ingests CSVs, fills with
    bundled standards, runs derivers, validates twice (Pydantic +
    XSD), writes XML. Lives in `runners/agent/build_from_blueprint.py`.
 
-Only **4 LLM jobs** in the whole system — everything else is templating
-or deterministic code:
+The core **LLM jobs** — everything else is templating or deterministic
+code. The **model is provider-configurable** via `FEWS_AGENT_PROVIDER` /
+`FEWS_AGENT_MODEL` (Ollama / Azure / LiteLLM — see `providers/factory.py`);
+the "qwen2.5" default is just the Ollama fallback, not a hard dependency.
 
-| # | Where | Job | Model |
-|---|---|---|---|
-| 1 | chat | Intent classification (build_forecasting_project / data_import_only / basin_model_only) | qwen2.5 |
-| 2 | chat | Entity extraction backup (when regex skills miss) | qwen2.5 |
-| 3 | chat | Compose user-facing reply | qwen2.5 |
-| 4 | build | Draft `Filters.xml` from project IDs | qwen2.5 |
+| # | Where | Job |
+|---|---|---|
+| 1 | chat | **`parse_turn`** (`extractor.py`) — ONE unified parser: classifies the intent from all 12 (3 whole-project + 9 `build_<module>`) + the operation + catalog-validated fields + confidence. `classify_intent`/`extract_operation` are thin adapters over it. |
+| 2 | chat (whole-project) | Compose user-facing reply (`compose_reply`; module-ops use deterministic replies) |
+| 3 | build | Draft `Filters.xml` from project IDs (falls back to the bundled `filtersFile.yaml`) |
 
-If Ollama is down, the chat half fails loudly; the build half still
-works end-to-end (job 4 falls back to the bundled standard
-`filtersFile.yaml`).
+(Plus the app-only `compose_status_reply` / `compose_help_reply` meta
+replies.) If the LLM is down, the chat half fails loudly; the build half
+still works end-to-end. Note: job 1 subsumes what used to be two separate
+LLM calls (intent classification + operation extraction).
+
+**The regex skills are no longer fed to the classifier.** `extract_skills`
+still runs and fills slots deterministically, but its output is NOT shown
+to the LLM (feeding a regex pre-pass to a capable model anchors it to, and
+via the old "skills win" merge is overridden by, the weaker extractor). The
+model now classifies + extracts from prose alone; validation-against-catalog
+is the trust boundary.
+
+**All LLM prompts live as `.txt` files** in `fews_agent/agent/prompts/`,
+loaded via `prompts.load("name", **vars)` — never inline in Python
+(standing rule). The loader is Jinja with **`[[ ]]` / `[% %]` delimiters**
+so literal `{ }` (JSON) and `$…$` (FEWS placeholders) in prompt text never
+collide; `StrictUndefined` fails loud on a missing var. The blanket
+`*.txt` gitignore is negated for this folder (`!fews_agent/agent/prompts/
+*.txt`) — without it the loader `FileNotFoundError`s on a fresh clone.
 
 ### One pattern per *shape*, not per instance
 
@@ -986,9 +1277,77 @@ Build-side wiring lives in `runners/agent/build_from_blueprint.py`:
   `nwp_grid_*` instances to extract names and resolutions for the
   rewriters.
 
-Today the bbox/resolution/horizon plumbing is NOAA-only (the only
-pattern hard-wired into `_PARAMETERIZED_NWP_PATTERNS`). Extending to
-ECCC (HRDPS/GDPS/RDPS/REPS) is symmetric work if anyone wants it.
+**What actually reaches ECCC vs what doesn't** (the earlier "all
+NOAA-only" note was imprecise — the three legs differ, and prose
+extraction is generic to all of them). The prose slots
+(`detect_grid_resolution` / `detect_custom_bbox` /
+`detect_forecast_horizon_hours`) are source-agnostic — the agent
+extracts them from ECCC prose today; the *application* to grid geometry
+is what varies by source:
+
+- **bbox / region crop — already covers ECCC.** `_apply_region_to_grids`
+  + `_nwp_location_ids_from_blueprint` key on the `auto/nwp_grid_`
+  *prefix*, so they crop HRDPS/GDPS/RDPS grid entries (present in the
+  bundled `gridsFile.yaml`) exactly as they crop GFS. Pinned by
+  `tests/test_nwp_grid_rewriters.py::test_bbox_crop_covers_eccc_grids`.
+- **forecast horizon — already covers any source.** It's emitted as a
+  `relativeViewPeriod` by the `spatial_display_grid` visualize pattern
+  from `forecast_horizon_hours`, independent of NWP lineage.
+- **resolution — NOAA-shaped, and correctly so.** NOAA's DODS URL takes
+  a resolution *slug* (`gfs_0p50`), so it's a real user-selectable knob;
+  `_apply_nwp_resolutions_to_grids` fires only for an instance carrying a
+  known slug (`_GRID_RESOLUTION_DEGREES`). ECCC products (HRDPS ≈2.5 km,
+  RDPS ≈10 km, GDPS ≈15 km) are **fixed native resolution** served from a
+  WCS endpoint — there is no slug to request, so the override
+  deliberately no-ops on them (pinned by
+  `test_resolution_override_noops_on_eccc_without_slug`). "Extending
+  resolution to ECCC" is largely a category error; the right behaviour is
+  for the agent to *state* the resolution is fixed, not accept a knob.
+
+Separately, `_PARAMETERIZED_NWP_PATTERNS` (in `project_intents.py`) is
+about **parameter selection** — which pattern accepts a `data_types` ->
+`parameters` variable — and is genuinely NOAA-only (ECCC imports a fixed
+parameter set, intersected at resolve). It is unrelated to the
+bbox/resolution/horizon plumbing above.
+
+### Explicit grid coordinates (`/coordinates` subwindow)
+
+Beyond the prose knobs (region/bbox/resolution), a configurator can set an
+NWP grid's geometry **directly**: `firstCellCenter` (x, y) + `columns`
+(rows-X) + `rows` (rows-Y). Chosen shape: **point + counts, cell size
+inherited** — the override only repositions/resizes the grid; `xCellSize`/
+`yCellSize` stay whatever the resolution rewriter or bundled default set. This
+composes with, and takes precedence over, the region-bbox crop.
+
+- **Data model.** A per-import `grid_geometry` override
+  (`slots["import_overrides"][<name>]["grid_geometry"] = {first_x, first_y,
+  columns, rows}`), the same scoped channel as `grid_resolution` /
+  `forecast_horizon_hours`. Written by
+  `project_chat.set_grid_geometry(state, name, ...)`.
+- **Flow.** The resolver attaches `grid_geometry` to the instance for **any**
+  `auto/nwp_grid_*` import (NOAA and ECCC) — the pattern doesn't reference it,
+  so `_apply_defaults` ignores it during rendering, but it serializes to
+  `project.yaml`. At build time
+  `_nwp_geometries_from_blueprint` → `_apply_grid_geometry_to_grids` stamps it
+  onto the matching `<regular>` entry (runs AFTER the resolution + bbox
+  rewriters; leaves cell size; skips projected `polarStereographic`/
+  `gridCorners` grids, which have no `firstCellCenter`).
+- **UX (Streamlit-only for now).** `/coordinates [<name>]` in the app returns
+  `TurnResult(kind="coordinates", coordinates_request=[{name, geometry,
+  cell_size}, ...])`; `frontend/web_app.py` opens an `st.dialog` modal
+  (expander fallback) with number inputs, and submitting calls
+  `ChatSession.apply_grid_geometry(...)`. **Live map:** the modal draws the
+  grid box + first-cell-centre on a pydeck map that re-renders on every input
+  change — computed by the pure `project_chat.grid_bbox(...)` from the point +
+  counts + the **effective inherited cell size** (`ChatSession._effective_cell_
+  size` → resolution slug degrees, else the bundled gridsFile default via
+  `_bundled_grid_cell_size`, else 0.25). pydeck ships with Streamlit; a missing
+  import degrades to a numeric extent readout. The CLI has a stub pointing at
+  the web app (no modal); the build/data model is shared, so CLI/API can adopt
+  it later. Tests: `test_nwp_grid_rewriters.py` (mutator + rewriter +
+  precedence + skip-cases + `grid_bbox`, the durable oracle) and
+  `test_chatter_module_mode.py` (the `/coordinates` command +
+  `apply_grid_geometry` + effective cell size).
 
 ### Demo / experiment projects on disk (reference fixtures, not regression oracles)
 
@@ -1053,6 +1412,24 @@ behaviour you may want to inspect or rerun:
   — e.g. a fabricated "Mackenzie basin" mention on turn 3 — so cherry-pick
   turns when presenting; the engine internals in `_conversation.md` are
   correct.)
+- **`projects/stepwise-edit-demo/stepwise-edit-demo_2026-07-08_120000/`**
+  — the **module-mode** showcase (the newer UX; see "Module-mode"). 10
+  turns, fully **reproducible** (module-mode replies are deterministic; the
+  extractor is scripted, so no qwen drift): (1) cold entry *"set up the
+  imports module — a NOAA GFS import for precip and temperature"* → enters
+  `processing` + one-shot add; (2) NL *"also add an HRDPS import"*; (3)
+  low-confidence *"make GFS half-degree"* → agent **asks to confirm**; (4)
+  *"yes"* → applies `grid_resolution=0p50`; (5) *"add the GEFS ensemble and
+  the MysteryModel grids"* → GEFS added, **MysteryModel dropped** by catalog
+  validation (surfaced loudly); (6) `/build` → scoped build *"phase imports:
+  8/8 XSD-valid"*; (7) *"switch to the display module"* → focus card shows
+  **`Inherited from this session → imports=['GFS','HRDPS','GEFS']`** (shared
+  vars persist across modules); (8) *"visualize the GFS and HRDPS grids"* →
+  `spatial_display_grid` per source; (9) `/list`; (10) `done`. Full build
+  **42/42 XSD-valid**. Reproduce by driving `chat_step.main` over the 10
+  turns with the extractor's provider stubbed (keyword→op), the way
+  `test_module_mode_e2e.py` stubs it; or just read `_conversation.md`. Use
+  this to demo the whole module-mode arc.
 
 None of these are the regression oracle — that's still
 `projects/tutorial/tutorial_2026-05-07_120000/` (120 files,
@@ -1139,12 +1516,18 @@ this order to recover context fast:
 CLAUDE.md                                         this file (top-of-mind context)
 
 # Elicitation half
-fews_agent/agent/turn_engine.py                   SHARED per-turn pipeline (Phases 1-5) both drivers call
+fews_agent/agent/turn_engine.py                   SHARED per-turn pipeline (Phases 1-5) + run_module_turn (module-mode); all 3 shells call it
 runners/agent/chat_step.py                        CLI driver: command dispatch + console I/O around turn_engine
-app/chatter.py                                     Streamlit driver: command dispatch + TurnResult around turn_engine
-fews_agent/agent/project_intents.py               skills, intent registry, resolvers, blocklist
+app/chatter.py                                     Streamlit driver: command dispatch + TurnResult around turn_engine; projects/ store helpers (list_projects, new/latest_project_session_dir)
+frontend/web_app.py                                Streamlit UI: startup project picker (new/load) + chat render + coordinates map
+app/api/server.py                                  HTTP API driver: FastAPI endpoints (/turn does module-mode + intent pipeline; /build does full OR scoped phase/module) around turn_engine
+fews_agent/agent/project_intents.py               skills, intent registry, resolvers, blocklist, COMMANDS (/help)
+fews_agent/agent/modules.py                        module registry (module = FEWS folder; the weld + RegionConfig split)
+fews_agent/agent/module_focus.py                   focus layer + cold entry (detect_module_entry)
+fews_agent/agent/extractor.py                      parse_turn — the ONE unified LLM parser (intent+operation+fields); classify_intent/extract_operation are adapters over it
+fews_agent/agent/prompts/                          ALL LLM prompts as .txt (loader in __init__.py; [[ ]] delimiters)
 fews_agent/agent/project_chat.py                  state I/O, pattern catalog loading
-fews_agent/agent/providers/ollama_provider.py     the only place that talks to qwen2.5
+fews_agent/agent/providers/factory.py              provider resolution (Ollama / Azure / LiteLLM via env)
 
 # Generation half
 runners/agent/build_from_blueprint.py             the orchestrator; read this to follow the pipeline
@@ -1231,6 +1614,51 @@ The narrative the user has been refining for the talk:
 7. **What's deterministic vs LLM.** Reuse the 4-LLM-jobs table from
    the mental model. Audience-friendly: "we use LLMs exactly where
    the structure is unknown, and not one place more."
+8. **Same engine, three shells — the HTTP API (optional, for a
+   technical audience).** The whole elicitation+build loop is a
+   library, not a CLI: the CLI, the Streamlit app, and a FastAPI
+   service (`app/api/server.py`) are three thin shells over one
+   `turn_engine`. Bring it up and drive the *same* module-mode loop
+   over HTTP:
+
+   ```
+   uvicorn app.api.server:app --reload            # or --port 8000
+   # curl needs --json (curl >=7.82) so FastAPI parses the body as JSON;
+   # plain `-d` sends form-encoding and 422s. `-H 'Content-Type:
+   # application/json' -d '...'` works on older curl.
+
+   # 1) a session (a fresh project instance on disk, same layout as the CLI)
+   curl -s --json '{"project_name":"api-demo"}' localhost:8000/sessions
+
+   # 2) module-mode over HTTP: cold entry + one-shot add (returns
+   #    module_mode=true, current_module="processing", the resolved patterns)
+   curl -s --json '{"message":"set up the imports module with a NOAA GFS import for precip and temperature"}' \
+     localhost:8000/sessions/<id>/turn
+   #    then a follow-up edit in the same focused module
+   curl -s --json '{"message":"also add an HRDPS import"}' localhost:8000/sessions/<id>/turn
+
+   # 3) scoped build over HTTP — render + XSD-validate just the imports phase
+   curl -s --json '{"phase":"imports"}' localhost:8000/sessions/<id>/build
+   #    (scope="phase:imports", per-file XSD table; no derivers/singletons)
+
+   # 4) full assembly — the `done` path as JSON
+   curl -s --json '{"force":true}' localhost:8000/sessions/<id>/build
+   ```
+   (Chat/turn steps need the LLM backend reachable; the two `/build`
+   calls are deterministic and work even when it isn't. Or skip curl
+   entirely and drive it from the interactive docs at
+   `localhost:8000/docs`.)
+
+   Talking points: (a) **one brain, many faces** — the API reuses
+   `run_turn_pipeline` + `run_module_turn`, so a terminal, the web
+   app, and an HTTP client behave identically; (b) **the trust
+   boundary is in the engine, not the UI** — POST a bogus model name
+   and the response's `dropped`/reply shows it was rejected, over
+   HTTP, by the same `validate_fields`; (c) **it's automatable** —
+   scoped `/build` returns a machine-readable per-file XSD table, so
+   CI or another service can drive config generation without a human.
+   Nice contrast slide to "this isn't a chatbot demo, it's a
+   service."
 
 ### Open threads / next likely tasks
 
@@ -1320,7 +1748,7 @@ starts are instant.
   `FEWS_AGENT_PROVIDER=ollama`, `FEWS_AGENT_MODEL=qwen2.5:7b-instruct`,
   `OLLAMA_HOST=http://127.0.0.1:11434` (read by BOTH the server bind
   and our client, so they meet inside the container). Entrypoint =
-  `docker-entrypoint.sh`, CMD = `streamlit run app/web_app.py`.
+  `docker-entrypoint.sh`, CMD = `streamlit run frontend/web_app.py`.
 - **`docker-entrypoint.sh`** — starts `ollama serve &`, waits for it,
   `ollama pull` the model (no-op if the volume already has it), then
   `exec "$@"`. So the default CMD runs Streamlit with Ollama already

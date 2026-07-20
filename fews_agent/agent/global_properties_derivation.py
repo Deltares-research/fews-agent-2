@@ -67,8 +67,14 @@ def derive_global_properties(bp: "Blueprint") -> str | None:
     lines.append(f"EXPLORER_SYSTEMCAPTION= {project_caption}")
     if basins:
         lines.append(f"MODELNAME1 = {basins[0]}")
-    if len(basins) >= 2:
-        lines.append(f"MODELNAME2 = {basins[1]}")
+        # MODELNAME2: the second basin if present, else fall back to the
+        # sole basin. The raven/wflow patterns reference their OWN model
+        # instances via $MODELNAME2$ (a farmed-tutorial artifact), so a
+        # single-basin project must still resolve it or those ids are dead
+        # at FEWS startup. Tutorial (>=2 basins) is unchanged.
+        lines.append(
+            f"MODELNAME2 = {basins[1] if len(basins) >= 2 else basins[0]}"
+        )
     lines.append("")
     lines.append("LANGUAGE=EN")
     lines.append("COUNTRY=")
@@ -78,7 +84,7 @@ def derive_global_properties(bp: "Blueprint") -> str | None:
     lines.append("MODEL_TIMESHIFT=0")
     lines.append(f"DAY_TIMESTEP=day_{timezone}")
     lines.append(f"MODEL1_TIMESTEP=hour_{timezone}")
-    if len(basins) >= 2:
+    if basins:
         lines.append(f"MODEL2_TIMESTEP=hour_{timezone}")
     lines.append("")
     lines.append("#Directory Settings — adjust to your FEWS install layout")

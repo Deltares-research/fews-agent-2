@@ -1,0 +1,8 @@
+Cluster: [[ cluster_name ]]
+Schemas: [[ schema_names ]]
+Instance labels (use these EXACT labels in `values_per_instance` keys): [[ instance_labels ]]
+
+Structural divergences ([[ n_review ]] items, each must be assigned to a discriminator):
+[[ review_text ]]
+
+Propose discriminators that classify each instance's variant.

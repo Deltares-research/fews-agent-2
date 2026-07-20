@@ -101,39 +101,16 @@ def _schema_for_fields(fields: list[Any]) -> dict[str, Any]:
 
 
 def _system_prompt() -> str:
-    return (
-        "You are a structured-data extractor. Given a user reply and a "
-        "list of fields the user might have mentioned, return a JSON "
-        "object with ONLY the fields you can identify in the reply. "
-        "\n\n"
-        "Rules:\n"
-        "  1. NEVER invent values. If a field is not mentioned, omit it "
-        "     from the output entirely.\n"
-        "  2. Pass strings VERBATIM. Don't paraphrase, don't reformat, "
-        "     don't expand abbreviations. The user's exact wording wins.\n"
-        "  3. Numeric strings keep their source format. '0' stays '0'; "
-        "     '-180' stays '-180'; '-142.8968' stays '-142.8968'. "
-        "     Do NOT pad with zeros or convert formats.\n"
-        "  4. Preserve special characters literally. Dollar signs, "
-        "     parentheses, hyphens etc. are content, not syntax.\n"
-        "  5. Return ONLY a single JSON object. No prose, no fences, "
-        "     no extra keys outside the schema.\n"
-    )
+    from fews_agent.agent import prompts
+    return prompts.load("nl_parser_extract.system")
 
 
 def _user_prompt(text: str, group_label: str | None) -> str:
-    parts: list[str] = []
-    if group_label:
-        parts.append(f"The wizard is asking about: {group_label}")
-        parts.append("")
-    parts.append("User reply:")
-    parts.append(text.strip())
-    parts.append("")
-    parts.append(
-        "Extract any field values present in the reply. Omit fields the "
-        "user did not mention."
+    from fews_agent.agent import prompts
+    return prompts.load(
+        "nl_parser_extract.user",
+        text=text.strip(), group_label=group_label or "",
     )
-    return "\n".join(parts)
 
 
 def parse_group(
@@ -228,22 +205,11 @@ def _list_schema_for_fields(fields: list[Any]) -> dict[str, Any]:
 
 
 def _list_user_prompt(text: str, group_label: str | None) -> str:
-    parts: list[str] = []
-    if group_label:
-        parts.append(f"The wizard is asking about: {group_label}")
-        parts.append("")
-    parts.append("User reply (may describe one OR multiple items):")
-    parts.append(text.strip())
-    parts.append("")
-    parts.append(
-        "Extract every item the user described. Return an object "
-        '{"items": [<item1>, <item2>, ...]} where each item is a JSON '
-        "object with only the fields the user mentioned for that item. "
-        "Even if the user describes a single item, wrap it in the "
-        "items array. Omit fields not present for that item — never "
-        "fabricate values."
+    from fews_agent.agent import prompts
+    return prompts.load(
+        "nl_parser_extract_list.user",
+        text=text.strip(), group_label=group_label or "",
     )
-    return "\n".join(parts)
 
 
 def parse_group_list(

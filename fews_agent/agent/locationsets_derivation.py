@@ -169,8 +169,144 @@ def unbacked_interpolation_station_sets(
     return station_ids - backed
 
 
+# CSV header (lowercased) → the reserved ``<csvFile>`` child element it
+# maps to. Everything NOT in this map, and not ``datum`` (which lifts to
+# the set-level ``<geoDatum>``), becomes a location ``<attribute>`` — this
+# is the FEWS-Conform convention: the CSV column header *is* the
+# attributeId. Order of the values here is the XSD ``<csvFile>`` sequence
+# order, so the rendered dict stays schema-valid.
+_CSVFILE_CORE: dict[str, str] = {
+    "fewsid": "id",
+    "id": "id",
+    "locationid": "id",
+    "name": "name",
+    "shortname": "shortName",
+    "tooltip": "toolTip",
+    "lon": "x",
+    "x": "x",
+    "longitude": "x",
+    "lat": "y",
+    "y": "y",
+    "latitude": "y",
+    "alt": "z",
+    "z": "z",
+    "altitude": "z",
+    "elevation": "z",
+}
+
+# Rendered order of the reserved ``<csvFile>`` children (XSD sequence).
+_CSVFILE_ELEMENT_ORDER = ["id", "name", "shortName", "toolTip", "x", "y", "z"]
+
+
+def locationset_csvfile_body(
+    csv_filename: str,
+    headers: list[str],
+    *,
+    set_id: str,
+    geo_datum: str = "WGS 1984",
+) -> dict[str, Any]:
+    """Build one ``<locationSet><csvFile>`` body dict from a CSV's headers.
+
+    This is the FEWS-Conform location convention: rather than materialising
+    the CSV into ``Locations.xml``, reference it in place from a
+    ``LocationSet`` and let FEWS read it at runtime. Reserved columns
+    (id/name/x/y/z/...) map to the ``<csvFile>`` child elements via
+    ``%Header%`` placeholders; every other column is promoted to a
+    ``<attribute id="Header"><text>%Header%</text></attribute>`` — so the
+    ``Type`` / ``ModelId`` / ``WflowIdDischarge`` columns that plain
+    ingest drops are preserved as location attributes.
+
+    ``datum`` (case-insensitive), if present, is not emitted per-column —
+    the caller-supplied ``geo_datum`` carries the set-level ``<geoDatum>``.
+    A header that maps to a reserved element already claimed by an earlier
+    column is treated as an attribute (first-wins, mirroring the ingest
+    de-dup rule).
+    """
+    core: dict[str, str] = {}
+    attributes: list[dict[str, Any]] = []
+    for h in headers:
+        key = h.strip().lower()
+        if not key or key == "datum":
+            continue
+        target = _CSVFILE_CORE.get(key)
+        if target is not None and target not in core:
+            core[target] = f"%{h}%"
+        else:
+            # Unrecognised column (or a duplicate reserved column) → the
+            # Conform attribute convention: header becomes the attributeId.
+            attributes.append({"@id": h, "text": f"%{h}%"})
+
+    csv_file: dict[str, Any] = {"file": csv_filename, "geoDatum": geo_datum}
+    for element in _CSVFILE_ELEMENT_ORDER:
+        if element in core:
+            csv_file[element] = core[element]
+    if attributes:
+        csv_file["attribute"] = attributes
+
+    return {"locationSet": {"@id": set_id, "csvFile": csv_file}}
+
+
+_FEWS_NS = "http://www.wldelft.nl/fews"
+
+
+def _csvfile_set_to_element(body: dict[str, Any]) -> "etree._Element":
+    """Build a ``<locationSet><csvFile>`` lxml element from a body dict.
+
+    Narrow builder for the fixed shape ``locationset_csvfile_body``
+    emits — keeps this module dependency-free (lxml only, no generators/
+    template import) and pins the XSD child order explicitly.
+    """
+    ls = body["locationSet"]
+    el = etree.Element(f"{{{_FEWS_NS}}}locationSet")
+    el.set("id", ls["@id"])
+    cf = ls["csvFile"]
+    cf_el = etree.SubElement(el, f"{{{_FEWS_NS}}}csvFile")
+    for key in ("file", "geoDatum", *_CSVFILE_ELEMENT_ORDER):
+        if key in cf:
+            child = etree.SubElement(cf_el, f"{{{_FEWS_NS}}}{key}")
+            child.text = cf[key]
+    for attr in cf.get("attribute", []):
+        a_el = etree.SubElement(cf_el, f"{{{_FEWS_NS}}}attribute")
+        a_el.set("id", attr["@id"])
+        t_el = etree.SubElement(a_el, f"{{{_FEWS_NS}}}text")
+        t_el.text = attr["text"]
+    return el
+
+
+def merge_csvfile_sets_into_locationsets(
+    existing_xml: str, extra_sets: list[dict[str, Any]],
+) -> str:
+    """Graft csvFile-backed locationSets into an existing LocationSets.xml.
+
+    Used when a pattern or user yaml already emitted ``LocationSets.xml``
+    (so the fresh-derive path is skipped) but the Conform csvFile opt-in
+    still needs its sets in. A csvFile set **replaces** an existing set of
+    the same id in place (real backing beats a stub, position preserved);
+    a new id is appended after the existing sets. Returns the re-serialised
+    XML with the default FEWS namespace intact (no ``ns0:`` prefixing).
+    """
+    root = etree.fromstring(existing_xml.encode("utf-8"))
+    existing_by_id: dict[str, "etree._Element"] = {}
+    for ls in root.findall(f"{{{_FEWS_NS}}}locationSet"):
+        sid = ls.get("id")
+        if sid:
+            existing_by_id[sid] = ls
+    for body in extra_sets:
+        sid = body["locationSet"]["@id"]
+        new_el = _csvfile_set_to_element(body)
+        old = existing_by_id.get(sid)
+        if old is not None:
+            old.getparent().replace(old, new_el)
+        else:
+            root.append(new_el)
+    return etree.tostring(
+        root, xml_declaration=True, encoding="UTF-8",
+    ).decode("utf-8")
+
+
 def derive_locationsets_yaml(
     rendered_files: list["RenderedFile"],
+    extra_sets: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any] | None:
     """Build a LocationSets yaml from rendered locationSetId references.
 
@@ -178,16 +314,30 @@ def derive_locationsets_yaml(
     with csvFile/esriShapeFile. The exception is interpolation station
     sets (see module docstring): when ``Locations.xml`` is present, those
     get explicit ``<locationId>`` membership so the interpolation resolves
-    against real targets. Returns ``None`` if no references were found.
+    against real targets.
+
+    ``extra_sets`` are pre-built ``{"locationSet": {...}}`` bodies (e.g.
+    the csvFile-backed sets from ``locationset_csvfile_body``) that take
+    precedence over an auto-stub of the same id — a real csvFile backing
+    always beats a bare stub. Returns ``None`` only if there are neither
+    references nor extra sets.
     """
     ids = _collect_referenced_set_ids(rendered_files)
-    if not ids:
+    extra_sets = extra_sets or []
+    extra_ids = {
+        e["locationSet"]["@id"]
+        for e in extra_sets
+        if e.get("locationSet", {}).get("@id")
+    }
+    if not ids and not extra_sets:
         return None
     station_set_ids = _collect_interpolation_target_set_ids(rendered_files)
     location_ids = _collect_location_ids(rendered_files)
 
-    body: list[dict[str, Any]] = []
+    body: list[dict[str, Any]] = list(extra_sets)
     for sid in sorted(ids):
+        if sid in extra_ids:
+            continue  # a csvFile-backed set already declares this id
         if sid in station_set_ids and location_ids:
             body.append({
                 "locationSet": {
@@ -202,5 +352,7 @@ def derive_locationsets_yaml(
 
 __all__ = [
     "derive_locationsets_yaml",
+    "locationset_csvfile_body",
+    "merge_csvfile_sets_into_locationsets",
     "unbacked_interpolation_station_sets",
 ]

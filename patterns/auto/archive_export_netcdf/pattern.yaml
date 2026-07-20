@@ -1,0 +1,198 @@
+{%- set ek = export_kind or 'exportExternalForecast' -%}
+{%- set tst = time_series_type or ('external forecasting' if ek == 'exportExternalForecast' else 'external historical') -%}
+{%- set rwm = read_write_mode or ('read complete forecast' if ek == 'exportExternalForecast' else 'read only') -%}
+{# exportExternalForecast REQUIRES a <sourceId> (XSD-enforced); default it to
+   the export name so a forecast export can't render invalid. observed omits it. #}
+{%- set eff_source_id = source_id or (name if ek == 'exportExternalForecast' else '') -%}
+name: archive_export_netcdf
+description: >-
+  Export FEWS time series to the Open Archive as NetCDF (exportArchiveModule).
+  Farmed from FEWS-Conform (ModuleConfigFiles/Archive/ToArchiveGFS.xml +
+  ToArchiveObserved.xml). One template-family covering both the gridded
+  external-forecast export (exportExternalForecast, e.g. GFS grids) and the
+  scalar observed export (exportObserved, e.g. GHCND station precip with
+  ncMetaData / flags / thresholds). Emits the ExportArchiveModule config plus
+  the To_Archive_<Name> workflow that runs it.
+variables:
+  # Archive export name → filenames + moduleInstanceId (ToArchive<Name>).
+  name:
+    type: str
+    required: true
+  # exportArchiveModule activity kind: exportExternalForecast | exportObserved.
+  export_kind:
+    type: str
+    required: true
+  # Source moduleInstanceId whose data is exported (e.g. ImportGfs / ImportGhcnd).
+  source_module_instance:
+    type: str
+    required: true
+  # grid → uses location_id; scalar → uses location_set_id.
+  value_type:
+    type: str
+    required: true
+  # Parameters to export — one timeSeriesSet each.
+  parameters:
+    type: list
+    required: true
+  nc_filename:
+    type: str
+    required: true
+  area_id:
+    type: str
+    required: true
+  # relativePeriod window (flat scalars — dict vars break variable discovery).
+  period_unit:
+    type: str
+    required: true
+  period_start:
+    type: str
+    required: true
+  period_end:
+    type: str
+    required: true
+  time_step_unit:
+    type: str
+    required: true
+  time_step_multiplier:
+    type: str
+    required: false
+    default: ''
+  location_id:
+    type: str
+    required: false
+    default: ''
+  location_set_id:
+    type: str
+    required: false
+    default: ''
+  # exportExternalForecast carries a sourceId; observed does not.
+  source_id:
+    type: str
+    required: false
+    default: ''
+  archive_folder:
+    type: str
+    required: false
+    default: $ArchiveExportFolder$
+  id_map_id:
+    type: str
+    required: false
+    default: IdMapToArchive
+  # Emit a 1:1 <idMap> for id_map_id so the exportArchiveModule's idMapId
+  # reference resolves out of the box (Conform's real IdMapToArchive maps
+  # FEWS ids -> archive-parameter names; the 1:1 default passes ids through
+  # and the configurator refines it). Set false on secondary export
+  # instances that share one archive idMap.
+  emit_idmap:
+    type: bool
+    required: false
+    default: true
+  # Overrides for the derived defaults (forecast → external forecasting /
+  # read complete forecast; observed → external historical / read only).
+  time_series_type:
+    type: str
+    required: false
+    default: ''
+  read_write_mode:
+    type: str
+    required: false
+    default: ''
+  # Observed-export extras (optional).
+  nc_title:
+    type: str
+    required: false
+    default: ''
+  nc_institution:
+    type: str
+    required: false
+    default: ''
+  nc_source:
+    type: str
+    required: false
+    default: ''
+  threshold_group_id:
+    type: str
+    required: false
+    default: ''
+  include_comments:
+    type: bool
+    required: false
+    default: false
+  include_flags:
+    type: bool
+    required: false
+    default: false
+outputs:
+- schema: ExportArchiveModule
+  output: ModuleConfigFiles/Archive/ToArchive{{ name }}.xml
+  data:
+    activities:
+    - {{ ek }}:
+        general:
+          archiveFolder: {{ archive_folder }}
+          relativePeriod:
+            '@unit': {{ period_unit }}
+            '@start': '{{ period_start }}'
+            '@end': '{{ period_end }}'
+          idMapId: {{ id_map_id }}
+        activities:
+          netcdfExportActivities:
+            netcdfExportActivity:
+              fileName: {{ nc_filename }}
+              areaId: {{ area_id }}
+{% if eff_source_id %}
+              sourceId: {{ eff_source_id }}
+{% endif %}
+{% if nc_title %}
+              ncMetaData:
+                title: {{ nc_title }}
+                institution: {{ nc_institution }}
+                source: {{ nc_source }}
+{% endif %}
+{% if include_comments %}
+              includeComments: 'true'
+{% endif %}
+{% if include_flags %}
+              includeFlags: 'true'
+{% endif %}
+{% if threshold_group_id %}
+              thresholdGroupId: {{ threshold_group_id }}
+{% endif %}
+              timeSeriesSet:
+{% for p in parameters %}
+              - moduleInstanceId: {{ source_module_instance }}
+                valueType: {{ value_type }}
+                parameterId: {{ p }}
+{% if value_type == 'grid' %}
+                locationId: {{ location_id }}
+{% else %}
+                locationSetId: {{ location_set_id }}
+{% endif %}
+                timeSeriesType: {{ tst }}
+                timeStep:
+                  '@unit': {{ time_step_unit }}
+{% if time_step_multiplier %}
+                  '@multiplier': '{{ time_step_multiplier }}'
+{% endif %}
+                readWriteMode: {{ rwm }}
+{% endfor %}
+{% if emit_idmap %}
+- schema: IdMap
+  output: IdMapFiles/Archive/{{ id_map_id }}.xml
+  data:
+    version: '1.1'
+    parameter:
+{% for p in parameters %}
+    - internal: {{ p }}
+      external: {{ p }}
+{% endfor %}
+    enableOneToOneMapping: true
+{% endif %}
+- schema: Workflow
+  output: WorkflowFiles/Archive/To_Archive_{{ name }}.xml
+  data:
+    version: '1.1'
+    activity:
+    - runIndependent: true
+      moduleInstanceId: ToArchive{{ name }}
+contributions: []

@@ -83,6 +83,30 @@ class TurnResponse(BaseModel):
         description="Engine-internals diagnostics markdown (skills → intent "
         "→ slot-fill → resolution). Null on a disambiguation short-circuit.",
     )
+    # --- module-mode ---
+    module_mode: bool = Field(
+        default=False,
+        description="True when this turn was handled in module-mode (a "
+        "FEWS-folder module is in focus) rather than the whole-project "
+        "intent pipeline.",
+    )
+    current_module: str | None = Field(
+        default=None,
+        description="The module in focus after this turn (module-mode), e.g. "
+        "'processing'. Null when no module is focused.",
+    )
+    wants_build: bool = Field(
+        default=False,
+        description="True when the turn asked to build the focused module. "
+        "The turn endpoint does not build; POST /sessions/{id}/build to "
+        "assemble, or build the scoped phase via the build tooling.",
+    )
+    confirmation: str = Field(
+        default="",
+        description="The mechanical 'what changed' fact for a module-mode edit "
+        "(e.g. \"Applied: imports=['GFS']\"). The UI renders this muted/grey "
+        "above the model-composed `reply`. Empty for non-edit turns.",
+    )
 
 
 # --------------------------------------------------------------------------
@@ -93,7 +117,22 @@ class BuildRequest(BaseModel):
     force: bool = Field(
         default=False,
         description="Write project.yaml + build even if the intent has "
-        "unfilled required slots or open warnings (mirrors force-done).",
+        "unfilled required slots or open warnings (mirrors force-done). "
+        "Ignored for scoped (phase/module) builds — those are meant to run "
+        "mid-elicitation.",
+    )
+    phase: str | None = Field(
+        default=None,
+        description="Scoped build: render + XSD-validate ONLY this capability "
+        "phase (imports | process | model | visualize), skipping singleton "
+        "merge / bundled standards / derivers / cross-file checks (those need "
+        "the whole project). Mutually exclusive with `module`.",
+    )
+    module: str | None = Field(
+        default=None,
+        description="Scoped build: build every capability phase the focused "
+        "FEWS-folder module owns (e.g. 'processing', 'display'). Mutually "
+        "exclusive with `phase`.",
     )
 
 
@@ -105,9 +144,20 @@ class BuildFileResult(BaseModel):
 
 
 class BuildResponse(BaseModel):
-    """The per-file XSD-validation table from build_from_blueprint()."""
+    """The per-file XSD-validation table from a full or scoped build."""
 
     ok: bool
+    scope: str = Field(
+        default="full",
+        description="What was built: 'full' (whole project assembly), "
+        "'phase:<name>' (one capability phase), or 'module:<key>' (all phases "
+        "a FEWS-folder module owns). Scoped builds skip singleton merge / "
+        "bundled standards / derivers / cross-file checks.",
+    )
+    built_phases: list[str] = Field(
+        default_factory=list,
+        description="Capability phases built (populated for scoped builds).",
+    )
     blueprint: str | None = None
     project_yaml: str = Field(description="Absolute path to the written "
                              "project.yaml.")

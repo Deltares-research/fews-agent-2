@@ -1,0 +1,11 @@
+Catalog ([[ n_patterns ]] patterns):
+[[ catalog_text ]]
+
+Current project state:
+[[ state_text ]]
+Recent conversation:
+[[ history_text ]]
+
+User just said: [[ user_message ]]
+
+Extract slot fills from the user's message. Add patterns or update settings only when the user explicitly mentioned them. Propose removals only if the user explicitly asked. Ask one focused question for the most important missing info, or null if nothing's missing.

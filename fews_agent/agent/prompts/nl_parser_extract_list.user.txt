@@ -1,0 +1,6 @@
+[% if group_label %]The wizard is asking about: [[ group_label ]]
+
+[% endif %]User reply (may describe one OR multiple items):
+[[ text ]]
+
+Extract every item the user described. Return an object {"items": [<item1>, <item2>, ...]} where each item is a JSON object with only the fields the user mentioned for that item. Even if the user describes a single item, wrap it in the items array. Omit fields not present for that item — never fabricate values.

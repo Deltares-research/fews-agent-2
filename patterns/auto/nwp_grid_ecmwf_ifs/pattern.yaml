@@ -6,8 +6,10 @@ description: >-
   + IdMapFiles/Import/IdMapFromEcmwf.xml). Emits the timeSeriesImportRun, its
   workflow, and the from-ECMWF idMap. Anonymous S3 credentials; the forecast
   horizon caps the pull via the s3MaxForecastHours property. 3D (height-linked
-  wind/temperature) and accumulated (precip/radiation) ECMWF variables are
-  separate variants (ImportEcmwf3D / ImportEcmwfAccumulated) to farm later.
+  wind/temperature), accumulated (precip/radiation), and the ECWAM wave
+  import (FEWS-Conform ImportEcmwfWavesTemplate.xml) are all instances of
+  this pattern, not separate patterns: waves = s3_subpath=wave +
+  module_suffix=Waves + the wave parameter set.
 variables:
   # Names the module instance (Import<source_name>Meteo), the grid locationId,
   # the output filenames and the idMap.
@@ -22,6 +24,18 @@ variables:
     type: str
     required: false
     default: ''
+  # ECMWF open-data S3 sub-path: "oper" for the meteo (deterministic HRES)
+  # feed, "wave" for the ECWAM wave feed. Selects the serverUrl bucket path.
+  s3_subpath:
+    type: str
+    required: false
+    default: oper
+  # moduleInstanceId suffix (Import<source_name><module_suffix>). "Meteo" for
+  # the meteo import; "Waves" for the ECWAM wave import (a separate instance).
+  module_suffix:
+    type: str
+    required: false
+    default: Meteo
   # The variants share one idMap + workflow. The primary (2D) instance
   # emits them; set false on the 3D / accumulated instances so they don't
   # duplicate the singletons.
@@ -105,7 +119,7 @@ outputs:
     import:
     - general:
         importType: NETCDF-CF_GRID_S3
-        serverUrl: https://ecmwf-forecasts.s3.eu-central-1.amazonaws.com/ecmwf-forecasts/%TIME_ZERO(yyyyMMdd)%/%TIME_ZERO(HH)%z/ifs/0p25/oper/
+        serverUrl: https://ecmwf-forecasts.s3.eu-central-1.amazonaws.com/ecmwf-forecasts/%TIME_ZERO(yyyyMMdd)%/%TIME_ZERO(HH)%z/ifs/0p25/{{ s3_subpath }}/
         connectionTimeOutMillis: 1200000
         relativeViewPeriod:
           unit: hour
@@ -138,7 +152,7 @@ outputs:
 {% endif %}
       timeSeriesSet:
 {% for p in parameters %}
-      - moduleInstanceId: Import{{ source_name }}Meteo
+      - moduleInstanceId: Import{{ source_name }}{{ module_suffix }}
         valueType: grid
         parameterId: {{ p.id }}
         locationId: {{ p.get('location') or source_name }}
@@ -163,12 +177,12 @@ outputs:
 {% endfor %}
 {% if emit_workflow %}
 - schema: Workflow
-  output: WorkflowFiles/Import/Import{{ source_name }}Meteo.xml
+  output: WorkflowFiles/Import/Import{{ source_name }}{{ module_suffix }}.xml
   data:
     version: '1.1'
     activity:
     - runIndependent: true
-      moduleInstanceId: Import{{ source_name }}Meteo
+      moduleInstanceId: Import{{ source_name }}{{ module_suffix }}
 {% endif %}
 {% if emit_idmap %}
 - schema: IdMap

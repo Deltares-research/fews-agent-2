@@ -21,8 +21,11 @@ this module's namespace so tests patch ``turn_engine.classify_intent`` /
 """
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 
+from fews_agent.agent import module_focus
+from fews_agent.agent.phases import phase_plan
 from fews_agent.agent.project_chat import (
     add_module,
     remove_module,
@@ -38,7 +41,7 @@ from fews_agent.agent.project_intents import (
     detect_forecast_horizon_hours,
     detect_grid_resolution,
     detect_model_adapter,
-    extract_skills,
+    filter_prose,
     heuristic_intent_from_slots,
     intent_disambiguation_needed,
     intent_disambiguation_question,
@@ -55,6 +58,10 @@ from fews_agent.agent.project_intents import (
 _IMPORT_LABEL_KEYS = (
     "nwp_name", "source_name", "wsc_variant", "snow_source", "template_name",
 )
+
+# Instance-variable keys that give a human label to a resolved pattern
+# instance in the module listing — imports plus a basin's name.
+_LABEL_VAR_KEYS = _IMPORT_LABEL_KEYS + ("basin_name",)
 
 # Synonyms → canonical settable variable name for the /set command and NL
 # edits. The canonical set is enforced by project_chat.set_variable.
@@ -76,6 +83,57 @@ _SET_VAR_CANON = {
     "model": "model_adapter",
     "model_adapter": "model_adapter",
 }
+
+# Question text for a focused module's own variables. When a module is in
+# focus, the reply asks about THIS module's next gap using these, instead of
+# the whole project's intent slots. Falls back to the intent's slot_questions
+# for any variable not listed here.
+_MODULE_VAR_QUESTIONS: dict[str, str] = {
+    "imports": "Which data source(s) should this module import? "
+               "(e.g. HRDPS, GFS, GEFS, IMERG, ERA5, ...)",
+    "basins": "Which basin(s) and what model adapter does each use? "
+              "(e.g. 'Liard uses raven')",
+    "basin_name": "What basin is this model for? (e.g. Liard)",
+    "model_adapter": "Which model adapter? (raven, wflow, hbv96, sfincs, "
+                     "hurrywave, delft3d)",
+    "data_types": "Which physical quantities / parameters? "
+                  "(precipitation, temperature, wind speed, ...)",
+    "geoDatum": "What geographic datum do the locations use? "
+                "(default: WGS 1984)",
+    "region": "Which geographic region? (e.g. Gulf of Guinea, North Sea, "
+              "Mediterranean, ...)",
+    "wants_visualization": "Should the imported grids be shown in the "
+                           "Spatial Display?",
+    "wants_interpolation": "Interpolate the grids to station locations for "
+                           "the Data Viewer?",
+    "grid_resolution": "Which grid resolution? (0p25 / 0p50 / 1p00)",
+    "forecast_horizon_hours": "What forecast horizon? (e.g. 7 days)",
+    "locations_source": "How are the locations provided? (csv / yaml)",
+    "custom_bbox": "What bounding box? (e.g. '8N to -5N, -10E to 10E')",
+}
+
+
+def _module_focus_question(
+    state: dict, intent, fallback: str | None,
+) -> tuple[str | None, str | None]:
+    """When a module is in focus, scope elicitation to its next gap.
+
+    Returns ``(next_question, module_prompt)``. When no module is in focus,
+    returns ``(fallback, None)`` so the intent-driven flow is unchanged.
+    """
+    focus = module_focus.get_focus(state)
+    if focus is None:
+        return fallback, None
+    var = module_focus.next_unfilled_variable(state, focus)
+    q = fallback
+    if var is not None:
+        q = _MODULE_VAR_QUESTIONS.get(var)
+        if q is None and intent is not None:
+            q = (intent.slot_questions or {}).get(var)
+        if q is None:
+            q = f"What is the {var} for the {focus.label} module?"
+    return q, focus.prompt
+
 
 # Strong, explicit intent-naming phrases. When one appears, it is
 # AUTHORITATIVE over the LLM/heuristic intent pick (see
@@ -202,6 +260,642 @@ def apply_edit_action(state: dict, edit: dict, catalog) -> str:
     return note
 
 
+def extracted_removal_edits(op) -> list[dict]:
+    """Translate a `remove` op's imports/basins into whole-item edit dicts."""
+    edits: list[dict] = []
+    for name in op.fields.get("imports") or []:
+        edits.append({"op": "remove", "target": name, "target_kind": "import"})
+    for b in op.fields.get("basins") or []:
+        if isinstance(b, dict) and b.get("basin_name"):
+            edits.append({
+                "op": "remove",
+                "target": {"basin_name": b["basin_name"]},
+                "target_kind": "basin",
+            })
+    return edits
+
+
+# Scalar / boolean slots a `remove` can unset (imports/basins are removed as
+# whole items by extracted_removal_edits; data_types is subtracted below).
+_REMOVABLE_SCALAR_FIELDS = (
+    "grid_resolution", "forecast_horizon_hours", "region", "geoDatum",
+)
+_REMOVABLE_BOOL_FIELDS = ("wants_interpolation", "wants_visualization")
+
+
+def apply_field_removals(state: dict, fields: dict) -> list[str]:
+    """Remove field VALUES from slots (a data_type, a scalar/bool setting).
+
+    Complements :func:`extracted_removal_edits` (whole imports/basins):
+    subtracts the named entries from the ``data_types`` list and unsets any
+    scalar/boolean setting the user asked to drop. Returns human notes; the
+    caller re-resolves.
+    """
+    slots = state.setdefault("slots", {})
+    notes: list[str] = []
+
+    # data_types (list) — subtract the named phrases, case-insensitively.
+    want = fields.get("data_types")
+    if want and isinstance(slots.get("data_types"), list):
+        drop = {str(v).strip().lower() for v in want}
+        before = list(slots["data_types"])
+        slots["data_types"] = [
+            x for x in before if str(x).strip().lower() not in drop
+        ]
+        removed = [x for x in before if x not in slots["data_types"]]
+        if removed:
+            notes.append(f"Removed data_types: {removed}")
+
+    # scalars — unset when the user named them.
+    for f in _REMOVABLE_SCALAR_FIELDS:
+        if f in fields and slots.get(f) not in (None, "", []):
+            old = slots.pop(f, None)
+            notes.append(f"Cleared {f} (was {old})")
+            if f in ("region", "geoDatum"):
+                seed = (state.get("singleton_seeds") or {}).get("Locations")
+                if isinstance(seed, dict):
+                    seed.pop(f, None)
+
+    # booleans — turn off.
+    for f in _REMOVABLE_BOOL_FIELDS:
+        if f in fields and slots.get(f):
+            slots.pop(f, None)
+            notes.append(f"Turned off {f}")
+
+    return notes
+
+
+def apply_extracted_fields(state: dict, op, catalog) -> tuple[str, list[str]]:
+    """Apply an add/set/none ExtractedOperation's fields to slots, then resolve.
+
+    Mirrors the pipeline's additive slot-fill (Phase 3) + resolve (Phase 4),
+    but honours the operation's explicit ``action``: a ``set`` OVERRIDES a
+    scalar the user is changing ("make it half-degree"), whereas ``add`` /
+    ``none`` only fill an empty scalar (never clobber an earlier value).
+    List fields (imports, basins, data_types) always merge additively.
+
+    Returns ``(human_note, new_pattern_paths)``.
+    """
+    slots = state.setdefault("slots", {})
+    applied: list[str] = []
+    for k, v in (op.fields or {}).items():
+        if isinstance(v, list):
+            merged = list(slots.get(k) or [])
+            for item in v:
+                if item not in merged:
+                    merged.append(item)
+            if merged != (slots.get(k) or []):
+                slots[k] = merged
+                applied.append(f"{k}={merged}")
+        else:
+            if op.action == "set" or slots.get(k) in (None, "", []):
+                if slots.get(k) != v:
+                    slots[k] = v
+                    applied.append(f"{k}={v}")
+
+    # Mirror the pipeline's geo → Locations singleton sync.
+    for key, seed_key in (("geoDatum", "geoDatum"), ("region", "region")):
+        if slots.get(key):
+            state.setdefault("singleton_seeds", {}).setdefault(
+                "Locations", {}
+            )[seed_key] = slots[key]
+
+    # Cross-turn basin promotion (same as the pipeline).
+    if (
+        not slots.get("basins")
+        and slots.get("basin_name")
+        and slots.get("model_adapter")
+    ):
+        slots["basins"] = [{
+            "basin_name": slots["basin_name"],
+            "model_adapter": slots["model_adapter"],
+        }]
+
+    _sync_module_intent(state)
+    if not state.get("intent"):
+        inferred = heuristic_intent_from_slots(slots)
+        if inferred:
+            state["intent"] = inferred
+
+    before = {p["pattern"] for p in state.get("patterns", [])}
+    resolve_patterns(state, catalog)
+    new = [
+        p["pattern"] for p in state.get("patterns", [])
+        if p["pattern"] not in before
+    ]
+    note = "Applied: " + "; ".join(applied) if applied else (
+        "Noted — nothing new to change."
+    )
+    return note, new
+
+
+def _sync_module_intent(state: dict) -> None:
+    """In module-mode there is NO user-facing whole-project intent; ``intent``
+    is only an internal resolver-selector. Re-derive it from the current slots
+    each turn (when a module is focused) so it tracks content — imports-only →
+    ``build_data_import_only`` (no basin required for /done), imports+basins →
+    ``build_forecasting_project``. The whole-project chat flow keeps whatever
+    intent it explicitly classified (no ``current_module`` set)."""
+    if state.get("current_module"):
+        inferred = heuristic_intent_from_slots(state.get("slots") or {})
+        if inferred:
+            state["intent"] = inferred
+
+
+def apply_removal(state: dict, op, catalog) -> tuple[str, list[str]]:
+    """The `remove` skill handler: remove whole imports/basins + field values.
+
+    (Registered as the ``remove`` skill in ``skills.py``.)
+    """
+    notes: list[str] = []
+    # Whole items (imports/basins) — each re-resolves via apply_edit_action.
+    for e in extracted_removal_edits(op):
+        notes.append(apply_edit_action(state, e, catalog))
+    # Field values (a data_type, a scalar/bool setting).
+    field_notes = apply_field_removals(state, op.fields or {})
+    if field_notes:
+        notes.extend(field_notes)
+    _sync_module_intent(state)
+    if not state.get("intent"):
+        inferred = heuristic_intent_from_slots(state.get("slots", {}))
+        if inferred:
+            state["intent"] = inferred
+    resolve_patterns(state, catalog)  # propagate dropped values / derived intent
+    if not notes:
+        return "Nothing recognised to remove.", []
+    return "\n".join(notes), []
+
+
+def _current_intent(state: dict) -> str | None:
+    """The intent a module-op turn is operating under: the focused module's
+    build-intent, falling back to the whole-project intent."""
+    cm = state.get("current_module")
+    if cm:
+        return f"build_{cm}"
+    return state.get("intent")
+
+
+def apply_operation(state: dict, op, catalog) -> tuple[str, list[str]]:
+    """Route one operation's effect through the SKILL registry.
+
+    ``select_module`` (focus change) and ``none`` (fill any fields) are handled
+    directly. Every state-mutating action (add/set/remove) is dispatched to the
+    skill registered for ``(current intent, action)`` — so which actions an
+    intent supports, and how they're handled, is data in ``skills.py`` rather
+    than an inline if-ladder. ``build``/``list`` are DRIVER-executed (I/O), not
+    skills. Shared by the fresh-extract and pending-confirmation paths.
+    """
+    if op.action == "select_module":
+        module, card = module_focus.set_focus(state, op.module)
+        return card, []
+    if op.action == "none":
+        return apply_extracted_fields(state, op, catalog)
+
+    from .skills import find_skill
+
+    intent = _current_intent(state)
+    skill = find_skill(intent, op.action)
+    if skill is None:
+        focus = module_focus.get_focus(state)
+        label = focus.label if focus else "this module"
+        avail = ", ".join(focus.operations) if focus else "(none)"
+        return (
+            f"The {label} doesn't support '{op.action}'. "
+            f"Available here: {avail}."
+        ), []
+    return skill.handler(state, op, catalog)
+
+
+_AFFIRM = frozenset({
+    "yes", "y", "ok", "okay", "confirm", "sure", "yep", "yeah", "do it",
+    "correct", "right",
+})
+_DENY = frozenset({"no", "n", "cancel", "nope", "stop", "nevermind", "never mind"})
+
+
+def resolve_pending_operation(message: str) -> str | None:
+    """Map a confirmation answer to 'apply' | 'discard' | None (unclear)."""
+    low = (message or "").strip().lower().rstrip("!.")
+    if low in _AFFIRM:
+        return "apply"
+    if low in _DENY:
+        return "discard"
+    return None
+
+
+def _module_list_text(state: dict, catalog) -> str:
+    """Instance-level listing of the project, grouped by phase.
+
+    Finer than ``/phases`` (which is phase-level): shows each module
+    instance, its built status, and its editable variables so the user
+    knows exactly what they can /set or /remove. Lives here (not in a
+    driver) so all three shells render the listing identically.
+    """
+    resolve_patterns(state, catalog)
+    plan = phase_plan(state.get("patterns") or [])
+    if not plan:
+        return (
+            "No modules yet. Add one with e.g.  /add GFS  (import) or "
+            "/add Liard uses raven  (basin), then  /build <name>."
+        )
+    built = set(state.get("built_modules") or [])
+    built_phases = set(state.get("built_phases") or [])
+    # Markdown so it renders as a real bulleted list in the app (single-\n
+    # space-indented lines collapse into one blob); blank lines separate each
+    # phase block, and every instance is its own `- ` bullet.
+    lines = ["**Modules in this project**"]
+    for entry in plan:
+        ph = entry["phase"]
+        lines.append("")
+        lines.append(f"**{ph}** — {entry['label']}")
+        for p in entry["patterns"]:
+            pat = p["pattern"]
+            short = pat.rsplit("/", 1)[-1]
+            for inst in p.get("instances") or [{}]:
+                label = next(
+                    (str(inst[k]) for k in _LABEL_VAR_KEYS if inst.get(k)),
+                    short,
+                )
+                is_built = (
+                    f"{pat}::{label}" in built or ph in built_phases
+                )
+                mark = "built" if is_built else "ready"
+                extras = []
+                for vk in ("grid_resolution", "forecast_horizon_hours",
+                           "model_adapter"):
+                    if inst.get(vk):
+                        extras.append(f"{vk}={inst[vk]}")
+                if inst.get("parameters"):
+                    n = len(inst["parameters"])
+                    extras.append(f"{n} param" + ("s" if n != 1 else ""))
+                extra_txt = f" — {', '.join(extras)}" if extras else ""
+                lines.append(f"- **{label}** · `{short}` · {mark}{extra_txt}")
+    lines.append("")
+    lines.append(
+        "_Edit:_ `/add <name>` · `/remove <name>` · "
+        "`/set <name> <var> <value>` · _build one:_ `/build <name>`"
+    )
+    return "\n".join(lines)
+
+
+@dataclass
+class ModuleTurnResult:
+    """The outcome of one module-mode prose turn — driver-agnostic.
+
+    ``reply`` is the user-facing text (the LLM-composed guidance); ``note`` the
+    transcript/log tag; ``confirmation`` the mechanical "what changed" fact,
+    which shells render MUTED (grey) above/around the reply so the model's
+    guidance reads as the main voice. ``kind`` distinguishes a plain reply from
+    a state edit. ``wants_build`` is set when the extracted operation was
+    ``build`` — the shells execute their own scoped build (console table /
+    TurnResult / JSON) because the build I/O legitimately differs; everything
+    else is fully shared.
+    """
+
+    reply: str
+    note: str
+    kind: str = "reply"          # "reply" | "edit"
+    action: str = "none"
+    new_patterns: list[str] = field(default_factory=list)
+    wants_build: bool = False
+    confirmation: str = ""       # muted "what changed" fact (grey in the UI)
+
+
+def _next_step_hint(state: dict, focus) -> str:
+    """The single, focused follow-up QUESTION for the module's current state —
+    so the agent guides one step at a time ("GFS added. Which weather
+    variables?") instead of dumping the whole option menu every turn.
+
+    Progress-aware and deterministic (control-flow guidance must not drift),
+    plain text so it reads the same in console / app / API JSON. Returns "" when
+    there's nothing sensible to ask.
+    """
+    if focus is None:
+        return ""
+    slots = state.get("slots") or {}
+    key = getattr(focus, "key", None)
+
+    if key == "processing":
+        imports = [str(i) for i in (slots.get("imports") or [])]
+        has_basin = bool(slots.get("basins") or slots.get("basin_name"))
+        if not imports and not has_basin:
+            return ("What would you like to import? (e.g. GFS, HRDPS) — or say "
+                    "'Liard uses raven' to add a model.")
+        if imports and not slots.get("data_types"):
+            return (f"Which weather variables should {imports[-1]} carry? "
+                    "(e.g. precipitation, temperature) — or /build to generate.")
+        target = imports[-1] if imports else "the model"
+        return (f"Want to set {target}'s map area (/coordinates), add another "
+                "source, or /build to generate + validate?")
+
+    if key == "display":
+        # Display plots the grids the session already imported (shared read),
+        # so guide: nothing to plot → which source → over what window → build.
+        imports = [str(i) for i in (slots.get("imports") or [])]
+        if not imports:
+            return ("Nothing to visualize yet — add a gridded source in the "
+                    "processing module first (e.g. 'add GFS'), then come back "
+                    "here to plot it.")
+        if not slots.get("wants_visualization"):
+            joined = ", ".join(imports)
+            return (f"Which source's grids should I visualize — {joined}? "
+                    "(name one, or say 'all of them')")
+        if not slots.get("forecast_horizon_hours"):
+            return ("Over what forecast window should the plots run? "
+                    "(e.g. '7 days') — or /build the display now.")
+        return "Display's set — /build it, or 'done' to assemble everything."
+
+    if key == "locations":
+        # The station list itself is a locations.csv input; the one variable
+        # worth eliciting is the datum. Guide toward both.
+        if not module_focus.read_var(state, "geoDatum"):
+            return ("What geographic datum are your station coordinates in? "
+                    "(e.g. WGS 1984) — the stations themselves come from a "
+                    "locations.csv you drop in inputs/.")
+        return ("Datum's set. Add your stations as inputs/locations.csv "
+                "(id, name, lat/lon, attributes) if you haven't yet — then "
+                "/build, or 'done' to assemble everything.")
+
+    if getattr(focus, "supports", lambda _op: False)("set"):
+        var = module_focus.next_unfilled_variable(state, focus)
+        if var:
+            return f"What should {var} be? (or /build when this module is ready)"
+        return "Ready to /build this module?"
+
+    # View-only module (filters, topology, ...) — nothing to add/set here.
+    return "Ready to /build this module, or 'done' to assemble everything?"
+
+
+def module_edit_reply(note: str, state: dict) -> str:
+    """A concise edit reply: the confirmation + the ONE focused follow-up
+    question — no full module list / command menu (that's what /list is for).
+    Shared by every shell's edit paths so replies stay short and identical.
+
+    This is the DETERMINISTIC fallback. The live path composes the guiding
+    reply with the LLM (:func:`compose_module_reply`) and shows ``note`` as a
+    separate muted confirmation; this template is what renders when no provider
+    is available or the LLM call fails."""
+    q = _next_step_hint(state, module_focus.get_focus(state))
+    return note + (f"\n\n{q}" if q else "")
+
+
+# Slots that count as "done" for a module's checklist but read nicer with a
+# friendly label than the raw slot key.
+_CHECKLIST_LABELS = {
+    "imports": "imports",
+    "basins": "basin model(s)",
+    "data_types": "weather variables",
+    "grid_resolution": "grid resolution",
+    "forecast_horizon_hours": "forecast horizon",
+    "region": "map region",
+    "custom_bbox": "map area",
+    "grid_geometry": "grid coordinates",
+    "geoDatum": "geo datum",
+}
+
+
+def _module_progress(state: dict, focus, catalog) -> dict:
+    """A structured completion checklist for the focused module.
+
+    Splits the module's variables into done/todo (via
+    :func:`module_focus.module_slot_status`), decides whether the module has
+    enough to build, and carries the deterministic next-step hint as the anchor
+    the LLM should guide toward. Pure — no LLM, no I/O — so the guidance can't
+    drift on WHICH step is next, only on how it's phrased.
+    """
+    slots = state.get("slots") or {}
+    status = module_focus.module_slot_status(state, focus) if focus else {
+        "filled": [], "unfilled": []
+    }
+
+    def _label(k: str) -> str:
+        return _CHECKLIST_LABELS.get(k, k)
+
+    done = []
+    for k in status.get("filled", []):
+        val = slots.get(k)
+        if isinstance(val, list) and val:
+            done.append(f"{_label(k)}: {', '.join(str(v) for v in val)}")
+        elif val not in (None, "", [], {}):
+            done.append(f"{_label(k)}: {val}")
+        else:
+            done.append(_label(k))
+    todo = [_label(k) for k in status.get("unfilled", [])]
+
+    key = getattr(focus, "key", None)
+    if key == "processing":
+        ready = bool(slots.get("imports") or slots.get("basins")
+                     or slots.get("basin_name"))
+    elif focus is not None and getattr(focus, "supports", lambda _o: False)("set"):
+        ready = module_focus.next_unfilled_variable(state, focus) is None
+    else:
+        ready = True  # view-only modules are always buildable
+
+    return {
+        "done": done,
+        "todo": todo,
+        "ready": ready,
+        "suggested_next": _next_step_hint(state, focus),
+    }
+
+
+def compose_module_reply(
+    state: dict, focus, changed_note: str, catalog, *, provider,
+    model: str = "qwen2.5:7b-instruct",
+) -> str:
+    """LLM-composed guiding reply for a module-mode turn.
+
+    The engine has already applied the edit; this phrases a warm, natural reply
+    that acknowledges ``changed_note`` and guides toward completing the module,
+    using the deterministic checklist (:func:`_module_progress`) as the anchor.
+    Falls back to just the deterministic next-step question when no provider is
+    wired or the call fails, so the turn never breaks. The mechanical "what
+    changed" fact is shown separately (muted) by the shells — this reply is the
+    guidance, NOT the confirmation, so the fallback is the QUESTION ALONE (never
+    the note again: that would double-print "Applied: …" once grey, once here).
+
+    Uses the plain ``chat`` (free text) interface, NOT ``generate_json`` — this
+    is a phrasing task, not a structured-output one, so forcing
+    ``response_format=json_object`` is both unnecessary and fragile (some Azure
+    deployments / api-versions reject it, which silently fell back to the
+    robotic template). ``chat`` is the universal Provider method every backend
+    implements."""
+    from . import prompts
+    from .providers.base import Message
+
+    def _fallback() -> str:
+        return _next_step_hint(state, focus) or "Done — this module is ready to /build."
+
+    if provider is None:
+        return _fallback()
+
+    prog = _module_progress(state, focus, catalog)
+    label = getattr(focus, "label", "this")
+    job = getattr(focus, "prompt", "") or getattr(focus, "description", "") or ""
+
+    system = prompts.load("module_reply.system")
+    user = prompts.load(
+        "module_reply.user",
+        module_label=label,
+        module_job=job,
+        user_message=repr(state.get("_last_user_message", "")),
+        changed=changed_note or "(nothing new)",
+        done_text="; ".join(prog["done"]) or "(nothing yet)",
+        todo_text="; ".join(prog["todo"]) or "(nothing left)",
+        ready="yes" if prog["ready"] else "not yet",
+        suggested_next=prog["suggested_next"] or "(module is complete)",
+    )
+    try:
+        resp = provider.chat(
+            system, [Message(role="user", content=user)], tools=[],
+        )
+        text = (resp.text or "").strip().strip('"')
+        if text:
+            return text
+    except Exception as exc:  # noqa: BLE001
+        # Don't fail the turn, but don't hide WHY the model reply was skipped —
+        # a silent fallback reads to the user as "the LLM did nothing".
+        logging.getLogger(__name__).warning(
+            "compose_module_reply fell back to the deterministic question: "
+            "%s: %s", type(exc).__name__, exc,
+        )
+    return _fallback()
+
+
+def module_welcome(state: dict, module) -> str:
+    """The main reply for a freshly-entered module: just the ONE focused
+    question ("What would you like to import?"). The discrete grey status line
+    ("Building the <module> module.") is carried SEPARATELY as the muted
+    confirmation (``module_focus.focus_card``) by every entry path — cold entry,
+    the ``select_module`` switch, and each shell's ``/module`` handler — so the
+    verbose "You're now on …/Carrying over …" pile is gone for good."""
+    return _next_step_hint(state, module) or (
+        f"The {module.label.split(' (')[0]} module is ready — /build when you are."
+    )
+
+
+def module_list_reply(state: dict, catalog) -> str:
+    """The instance listing + the proactive 'Next:' nudge for the focused
+    module. Shared by every shell's ``/list`` handler and the prose-``list``
+    path, so the guidance is identical everywhere (and appears once)."""
+    text = _module_list_text(state, catalog)
+    hint = _next_step_hint(state, module_focus.get_focus(state))
+    return text + (f"\n\n{hint}" if hint else "")
+
+
+def run_module_turn(
+    state: dict, message: str, catalog, focus, *, provider,
+    just_entered: bool = False,
+) -> ModuleTurnResult:
+    """Module-mode prose turn — the ONE shared implementation all shells call.
+
+    When a module is in focus, a free-form message is exactly ONE operation
+    on it. Resolve a pending confirmation first; otherwise extract the
+    operation (LLM), validate it against the catalog, and route it:
+    ``build``/``list`` → the driver's handlers; a low-confidence effectful op
+    → stash + ask to confirm; otherwise apply and reply. Catalog-dropped
+    values are surfaced loudly, never applied silently. Mutates ``state`` in
+    place; does no history/log/print I/O (the shells own that).
+
+    Previously duplicated verbatim in ``chat_step._run_module_operation`` and
+    ``chatter._run_module_operation`` — unifying here is what lets the HTTP
+    API get module-mode without a third copy (and stops the two from
+    drifting, which is how the API missed module-mode in the first place).
+    """
+    from .extractor import (
+        describe_operation, extract_operation, needs_confirmation,
+        op_from_dict, op_to_dict,
+    )
+
+    state["_last_user_message"] = message  # read by compose_module_reply
+
+    # A low-confidence op from a prior turn is awaiting a yes/no.
+    pending = state.get("_pending_operation")
+    if pending:
+        decision = resolve_pending_operation(message)
+        if decision is not None:
+            state["_pending_operation"] = None
+            if decision == "discard":
+                return ModuleTurnResult(
+                    "Okay — cancelled, nothing applied.",
+                    "module op: cancelled",
+                )
+            changed, new_patterns = apply_operation(
+                state, op_from_dict(pending), catalog
+            )
+            guidance = compose_module_reply(
+                state, focus, changed, catalog, provider=provider
+            )
+            return ModuleTurnResult(
+                guidance, "module op: confirmed", kind="edit",
+                new_patterns=new_patterns, confirmation=changed,
+            )
+        # Unclear answer → drop the stale pending op, process this fresh.
+        state["_pending_operation"] = None
+
+    op = extract_operation(message, focus_module=focus, provider=provider)
+
+    # build / list are DRIVER-executed (I/O differs per shell).
+    if op.action == "build":
+        return ModuleTurnResult(
+            "", "module op: build", action="build", wants_build=True,
+        )
+    if op.action == "list":
+        return ModuleTurnResult(module_list_reply(state, catalog), "module op: list")
+
+    # Uncertain AND effectful → confirm instead of applying silently.
+    if needs_confirmation(op):
+        state["_pending_operation"] = op_to_dict(op)
+        reply = (
+            f"Just to confirm — did you want to {describe_operation(op)}? "
+            f"(yes / no)"
+        )
+        return ModuleTurnResult(reply, "module op: confirm?")
+
+    changed, new_patterns = apply_operation(state, op, catalog)
+
+    # Pure cold entry ("configure locations") with no operation to apply:
+    # the focused question as the reply, the discrete grey status as the
+    # muted confirmation — no verbose welcome pile.
+    is_card = just_entered and op.action == "none" and not op.fields
+    if is_card:
+        return ModuleTurnResult(
+            module_welcome(state, focus), f"module op: {op.action}",
+            kind="edit", action=op.action, new_patterns=new_patterns,
+            confirmation=module_focus.focus_card(state, focus),
+        )
+
+    # A module switch: same shape for the module now in focus.
+    if op.action == "select_module":
+        new_focus = module_focus.get_focus(state)
+        return ModuleTurnResult(
+            module_welcome(state, new_focus),
+            f"module op: {op.action}", kind="edit", action=op.action,
+            new_patterns=new_patterns,
+            confirmation=module_focus.focus_card(state, new_focus),
+        )
+
+    # An edit (add / set / remove / none-with-fields): the LLM composes the
+    # guiding reply from the module checklist; the mechanical "what changed"
+    # note rides along as the muted confirmation (grey in the UI). Falls back
+    # to the deterministic template inside compose_module_reply if the LLM is
+    # unavailable. Catalog-dropped values stay LOUD — appended to the main
+    # reply, never buried in the grey confirmation.
+    guidance = compose_module_reply(
+        state, focus, changed, catalog, provider=provider
+    )
+    if op.dropped:
+        guidance += (
+            "\n\n[!] Ignored (not in the catalog, so not applied): "
+            + ", ".join(op.dropped)
+            + ". Rephrase with a known name if you meant something valid."
+        )
+    return ModuleTurnResult(
+        guidance, f"module op: {op.action}", kind="edit", action=op.action,
+        new_patterns=new_patterns, confirmation=changed,
+    )
+
+
 def apply_disambiguation_answer(state: dict, message: str) -> None:
     """Consume a pending intent-disambiguation answer, if one is awaited.
 
@@ -228,7 +922,7 @@ def apply_disambiguation_answer(state: dict, message: str) -> None:
 
 
 def _format_internals(
-    skill_results: dict,
+    prose_facts: dict,
     llm_intent: str | None,
     llm_entities: dict | None,
     chosen_intent: str | None,
@@ -244,8 +938,8 @@ def _format_internals(
     lines: list[str] = []
 
     lines.append("**1. Skills (deterministic regex pass)**")
-    if skill_results:
-        for k, v in skill_results.items():
+    if prose_facts:
+        for k, v in prose_facts.items():
             if v in (None, [], {}):
                 continue
             lines.append(f"- `{k}` = {v!r}")
@@ -369,7 +1063,7 @@ def run_turn_pipeline(
     CLI passes False and the suppression state is never touched.
     """
     # Phase 1: skills.
-    skill_results = extract_skills(message)
+    prose_facts = filter_prose(message)
 
     # Phase 2: intent classification (only if no intent yet).
     notes: list[str] = []
@@ -379,24 +1073,24 @@ def run_turn_pipeline(
 
     if state.get("intent") is None:
         try:
-            cls = classify_intent(message, skill_results, provider=provider)
+            cls = classify_intent(message, prose_facts, provider=provider)
             llm_picked = cls.get("intent")
             llm_entities = cls.get("entities", {}) or {}
             # Merge LLM-supplied entities into skill results (skills win).
             # Empty-list slots (data_types) are treated as missing so the
             # LLM extraction isn't shadowed by a zero-result regex pass.
             for k, v in llm_entities.items():
-                existing = skill_results.get(k)
-                if (k not in skill_results or existing is None
+                existing = prose_facts.get(k)
+                if (k not in prose_facts or existing is None
                         or (isinstance(existing, list) and not existing)):
-                    skill_results[k] = v
+                    prose_facts[k] = v
                     notes.append(f"LLM filled {k}={v}")
         except Exception as exc:  # noqa: BLE001
             notes.append(f"intent classify failed: {str(exc)[:60]}")
 
         chosen_intent = (
             llm_picked if llm_picked in INTENTS
-            else heuristic_intent_from_slots(skill_results)
+            else heuristic_intent_from_slots(prose_facts)
         )
         state["intent"] = chosen_intent
         if chosen_intent:
@@ -423,7 +1117,7 @@ def run_turn_pipeline(
     # Verb-gated and target-required, so descriptive prose never parses as an
     # edit. Runs AFTER intent + LLM-entity merge but BEFORE the additive
     # merge: applied edits mutate slots immediately, then the just-removed
-    # targets are stripped from skill_results so the additive merge below
+    # targets are stripped from prose_facts so the additive merge below
     # cannot re-add them on the same turn.
     recent_edit_note: str | None = None  # per-turn; stale notes must not leak
     edit_action = detect_edit_action(message)
@@ -435,31 +1129,31 @@ def run_turn_pipeline(
             applied_notes.append(note)
         if edit_action.get("removed_imports"):
             ri = {x.lower() for x in edit_action["removed_imports"]}
-            if isinstance(skill_results.get("imports"), list):
-                skill_results["imports"] = [
-                    x for x in skill_results["imports"]
+            if isinstance(prose_facts.get("imports"), list):
+                prose_facts["imports"] = [
+                    x for x in prose_facts["imports"]
                     if str(x).lower() not in ri
                 ]
         if edit_action.get("removed_basins"):
             rb = {x.lower() for x in edit_action["removed_basins"]}
-            if isinstance(skill_results.get("basins"), list):
-                skill_results["basins"] = [
-                    b for b in skill_results["basins"]
+            if isinstance(prose_facts.get("basins"), list):
+                prose_facts["basins"] = [
+                    b for b in prose_facts["basins"]
                     if not (
                         isinstance(b, dict)
                         and str(b.get("basin_name", "")).lower() in rb
                     )
                 ]
             if (
-                isinstance(skill_results.get("basin_name"), str)
-                and skill_results["basin_name"].lower() in rb
+                isinstance(prose_facts.get("basin_name"), str)
+                and prose_facts["basin_name"].lower() in rb
             ):
-                skill_results["basin_name"] = None
+                prose_facts["basin_name"] = None
         recent_edit_note = "; ".join(applied_notes)
 
     # Phase 3: slot filling — additive, no overwrites.
     slots = state.setdefault("slots", {})
-    for k, v in skill_results.items():
+    for k, v in prose_facts.items():
         if v is None or v == []:
             continue
         existing = slots.get(k)
@@ -629,6 +1323,10 @@ def run_turn_pipeline(
     intent = INTENTS.get(state.get("intent") or "")
     next_q = next_unfilled_question(intent, slots) if intent else None
     ready = bool(intent) and is_intent_ready(intent, slots)
+    # Module focus (module-mode): scope the elicitation to the focused
+    # module's own next gap and steer the reply with its prompt. A no-op
+    # when nothing is in focus, so the intent-driven flow is unchanged.
+    next_q, module_prompt = _module_focus_question(state, intent, next_q)
     agent_msg = compose_reply(
         user_message=message,
         state=state,
@@ -642,10 +1340,11 @@ def run_turn_pipeline(
         warnings=warnings,
         recent_edit=recent_edit_note,
         provider=provider,
+        module_focus_prompt=module_prompt,
     )
 
     internals = _format_internals(
-        skill_results=skill_results,
+        prose_facts=prose_facts,
         llm_intent=llm_picked,
         llm_entities=llm_entities,
         chosen_intent=chosen_intent,

@@ -1,0 +1,5 @@
+WarningLevelId,WarningName,Color,IconName,HistoricOverlayIconName,ForecastOverlayIconName,OpaquenessPercentage
+Normal,Normal,33CC33,WarningLevelGreenTriangleBlackExclamation.svg,WarningLevelGreenHistoric.gif,WarningLevelGreenForecast.gif,100
+Minor,Minor flood,FFCC00,WarningLevelYellowTriangle.svg,WarningLevelYellowHistoric.gif,WarningLevelYellowForecast.gif,100
+Moderate,Moderate flood,FF6600,WarningLevelOrangeTriangle.svg,WarningLevelOrangeHistoric.gif,WarningLevelOrangeForecast.gif,100
+Major,Major flood,CC0000,WarningLevelRedTriangle.svg,WarningLevelRedHistoric.gif,WarningLevelRedForecast.gif,100

@@ -521,6 +521,73 @@ def _nwp_resolutions_from_blueprint(bp) -> dict[str, float]:
     return out
 
 
+def _nwp_geometries_from_blueprint(bp) -> dict[str, dict]:
+    """Walk blueprint NWP instances; return {locationId: grid_geometry}.
+
+    ``grid_geometry`` is the configurator-set ``{first_x, first_y, columns,
+    rows}`` override (see ``project_chat.set_grid_geometry``). Only instances
+    carrying a well-formed geometry are returned; the rest keep the bundled /
+    resolution / region-cropped geometry.
+    """
+    out: dict[str, dict] = {}
+    for p in bp.patterns:
+        if not any(p.pattern.startswith(pref) for pref in _NWP_PATTERN_PREFIXES):
+            continue
+        for inst in p.instances:
+            if not isinstance(inst, dict):
+                continue
+            name = inst.get("nwp_name") or inst.get("source_name")
+            geom = inst.get("grid_geometry")
+            if not isinstance(name, str) or not isinstance(geom, dict):
+                continue
+            if all(k in geom for k in ("first_x", "first_y", "columns", "rows")):
+                out[name] = geom
+    return out
+
+
+def _apply_grid_geometry_to_grids(
+    data: dict, geometries: dict[str, dict],
+) -> dict:
+    """Stamp an explicit grid geometry onto matching ``<regular>`` entries.
+
+    Sets ``firstCellCenter`` (x, y), ``rows`` and ``columns`` on any entry
+    whose ``@locationId`` has a configurator-set geometry. **Cell size is left
+    untouched** (inherited from the resolution rewriter or the bundled
+    default), and only lat/lon ``firstCellCenter`` grids are eligible —
+    ``polarStereographic`` / ``gridCorners`` grids use a different model and
+    are skipped. Runs AFTER the resolution + region-bbox rewriters so an
+    explicit geometry wins over the region crop.
+    """
+    if not geometries or not isinstance(data, dict):
+        return data
+    body = data.get("body") or []
+    if not body:
+        return data
+    rewritten = []
+    for entry in body:
+        if not isinstance(entry, dict) or "regular" not in entry:
+            rewritten.append(entry)
+            continue
+        inner = entry["regular"]
+        loc_id = inner.get("@locationId") if isinstance(inner, dict) else None
+        geom = geometries.get(loc_id) if isinstance(loc_id, str) else None
+        # Only lat/lon firstCellCenter grids are eligible — skip projected
+        # (polarStereographic / gridCorners) entries, which have no
+        # firstCellCenter to reposition.
+        if geom is None or "firstCellCenter" not in inner:
+            rewritten.append(entry)
+            continue
+        new_inner = {**inner}
+        new_inner["rows"] = str(int(geom["rows"]))
+        new_inner["columns"] = str(int(geom["columns"]))
+        new_inner["firstCellCenter"] = {
+            "x": str(geom["first_x"]),
+            "y": str(geom["first_y"]),
+        }
+        rewritten.append({"regular": new_inner})
+    return {**data, "body": rewritten}
+
+
 def _apply_nwp_resolutions_to_grids(
     data: dict, nwp_resolutions: dict[str, float],
 ) -> dict:
@@ -686,6 +753,7 @@ def _render_yaml_inputs(
     nwp_location_ids: set[str] | None = None,
     custom_bbox: tuple[float, float, float, float] | list | None = None,
     nwp_resolutions: dict[str, float] | None = None,
+    nwp_geometries: dict[str, dict] | None = None,
 ) -> int:
     """Walk ``inputs_dir`` for *.yaml and *.yml files, render each as a spec.
 
@@ -762,6 +830,11 @@ def _render_yaml_inputs(
                 data = _apply_region_to_grids(
                     data, region, nwp_location_ids or set(),
                     custom_bbox=custom_bbox,
+                )
+                # Explicit configurator geometry wins over the region crop
+                # (runs last; leaves cell size from the resolution rewriter).
+                data = _apply_grid_geometry_to_grids(
+                    data, nwp_geometries or {},
                 )
             # Trim displayGroups body to project-used module instances.
             if (
@@ -852,6 +925,57 @@ def build_from_blueprint(
     if inputs_dir is not None and inputs_dir.is_dir():
         ingest_results = ingest_directory(inputs_dir)
 
+    # Surface CSV warnings — incl. the FEWS-Conform header lint (bad
+    # attributeIds / non-PascalCase / duplicate columns). Advisory only;
+    # the build proceeds.
+    for r in ingest_results.values():
+        for w in r.warnings:
+            console.print(f"[yellow]CSV {r.csv_path.name}: {w}[/yellow]")
+
+    # 1b) FEWS-Conform opt-in: reference locations.csv in place from a
+    # csvFile-backed LocationSet instead of materialising Locations.xml.
+    # This preserves every non-reserved CSV column as a location attribute
+    # (Type/ModelId/WflowId... — which plain ingest drops). Gated on
+    # ``metadata.locations_as_csvfile`` so the default byte-equivalent
+    # oracle path is untouched. See locationsets_derivation.
+    csvfile_locsets: list[dict] = []
+    csvfile_copies: list[tuple[str, str]] = []  # (relpath, raw content)
+    # Raw material captured here; the actual csvFile bodies are built AFTER
+    # expand() so the set id can auto-match the interpolation target set
+    # (which is only known once the patterns have rendered).
+    _conform_pending: list[dict] = []  # {csv_name, headers, geo}
+    if bp.metadata.get("locations_as_csvfile"):
+        seed_datum = (
+            (bp.singleton_seeds.get("Locations") or {}).get("geoDatum")
+            if bp.singleton_seeds else None
+        )
+        for spec_name, r in list(ingest_results.items()):
+            if r.spec_name != "locations" or r.model is None:
+                continue
+            geo = (
+                seed_datum
+                or r.inferred_file_fields.get("geoDatum")
+                or "WGS 1984"
+            )
+            csv_name = r.csv_path.name
+            _conform_pending.append({
+                "csv_name": csv_name,
+                "headers": list(r.column_mapping.keys()),
+                "geo": str(geo),
+            })
+            # Copy the raw CSV into the config tree (MapLayerFiles/) so the
+            # locationSet's <file> reference resolves at FEWS runtime.
+            try:
+                csvfile_copies.append((
+                    f"MapLayerFiles/{csv_name}",
+                    r.csv_path.read_text(encoding="utf-8-sig"),
+                ))
+            except OSError:
+                pass
+            # Suppress Locations.xml materialisation from this CSV — Conform
+            # declares locations via LocationSets, never Locations.xml.
+            ingest_results.pop(spec_name, None)
+
     csv_base_data = _csv_results_to_base_data(ingest_results)
 
     console.print(Panel(
@@ -878,6 +1002,46 @@ def build_from_blueprint(
         for err in result.errors:
             console.print(f"[red]error:[/red] {err}")
         return {"ok": False, "errors": result.errors}
+
+    # Build the Conform csvFile LocationSet bodies now that patterns have
+    # rendered. Set-id resolution, in precedence order:
+    #   1) explicit metadata.location_set_id
+    #   2) the interpolation target set(s) — so a CSV-backed station list
+    #      *is* what the interpolation writes to (composes import →
+    #      interpolate → visualize with the attribute-rich CSV). Every
+    #      target is backed, so the unbacked-interpolation guard stays quiet.
+    #   3) default "Stations"
+    if _conform_pending:
+        from fews_agent.agent.locationsets_derivation import (
+            _collect_interpolation_target_set_ids,
+            locationset_csvfile_body,
+        )
+        explicit_id = bp.metadata.get("location_set_id")
+        if explicit_id:
+            target_ids = [explicit_id]
+        else:
+            interp_targets = _collect_interpolation_target_set_ids(
+                result.rendered_files
+            )
+            target_ids = sorted(interp_targets) if interp_targets else ["Stations"]
+        for pend in _conform_pending:
+            for sid in target_ids:
+                csvfile_locsets.append(locationset_csvfile_body(
+                    pend["csv_name"], pend["headers"],
+                    set_id=sid, geo_datum=pend["geo"],
+                ))
+
+    # Emit the raw locations CSV copies (Conform csvFile opt-in) as
+    # non-XML config-tree files that the csvFile LocationSets reference.
+    if csvfile_copies:
+        from fews_agent.agent.blueprint import RenderedFile
+        for relpath, content in csvfile_copies:
+            result.rendered_files.append(RenderedFile(
+                relpath=relpath,
+                content=content,
+                pattern="(conform-csv)",
+                instance_label=Path(relpath).name,
+            ))
 
     # Merge cross-pattern contributions into singleton files.
     # Base data has three layers, applied in order (later wins):
@@ -1068,6 +1232,7 @@ def build_from_blueprint(
             nwp_location_ids=_nwp_location_ids_from_blueprint(bp),
             custom_bbox=_bbox_seed,
             nwp_resolutions=_nwp_resolutions_from_blueprint(bp),
+            nwp_geometries=_nwp_geometries_from_blueprint(bp),
         )
         if n_std:
             console.print(
@@ -1118,15 +1283,52 @@ def build_from_blueprint(
     )
     if locsets_spec:
         locsets_relpath = str(locsets_spec.output_relpath).replace("\\", "/")
-        already_have_locsets = any(
-            rf.relpath.replace("\\", "/") == locsets_relpath
-            for rf in result.rendered_files
+        existing_locsets_rf = next(
+            (
+                rf for rf in result.rendered_files
+                if rf.relpath.replace("\\", "/") == locsets_relpath
+            ),
+            None,
         )
+        already_have_locsets = existing_locsets_rf is not None
+        # Conform csvFile opt-in when LocationSets.xml already exists: graft
+        # the csvFile-backed sets into it rather than losing them (a csvFile
+        # set replaces a stub of the same id; new ids are appended). Guarded
+        # by an XSD safety net — a graft that would invalidate the file is
+        # dropped, keeping the original.
+        if already_have_locsets and csvfile_locsets:
+            from fews_agent.agent.locationsets_derivation import (
+                merge_csvfile_sets_into_locationsets,
+            )
+            try:
+                merged_xml = merge_csvfile_sets_into_locationsets(
+                    existing_locsets_rf.content, csvfile_locsets,
+                )
+                ok, msg = validate_xsd(merged_xml.encode("utf-8"))
+                if ok:
+                    existing_locsets_rf.content = merged_xml
+                    console.print(
+                        f"[dim]Merged {len(csvfile_locsets)} csvFile "
+                        f"locationSet(s) into existing LocationSets.xml"
+                        f"[/dim]"
+                    )
+                else:
+                    console.print(
+                        f"[yellow]csvFile LocationSet merge would break XSD "
+                        f"({msg[:80]}); kept original[/yellow]"
+                    )
+            except Exception as exc:  # noqa: BLE001
+                console.print(
+                    f"[yellow]csvFile LocationSet merge failed: "
+                    f"{type(exc).__name__}: {str(exc)[:100]}[/yellow]"
+                )
         if not already_have_locsets:
             from fews_agent.agent.locationsets_derivation import (
                 derive_locationsets_yaml,
             )
-            ls_data = derive_locationsets_yaml(result.rendered_files)
+            ls_data = derive_locationsets_yaml(
+                result.rendered_files, extra_sets=csvfile_locsets or None,
+            )
             if ls_data:
                 try:
                     from fews_agent.agent.blueprint import RenderedFile
@@ -1143,9 +1345,13 @@ def build_from_blueprint(
                     ))
                     body = ls_data.get("body", [])
                     n_total = len(body)
+                    # A set is "populated" if it carries real backing —
+                    # explicit locationId membership OR a csvFile reference
+                    # (Conform opt-in) — as opposed to a bare id-only stub.
                     n_populated = sum(
                         1 for e in body
                         if e.get("locationSet", {}).get("locationId")
+                        or e.get("locationSet", {}).get("csvFile")
                     )
                     n_stubs = n_total - n_populated
                     if n_populated:
@@ -1192,6 +1398,48 @@ def build_from_blueprint(
             f"or back the set with a csvFile / esriShapeFile in a "
             f"locationSetsFile.yaml.",
             title="Warning: interpolation has no station targets",
+            border_style="yellow",
+        ))
+
+    # Model-asset gap (ColdState / ModuleDataSet). General-adapter model
+    # runs need external binaries + schematization + initial state that no
+    # generation layer can produce. Warn loudly whenever they're absent; on
+    # metadata.emit_model_asset_stubs, also scaffold placeholder markers +
+    # a manifest at the Conform paths (folders ending in .zip).
+    from fews_agent.agent.model_asset_stubs import (
+        config_has_model_assets,
+        detect_model_asset_requirements,
+        missing_model_asset_paths,
+        model_asset_stub_files,
+    )
+    _model_reqs = detect_model_asset_requirements(result.rendered_files)
+    _missing_assets: list[str] = []
+    if _model_reqs and not config_has_model_assets(result.rendered_files):
+        _missing_assets = missing_model_asset_paths(_model_reqs)
+        _emit_stubs = bool(bp.metadata.get("emit_model_asset_stubs"))
+        if _emit_stubs:
+            from fews_agent.agent.blueprint import RenderedFile
+            for relpath, content in model_asset_stub_files(_model_reqs):
+                result.rendered_files.append(RenderedFile(
+                    relpath=relpath,
+                    content=content,
+                    pattern="(model-assets)",
+                    instance_label=Path(relpath).name,
+                ))
+        _models = ", ".join(f"{r.area} {r.software}" for r in _model_reqs)
+        console.print(Panel(
+            f"Model run(s) [{_models}] need external assets no layer "
+            f"generates (binaries, schematization, initial state):\n"
+            + "\n".join(f"  - {p}" for p in _missing_assets)
+            + (
+                "\n\nScaffolded placeholders + _REQUIRED_MODEL_ASSETS.md "
+                "(folders ending in .zip) — replace with the real files."
+                if _emit_stubs else
+                "\n\nConfig is XSD-valid but the model run fails at FEWS "
+                "startup until these are supplied. Set "
+                "metadata.emit_model_asset_stubs to scaffold placeholders."
+            ),
+            title="Warning: missing external model assets",
             border_style="yellow",
         ))
 
@@ -1379,6 +1627,10 @@ def build_from_blueprint(
         # list is the healthy case. Lets the chat `done` path re-surface
         # the warning to the configurator.
         "unbacked_interpolation_sets": sorted(_unbacked),
+        # External model assets (binaries/schematization/cold state) a
+        # general-adapter model needs but no layer generates. Empty when
+        # the config already carries them or there's no model run.
+        "missing_model_assets": _missing_assets,
         "byte_equivalent_vs_tutorial": (
             f"{n_byte_eq}/{n_compared}" if diff_against else None
         ),

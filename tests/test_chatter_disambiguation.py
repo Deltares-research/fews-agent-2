@@ -1,15 +1,17 @@
-"""Parity tests: the Streamlit driver (app/chatter.py) must honour the
-intent-disambiguation gate exactly like the CLI driver (chat_step.py).
+"""The Streamlit app is PURE MODULE-MODE — no whole-project intent flow.
 
-`app/chatter.py::ChatSession._send_inner` is a second, hand-maintained copy
-of the turn pipeline. These tests pin the disambiguation behaviour to it so
-the two drivers can't silently drift again: a single-half request ASKS (and
-resolves nothing), and the persisted answer commits the intent next turn.
+The app used to run the intent-disambiguation gate ("imports only or a full
+forecasting project?"). That whole-project intent flow was removed: the app now
+builds one FEWS-folder module at a time. These tests pin the new contract so it
+can't regress back into asking about a project-level intent:
 
-The three LLM seams are stubbed (no Ollama):
-  * ``check_ollama_for_model`` → None  (pre-flight passes)
-  * ``classify_intent``        → forecasting  (the silent default the gate overrides)
-  * ``compose_reply``          → sentinel
+  * a clear catalog request auto-focuses `processing` and resolves — no
+    disambiguation question, no LLM needed;
+  * the resolver-selecting `intent` is DERIVED from the slots (imports-only →
+    build_data_import_only), never a user-facing choice;
+  * vague prose asks which module to work on (it does not classify an intent).
+
+The provider is stubbed to explode, proving the common path needs no LLM.
 """
 from __future__ import annotations
 
@@ -18,38 +20,23 @@ from pathlib import Path
 
 import pytest
 
-# app/ isn't a package on sys.path by default; add it like web_app.py does.
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(_REPO_ROOT / "app"))
 
 import chatter  # noqa: E402
 
-from fews_agent.agent import turn_engine  # noqa: E402
+
+class _Boom:
+    def generate_json(self, *a, **k):
+        raise AssertionError("pure module-mode should not call the LLM here")
 
 
 @pytest.fixture
 def session(tmp_path, monkeypatch):
-    """A ChatSession with the LLM seams stubbed; returns a fresh session.
-
-    The Phase 1–5 pipeline lives in turn_engine and calls classify_intent /
-    compose_reply from its namespace, so those seams are patched there. The
-    app-only pre-flight + provider resolution stay on the chatter module.
-    """
     monkeypatch.setattr(chatter, "check_ollama_for_model", lambda *a, **k: None)
-    monkeypatch.setattr(
-        turn_engine, "classify_intent",
-        lambda *a, **k: {"intent": "build_forecasting_project", "entities": {}},
-    )
-    monkeypatch.setattr(turn_engine, "compose_reply", lambda *a, **k: "STUB-REPLY")
-    monkeypatch.setattr(chatter, "get_provider", lambda *a, **k: None)
-
-    # Use tmp_path directly (unique per test) as the session dir: it already
-    # exists, and its unique name avoids a cross-test logger-name collision
-    # (ChatSession keys its file logger on session_dir.name).
+    monkeypatch.setattr(chatter, "get_provider", lambda *a, **k: _Boom())
     return chatter.ChatSession(
-        project_name="parity",
-        session_dir=tmp_path,
-        username="tester",
+        project_name="modemode", session_dir=tmp_path, username="tester",
     )
 
 
@@ -57,67 +44,29 @@ def _pattern_paths(state: dict) -> set[str]:
     return {p["pattern"] for p in state.get("patterns", [])}
 
 
-def test_imports_only_turn_asks_and_does_not_resolve(session):
-    res = session.send("Import NOAA GFS grids for precipitation and temperature.")
-    # The deterministic question came back — NOT a composed reply.
-    assert res.agent_message != "STUB-REPLY"
-    assert "(a)" in res.agent_message and "(b)" in res.agent_message
-    assert session.state.get("awaiting_intent_disambiguation") is True
-    assert not session.state.get("intent_disambiguated")
-    assert _pattern_paths(session.state) == set()  # nothing resolved
-    assert session.state["slots"].get("imports") == ["GFS"]
-
-
-def test_answer_a_commits_data_import_only_and_resolves(session):
-    session.send("Import NOAA GFS grids for precipitation and temperature.")
-    res = session.send("a")
-    assert res.agent_message == "STUB-REPLY"  # Phase 5 reached this turn
-    assert session.state["intent"] == "build_data_import_only"
-    assert session.state.get("intent_disambiguated") is True
-    assert session.state.get("awaiting_intent_disambiguation") is False
+def test_single_half_import_auto_focuses_and_resolves(session):
+    # No "imports only vs full project?" question — a clear import request just
+    # enters the processing module and resolves, deterministically.
+    res = session.send("Import GFS grids for precipitation")
+    assert res.kind == "edit"
+    assert session.state["current_module"] == "processing"
     assert "auto/nwp_grid_noaa" in _pattern_paths(session.state)
+    assert "?" not in res.agent_message.split("\n")[0]  # confirmation, not a gate
 
 
-def test_answer_b_commits_forecasting(session):
-    session.send("Import NOAA GFS grids for precipitation and temperature.")
-    session.send("b")
-    assert session.state["intent"] == "build_forecasting_project"
-    assert session.state.get("intent_disambiguated") is True
-    assert _pattern_paths(session.state)
-
-
-def test_explicit_narrowing_phrase_skips_the_gate(session):
-    # "no basin model" → forced_intent_override fires AND the gate's
-    # narrowing-signal check suppresses the question. Resolves immediately.
-    res = session.send("Import NOAA GFS grids, no basin model.")
-    assert res.agent_message == "STUB-REPLY"
-    assert not session.state.get("awaiting_intent_disambiguation")
+def test_intent_is_derived_not_asked(session):
+    # The resolver-selecting intent is derived from the slots — imports-only →
+    # build_data_import_only (so /done won't demand a basin) — never a choice
+    # the user is asked to make.
+    session.send("add GFS")
     assert session.state["intent"] == "build_data_import_only"
-    assert "auto/nwp_grid_noaa" in _pattern_paths(session.state)
-
-
-def test_forced_override_reaches_the_app(session):
-    # The bare forced-override path (no disambiguation involved): an explicit
-    # "no basin model" must win over the stubbed classify→forecasting pick.
-    session.send("Set up GFS and HRDPS imports and a Raven model for the Liard.")
-    # Both halves present → gate silent, forecasting resolves.
+    session.send("add Liard uses raven")
     assert session.state["intent"] == "build_forecasting_project"
-    res = session.send("Actually, no basin model.")
-    assert res.agent_message == "STUB-REPLY"
-    assert session.state["intent"] == "build_data_import_only"
 
 
-def test_unclear_answer_reasks_then_falls_back(session):
-    s = session
-    s.send("Import NOAA GFS grids for precipitation and temperature.")
-    assert s.state.get("intent_disambiguation_asks") == 1
-    # A non-answer → gate re-asks (still single-half).
-    s.send("hmm, what would you suggest?")
-    assert s.state.get("intent_disambiguation_asks") == 2
-    assert s.state.get("awaiting_intent_disambiguation") is True
-    assert _pattern_paths(s.state) == set()
-    # Another non-answer → asks>=2 → forecasting fallback, resolves.
-    s.send("not sure")
-    assert s.state.get("intent_disambiguated") is True
-    assert s.state["intent"] == "build_forecasting_project"
-    assert _pattern_paths(s.state)
+def test_vague_prose_asks_which_module_not_an_intent(session):
+    res = session.send("hi, I'd like to build a config")
+    assert session.state.get("current_module") is None
+    assert "module" in res.agent_message.lower()
+    # It does NOT talk about a whole-project intent.
+    assert "forecasting project" not in res.agent_message.lower()

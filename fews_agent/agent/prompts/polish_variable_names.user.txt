@@ -1,0 +1,8 @@
+Cluster name: [[ cluster_name ]]
+Pydantic schemas this pattern emits: [[ schema_names ]]
+Label variable (already named): [[ label_var_name ]]
+
+Mechanical variables to rename:
+[[ mechanical_vars_text ]]
+
+For each mechanical name, propose a semantic_name (lower_snake_case, <=30 chars) and a one-line description.

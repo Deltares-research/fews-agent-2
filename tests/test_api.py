@@ -163,9 +163,166 @@ def test_turn_unknown_session_404s(client):
 # build (real deterministic build path, no LLM)
 # --------------------------------------------------------------------------
 
+# --------------------------------------------------------------------------
+# module-mode (focus one FEWS-folder module and operate on it)
+# --------------------------------------------------------------------------
+
+class _Resp:
+    def __init__(self, data):
+        self.data = data
+
+
+class _ModuleProvider:
+    """Extractor stub: scripts the raw parse_turn JSON off the message line.
+
+    parse_turn embeds the user message as `Message: '<repr>'` on line 1, so we
+    match the message text only (never the vocab lists below it). The real
+    extractor still normalizes + catalog-validates the result.
+    """
+
+    def _msg(self, user: str) -> str:
+        first = user.splitlines()[0] if user else ""
+        return first.split("Message:", 1)[-1].strip().strip("'\"").lower()
+
+    def generate_json(self, system, user, schema):
+        m = self._msg(user)
+        if "build" in m:
+            return _Resp({"intent": "build_processing", "action": "build",
+                          "confidence": 0.9, "fields": {}})
+        if "also" in m and "hrdps" in m:
+            return _Resp({"intent": "build_processing", "action": "add",
+                          "confidence": 0.9, "fields": {"imports": ["HRDPS"]}})
+        if "gfs" in m:
+            return _Resp({"intent": "build_processing", "action": "add",
+                          "confidence": 0.9,
+                          "fields": {"imports": ["GFS"],
+                                     "data_types": ["precipitation",
+                                                    "temperature"]}})
+        return _Resp({"intent": "build_processing", "action": "none",
+                      "confidence": 0.9, "fields": {}})
+
+
+def test_module_commands_run_without_llm(client, monkeypatch):
+    # /modules and /module are deterministic — they work with the LLM down.
+    monkeypatch.setattr(
+        server, "check_ollama_for_model", lambda *a, **k: "Ollama down.",
+    )
+    sid = _new_session(client)
+    body = client.post(f"/sessions/{sid}/turn", json={"message": "/modules"}).json()
+    assert body["module_mode"] is True
+    assert "processing" in body["reply"]
+    # Focus a module by its synonym; the card comes back and focus is recorded.
+    got = client.post(f"/sessions/{sid}/turn", json={"message": "/module imports"})
+    assert got.status_code == 200
+    assert got.json()["current_module"] == "processing"
+
+
+def test_module_mode_cold_entry_add_and_build_hint(client, monkeypatch):
+    monkeypatch.setattr(
+        server, "get_provider_or_ollama", lambda model: _ModuleProvider(),
+    )
+    sid = _new_session(client, name="modeapi")
+
+    # Cold entry from prose ("imports module") + one-shot add.
+    r1 = client.post(
+        f"/sessions/{sid}/turn",
+        json={"message": "set up the imports module with a NOAA GFS import "
+                         "for precipitation and temperature"},
+    )
+    assert r1.status_code == 200, r1.text
+    b1 = r1.json()
+    assert b1["module_mode"] is True
+    assert b1["current_module"] == "processing"
+    assert "auto/nwp_grid_noaa" in {p["pattern"] for p in b1["patterns"]}
+    assert b1["slots"]["imports"] == ["GFS"]
+
+    # Follow-up add stays in the focused module (additive union).
+    b2 = client.post(
+        f"/sessions/{sid}/turn", json={"message": "also add an HRDPS import"},
+    ).json()
+    assert set(b2["slots"]["imports"]) == {"GFS", "HRDPS"}
+    assert b2["current_module"] == "processing"
+
+    # A build request surfaces wants_build + a hint to POST /build.
+    b3 = client.post(
+        f"/sessions/{sid}/turn", json={"message": "build the module"},
+    ).json()
+    assert b3["wants_build"] is True
+    assert f"/sessions/{sid}/build" in b3["reply"]
+
+    # And the dedicated build endpoint assembles the focused project.
+    built = client.post(f"/sessions/{sid}/build", json={"force": True}).json()
+    assert built["ok"] is True
+    assert built["files_xsd_ok"] == built["files_xml"]
+
+
 def test_build_before_resolve_409s(client):
     sid = _new_session(client)
     assert client.post(f"/sessions/{sid}/build").status_code == 409
+
+
+def _resolve_gfs_project(client, name):
+    """Mint a session and resolve a tiny GFS-only import project via one turn."""
+    sid = _new_session(client, name=name)
+    turn = client.post(
+        f"/sessions/{sid}/turn",
+        json={"message": "Import NOAA GFS grids, no basin model."},
+    )
+    assert turn.status_code == 200, turn.text
+    assert {p["pattern"] for p in turn.json()["patterns"]}
+    return sid
+
+
+def test_scoped_phase_build_over_http(client):
+    sid = _resolve_gfs_project(client, "phasebuild")
+    resp = client.post(f"/sessions/{sid}/build", json={"phase": "imports"})
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["scope"] == "phase:imports"
+    assert body["built_phases"] == ["imports"]
+    assert body["files_total"] > 0
+    # Scoped build renders only the phase's pattern outputs, all XSD-valid.
+    assert body["files_xsd_ok"] == body["files_xml"]
+    assert body["ok"] is True
+    # It skips whole-project assembly, so no deriver/singleton files.
+    paths = {f["path"].replace("\\", "/") for f in body["files"]}
+    assert any("Import/NOAA/ImportGFS.xml" in p for p in paths)
+    assert not any("Topology.xml" in p for p in paths)
+
+
+def test_scoped_module_build_over_http(client):
+    sid = _resolve_gfs_project(client, "modbuild")
+    # 'imports' is a synonym for the processing module.
+    resp = client.post(f"/sessions/{sid}/build", json={"module": "imports"})
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["scope"] == "module:processing"
+    assert "imports" in body["built_phases"]
+    assert body["files_xsd_ok"] == body["files_xml"]
+    assert body["ok"] is True
+
+
+def test_scoped_build_rejects_unknown_phase(client):
+    sid = _resolve_gfs_project(client, "badphase")
+    resp = client.post(f"/sessions/{sid}/build", json={"phase": "frobnicate"})
+    assert resp.status_code == 400
+    assert "Unknown phase" in resp.json()["detail"]
+
+
+def test_view_only_module_not_built_on_its_own(client):
+    sid = _resolve_gfs_project(client, "viewonly")
+    resp = client.post(f"/sessions/{sid}/build", json={"module": "filters"})
+    assert resp.status_code == 409
+    assert "isn't built on its own" in resp.json()["detail"]
+
+
+def test_phase_and_module_mutually_exclusive(client):
+    sid = _resolve_gfs_project(client, "bothsel")
+    resp = client.post(
+        f"/sessions/{sid}/build", json={"phase": "imports", "module": "processing"},
+    )
+    assert resp.status_code == 400
+    assert "mutually exclusive" in resp.json()["detail"]
 
 
 def test_build_produces_xsd_valid_files(client):

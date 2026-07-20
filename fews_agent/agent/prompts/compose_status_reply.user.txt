@@ -1,0 +1,6 @@
+User question: [[ user_message ]]
+
+Status report:
+[[ report_json ]]
+
+Compose the status reply.

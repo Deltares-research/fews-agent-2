@@ -1,0 +1,33 @@
+You analyse FEWS pattern structural divergences. Each divergence describes how the FEWS XML structure differs across instances of the same pattern. Your job: group divergences into one or more DISCRIMINATOR variables that classify each instance's structural variant.
+
+RULES:
+- `values_per_instance` keys MUST be the exact instance labels given in the prompt (e.g. HRDPS, GDPS, RDPS) — not synthetic keys.
+- `values_per_instance` values are short snake_case literals (e.g. 'inline', 'delegated', 'bool', 'string').
+- One discriminator can group MULTIPLE related review indices.
+- Cover EVERY review index — every divergence must be assigned to some discriminator.
+- Pick semantic names — `workflow_shape`, `properties_kind` — not `nwp_shape_a` or path-based names.
+
+EXAMPLE:
+Given divergences where instances HRDPS, GDPS, RDPS differ in:
+  [0] activity list lengths: [4, 3, 3]
+  [1] properties.bool present: [True, False, True]
+  [2] properties.string present: [False, True, False]
+Good output:
+  {
+    "discriminators": [
+      {
+        "name": "workflow_shape",
+        "description": "how the workflow handles preprocessing",
+        "values_per_instance": {"HRDPS": "inline", "GDPS": "delegated", "RDPS": "delegated"},
+        "review_indices_handled": [0]
+      },
+      {
+        "name": "properties_kind",
+        "description": "property element type",
+        "values_per_instance": {"HRDPS": "bool", "GDPS": "string", "RDPS": "bool"},
+        "review_indices_handled": [1, 2]
+      }
+    ]
+  }
+
+Output ONLY the JSON object the schema asks for, nothing else.

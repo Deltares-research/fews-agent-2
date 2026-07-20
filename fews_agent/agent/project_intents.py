@@ -113,6 +113,10 @@ _IMPORT_NAMES: list[str] = [
     "JTWC",                                            # JTWC cyclone tracks
     "IOC",                                             # IOC sea-level stations
     "NDBC",                                            # NDBC buoys
+    # FEWS-Conform sources
+    "ERA5",                                            # Copernicus reanalysis (CDS)
+    "GEFS",                                            # NOAA ensemble NWP
+    "IMERG",                                           # NASA GPM satellite precip
 ]
 
 # Aliases for import names that appear in conversational language but
@@ -124,6 +128,7 @@ _IMPORT_ALIASES: dict[str, str] = {
     "Earth2Observe": "E2O",
     "IFS": "ECMWF",      # ECMWF's operational model name
     "GHCN": "GHCND",     # also catches the hyphenated "GHCN-D"
+    "ERA-5": "ERA5",     # hyphenated Copernicus reanalysis spelling
 }
 
 # Override the default "use import name as the variable value" behaviour
@@ -139,6 +144,10 @@ _IMPORT_VALUE_OVERRIDES: dict[str, str] = {
     "JTWC":  "Jtwc",
     "IOC":   "Ioc",
     "NDBC":  "Ndbc",
+    # FEWS-Conform: patterns default to PascalCase source_name.
+    "ERA5":  "Era5",
+    "GEFS":  "Gefs",
+    "IMERG": "Imerg",
 }
 
 # Station imports that need a locations.csv backing (their per-station URL is
@@ -682,6 +691,33 @@ def detect_wants_maintenance(text: str) -> bool | None:
     return True if any(p in lower for p in _MAINTENANCE_PHRASES) else None
 
 
+# Archive (Open Archive) — export TO / import FROM. Directional so
+# "export forecasts to archive" and "retrieve from archive" don't cross-fire;
+# a bare "archiving" / "open archive" reads as export (archive what you make).
+_ARCHIVE_EXPORT_PHRASES: tuple[str, ...] = (
+    "to archive", "to the archive", "export to archive", "archive export",
+    "archiving", "archive the", "archive my", "archive our",
+    "archive forecast", "archive observ", "send to archive", "open archive",
+)
+_ARCHIVE_IMPORT_PHRASES: tuple[str, ...] = (
+    "from archive", "from the archive", "retrieve from archive",
+    "import from archive", "read from archive", "restore from archive",
+    "archive import",
+)
+
+
+def detect_wants_archive_export(text: str) -> bool | None:
+    """True when prose asks to export/archive data TO the Open Archive."""
+    lower = (text or "").lower()
+    return True if any(p in lower for p in _ARCHIVE_EXPORT_PHRASES) else None
+
+
+def detect_wants_archive_import(text: str) -> bool | None:
+    """True when prose asks to import/retrieve data FROM the Open Archive."""
+    lower = (text or "").lower()
+    return True if any(p in lower for p in _ARCHIVE_IMPORT_PHRASES) else None
+
+
 def detect_data_types(text: str) -> list[str]:
     """Return canonical data_type phrases mentioned in the text.
 
@@ -874,13 +910,20 @@ def detect_edit_action(text: str) -> dict | None:
 # Composite: extract everything the skills can find
 # ---------------------------------------------------------------------------
 
-def extract_skills(text: str) -> dict[str, Any]:
-    """Run every skill on text; return everything found.
+def filter_prose(text: str) -> dict[str, Any]:
+    """Prose filtering: run every deterministic detector over the text and
+    return the structured facts they surface.
 
-    ``basins`` (list of {basin_name, model_adapter} pairs) is the
-    canonical multi-basin slot. ``basin_name`` and ``model_adapter``
-    remain for backwards compatibility with single-basin intents and
-    are populated only when exactly one basin is detected.
+    These are the old "regex skills" — renamed to what they actually are: a
+    prose FILTER (scan for known tokens; decide nothing, act on nothing),
+    NOT a skill. A "skill" now means an intent-connected action (see
+    ``skills.py``). ``filter_prose`` structures raw prose into candidate
+    facts; the LLM parser and the skills act on them.
+
+    ``basins`` (list of {basin_name, model_adapter} pairs) is the canonical
+    multi-basin slot. ``basin_name`` and ``model_adapter`` remain for
+    backwards compatibility and are populated only when exactly one basin is
+    detected.
     """
     pairs = detect_basins_with_adapters(text)
     single_basin = detect_basin(text) if len(pairs) <= 1 else None
@@ -903,11 +946,17 @@ def extract_skills(text: str) -> dict[str, Any]:
         "wants_interpolation": detect_wants_interpolation(text),
         "wants_visualization": detect_wants_visualization(text),
         "wants_maintenance": detect_wants_maintenance(text),
+        "wants_archive_export": detect_wants_archive_export(text),
+        "wants_archive_import": detect_wants_archive_import(text),
         "region": detect_region(text),
         "custom_bbox": detect_custom_bbox(text),
         "grid_resolution": detect_grid_resolution(text),
         "forecast_horizon_hours": detect_forecast_horizon_hours(text),
     }
+
+
+# Backwards-compat alias for the old name. Prefer ``filter_prose``.
+extract_skills = filter_prose
 
 
 # ---------------------------------------------------------------------------
@@ -968,6 +1017,12 @@ _IMPORT_PATTERN_MAP: dict[str, tuple[str, str]] = {
     "WSCDaily":    ("auto/wsc_scalar_WSCDaily_WSCHourly", "wsc_variant"),
     "WSCHourly":   ("auto/wsc_scalar_WSCDaily_WSCHourly", "wsc_variant"),
     "WSCHistoric": ("auto/wsc_scalar_WSCHistoric", "wsc_variant"),
+    # FEWS-Conform sources — label_var = source_name (value title-cased via
+    # _IMPORT_VALUE_OVERRIDES). ERA5 additionally pulls its download companion
+    # (see _resolve_import_patterns).
+    "ERA5":  ("auto/import_era5", "source_name"),
+    "GEFS":  ("auto/nwp_grid_noaa_gefs", "source_name"),
+    "IMERG": ("auto/import_imerg", "source_name"),
 }
 
 # Adapter → (pattern path, the pattern variable the model name fills).
@@ -1176,6 +1231,14 @@ def _resolve_import_patterns(
         # plot shows just that window instead of the full forecast.
         if _hor and path == "auto/nwp_grid_noaa":
             instance["forecast_horizon_hours"] = _hor
+        # Explicit grid geometry (firstCellCenter + rows/columns). Rides on
+        # the instance for ANY nwp_grid_* import (NOAA and ECCC) — the pattern
+        # doesn't reference it (so rendering ignores it), but it serializes to
+        # project.yaml where the build's geometry rewriter reads it back and
+        # stamps it onto the matching gridsFile entry.
+        _geom = _ov.get("grid_geometry")
+        if _geom and path.startswith("auto/nwp_grid_"):
+            instance["grid_geometry"] = _geom
         existing = next((p for p in out if p["pattern"] == path), None)
         if existing:
             existing["instances"].append(instance)
@@ -1192,6 +1255,25 @@ def _resolve_import_patterns(
         out.append({
             "pattern": "auto/wf_import_noaa_grids",
             "instances": [{"template_name": "ImportNOAAGrids"}],
+        })
+
+    # ERA5 is a folder-based import fed by a companion download module (a CDS
+    # API request in a Python venv). Selecting ERA5 pulls that download in so
+    # the ToFews/*.nc files the import reads actually get fetched.
+    if "ERA5" in (imports or []) and (
+        "auto/download_via_python_venv" in catalog_paths
+    ):
+        out.append({
+            "pattern": "auto/download_via_python_venv",
+            "instances": [{
+                "source_name": "Era5",
+                "import_module_instance": "ImportEra5",
+                "download_area": "[-90, -180, 90, 180]",
+                "download_parameters": (
+                    "['2m_temperature', 'total_precipitation', "
+                    "'surface_solar_radiation_downwards']"
+                ),
+            }],
         })
 
     # Interpolation path. The user asked to land the gridded data as
@@ -1406,6 +1488,7 @@ def _resolve_forecasting_patterns(
     if has_coastal:
         _add(_COASTAL_FORECASTING_TEMPLATES)
     out.extend(_resolve_maintenance_patterns(slots, catalog_paths))
+    out.extend(_resolve_archive_patterns(slots, catalog_paths))
     return out
 
 
@@ -1424,6 +1507,7 @@ def _resolve_data_import_only_patterns(
         geo_datum=slots.get("geoDatum"),
     )
     out.extend(_resolve_maintenance_patterns(slots, catalog_paths))
+    out.extend(_resolve_archive_patterns(slots, catalog_paths))
     return out
 
 
@@ -1439,6 +1523,7 @@ def _resolve_basin_only_patterns(
             )
         )
     out.extend(_resolve_maintenance_patterns(slots, catalog_paths))
+    out.extend(_resolve_archive_patterns(slots, catalog_paths))
     return out
 
 
@@ -1462,6 +1547,85 @@ def _resolve_maintenance_patterns(
             "amalgamate_orphans": True,
         }],
     }]
+
+
+# Forecast NWP grid sources whose imports can be exported to the archive as
+# exportExternalForecast. Excludes historical/observed/station sources.
+_FORECAST_GRID_IMPORTS: frozenset[str] = frozenset({
+    "HRDPS", "GDPS", "RDPS", "REPS", "GFS", "NAM", "SREF", "ECMWF", "GEFS",
+})
+
+# import name → the moduleInstanceId its pattern registers (the archive
+# export's source). Best-effort for the common sources; fallback Import<Name>.
+_ARCHIVE_EXPORT_MODULE: dict[str, str] = {
+    "GFS": "ImportGFS", "GEFS": "ImportGefs", "ECMWF": "ImportEcmwfMeteo",
+}
+
+
+def _archive_export_module(imp: str) -> str:
+    return _ARCHIVE_EXPORT_MODULE.get(
+        imp, "Import" + _IMPORT_VALUE_OVERRIDES.get(imp, imp)
+    )
+
+
+def _resolve_archive_patterns(
+    slots: dict[str, Any], catalog_paths: set[str],
+) -> list[dict]:
+    """Open-Archive export / import, when the user asked for archiving.
+
+    Export: one ``exportExternalForecast`` archive export per forecast-grid
+    import already in the project (so it archives data the project actually
+    produces; the pattern self-emits its IdMapToArchive). Import: one
+    self-contained ``FromArchiveData`` reader. Rides the ``wants_archive_*``
+    flags through chat_step's additive slot merge (not intent optional_slots),
+    mirroring ``_resolve_maintenance_patterns``.
+    """
+    out: list[dict] = []
+    imports = slots.get("imports") or []
+
+    if (
+        slots.get("wants_archive_export")
+        and "auto/archive_export_netcdf" in catalog_paths
+    ):
+        instances = []
+        for imp in imports:
+            if imp not in _FORECAST_GRID_IMPORTS:
+                continue
+            src = _IMPORT_VALUE_OVERRIDES.get(imp, imp)
+            instances.append({
+                "name": src,
+                "export_kind": "exportExternalForecast",
+                "source_module_instance": _archive_export_module(imp),
+                "value_type": "grid",
+                "parameters": ["Precipitation"],
+                "nc_filename": f"{src}DET.nc",
+                "area_id": "Local",
+                "location_id": src,
+                "period_unit": "hour",
+                "period_start": "-48",
+                "period_end": "0",
+                "time_step_unit": "hour",
+                "time_step_multiplier": "1",
+            })
+        if instances:
+            out.append({
+                "pattern": "auto/archive_export_netcdf", "instances": instances,
+            })
+
+    if (
+        slots.get("wants_archive_import")
+        and "auto/archive_import" in catalog_paths
+    ):
+        out.append({
+            "pattern": "auto/archive_import",
+            "instances": [{
+                "name": "Data",
+                "archive_root": "$ArchiveDownloadFolder$",
+                "categories": ["simulated", "externalForecast", "observed"],
+            }],
+        })
+
+    return out
 
 
 _COMMON_SLOT_QUESTIONS = {
@@ -1581,99 +1745,46 @@ def classify_intent(
     provider: OllamaProvider | None = None,
     model: str = "qwen2.5:7b-instruct",
 ) -> dict[str, Any]:
-    """Pick the user's intent + extract entities the skills missed.
+    """Classify the whole-project intent — an ADAPTER over ``parse_turn``.
 
-    The skills already found most structured facts. The LLM's job is
-    smaller: pick which intent matches the prose, optionally fill in
-    missing entities (e.g. basin name for an unrecognised basin).
+    Kept for its call site (the whole-project turn-1 path in
+    ``run_turn_pipeline``) and its test seam, but the parsing is now the
+    unified :func:`extractor.parse_turn`, which classifies from all 12
+    intents (3 whole-project + 9 ``build_<module>``). This projects that onto
+    the ``{intent, entities}`` shape the pipeline expects: a whole-project
+    intent is returned as-is (with the default-to-forecasting demotion
+    preserved); a module-intent or ``unknown`` is passed through, and the
+    pipeline's own ``llm_picked if in INTENTS else heuristic`` fallback maps
+    it to a project shape from the extracted fields.
+
+    ``skill_results`` is retained in the signature (call sites still pass it)
+    but is intentionally unused — the model parses from prose alone.
     """
     if provider is None:
         from .providers.factory import get_provider_or_ollama
         provider = get_provider_or_ollama(model)
 
-    intent_descriptions = "\n".join(
-        f"- {i.name}: {i.description}\n  keywords: {', '.join(i.keywords)}"
-        for i in INTENTS.values()
-    )
-    skills_text = "\n".join(
-        f"  {k}: {v}" for k, v in skill_results.items() if v
-    ) or "  (none)"
+    from fews_agent.agent.extractor import parse_turn
 
-    system = (
-        "Classify a configurator's project intent and confirm extracted "
-        "entities. RULES:\n"
-        "- Pick exactly one intent from the list (or 'unknown' if none "
-        "fits).\n"
-        "- DEFAULT to build_forecasting_project. Only pick the narrower "
-        "  build_basin_model_only or build_data_import_only when the "
-        "  user EXPLICITLY says they want just one half — e.g. "
-        "  'imports only', 'model only', 'no imports yet', 'without a "
-        "  model', 'just data ingestion'. A mention of a basin without "
-        "  imports is NOT enough to pick the narrower intent.\n"
-        "- ALSO prefer build_data_import_only when the user describes a "
-        "  pure data pipeline — they mention interpolating gridded data "
-        "  to locations/stations/points, viewing imported series in the "
-        "  Data Viewer, or displaying grids in the Spatial Display — "
-        "  AND they do NOT mention a hydrological model, basin, "
-        "  watershed, forecast workflow, or model adapter (raven, wflow, "
-        "  hbv96). Visualization + interpolation in the absence of any "
-        "  model reference signals data engineering, not forecasting.\n"
-        "- The deterministic skills already found the entities listed; "
-        "if you spot any the skills missed, add them. Don't override "
-        "what the skills found unless the user explicitly contradicted.\n"
-        "- Output ONLY the JSON the schema asks for."
-    )
-    user = (
-        f"Configurator prose:\n  {prose!r}\n\n"
-        f"Skills already extracted:\n{skills_text}\n\n"
-        f"Available intents:\n{intent_descriptions}\n\n"
-        f"Pick the intent and fill in any entities the skills missed."
-    )
-    schema = {
-        "type": "object",
-        "properties": {
-            "intent": {"type": "string"},
-            "entities": {
-                "type": "object",
-                "additionalProperties": True,
-            },
-            "reasoning": {"type": "string"},
-        },
-        "required": ["intent"],
-    }
-    resp = provider.generate_json(system=system, user=user, schema=schema)
-    data = resp.data or {}
-    data.setdefault("intent", "unknown")
-    data.setdefault("entities", {})
-    data.setdefault("reasoning", "")
+    pt = parse_turn(prose, focus_module=None, provider=provider, model=model)
+    intent = pt.intent or "unknown"
+    reasoning = pt.raw.get("reasoning", "") if isinstance(pt.raw, dict) else ""
 
-    # Default-to-forecasting bias: the narrower build_*_only intents
-    # are easy for a small LLM to overfit to when the user's prose
-    # mentions a basin without imports (or imports without a basin)
-    # — even if no explicit "only / just / no model / no imports"
-    # signal is present. Demote a narrower pick to forecasting when
-    # the prose contains no narrowing keyword. This preserves the
-    # narrower intents for cases where the user is explicit
-    # ("set up imports only", "model only — no NWP yet") but defaults
-    # to the richer build in ambiguous cases.
-    picked = data.get("intent") or ""
-    if picked in {"build_basin_model_only", "build_data_import_only"}:
-        if not _prose_signals_narrower_intent(prose):
-            data["intent"] = "build_forecasting_project"
-            note = (
-                f"promoted {picked} → build_forecasting_project "
-                "(no explicit 'only' / 'no imports' / 'model only' "
-                "signal in prose; default-to-forecasting policy)"
-            )
-            data["reasoning"] = (
-                f"{data['reasoning']}\n{note}" if data["reasoning"] else note
-            )
-    elif picked not in INTENTS and picked != "unknown":
-        # LLM made up an intent name not in the registry. Treat as
-        # ambiguous and default to forecasting.
-        data["intent"] = "build_forecasting_project"
+    # Default-to-forecasting bias (unchanged policy): a narrower whole-project
+    # intent with no explicit narrowing signal in the prose → forecasting.
+    # Only applies to the whole-project intents; module-intents pass through.
+    if (
+        intent in {"build_basin_model_only", "build_data_import_only"}
+        and not _prose_signals_narrower_intent(prose)
+    ):
+        note = (
+            f"promoted {intent} → build_forecasting_project "
+            "(no explicit narrowing signal; default-to-forecasting policy)"
+        )
+        reasoning = f"{reasoning}\n{note}" if reasoning else note
+        intent = "build_forecasting_project"
 
-    return data
+    return {"intent": intent, "entities": pt.fields, "reasoning": reasoning}
 
 
 # Words/phrases that signal the user *deliberately* wants a narrower
@@ -1872,7 +1983,7 @@ def fill_slots_from_text(
     only when the slot is empty (so we never overwrite an explicit user
     value with a later skill match).
     """
-    extracted = extract_skills(text)
+    extracted = filter_prose(text)
     new_slots = dict(slots)
     notes: list[str] = []
     for k, v in extracted.items():
@@ -2057,8 +2168,14 @@ def compose_reply(
     recent_edit: str | None = None,
     provider: OllamaProvider | None = None,
     model: str = "qwen2.5:7b-instruct",
+    module_focus_prompt: str | None = None,
 ) -> str:
     """LLM composes the agent's user-facing reply.
+
+    ``module_focus_prompt`` — when the configurator has a single FEWS module
+    in focus (module-mode), this is that module's steering prompt. It scopes
+    the reply to that module's job so the agent doesn't wander into other
+    modules' concerns.
 
     The deterministic engine already updated state. The LLM's only
     job is to PHRASE a natural acknowledgment + question + optional
@@ -2073,6 +2190,8 @@ def compose_reply(
 
     Style: 1-3 sentences, plain English, no JSON, no bullet lists.
     """
+    from fews_agent.agent import prompts
+
     if provider is None:
         from .providers.factory import get_provider_or_ollama
         provider = get_provider_or_ollama(model)
@@ -2166,102 +2285,7 @@ def compose_reply(
     else:
         input_text = "  (input directory not scanned)\n"
 
-    system = (
-        "You are a helpful assistant guiding a configurator through "
-        "authoring a Delft-FEWS project ONE MODULE AT A TIME (an import, "
-        "a basin model, a visualization) — not by generating the whole "
-        "project in one shot. The configurator can edit the in-progress "
-        "project mid-chat: add a module, remove a module, or change a "
-        "variable (e.g. grid resolution, forecast horizon), either with "
-        "slash commands (/add, /remove, /set, /build, /list) or in plain "
-        "language ('also drop RDPS', 'make GFS half-degree').\n"
-        "The deterministic engine has ALREADY applied any such edit and "
-        "updated state before you reply — your job is to PHRASE a natural "
-        "reply. You do not mutate state yourself; you acknowledge what the "
-        "engine already did, ask the next question, or suggest a next "
-        "step.\n"
-        "\n"
-        "ANTI-FABRICATION RULE — read carefully:\n"
-        "Only reference values that appear under KNOWN. Treat values "
-        "under UNKNOWN as unstated by the user. NEVER fill in a value "
-        "from your own training. If `model_adapter` is in UNKNOWN, do "
-        "NOT mention raven/wflow/hbv/etc. — even if they sound "
-        "plausible for that basin. If `imports` is in UNKNOWN, do NOT "
-        "name HRDPS/GFS/etc. The user said what they said; don't "
-        "extrapolate.\n"
-        "\n"
-        "Bad reply (fabricated): 'Mackenzie uses raven.' (when "
-        "model_adapter is in UNKNOWN)\n"
-        "Good reply: 'Got it — Mackenzie basin. Which hydrological "
-        "model adapter does it use (raven, wflow, hbv96)?'\n"
-        "\n"
-        "ACTIONS — offers vs. completed edits (read carefully):\n"
-        "You do NOT mutate state yourself, and you must NEVER make a "
-        "phantom OFFER that waits on a 'yes' — phrases like 'Would you "
-        "like me to add…?', 'Shall I include…?', 'Want me to remove…?'. "
-        "If the user said 'yes' to such an offer, nothing would happen "
-        "and they'd be confused. The only engine-wired yes/no flow is a "
-        "pattern-removal proposal that appears in Engine notes (you "
-        "don't invent it).\n"
-        "BUT: when a RECENT EDIT line is present below, the engine has "
-        "ALREADY performed that edit this turn — acknowledge it as DONE, "
-        "in the past tense ('Removed RDPS', 'Set GFS to half-degree'), "
-        "and never re-offer it. When the user wants a change that has "
-        "NOT happened, don't ask permission — tell them the exact "
-        "phrasing to use ('say \"also drop RDPS\"', 'say \"make GFS "
-        "half-degree\"', or use /remove, /set).\n"
-        "\n"
-        "Bad (phantom offer): 'Would you like me to add the Snare "
-        "basin?' (nothing happens on 'yes')\n"
-        "Good (not yet done): 'Snare isn't in the project yet — to add "
-        "it, say \"also add the Snare basin using raven\".'\n"
-        "Good (RECENT EDIT confirms it): 'Done — removed RDPS. Build "
-        "the next import with /build <name>, or keep adding modules.'\n"
-        "\n"
-        "RULES:\n"
-        "1) Reply in 1-3 sentences. Plain English. No JSON, no "
-        "   bullets, no emoji.\n"
-        "2) Reference KNOWN values BY NAME (e.g. 'Mackenzie basin', "
-        "   'HRDPS and GFS'). Don't say 'your basin' when you know "
-        "   the name.\n"
-        "3) Never ask the configurator for any file listed under "
-        "   AUTO-GENERATED — those are produced by the runner. Only "
-        "   ask for files under 'Configurator-required yamls' or in "
-        "   'REQUIRED CSVs missing'.\n"
-        "4) If a `next_question` is given, ask it naturally. If "
-        "   `is_ready` is true AND no required CSVs missing, "
-        "   encourage 'done'. If `is_ready` but CSVs missing, mention "
-        "   which.\n"
-        "5) Flag concerns ONLY when warranted by the data: "
-        "   contradictions across turns, or unusual basin/adapter "
-        "   pairings AMONG KNOWN VALUES. Don't invent concerns.\n"
-        "6) If nothing was understood (KNOWN is empty), ask for "
-        "   clarification — don't pretend.\n"
-        "7) WARNINGS are LOUD FAILURES — if any are listed below, you "
-        "   MUST mention each one verbatim or paraphrased, and ask the "
-        "   user to confirm, correct, or 'continue anyway'. Never bury "
-        "   a warning. Never silently accept inputs that are flagged.\n"
-        "8) Don't make a phantom OFFER that waits on a 'yes' "
-        "   ('Want me to…?', 'Shall I…?'). Two allowed moves instead: "
-        "   (a) if a RECENT EDIT line is present, acknowledge that edit "
-        "   as already DONE (past tense); (b) for a change the user "
-        "   hasn't requested yet, tell them the exact phrasing or slash "
-        "   command to use. The only engine-wired yes/no is a "
-        "   pattern-removal proposal in Engine notes.\n"
-        "9) NEVER ask whether to add/include something that is "
-        "   ALREADY in KNOWN. If a basin or import appears under "
-        "   'Basins already in project' or 'Imports already in "
-        "   project', it is DONE — do not ask 'should I also add "
-        "   X?'. The engine already added it. You MAY, however, "
-        "   suggest how to remove or change it ('to drop it, say "
-        "   \"remove X\"').\n"
-        "10) STEPWISE: after acknowledging, nudge toward ONE concrete "
-        "   next step — build the module just configured (/build "
-        "   <name>), add the next module, or (if ready) 'done' to "
-        "   assemble. Prefer one small module over pushing the whole "
-        "   project at once.\n"
-        "11) Output JSON {\"reply\": \"...\"}, nothing else."
-    )
+    system = prompts.load("compose_reply.system")
 
     warnings_text = ""
     if warnings:
@@ -2276,22 +2300,28 @@ def compose_reply(
             f"DONE, past tense; do NOT re-offer it):\n  {recent_edit}\n"
         )
 
-    user = (
-        f"User just said: {user_message!r}\n"
-        f"Active intent: {intent_name}\n"
-        f"\n"
-        f"KNOWN (filled slots — safe to reference):\n{known_text}\n"
-        f"UNKNOWN (empty slots — DO NOT mention values for these): "
-        f"{unknown_text}\n"
-        f"{warnings_text}"
-        f"{recent_edit_text}"
-        f"\n"
-        f"New patterns added this turn: {new_pat_text}\n"
-        f"Engine notes: {'; '.join(notes) or '(none)'}\n"
-        f"Input directory status:\n{input_text}"
-        f"Next deterministic question: {next_question or '(none)'}\n"
-        f"Ready to write: {is_ready}\n\n"
-        f"Compose the reply."
+    module_focus_text = ""
+    if module_focus_prompt:
+        module_focus_text = (
+            f"\nMODULE IN FOCUS (module-mode — keep the reply scoped to THIS "
+            f"module's job; do not ask about other modules):\n"
+            f"  {module_focus_prompt}\n"
+        )
+
+    user = prompts.load(
+        "compose_reply.user",
+        user_message=repr(user_message),
+        intent_name=intent_name,
+        module_focus_text=module_focus_text,
+        known_text=known_text,
+        unknown_text=unknown_text,
+        warnings_text=warnings_text,
+        recent_edit_text=recent_edit_text,
+        new_pat_text=new_pat_text,
+        notes_joined="; ".join(notes) or "(none)",
+        input_text=input_text,
+        next_question_display=next_question or "(none)",
+        is_ready=is_ready,
     )
 
     schema = {
@@ -2577,33 +2607,13 @@ def compose_status_reply(
         from .providers.factory import get_provider_or_ollama
         provider = get_provider_or_ollama(model)
 
-    system = (
-        "You answer a configurator's status question about a Delft-FEWS "
-        "project. You are given a STATUS REPORT — a snapshot of project "
-        "state produced by deterministic tools. Your only job is to "
-        "paraphrase its contents in prose.\n"
-        "\n"
-        "RULES:\n"
-        "1) Use ONLY values from the report. Do not invent file names, "
-        "   slot values, basins, patterns, or warnings.\n"
-        "2) 2-5 sentences, plain English. No bullet lists, no JSON in "
-        "   the reply body, no emoji.\n"
-        "3) Mention concretely what is filled and what is still needed. "
-        "   If CSVs are missing, name them. If required slots are "
-        "   missing, name them.\n"
-        "4) Never ask the configurator for any file listed under "
-        "   `auto_generated_yamls` — those are produced by the runner.\n"
-        "5) End by gently nudging the user toward the most impactful "
-        "   next step (provide a missing CSV, fill a missing slot, type "
-        "   'done', etc).\n"
-        "6) If `intent` is null, ask the user to describe what they want "
-        "   to build — don't speculate.\n"
-        "7) Output JSON {\"reply\": \"...\"}, nothing else."
-    )
-    user = (
-        f"User question: {user_message!r}\n\n"
-        f"Status report:\n{json.dumps(report, indent=2, default=str)}\n\n"
-        f"Compose the status reply."
+    from fews_agent.agent import prompts
+
+    system = prompts.load("compose_status_reply.system")
+    user = prompts.load(
+        "compose_status_reply.user",
+        user_message=repr(user_message),
+        report_json=json.dumps(report, indent=2, default=str),
     )
     schema = {
         "type": "object",
@@ -2978,7 +2988,7 @@ def lookup_concept(text: str) -> tuple[str, dict[str, str]] | None:
 # bare '/help' reply. The chatter's command dispatcher recognises the
 # names + aliases listed here; if you add a new command there, mirror
 # it in this table so '/help' surfaces it. Grouped to match the
-# sidebar legend in app/web_app.py.
+# sidebar legend in frontend/web_app.py.
 COMMANDS: list[dict[str, str]] = [
     # Project commands — drive the build pipeline
     {
@@ -3009,6 +3019,29 @@ COMMANDS: list[dict[str, str]] = [
             "as a fenced YAML block, no file created."
         ),
     },
+    # Module commands — build one FEWS-folder module at a time
+    {
+        "name": "/modules",
+        "aliases": "modules",
+        "group": "Modules",
+        "description": (
+            "List the FEWS-folder modules you can build one at a time "
+            "(locations, parameters, processing, display, filters, ...)."
+        ),
+    },
+    {
+        "name": "/module <name>",
+        "aliases": "",
+        "group": "Modules",
+        "description": (
+            "Focus ONE module. While focused, plain language operates on "
+            "just that module — *'add a GFS import with precip'*, *'make it "
+            "half-degree'*, *'switch to the display module'*. Bare `/build` "
+            "then builds that module. You can also enter a module straight "
+            "from prose — *'let's configure locations'*. If I'm unsure what "
+            "you meant, I'll ask you to confirm (yes / no) before applying."
+        ),
+    },
     # Build commands — build / edit the project one module at a time
     {
         "name": "/list",
@@ -3021,11 +3054,23 @@ COMMANDS: list[dict[str, str]] = [
     },
     {
         "name": "/phases",
-        "aliases": "phases, plan, modules",
+        "aliases": "phases, plan",
         "group": "Build",
         "description": (
             "Show the imports→process→model→visualize phase plan with "
-            "built/ready marks. The agent guides you one phase at a time."
+            "built/ready marks (the finer capability groups WITHIN the "
+            "processing/display modules)."
+        ),
+    },
+    {
+        "name": "/coordinates [<name>]",
+        "aliases": "coords",
+        "group": "Build",
+        "description": (
+            "Open the grid-coordinates subwindow (web app) to set an NWP "
+            "grid's firstCellCenter (x, y) + columns/rows. Cell size is "
+            "inherited — this repositions/resizes the grid. Optionally name "
+            "the import to pre-select it."
         ),
     },
     {
@@ -3126,8 +3171,9 @@ COMMANDS: list[dict[str, str]] = [
         "aliases": "",
         "group": "State",
         "description": (
-            "Confirm or cancel a pending action — e.g. an "
-            "agent-proposed pattern removal, or a /reset prompt."
+            "Confirm or cancel a pending action — an agent-proposed "
+            "pattern removal, a /reset prompt, or a low-confidence module "
+            "operation the agent asked you to confirm."
         ),
     },
 ]
@@ -3237,38 +3283,14 @@ def compose_help_reply(
         for h in recent_turns
     ) or "(no prior turns)"
 
-    system = (
-        "You are a documentation assistant for the Delft-FEWS "
-        "configurator agent. A configurator is asking how the system "
-        "works. Answer their question using ONLY the documentation "
-        "and glossary entry below.\n"
-        "\n"
-        "RULES:\n"
-        "1) Answer ONLY from the provided documentation. Never invent "
-        "   file paths, function names, behaviours, or examples that "
-        "   aren't in the docs. If something isn't covered, say "
-        "   'that isn't documented' — don't guess.\n"
-        "2) Be conversational and concrete. 2-6 sentences for simple "
-        "   questions; up to a substantial paragraph for nuanced "
-        "   ones. Plain English. No bullet lists unless the user "
-        "   explicitly asks. No emoji.\n"
-        "3) For canonical concepts, treat the glossary entry below as "
-        "   the preferred starting point — paraphrase it, then expand "
-        "   with docs detail if helpful.\n"
-        "4) For follow-up questions ('tell me more', 'give an "
-        "   example', 'and that?'), use the RECENT CONVERSATION to "
-        "   resolve what 'it', 'that', 'more' refer to.\n"
-        "5) For comparative questions ('X vs Y', 'difference between "
-        "   X and Y'), explain how the concepts relate using docs "
-        "   content for both.\n"
-        '6) Output JSON {"reply": "..."}, nothing else.\n'
-        f"\n=== DOCUMENTATION (CLAUDE.md) ===\n{docs}\n"
-        f"{glossary_seed}"
+    from fews_agent.agent import prompts
+
+    system = prompts.load(
+        "compose_help_reply.system", docs=docs, glossary_seed=glossary_seed,
     )
-    user = (
-        f"=== RECENT CONVERSATION ===\n{recent_text}\n\n"
-        f"User asks: {user_message!r}\n\n"
-        f"Compose the help reply."
+    user = prompts.load(
+        "compose_help_reply.user",
+        recent_text=recent_text, user_message=repr(user_message),
     )
     schema = {
         "type": "object",
@@ -3308,9 +3330,12 @@ __all__ = [
     "detect_model_adapter",
     "detect_coastal_domain",
     "detect_wants_maintenance",
+    "detect_wants_archive_export",
+    "detect_wants_archive_import",
     "detect_region",
     "detect_status_query",
-    "extract_skills",
+    "filter_prose",
+    "extract_skills",  # deprecated alias for filter_prose
     "fill_slots_from_text",
     "heuristic_intent_from_slots",
     "intent_disambiguation_needed",

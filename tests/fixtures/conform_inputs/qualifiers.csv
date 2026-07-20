@@ -1,0 +1,4 @@
+QualifierId,QualifierName,ShortName,QualifierGroup
+Max,Maximum,Max,Statistic
+Min,Minimum,Min,Statistic
+Mean,Mean,Mean,Statistic

@@ -88,31 +88,18 @@ def draft_filters_yaml(
     if not module_ids:
         return None  # nothing to filter on
 
-    system = (
-        "You design a FEWS filtersFile.xml structure. Filters group "
-        "time-series data so users can pick what to display. RULES:\n"
-        "1) Use ONLY moduleInstanceIds from the provided list. Don't "
-        "invent any.\n"
-        "2) Use ONLY parameterIds from the provided list.\n"
-        "3) Group filters semantically: typically one filter group per "
-        "data category (NWP forecasts, station observations, model "
-        "outputs, snow imports).\n"
-        "4) Each filter group has a unique snake/camel id and a list "
-        "of timeSeriesSet entries.\n"
-        "5) Output JSON in this shape:\n"
-        '   {"groups": [{"id": "...", "name": "...", "module_instance_ids": '
-        '[...], "parameter_ids": [...]}, ...]}\n'
-        "6) Output JSON only, no prose."
-    )
-    user = (
-        f"Available moduleInstanceIds ({len(module_ids)}): "
-        f"{', '.join(module_ids[:30])}"
-        + (" ..." if len(module_ids) > 30 else "") + "\n"
-        f"Available parameterIds ({len(param_ids)}): "
-        f"{', '.join(param_ids[:30])}"
-        + (" ..." if len(param_ids) > 30 else "") + "\n\n"
-        f"Project intent: {project_intent or 'flood/hydrological forecasting'}\n\n"
-        f"Propose 3-6 filter groups."
+    from fews_agent.agent import prompts
+
+    system = prompts.load("filter_drafter.system")
+    user = prompts.load(
+        "filter_drafter.user",
+        n_modules=len(module_ids),
+        module_ids_display=", ".join(module_ids[:30])
+        + (" ..." if len(module_ids) > 30 else ""),
+        n_params=len(param_ids),
+        param_ids_display=", ".join(param_ids[:30])
+        + (" ..." if len(param_ids) > 30 else ""),
+        project_intent=project_intent or "flood/hydrological forecasting",
     )
     schema = {
         "type": "object",

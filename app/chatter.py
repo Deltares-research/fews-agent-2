@@ -54,13 +54,53 @@ from fews_agent.agent.providers.factory import get_provider
 from runners.agent.build_from_blueprint import build_from_blueprint
 from fews_agent.agent.turn_engine import (
     _format_internals,
+    _module_list_text,
     apply_disambiguation_answer,
     apply_edit_action,
+    module_edit_reply,
+    module_list_reply,
+    module_welcome,
     resolve_patterns,
+    run_module_turn,
     run_turn_pipeline,
 )
+from fews_agent.agent import module_focus
+from fews_agent.agent.modules import module_for_pattern
+from fews_agent.agent.project_chat import set_grid_geometry
+
+
+_BUNDLED_CELL_SIZES: dict[str, float] | None = None
+
+
+def _bundled_grid_cell_size(name: str) -> float | None:
+    """xCellSize (deg) for ``name`` from the bundled standard gridsFile, or
+    None (unknown / projected grid). Cached; case-insensitive on locationId."""
+    global _BUNDLED_CELL_SIZES
+    if _BUNDLED_CELL_SIZES is None:
+        _BUNDLED_CELL_SIZES = {}
+        try:
+            import yaml
+            from runners.agent.build_from_blueprint import STANDARD_INPUTS_DIR
+            data = yaml.safe_load(
+                (STANDARD_INPUTS_DIR / "gridsFile.yaml").read_text(
+                    encoding="utf-8"
+                )
+            )
+            for entry in (data or {}).get("body") or []:
+                reg = entry.get("regular") if isinstance(entry, dict) else None
+                if not isinstance(reg, dict):
+                    continue
+                loc = reg.get("@locationId")
+                cs = reg.get("xCellSize")
+                if isinstance(loc, str) and cs is not None:
+                    try:
+                        _BUNDLED_CELL_SIZES[loc.lower()] = float(cs)
+                    except (TypeError, ValueError):
+                        pass
+        except Exception:  # noqa: BLE001 — a missing/odd bundle just means no default
+            _BUNDLED_CELL_SIZES = {}
+    return _BUNDLED_CELL_SIZES.get(str(name).lower())
 from runners.agent.chat_step import (
-    _module_list_text,
     _parse_slash_edit,
     _phase_plan_text,
     _resolve_module_target,
@@ -126,6 +166,71 @@ def list_sessions(username: str | None = None, root: Path = SESSIONS_ROOT) -> li
         (d for d in root.iterdir() if d.is_dir() and d.name.startswith(prefix)),
         reverse=True,
     )
+
+
+# --- projects/ store (the app's project picker; shared layout with the CLI) --
+#
+# A *project* is a folder ``projects/<name>/`` holding one or more
+# datetime-stamped chat sessions ``<name>_<YYYY-MM-DD_HHMMSS>/`` — the same
+# layout ``runners/agent/chat_step.py`` and ``app/api/server.py`` use, so a
+# project started in any shell is listable/resumable in the app.
+
+def safe_project_name(name: str) -> str:
+    """Filesystem-safe project name (the folder + instance-name stem)."""
+    cleaned = "".join(
+        c if (c.isalnum() or c in "-_.") else "-" for c in str(name).strip()
+    )
+    return cleaned or "project"
+
+
+def list_projects(root: Path = OUTPUT_ROOT) -> list[str]:
+    """Project names under ``projects/`` that hold at least one chat session,
+    most-recently-active first (so the picker shows resumable work, not the
+    build-only regression fixtures that carry no ``.chat_state.json``)."""
+    if not root.is_dir():
+        return []
+    entries: list[tuple[float, str]] = []
+    for d in root.iterdir():
+        if not d.is_dir():
+            continue
+        instances = [
+            i for i in d.iterdir()
+            if i.is_dir() and i.name.startswith(f"{d.name}_")
+            and (i / ".chat_state.json").is_file()
+        ]
+        if instances:
+            entries.append((max(i.stat().st_mtime for i in instances), d.name))
+    return [name for _, name in sorted(entries, reverse=True)]
+
+
+def latest_project_session_dir(
+    name: str, root: Path = OUTPUT_ROOT,
+) -> Path | None:
+    """The newest chat-session instance for a project, or None if it has none."""
+    parent = root / name
+    if not parent.is_dir():
+        return None
+    instances = sorted(
+        i for i in parent.iterdir()
+        if i.is_dir() and i.name.startswith(f"{name}_")
+    )
+    return instances[-1] if instances else None
+
+
+def new_project_session_dir(name: str, root: Path = OUTPUT_ROOT) -> Path:
+    """Mint a fresh ``projects/<name>/<name>_<YYYY-MM-DD_HHMMSS>/`` instance."""
+    safe = safe_project_name(name)
+    parent = root / safe
+    parent.mkdir(parents=True, exist_ok=True)
+    dt = datetime.now().strftime("%Y-%m-%d_%H%M%S")
+    out = parent / f"{safe}_{dt}"
+    if out.exists():  # two clicks in the same second
+        n = 2
+        while (parent / f"{safe}_{dt}_{n}").exists():
+            n += 1
+        out = parent / f"{safe}_{dt}_{n}"
+    out.mkdir(parents=True, exist_ok=True)
+    return out
 
 
 def _ollama_model_names(raw: object) -> list[str]:
@@ -232,16 +337,26 @@ class TurnResult:
       ``refused`` — done refused (warnings present, or required slots unfilled)
       ``edit``    — message handled by edit-mode
       ``pending`` — confirm/cancel of a pending-removal proposal
+      ``coordinates`` — open the grid-coordinates subwindow (see
+                        ``coordinates_request``)
       ``error``   — exception during turn processing
     """
     agent_message: str
     kind: str = "reply"
+    # The mechanical "what changed" fact (e.g. "Applied: imports=['GFS']"),
+    # rendered MUTED (grey) above the main reply so the LLM's guidance is the
+    # main voice. Empty for non-edit turns.
+    confirmation: str = ""
     internals: str | None = None
     warnings: list[str] = field(default_factory=list)
     ready: bool = False
     next_question: str | None = None
     new_patterns: list[str] = field(default_factory=list)
     project_yaml_path: Path | None = None
+    # Populated when kind=="coordinates": the eligible NWP grid imports the
+    # subwindow lets the user set a firstCellCenter + rows/columns for. Each
+    # is {"name": str, "geometry": {...} | None} (None = not yet set).
+    coordinates_request: list[dict] | None = None
     # Populated after kind=="done": the summary dict returned by
     # build_from_blueprint() — see runners/agent/build_from_blueprint.py
     # for the schema. None when /done refused or when the build failed
@@ -457,6 +572,11 @@ class ChatSession:
         """Route ``/build`` to the next unbuilt phase, a named phase, or a
         single module (``/build GFS``). Mirrors chat_step.py::main."""
         if cmd == "/build":
+            # Module-mode: a bare /build with a module in focus builds THAT
+            # module (its capability phases), not the next unbuilt phase.
+            focus = module_focus.get_focus(self.state)
+            if focus is not None:
+                return self._app_module_scope_build(focus, turn)
             self._resolve_patterns()
             phase = next_unbuilt_phase(
                 self.state.get("patterns") or [], self.state.get("built_phases"),
@@ -569,6 +689,144 @@ class ChatSession:
             project_yaml_path=Path(project_path),
             validation_summary=summary, build_error=error,
         )
+
+    def _app_module_scope_build(self, focus, turn: int) -> TurnResult:
+        """Build every capability phase the focused FEWS-folder module owns.
+
+        Mirrors the CLI ``_run_module_scope_build``: a folder-module maps to
+        one or more capability phases; build each that has resolved content,
+        reusing the per-phase build. View/deriver modules aren't built on
+        their own.
+        """
+        if not focus.phases:
+            return self._build_note(
+                turn,
+                f"The '{focus.label}' module isn't built on its own — it's "
+                f"produced from your inputs or at final assembly. Type "
+                f"`done` to assemble the project.",
+            )
+        self._resolve_patterns()
+        plan = phase_plan(self.state.get("patterns") or [])
+        target_phases = [
+            e["phase"] for e in plan
+            if e["patterns"]
+            and module_for_pattern(e["patterns"][0]["pattern"]) == focus.key
+        ]
+        if not target_phases:
+            return self._build_note(
+                turn,
+                f"Nothing resolved for the '{focus.label}' module yet. Add "
+                f"something first (e.g. `/add GFS`), then `/build`.",
+            )
+        # Build each phase (each appends its own panel to history); return
+        # the last phase's result for the turn's TurnResult.
+        result: TurnResult | None = None
+        for ph in target_phases:
+            result = self._app_phase_build(ph, turn)
+        return result
+
+    def _reply(
+        self, turn: int, message: str, note: str, kind: str = "reply",
+        **tr_kwargs,
+    ) -> TurnResult:
+        """Append an agent reply to history + transcript, save, return.
+
+        A muted ``confirmation`` (the "what changed" fact) is stored on the
+        history entry too, so the grey caption survives Streamlit reruns that
+        replay the conversation."""
+        confirmation = tr_kwargs.get("confirmation", "")
+        entry = {"role": "agent", "message": message}
+        if confirmation:
+            entry["confirmation"] = confirmation
+        self.history.append(entry)
+        self._append_md(turn, "agent", message, note=note)
+        self._save()
+        return TurnResult(agent_message=message, kind=kind, **tr_kwargs)
+
+    def _run_module_operation(
+        self, focus, message: str, turn: int, provider,
+        just_entered: bool = False,
+    ) -> TurnResult:
+        """Module-mode prose turn (Streamlit shell over ``run_module_turn``).
+
+        The shared engine extracts + applies the one operation; this shell
+        maps its driver-agnostic result to a ``TurnResult`` and, on a
+        ``build`` action, runs the app's scoped phase build.
+        """
+        res = run_module_turn(
+            self.state, message, self.catalog, focus, provider=provider,
+            just_entered=just_entered,
+        )
+        if res.wants_build:
+            return self._app_module_scope_build(focus, turn)
+        self._logger.info("module_op turn=%d note=%s", turn, res.note)
+        return self._reply(
+            turn, res.reply, res.note, kind=res.kind,
+            new_patterns=res.new_patterns, confirmation=res.confirmation,
+        )
+
+    # ---- grid coordinates subwindow -----------------------------------------
+
+    def _nwp_grid_imports(self) -> list[dict]:
+        """The project's NWP grid imports eligible for /coordinates, each as
+        ``{"name", "geometry", "cell_size"}``.
+
+        ``geometry`` is the current override (or None); ``cell_size`` is the
+        *effective inherited* cell size in degrees, so the subwindow can draw
+        the grid box on a map without asking for it (it's what the build will
+        use)."""
+        resolve_patterns(self.state, self.catalog)
+        overrides = (self.state.get("slots") or {}).get("import_overrides") or {}
+        out: list[dict] = []
+        seen: set[str] = set()
+        for p in self.state.get("patterns") or []:
+            if not str(p.get("pattern", "")).startswith("auto/nwp_grid_"):
+                continue
+            for inst in p.get("instances") or []:
+                name = inst.get("nwp_name") or inst.get("source_name")
+                if not name or name in seen:
+                    continue
+                seen.add(name)
+                geom = (overrides.get(name) or {}).get("grid_geometry")
+                out.append({
+                    "name": name, "geometry": geom,
+                    "cell_size": self._effective_cell_size(name),
+                })
+        return out
+
+    def _effective_cell_size(self, name: str) -> float:
+        """The cell size (deg) the build will use for ``name`` — a resolution
+        override's slug if set, else the bundled gridsFile default, else 0.25.
+        Used only to DRAW the grid box (cell size stays inherited)."""
+        slots = self.state.get("slots") or {}
+        ov = (slots.get("import_overrides") or {}).get(name) or {}
+        slug = ov.get("grid_resolution") or slots.get("grid_resolution")
+        from runners.agent.build_from_blueprint import _GRID_RESOLUTION_DEGREES
+        if slug and slug in _GRID_RESOLUTION_DEGREES:
+            return _GRID_RESOLUTION_DEGREES[slug]
+        return _bundled_grid_cell_size(name) or 0.25
+
+    def apply_grid_geometry(
+        self, name: str, *,
+        first_x: float, first_y: float, columns: int, rows: int,
+    ) -> TurnResult:
+        """Apply a grid geometry from the coordinates subwindow.
+
+        Sets the per-import ``grid_geometry`` override (firstCellCenter +
+        rows/columns; cell size inherited), re-resolves, persists, and returns
+        an ``edit`` result. Called by the web app when the modal is submitted.
+        """
+        note = set_grid_geometry(
+            self.state, name, first_x=first_x, first_y=first_y,
+            columns=columns, rows=rows,
+        )
+        resolve_patterns(self.state, self.catalog)
+        turn = len([h for h in self.history if h.get("role") == "user"]) or 1
+        reply = note + "\n\n" + _module_list_text(self.state, self.catalog)
+        self._logger.info(
+            "grid_geometry name=%s cols=%d rows=%d", name, columns, rows,
+        )
+        return self._reply(turn, reply, "coordinates: applied", kind="edit")
 
     # ---- undo support --------------------------------------------------------
 
@@ -808,8 +1066,48 @@ class ChatSession:
         # CLI driver (runners/agent/chat_step.py::main) so the web app and
         # terminal behave identically.
 
-        # /phases — phase-level plan.
-        if cmd in {"/phases", "phases", "/plan", "plan", "/modules", "modules"}:
+        # /modules — list the FEWS-folder modules you can build one at a time.
+        if cmd in {"/modules", "modules"}:
+            reply = module_focus.modules_overview()
+            cur = self.state.get("current_module")
+            if cur:
+                reply += f"\n\nIn focus now: {cur}."
+            self.history.append({"role": "agent", "message": reply})
+            self._append_md(turn, "agent", reply, note="module overview")
+            self._save()
+            self._logger.info("modules turn=%d", turn)
+            return TurnResult(agent_message=reply, kind="reply")
+
+        # /module [name] — put ONE module in focus (or report current focus).
+        if cmd == "/module" or cmd.startswith("/module "):
+            confirmation = ""
+            if cmd == "/module":
+                cur = module_focus.get_focus(self.state)
+                if cur:
+                    reply = module_welcome(self.state, cur)
+                    confirmation = module_focus.focus_card(self.state, cur)
+                else:
+                    reply = ("No module in focus. Pick one with  /module <name>"
+                             "  (see  /modules  for the list).")
+            else:
+                token = message.strip().split(None, 1)[1].strip()
+                _module, reply = module_focus.set_focus(self.state, token)
+                if _module is not None:
+                    reply = module_welcome(self.state, _module)
+                    confirmation = module_focus.focus_card(self.state, _module)
+            entry = {"role": "agent", "message": reply}
+            if confirmation:
+                entry["confirmation"] = confirmation
+            self.history.append(entry)
+            self._append_md(turn, "agent", reply, note="module focus")
+            self._save()
+            self._logger.info("module_focus turn=%d cur=%s", turn,
+                              self.state.get("current_module"))
+            return TurnResult(agent_message=reply, kind="reply",
+                              confirmation=confirmation)
+
+        # /phases — phase-level plan (finer build groups within processing/display).
+        if cmd in {"/phases", "phases", "/plan", "plan"}:
             reply = _phase_plan_text(self.state, self.catalog)
             self.history.append({"role": "agent", "message": reply})
             self._append_md(turn, "agent", reply, note="phase plan")
@@ -817,14 +1115,47 @@ class ChatSession:
             self._logger.info("phases turn=%d", turn)
             return TurnResult(agent_message=reply, kind="reply")
 
-        # /list — instance-level listing (finer than /phases).
+        # /list — instance-level listing (finer than /phases) + next-step hint.
         if cmd in {"/list", "list", "/show", "show"}:
-            reply = _module_list_text(self.state, self.catalog)
+            reply = module_list_reply(self.state, self.catalog)
             self.history.append({"role": "agent", "message": reply})
             self._append_md(turn, "agent", reply, note="module list")
             self._save()
             self._logger.info("list turn=%d", turn)
             return TurnResult(agent_message=reply, kind="reply")
+
+        # /coordinates [<name>] — open the grid-coordinates subwindow to set a
+        # firstCellCenter + rows/columns for an NWP grid import. Deterministic:
+        # returns a UI signal (kind="coordinates") the web app turns into a
+        # modal; submitting it calls apply_grid_geometry().
+        if cmd == "/coordinates" or cmd.startswith(("/coordinates ", "/coords")):
+            grids = self._nwp_grid_imports()
+            if not grids:
+                reply = (
+                    "No NWP grid imports to set coordinates for yet. Add one "
+                    "first (e.g.  /add GFS  or  \"add an HRDPS import\")."
+                )
+                self.history.append({"role": "agent", "message": reply})
+                self._append_md(turn, "agent", reply, note="coordinates: none")
+                self._save()
+                return TurnResult(agent_message=reply, kind="reply")
+            # An optional name pre-selects one grid; otherwise offer all.
+            token = ""
+            parts = message.strip().split(None, 1)
+            if len(parts) > 1:
+                token = parts[1].strip().lower()
+            if token:
+                grids = [g for g in grids if g["name"].lower() == token] or grids
+            names = ", ".join(g["name"] for g in grids)
+            reply = f"Set grid coordinates for: {names}."
+            self.history.append({"role": "agent", "message": reply})
+            self._append_md(turn, "agent", reply, note="coordinates: open")
+            self._save()
+            self._logger.info("coordinates turn=%d grids=%d", turn, len(grids))
+            return TurnResult(
+                agent_message=reply, kind="coordinates",
+                coordinates_request=grids,
+            )
 
         # /add /remove /drop /set — explicit edits. The command IS the
         # confirmation; the engine-proposed yes/no flow stays for ambiguous
@@ -846,11 +1177,7 @@ class ChatSession:
             edit_notes = [
                 apply_edit_action(self.state, e, self.catalog) for e in edits
             ]
-            reply = (
-                "\n".join(edit_notes)
-                + "\n\n"
-                + _module_list_text(self.state, self.catalog)
-            )
+            reply = module_edit_reply("\n".join(edit_notes), self.state)
             self.history.append({"role": "agent", "message": reply})
             self._append_md(turn, "agent", reply, note=f"edit:{op}")
             self._save()
@@ -1085,7 +1412,7 @@ class ChatSession:
                     provider=provider,
                 )
             internals = _format_internals(
-                skill_results={"status_query": True},
+                prose_facts={"status_query": True},
                 llm_intent=None,
                 llm_entities=None,
                 chosen_intent=self.state.get("intent"),
@@ -1141,52 +1468,38 @@ class ChatSession:
         # returns the reply + diagnostics. nag_suppression=True preserves the
         # app's repeat-turn missing-input snooze (a CLI-absent behaviour).
         provider = get_provider(model=self.model)
-        result = run_turn_pipeline(
-            self.state, message, self.catalog,
-            provider=provider,
-            inputs_dir=self.session_dir / "inputs",
-            nag_suppression=True,
-        )
 
-        # Disambiguation short-circuit: the gate asked a question and resolved
-        # nothing. Persist + return the question as a plain reply.
-        if result.short_circuit:
-            self.history.append(
-                {"role": "agent", "message": result.agent_message}
+        # Pure module-mode: the app builds one FEWS-folder module at a time —
+        # there is NO whole-project intent flow ("build a forecasting project"
+        # etc.). Un-focused prose either enters a module (cold entry),
+        # auto-focuses `processing` for a clear catalog op ("add GFS"), or asks
+        # which module to work on.
+        _focus = module_focus.get_focus(self.state)
+        _just_entered = False
+        if _focus is None:
+            _entry = module_focus.detect_module_entry(message)
+            if not _entry:
+                from fews_agent.agent.extractor import deterministic_module_op
+                _op = deterministic_module_op(message, None)
+                if _op is not None and _op.fields:
+                    # imports / basins / weather variables all live in processing
+                    _entry = "processing"
+            if _entry:
+                module_focus.set_focus(self.state, _entry)
+                _focus = module_focus.get_focus(self.state)
+                _just_entered = True
+        if _focus is not None:
+            return self._run_module_operation(
+                _focus, message, turn, provider, just_entered=_just_entered,
             )
-            self._append_md(
-                turn, "agent", result.agent_message, note=result.log_note,
-            )
-            self._save()
-            self._logger.info(
-                "intent_disambiguation turn=%d which=%s",
-                turn, self.state.get("intent_disambiguation_which"),
-            )
-            return TurnResult(agent_message=result.agent_message, kind="reply")
 
-        self.history.append(
-            {"role": "agent", "message": result.agent_message}
-        )
-        self._append_md(
-            turn, "agent", result.agent_message, internals=result.internals,
-        )
-        self._save()
-        self._logger.info(
-            "turn_end turn=%d intent=%s slots_filled=%d patterns=%d ready=%s warnings=%d",
-            turn,
-            self.state.get("intent"),
-            sum(1 for v in (self.state.get("slots") or {}).values() if v),
-            len(self.state.get("patterns") or []),
-            result.ready,
-            len(result.warnings),
-        )
+        # Nothing focused and nothing to act on → guide into a module.
+        return self._reply(turn, self._module_pick_prompt(), "module: pick")
 
-        return TurnResult(
-            agent_message=result.agent_message,
-            kind="reply",
-            internals=result.internals,
-            warnings=result.warnings,
-            ready=result.ready,
-            next_question=result.next_question,
-            new_patterns=result.new_patterns,
+    def _module_pick_prompt(self) -> str:
+        """Ask which module to work on (pure module-mode has no intent flow)."""
+        return (
+            "Which part of the config would you like to work on? Say e.g. "
+            "**'the imports module'**, **'configure locations'**, or just tell "
+            "me what to add — **'add a GFS import'**, **'Liard uses raven'**."
         )
