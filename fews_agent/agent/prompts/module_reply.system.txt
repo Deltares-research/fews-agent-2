@@ -14,4 +14,4 @@ RULES:
 3) When READY TO BUILD is true, encourage building this module (/build) or adding another source — but still offer it as the natural next step, not a wall of options.
 4) If nothing changed and there is nothing left to do, say so briefly and suggest /build or moving to another module.
 5) Never re-ask for something already under DONE. Never ask for anything the engine auto-generates.
-6) Output JSON {"reply": "..."}, nothing else.
+6) Output the reply text directly — no JSON, no surrounding quotes, no preamble or label.

@@ -500,10 +500,14 @@ def _module_list_text(state: dict, catalog) -> str:
         )
     built = set(state.get("built_modules") or [])
     built_phases = set(state.get("built_phases") or [])
-    lines = ["Modules in this project (one per line):"]
+    # Markdown so it renders as a real bulleted list in the app (single-\n
+    # space-indented lines collapse into one blob); blank lines separate each
+    # phase block, and every instance is its own `- ` bullet.
+    lines = ["**Modules in this project**"]
     for entry in plan:
         ph = entry["phase"]
-        lines.append(f"\n{ph} — {entry['label']}")
+        lines.append("")
+        lines.append(f"**{ph}** — {entry['label']}")
         for p in entry["patterns"]:
             pat = p["pattern"]
             short = pat.rsplit("/", 1)[-1]
@@ -515,19 +519,21 @@ def _module_list_text(state: dict, catalog) -> str:
                 is_built = (
                     f"{pat}::{label}" in built or ph in built_phases
                 )
-                mark = "(built)" if is_built else "(ready)"
+                mark = "built" if is_built else "ready"
                 extras = []
                 for vk in ("grid_resolution", "forecast_horizon_hours",
                            "model_adapter"):
                     if inst.get(vk):
                         extras.append(f"{vk}={inst[vk]}")
                 if inst.get("parameters"):
-                    extras.append(f"{len(inst['parameters'])} param(s)")
-                extra_txt = f"  ({'; '.join(extras)})" if extras else ""
-                lines.append(f"  {mark} {label}  ·{short}{extra_txt}")
+                    n = len(inst["parameters"])
+                    extras.append(f"{n} param" + ("s" if n != 1 else ""))
+                extra_txt = f" — {', '.join(extras)}" if extras else ""
+                lines.append(f"- **{label}** · `{short}` · {mark}{extra_txt}")
+    lines.append("")
     lines.append(
-        "\nEdit: /add <name> · /remove <name> · /set <name> <var> <value>"
-        "  ·  Build one: /build <name>"
+        "_Edit:_ `/add <name>` · `/remove <name>` · "
+        "`/set <name> <var> <value>` · _build one:_ `/build <name>`"
     )
     return "\n".join(lines)
 
@@ -583,7 +589,32 @@ def _next_step_hint(state: dict, focus) -> str:
                 "source, or /build to generate + validate?")
 
     if key == "display":
-        return "Ready to /build the display?"
+        # Display plots the grids the session already imported (shared read),
+        # so guide: nothing to plot → which source → over what window → build.
+        imports = [str(i) for i in (slots.get("imports") or [])]
+        if not imports:
+            return ("Nothing to visualize yet — add a gridded source in the "
+                    "processing module first (e.g. 'add GFS'), then come back "
+                    "here to plot it.")
+        if not slots.get("wants_visualization"):
+            joined = ", ".join(imports)
+            return (f"Which source's grids should I visualize — {joined}? "
+                    "(name one, or say 'all of them')")
+        if not slots.get("forecast_horizon_hours"):
+            return ("Over what forecast window should the plots run? "
+                    "(e.g. '7 days') — or /build the display now.")
+        return "Display's set — /build it, or 'done' to assemble everything."
+
+    if key == "locations":
+        # The station list itself is a locations.csv input; the one variable
+        # worth eliciting is the datum. Guide toward both.
+        if not module_focus.read_var(state, "geoDatum"):
+            return ("What geographic datum are your station coordinates in? "
+                    "(e.g. WGS 1984) — the stations themselves come from a "
+                    "locations.csv you drop in inputs/.")
+        return ("Datum's set. Add your stations as inputs/locations.csv "
+                "(id, name, lat/lon, attributes) if you haven't yet — then "
+                "/build, or 'done' to assemble everything.")
 
     if getattr(focus, "supports", lambda _op: False)("set"):
         var = module_focus.next_unfilled_variable(state, focus)
@@ -681,8 +712,16 @@ def compose_module_reply(
     wired or the call fails, so the turn never breaks. The mechanical "what
     changed" fact is shown separately (muted) by the shells — this reply is the
     guidance, NOT the confirmation, so the fallback is the QUESTION ALONE (never
-    the note again: that would double-print "Applied: …" once grey, once here)."""
+    the note again: that would double-print "Applied: …" once grey, once here).
+
+    Uses the plain ``chat`` (free text) interface, NOT ``generate_json`` — this
+    is a phrasing task, not a structured-output one, so forcing
+    ``response_format=json_object`` is both unnecessary and fragile (some Azure
+    deployments / api-versions reject it, which silently fell back to the
+    robotic template). ``chat`` is the universal Provider method every backend
+    implements."""
     from . import prompts
+    from .providers.base import Message
 
     def _fallback() -> str:
         return _next_step_hint(state, focus) or "Done — this module is ready to /build."
@@ -706,14 +745,11 @@ def compose_module_reply(
         ready="yes" if prog["ready"] else "not yet",
         suggested_next=prog["suggested_next"] or "(module is complete)",
     )
-    schema = {
-        "type": "object",
-        "properties": {"reply": {"type": "string"}},
-        "required": ["reply"],
-    }
     try:
-        resp = provider.generate_json(system=system, user=user, schema=schema)
-        text = (resp.data or {}).get("reply", "").strip()
+        resp = provider.chat(
+            system, [Message(role="user", content=user)], tools=[],
+        )
+        text = (resp.text or "").strip().strip('"')
         if text:
             return text
     except Exception as exc:  # noqa: BLE001
@@ -727,12 +763,15 @@ def compose_module_reply(
 
 
 def module_welcome(state: dict, module) -> str:
-    """The module-entry message: a short friendly welcome + the ONE focused
-    question ("What would you like to import?"). Shared by cold entry and the
-    /module command so entering a module is conversational, not a pile."""
-    card = module_focus.focus_card(state, module)
-    q = _next_step_hint(state, module)
-    return card + (f"\n\n{q}" if q else "")
+    """The main reply for a freshly-entered module: just the ONE focused
+    question ("What would you like to import?"). The discrete grey status line
+    ("Building the <module> module.") is carried SEPARATELY as the muted
+    confirmation (``module_focus.focus_card``) by every entry path — cold entry,
+    the ``select_module`` switch, and each shell's ``/module`` handler — so the
+    verbose "You're now on …/Carrying over …" pile is gone for good."""
+    return _next_step_hint(state, module) or (
+        f"The {module.label.split(' (')[0]} module is ready — /build when you are."
+    )
 
 
 def module_list_reply(state: dict, catalog) -> str:
@@ -816,20 +855,24 @@ def run_module_turn(
     changed, new_patterns = apply_operation(state, op, catalog)
 
     # Pure cold entry ("configure locations") with no operation to apply:
-    # a friendly welcome + the one focused question, not the old pile.
+    # the focused question as the reply, the discrete grey status as the
+    # muted confirmation — no verbose welcome pile.
     is_card = just_entered and op.action == "none" and not op.fields
     if is_card:
         return ModuleTurnResult(
             module_welcome(state, focus), f"module op: {op.action}",
             kind="edit", action=op.action, new_patterns=new_patterns,
+            confirmation=module_focus.focus_card(state, focus),
         )
 
-    # A module switch: friendly welcome for the module now in focus.
+    # A module switch: same shape for the module now in focus.
     if op.action == "select_module":
+        new_focus = module_focus.get_focus(state)
         return ModuleTurnResult(
-            module_welcome(state, module_focus.get_focus(state)),
+            module_welcome(state, new_focus),
             f"module op: {op.action}", kind="edit", action=op.action,
             new_patterns=new_patterns,
+            confirmation=module_focus.focus_card(state, new_focus),
         )
 
     # An edit (add / set / remove / none-with-fields): the LLM composes the

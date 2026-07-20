@@ -1080,24 +1080,31 @@ class ChatSession:
 
         # /module [name] — put ONE module in focus (or report current focus).
         if cmd == "/module" or cmd.startswith("/module "):
+            confirmation = ""
             if cmd == "/module":
                 cur = module_focus.get_focus(self.state)
-                reply = (
-                    module_welcome(self.state, cur) if cur
-                    else "No module in focus. Pick one with  /module <name>  "
-                         "(see  /modules  for the list)."
-                )
+                if cur:
+                    reply = module_welcome(self.state, cur)
+                    confirmation = module_focus.focus_card(self.state, cur)
+                else:
+                    reply = ("No module in focus. Pick one with  /module <name>"
+                             "  (see  /modules  for the list).")
             else:
                 token = message.strip().split(None, 1)[1].strip()
                 _module, reply = module_focus.set_focus(self.state, token)
                 if _module is not None:
                     reply = module_welcome(self.state, _module)
-            self.history.append({"role": "agent", "message": reply})
+                    confirmation = module_focus.focus_card(self.state, _module)
+            entry = {"role": "agent", "message": reply}
+            if confirmation:
+                entry["confirmation"] = confirmation
+            self.history.append(entry)
             self._append_md(turn, "agent", reply, note="module focus")
             self._save()
             self._logger.info("module_focus turn=%d cur=%s", turn,
                               self.state.get("current_module"))
-            return TurnResult(agent_message=reply, kind="reply")
+            return TurnResult(agent_message=reply, kind="reply",
+                              confirmation=confirmation)
 
         # /phases — phase-level plan (finer build groups within processing/display).
         if cmd in {"/phases", "phases", "/plan", "plan"}:

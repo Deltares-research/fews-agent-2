@@ -46,6 +46,13 @@ from .base import (
 
 _logger = logging.getLogger(__name__)
 
+# Drop params a given backend doesn't accept instead of erroring. Without this,
+# a fixed ``temperature=0.2`` hard-fails on models that only allow the default
+# (e.g. Azure gpt-5.x: "gpt-5 models don't support temperature=0.2") — which
+# silently sank EVERY LiteLLM call (parse_turn, compose_reply, the filter
+# drafter) to its deterministic fallback. LiteLLM's documented switch for this.
+litellm.drop_params = True
+
 
 class LiteLLMProvider:
     """LiteLLM-routed backend. Implements Provider and StructuredOutputProvider."""

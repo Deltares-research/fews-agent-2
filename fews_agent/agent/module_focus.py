@@ -262,20 +262,17 @@ def next_unfilled_variable(state: dict, module: Module) -> str | None:
 
 
 def focus_card(state: dict, module: Module) -> str:
-    """A short, friendly module-entry line (the follow-up question is appended
-    by the caller via ``turn_engine.module_welcome``).
+    """The ONE discrete, grey status line for entering a module — rendered
+    MUTED by the shells (as the confirmation channel), never as the main reply.
 
-    Deliberately NOT the old folders / operations / "still to set → [pile]"
-    dump — configurator feedback: "a generic pile of instructions, not user
-    friendly." Just names the module and, if anything carries over from the
-    session, mentions it in one grey line.
+    Configurator feedback (repeatedly, emphatically): NO "You're now on the …
+    module", NO "Carrying over from this session …" pile. Just a quiet
+    "Building the <module> module." line above the model's question. The short
+    name drops the parenthetical (``Processing (imports, transforms, model
+    runs)`` → ``Processing``).
     """
-    lines = [f"You're now on the **{module.label}** module."]
-    inherited = module_shared_context(state, module)
-    if inherited:
-        pretty = ", ".join(f"{k}={v!r}" for k, v in inherited.items())
-        lines.append(f"_Carrying over from this session: {pretty}._")
-    return "\n".join(lines)
+    short = module.label.split(" (")[0].strip() or module.key
+    return f"Building the {short} module."
 
 
 def _unknown_module_text(token: str) -> str:

@@ -73,7 +73,10 @@ def test_modules_lists_the_registry(tmp_path, monkeypatch):
 def test_module_focus_selects_and_persists(tmp_path, monkeypatch):
     s = _session(tmp_path, monkeypatch, {})
     res = s.send("/module processing")
-    assert "Processing" in res.agent_message
+    # The module name rides in the grey confirmation ("Building the Processing
+    # module."); the main reply is the focused question.
+    assert "Processing" in res.confirmation
+    assert "?" in res.agent_message
     assert s.state["current_module"] == "processing"
 
 

@@ -684,21 +684,26 @@ def main(argv: list[str] | None = None) -> int:
     # Module-mode: put ONE module in focus. Bare "/module" reports the
     # current focus; "/module <name>" selects it and prints its focus card.
     if cmd == "/module" or cmd.startswith("/module "):
+        confirmation = ""
         if cmd == "/module":
             cur = module_focus.get_focus(state)
-            reply = (
-                module_welcome(state, cur) if cur
-                else "No module in focus. Pick one with  /module <name>  "
-                     "(see  /modules  for the list)."
-            )
+            if cur:
+                reply = module_welcome(state, cur)
+                confirmation = module_focus.focus_card(state, cur)
+            else:
+                reply = ("No module in focus. Pick one with  /module <name>  "
+                         "(see  /modules  for the list).")
         else:
             token = args.message.strip().split(None, 1)[1].strip()
             module, reply = module_focus.set_focus(state, token)
             if module is not None:
                 reply = module_welcome(state, module)
+                confirmation = module_focus.focus_card(state, module)
         history.append({"role": "agent", "message": reply})
         _append_log(project_dir, turn, "agent", reply, "module focus")
         _save(project_dir, state, history)
+        if confirmation:
+            console.print(f"\n[dim]{confirmation}[/dim]")
         console.print(f"\n[bold magenta]agent[/bold magenta]: {reply}")
         return 0
 

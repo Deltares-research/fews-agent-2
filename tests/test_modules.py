@@ -119,17 +119,30 @@ def test_module_slot_status_splits_filled_unfilled():
     assert "basins" in status["unfilled"]
 
 
-def test_focus_card_is_a_short_friendly_welcome():
+def test_focus_card_is_a_discrete_grey_status_line():
     state: dict = {"slots": {"geoDatum": "WGS 1984", "region": "Caribbean"}}
     proc = M.get_module("processing")
     card = F.focus_card(state, proc)
-    # Names the module + mentions inherited context in one line...
-    assert "Processing" in card
-    assert "Carrying over" in card and "geoDatum" in card
-    # ...but is NOT the old folders / operations / "still to set" pile.
+    # ONE quiet "Building the <module> module." line — the short name drops the
+    # parenthetical ("Processing (imports, ...)" -> "Processing").
+    assert card == "Building the Processing module."
+    # Explicitly NOT the pile the configurator kept rejecting.
+    assert "You're now on" not in card
+    assert "Carrying over" not in card
     assert "ModuleConfigFiles/" not in card
     assert "Still to set" not in card
-    assert card.count("\n") <= 2
+    assert "\n" not in card
+
+
+def test_module_welcome_is_just_the_focused_question():
+    from fews_agent.agent import turn_engine as TE
+    state: dict = {"slots": {}, "current_module": "processing"}
+    proc = M.get_module("processing")
+    welcome = TE.module_welcome(state, proc)
+    # The main reply is the question — the grey status rides separately.
+    assert "?" in welcome
+    assert "You're now on" not in welcome
+    assert "Carrying over" not in welcome
 
 
 def test_modules_overview_lists_all():
