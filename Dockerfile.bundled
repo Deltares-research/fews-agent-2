@@ -56,6 +56,7 @@ RUN pip install --no-cache-dir . pyyaml
 
 # Application source.
 COPY app/        ./app/
+COPY frontend/   ./frontend/
 COPY runners/    ./runners/
 COPY patterns/   ./patterns/
 COPY schemas/    ./schemas/

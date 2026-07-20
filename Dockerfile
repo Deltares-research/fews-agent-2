@@ -77,6 +77,7 @@ WORKDIR /app
 # Application source — keep these COPYs explicit so the .dockerignore
 # stays the source of truth for what's excluded.
 COPY app/        ./app/
+COPY frontend/   ./frontend/
 COPY fews_agent/ ./fews_agent/
 COPY runners/    ./runners/
 COPY patterns/   ./patterns/
