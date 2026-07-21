@@ -698,17 +698,46 @@ if _done_stash and _done_stash.get("chat_key") == st.session_state.get("_chat_ke
                     "output directory, so there is nothing safe to bundle."
                 )
                 _out_root_path = None
+        # Bundle EXACTLY the files this build reported in its manifest
+        # (``summary["files"]`` → one entry per written file, path relative to
+        # output_root) — NOT a directory sweep. A manifest-driven zip cannot
+        # pick up anything the build didn't write, so source code / .env /
+        # unrelated projects can never end up in it even if output_root were
+        # wrong. Each entry is still resolved and confined under output_root as
+        # a second check against a traversal-ish path.
+        _manifest = [
+            str(_e.get("path", "")).strip()
+            for _e in (_vs.get("files") or [])
+            if str(_e.get("path", "")).strip()
+        ]
+        if _out_root_path is not None and not _manifest:
+            st.warning(
+                "Download unavailable: the build reported no files, so there "
+                "is nothing to bundle."
+            )
+            _out_root_path = None
         if _out_root_path is not None:
             import io as _io
             import zipfile as _zip
+            _root = _out_root_path.resolve()
             _buf = _io.BytesIO()
             _file_count = 0
+            _skipped = 0
             with _zip.ZipFile(_buf, "w", _zip.ZIP_DEFLATED) as _zf:
-                for _fp in sorted(_out_root_path.rglob("*")):
-                    if _fp.is_file():
-                        _zf.write(_fp, _fp.relative_to(_out_root_path))
-                        _file_count += 1
+                for _rel in sorted(set(_manifest)):
+                    _fp = (_root / _rel).resolve()
+                    # Confine to output_root and require it to still exist.
+                    if _root not in _fp.parents and _fp != _root:
+                        _skipped += 1
+                        continue
+                    if not _fp.is_file():
+                        _skipped += 1
+                        continue
+                    _zf.write(_fp, _fp.relative_to(_root))
+                    _file_count += 1
             _zip_bytes = _buf.getvalue()
+            if _skipped:
+                st.caption(f"({_skipped} manifest entr(y/ies) missing on disk)")
             _stash_dt = _done_stash.setdefault(
                 "zip_timestamp",
                 datetime.now().strftime("%Y%m%d-%H%M%S"),

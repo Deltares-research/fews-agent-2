@@ -81,3 +81,58 @@ def test_guard_would_have_excluded_dotenv(tmp_path):
     # Old behaviour: Path("") -> CWD, which contains the real .env.
     assert Path("") == Path(".")
     assert not _download_allowed({"output_root": ""}, cwd)
+
+
+# --- 3. the bundle is manifest-driven, not a directory sweep --------------
+
+def _bundled_paths(summary: dict, out_root: Path) -> list[str]:
+    """Mirror of the app's manifest-driven zip selection.
+
+    Only files the build REPORTED are bundled, each confined under
+    output_root — so a stray file sitting in the output directory (or a
+    traversal-ish manifest entry) can never be included.
+    """
+    root = out_root.resolve()
+    picked: list[str] = []
+    for rel in sorted({
+        str(e.get("path", "")).strip()
+        for e in (summary.get("files") or [])
+        if str(e.get("path", "")).strip()
+    }):
+        fp = (root / rel).resolve()
+        if root not in fp.parents and fp != root:
+            continue
+        if not fp.is_file():
+            continue
+        picked.append(str(fp.relative_to(root)).replace("\\", "/"))
+    return picked
+
+
+def test_bundle_includes_only_manifest_files(tmp_path):
+    out = tmp_path / "generated"
+    (out / "RegionConfigFiles").mkdir(parents=True)
+    (out / "RegionConfigFiles" / "Locations.xml").write_text("<l/>", encoding="utf-8")
+    (out / "sa_global.Properties").write_text("REGION=X", encoding="utf-8")
+    # A stray file the build did NOT write — must never be bundled.
+    (out / "NOTES-not-part-of-build.txt").write_text("stray", encoding="utf-8")
+
+    summary = {"files": [
+        {"path": "RegionConfigFiles/Locations.xml"},
+        {"path": "sa_global.Properties"},
+    ]}
+    picked = _bundled_paths(summary, out)
+    assert picked == ["RegionConfigFiles/Locations.xml", "sa_global.Properties"]
+    assert "NOTES-not-part-of-build.txt" not in picked
+
+
+def test_bundle_refuses_entries_escaping_output_root(tmp_path):
+    out = tmp_path / "generated"
+    out.mkdir()
+    (out / "ok.xml").write_text("<x/>", encoding="utf-8")
+    secret = tmp_path / ".env"
+    secret.write_text("AZURE_AI_API_KEY=shhh", encoding="utf-8")
+
+    summary = {"files": [{"path": "ok.xml"}, {"path": "../.env"}]}
+    picked = _bundled_paths(summary, out)
+    assert picked == ["ok.xml"]          # the escape attempt is dropped
+    assert all(".env" not in p for p in picked)
