@@ -25,24 +25,41 @@ from __future__ import annotations
 import pytest
 from fastapi.testclient import TestClient
 
-from fews_agent.agent import turn_engine
 from app.api import server
+
+
+class _Resp:
+    def __init__(self, data):
+        self.data = data
+
+
+class _PatchProvider:
+    """LLM-first seam: returns scripted {reply, patch} payloads in order,
+    then repeats the last one (so helper turns can run any number of times)."""
+
+    def __init__(self, *payloads):
+        self.payloads = list(payloads) or [
+            {"reply": "Added GFS.",
+             "patch": [{"op": "add_import", "name": "GFS"}]},
+        ]
+
+    def generate_json(self, system, user, schema):
+        payload = (self.payloads.pop(0) if len(self.payloads) > 1
+                   else self.payloads[0])
+        return _Resp(payload)
 
 
 @pytest.fixture
 def client(tmp_path, monkeypatch):
-    """A TestClient with sessions rooted in a tmp dir and the LLM stubbed."""
-    monkeypatch.setattr(server, "OUTPUT_ROOT", tmp_path)
+    """A TestClient with sessions rooted in a tmp dir and the LLM stubbed.
 
-    # Stub the two LLM seams on the shared engine (one seam, both drivers).
-    # classify_intent emulates the LLM's default-to-forecasting pick; the
-    # narrowing prose in the turn test overrides it deterministically.
+    The default provider answers every prose turn with an add-GFS patch
+    (enough for the build tests to resolve a project); individual tests
+    override ``server.get_provider_or_ollama`` with their own script.
+    """
+    monkeypatch.setattr(server, "OUTPUT_ROOT", tmp_path)
     monkeypatch.setattr(
-        turn_engine, "classify_intent",
-        lambda *a, **k: {"intent": "build_forecasting_project", "entities": {}},
-    )
-    monkeypatch.setattr(
-        turn_engine, "compose_reply", lambda *a, **k: "STUB-REPLY",
+        server, "get_provider_or_ollama", lambda model: _PatchProvider(),
     )
     # The API's LLM pre-flight → "reachable" so /turn runs offline.
     monkeypatch.setattr(server, "check_ollama_for_model", lambda *a, **k: None)
@@ -105,41 +122,50 @@ def test_get_unknown_session_404s(client):
 # turn
 # --------------------------------------------------------------------------
 
-def test_turn_resolves_patterns_and_returns_reply(client):
+def test_turn_applies_patch_and_returns_model_reply(client, monkeypatch):
+    monkeypatch.setattr(
+        server, "get_provider_or_ollama",
+        lambda model: _PatchProvider({
+            "reply": "Added GFS with precipitation. Want a map area?",
+            "patch": [{"op": "add_import", "name": "GFS",
+                       "data_types": ["precipitation"]}],
+        }),
+    )
     sid = _new_session(client)
-    # Single-half import request WITH a narrowing signal ("no basin model"),
-    # so the disambiguation gate is skipped and patterns resolve this turn.
     resp = client.post(
         f"/sessions/{sid}/turn",
         json={"message": "Import NOAA GFS grids, no basin model."},
     )
     assert resp.status_code == 200, resp.text
     body = resp.json()
-    assert body["short_circuit"] is False
-    assert body["reply"] == "STUB-REPLY"
-    assert body["intent"] == "build_data_import_only"
+    assert "Added GFS" in body["reply"]              # model's voice, verbatim
+    assert "GFS" in body["confirmation"]             # grey applied-facts
     paths = {p["pattern"] for p in body["patterns"]}
     assert "auto/nwp_grid_noaa" in paths
     assert body["slots"].get("imports") == ["GFS"]
-    # Internals diagnostics are surfaced on a non-short-circuit turn.
-    assert body["internals"]
+    assert body["intent"] == "build_data_import_only"   # derived, not asked
 
     # State is persisted: GET reflects the resolved patterns.
     state = client.get(f"/sessions/{sid}").json()
     assert {p["pattern"] for p in state["patterns"]} == paths
 
 
-def test_turn_short_circuits_on_ambiguous_intent(client):
-    sid = _new_session(client)
-    # A bare single-half request with no narrowing signal → the gate asks.
-    resp = client.post(
-        f"/sessions/{sid}/turn",
-        json={"message": "Import NOAA GFS grids for precipitation."},
+def test_turn_vague_prose_is_model_handled_not_gated(client, monkeypatch):
+    # No disambiguation gate: vague prose gets the model's own question with
+    # an empty patch — nothing resolved, nothing asked about "intents".
+    monkeypatch.setattr(
+        server, "get_provider_or_ollama",
+        lambda model: _PatchProvider({
+            "reply": "What data should this project bring in?", "patch": [],
+        }),
     )
-    assert resp.status_code == 200, resp.text
-    body = resp.json()
-    assert body["short_circuit"] is True
-    assert body["patterns"] == []  # nothing resolved on a short-circuit
+    sid = _new_session(client)
+    body = client.post(
+        f"/sessions/{sid}/turn", json={"message": "hi, help me build a config"},
+    ).json()
+    assert body["patterns"] == []
+    assert body["confirmation"] == ""
+    assert "forecasting project" not in body["reply"].lower()
 
 
 def test_turn_503_when_llm_unreachable(client, monkeypatch):
@@ -167,41 +193,6 @@ def test_turn_unknown_session_404s(client):
 # module-mode (focus one FEWS-folder module and operate on it)
 # --------------------------------------------------------------------------
 
-class _Resp:
-    def __init__(self, data):
-        self.data = data
-
-
-class _ModuleProvider:
-    """Extractor stub: scripts the raw parse_turn JSON off the message line.
-
-    parse_turn embeds the user message as `Message: '<repr>'` on line 1, so we
-    match the message text only (never the vocab lists below it). The real
-    extractor still normalizes + catalog-validates the result.
-    """
-
-    def _msg(self, user: str) -> str:
-        first = user.splitlines()[0] if user else ""
-        return first.split("Message:", 1)[-1].strip().strip("'\"").lower()
-
-    def generate_json(self, system, user, schema):
-        m = self._msg(user)
-        if "build" in m:
-            return _Resp({"intent": "build_processing", "action": "build",
-                          "confidence": 0.9, "fields": {}})
-        if "also" in m and "hrdps" in m:
-            return _Resp({"intent": "build_processing", "action": "add",
-                          "confidence": 0.9, "fields": {"imports": ["HRDPS"]}})
-        if "gfs" in m:
-            return _Resp({"intent": "build_processing", "action": "add",
-                          "confidence": 0.9,
-                          "fields": {"imports": ["GFS"],
-                                     "data_types": ["precipitation",
-                                                    "temperature"]}})
-        return _Resp({"intent": "build_processing", "action": "none",
-                      "confidence": 0.9, "fields": {}})
-
-
 def test_module_commands_run_without_llm(client, monkeypatch):
     # /modules and /module are deterministic — they work with the LLM down.
     monkeypatch.setattr(
@@ -217,13 +208,24 @@ def test_module_commands_run_without_llm(client, monkeypatch):
     assert got.json()["current_module"] == "processing"
 
 
-def test_module_mode_cold_entry_add_and_build_hint(client, monkeypatch):
+def test_llm_first_add_edit_build_flow_over_http(client, monkeypatch):
+    # ONE shared script instance — get_provider_or_ollama is called per turn,
+    # so a fresh provider per call would replay payload[0] forever.
+    script = _PatchProvider(
+        {"reply": "Added GFS with precipitation and temperature.",
+         "patch": [{"op": "set_focus", "module": "processing"},
+                   {"op": "add_import", "name": "GFS",
+                    "data_types": ["precipitation", "temperature"]}]},
+        {"reply": "Added HRDPS too.",
+         "patch": [{"op": "add_import", "name": "HRDPS"}]},
+        {"reply": "Building what you have.",
+         "patch": [{"op": "build"}]},
+    )
     monkeypatch.setattr(
-        server, "get_provider_or_ollama", lambda model: _ModuleProvider(),
+        server, "get_provider_or_ollama", lambda model: script,
     )
     sid = _new_session(client, name="modeapi")
 
-    # Cold entry from prose ("imports module") + one-shot add.
     r1 = client.post(
         f"/sessions/{sid}/turn",
         json={"message": "set up the imports module with a NOAA GFS import "
@@ -231,17 +233,16 @@ def test_module_mode_cold_entry_add_and_build_hint(client, monkeypatch):
     )
     assert r1.status_code == 200, r1.text
     b1 = r1.json()
-    assert b1["module_mode"] is True
-    assert b1["current_module"] == "processing"
+    assert b1["current_module"] == "processing"      # advisory focus set
     assert "auto/nwp_grid_noaa" in {p["pattern"] for p in b1["patterns"]}
     assert b1["slots"]["imports"] == ["GFS"]
+    assert "GFS" in b1["confirmation"]
 
-    # Follow-up add stays in the focused module (additive union).
+    # Follow-up add is additive.
     b2 = client.post(
         f"/sessions/{sid}/turn", json={"message": "also add an HRDPS import"},
     ).json()
     assert set(b2["slots"]["imports"]) == {"GFS", "HRDPS"}
-    assert b2["current_module"] == "processing"
 
     # A build request surfaces wants_build + a hint to POST /build.
     b3 = client.post(

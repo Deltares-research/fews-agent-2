@@ -47,6 +47,7 @@ from fews_agent.agent.project_chat import (
     write_project,
 )
 from fews_agent.agent import module_focus
+from fews_agent.agent.llm_turn import run_llm_turn
 from fews_agent.agent.modules import get_module, module_for_pattern, normalize_module
 from fews_agent.agent.phases import normalize_phase, phase_plan
 from fews_agent.agent.providers.factory import get_provider_or_ollama
@@ -301,14 +302,13 @@ def _module_command(state: dict, message: str, catalog) -> str | None:
 
 @app.post("/sessions/{session_id}/turn", response_model=TurnResponse)
 def run_turn(session_id: str, req: TurnRequest) -> TurnResponse:
-    """Run one turn — module-mode when a module is in focus, else the
-    whole-project intent pipeline.
+    """Run one turn — the LLM-first single-call architecture (see PLAN.md).
 
-    Mirrors the CLI/Streamlit turn loop: append the user message → consume any
-    pending disambiguation answer → handle deterministic module commands →
-    route to module-mode (focus / cold entry → ``run_module_turn``) or the
-    shared ``run_turn_pipeline``. Persists + renders the result, honouring the
-    disambiguation short-circuit.
+    Deterministic module commands (/vars, /module, ...) bypass the LLM; any
+    other message is ONE model call: Python assembles the grounding digests,
+    the model returns a reply + a slot PATCH, ``patch_ops`` validates and
+    applies it. No intent classification, no module gating — the focused
+    module is advisory context only.
 
     Returns 503 (not 500) when the LLM backend is unreachable, so a client
     gets an actionable message rather than a crash.
@@ -320,10 +320,6 @@ def run_turn(session_id: str, req: TurnRequest) -> TurnResponse:
 
     message = req.message
     history.append({"role": "user", "message": message})
-
-    # Consume a pending intent-disambiguation answer, if one is awaited
-    # (same seam both other drivers call before command dispatch).
-    apply_disambiguation_answer(state, message)
 
     # Deterministic module-mode commands run without the LLM.
     cmd_reply = _module_command(state, message, catalog)
@@ -337,8 +333,7 @@ def run_turn(session_id: str, req: TurnRequest) -> TurnResponse:
             module_mode=True, current_module=state.get("current_module"),
         )
 
-    # Pre-flight the LLM. Both the module-op path (extractor) and the whole
-    # pipeline (compose_reply) end at an LLM call, so fail loudly + actionably
+    # Pre-flight the LLM so an unreachable backend fails loudly + actionably
     # here rather than 500-ing deep in the engine. Patched to None in tests.
     llm_err = _llm_preflight(model)
     if llm_err:
@@ -347,75 +342,30 @@ def run_turn(session_id: str, req: TurnRequest) -> TurnResponse:
 
     provider = get_provider_or_ollama(model)
 
-    # Module-mode prose path: a focused module (or a cold-entry request that
-    # enters one) means this message is ONE operation on that module — the
-    # same routing the CLI/Streamlit shells do, via the shared engine.
-    focus = module_focus.get_focus(state)
-    just_entered = False
-    if focus is None:
-        entry = module_focus.detect_module_entry(message)
-        if entry:
-            module_focus.set_focus(state, entry)
-            focus = module_focus.get_focus(state)
-            just_entered = True
-    if focus is not None:
-        try:
-            res = run_module_turn(
-                state, message, catalog, focus, provider=provider,
-                just_entered=just_entered, history=history,
-            )
-        except Exception as exc:  # noqa: BLE001
-            _save(project_dir, state, history)
-            raise HTTPException(
-                status_code=503,
-                detail=f"Module-mode turn failed ({type(exc).__name__}: "
-                f"{exc}). Is the LLM backend reachable?",
-            ) from exc
-        reply = res.reply or (
-            f"Ready to build the {focus.label} module. POST "
-            f"/sessions/{session_id}/build to assemble the project."
-        )
-        history.append({"role": "agent", "message": reply})
-        _save(project_dir, state, history)
-        return TurnResponse(
-            reply=reply, short_circuit=False, intent=state.get("intent"),
-            patterns=state.get("patterns", []) or [],
-            slots=state.get("slots", {}) or {},
-            new_patterns=res.new_patterns,
-            module_mode=True, current_module=state.get("current_module"),
-            wants_build=res.wants_build, confirmation=res.confirmation,
-        )
+    res = run_llm_turn(
+        state, message, catalog, provider=provider,
+        history=history, inputs_dir=project_dir / "inputs",
+    )
 
-    # Whole-project intent pipeline (no module in focus).
-    try:
-        result = run_turn_pipeline(
-            state, message, catalog,
-            provider=provider,
-            inputs_dir=project_dir / "inputs",
+    reply = res.reply
+    if res.wants_build or res.wants_assemble:
+        reply += (
+            f"\n\n(To run the build over HTTP: POST "
+            f"/sessions/{session_id}/build"
+            + (" with {\"phase\": \"...\"} for a scoped build" if
+               res.wants_build and not res.wants_assemble else "")
+            + ".)"
         )
-    except Exception as exc:  # noqa: BLE001
-        _save(project_dir, state, history)
-        raise HTTPException(
-            status_code=503,
-            detail=f"Turn pipeline failed ({type(exc).__name__}: {exc}). "
-            f"Is the LLM backend reachable?",
-        ) from exc
-
-    history.append({"role": "agent", "message": result.agent_message})
+    history.append({"role": "agent", "message": reply})
     _save(project_dir, state, history)
-
     return TurnResponse(
-        reply=result.agent_message,
-        short_circuit=result.short_circuit,
-        intent=state.get("intent"),
+        reply=reply, short_circuit=False, intent=state.get("intent"),
         patterns=state.get("patterns", []) or [],
         slots=state.get("slots", {}) or {},
-        warnings=result.warnings,
-        ready=result.ready,
-        next_question=result.next_question,
-        new_patterns=result.new_patterns,
-        internals=result.internals,
-        current_module=state.get("current_module"),
+        new_patterns=res.new_patterns,
+        module_mode=True, current_module=state.get("current_module"),
+        wants_build=res.wants_build or res.wants_assemble,
+        confirmation=res.confirmation,
     )
 
 
