@@ -6,6 +6,7 @@ description: >-
   One pattern covers the whole cadence family (Day/Week/Month/Orphans) as
   instances: name the module, list the workflows to amalgamate, set the minimal
   age, and whether to sweep orphaned (expired, detached) series.
+keywords: [amalgamate, datastore cleanup, housekeeping, compact time series]
 variables:
   name:
     type: str

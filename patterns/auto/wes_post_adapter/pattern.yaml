@@ -7,6 +7,7 @@ description: >-
   (cyclone radius, wind conversion, ...), runs nl.deltares.wes.post.WesPostAdapter,
   then imports the resulting wes_grid_*.nc as WindSpeedMaximum + WindDirection
   grids into the Process<TrackSource> instance. Folder placeholders stay literal.
+keywords: [wes, wind enhance scheme, parametric wind, cyclone wind field]
 variables:
   name:
     type: str

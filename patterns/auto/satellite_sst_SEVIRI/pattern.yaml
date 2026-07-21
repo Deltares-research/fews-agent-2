@@ -5,6 +5,7 @@ description: >-
   observation time). Farmed from the Config_Basic 2017 (Crete) course
   (Import_SEVIRI). Observation times are nonequidistant; the filename
   pattern carries the observation timestamp.
+keywords: [seviri, sea surface temperature, sst, osi-saf, ifremer]
 variables:
   # Names the module instance (Import<source_name>), workflow, idMap and
   # the grid locationId.

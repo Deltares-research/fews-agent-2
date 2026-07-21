@@ -10,6 +10,7 @@ description: >-
   warm-starts from the HC state, both falling back to <domain>HurrywaveHindcast.
   Folder/executable placeholders ($ModulesFolder$, $HurrywaveExecutable$,
   $DumpFilesFolder$, $MODULE_INSTANCE_ID$) stay literal.
+keywords: [hurrywave, spectral wave, wave model, wave forecast]
 variables:
   domain:
     type: str

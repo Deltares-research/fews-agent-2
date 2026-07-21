@@ -8,6 +8,7 @@ description: >-
   Credentials stay out of the config: user/password default to the FEWS
   runtime placeholders $CMEMS_USER$ / $CMEMS_PASSWORD$, which the
   configurator maps in RootConfigFiles/sa_global.Properties.
+keywords: [cmems, copernicus marine, ocean grid, ocean model, motu, sea surface height]
 variables:
   # Names the module instance (ImportCMEMS<variant>), workflow and idMap.
   variant:

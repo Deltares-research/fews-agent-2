@@ -10,6 +10,7 @@ description: >-
   restart file; the FC run warm-starts from the HC state. Forcing comes
   from an upstream NWP processing module (extrapolated hindcast grids for
   HC, interpolated forecast grids for FC).
+keywords: [dflowfm, dflow-fm, d-flow fm, delft3d, dimr, hydrodynamic model, coastal hydrodynamics]
 variables:
   # Names the module instances (<model_name>HC / <model_name>FC), the
   # dataset export, the grid locationId, the rootDir and the idMaps.

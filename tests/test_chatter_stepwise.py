@@ -57,8 +57,13 @@ def test_stepwise_commands_are_documented_in_help():
     # users even though the engine still supports them.
     from fews_agent.agent.project_intents import compose_help_reply
     help_text = compose_help_reply("help")
-    for cmd in ("/list", "/phases", "/add", "/remove", "/set", "/build"):
+    # `/vars` subsumes the old `/list` (bare = the instance overview, `/vars
+    # GFS` = that instance's tunable variables); list/show remain aliases.
+    for cmd in ("/vars", "/phases", "/add", "/remove", "/set", "/build"):
         assert cmd in help_text, f"{cmd} missing from /help"
+    # The old name must still be discoverable as an alias, so muscle memory
+    # (and older docs) keep working.
+    assert "list" in help_text
 
 
 # --- slash edits (deterministic, no LLM) ---------------------------------

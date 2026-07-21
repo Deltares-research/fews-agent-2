@@ -366,8 +366,33 @@ def _is_bare_entity(text: str, names: list[str]) -> bool:
     return all(w in _BARE_FILLER for w in words)
 
 
+# Phrases that mean "render + validate what I have now". Deliberately explicit:
+# a bare mention of the word "build" is NOT enough, because "let's build the
+# imports module" is module ENTRY, not a build action. Since the agent no longer
+# tells users to type `/build`, saying it in plain English has to be as reliable
+# as the command was.
+_BUILD_PHRASES: tuple[str, ...] = (
+    "build it", "build this", "build that", "build now", "build what",
+    "build them", "build everything", "build the module", "build my module",
+    "go ahead and build", "please build", "yes build", "let's build it",
+    "lets build it", "generate it", "generate this", "generate and validate",
+    "validate it", "run the build",
+)
+
+
+def deterministic_build_op(message: str) -> bool:
+    """True when prose plainly asks to build the current target."""
+    low = " ".join((message or "").lower().split())
+    # Only a bare "build" counts as a standalone trigger. Generic
+    # continuations ("go", "do it", "yes") are NOT build — they refer to
+    # whatever was last discussed, which is usually an edit or a confirmation.
+    if low.strip(" .!?") == "build":
+        return True
+    return any(p in low for p in _BUILD_PHRASES)
+
+
 def deterministic_module_op(
-    message: str, focus_module: Module | None,
+    message: str, focus_module: Module | None, catalog=None,
 ) -> ExtractedOperation | None:
     """Parse an unambiguous add/remove of catalog entities from prose — no LLM.
 
@@ -379,8 +404,8 @@ def deterministic_module_op(
     """
     from .project_intents import (
         _EDIT_CHANGE_CUES, _EDIT_REMOVE_CUES, _has_cue,
-        detect_basins_with_adapters, detect_data_types, detect_edit_action,
-        detect_imports,
+        detect_basins_with_adapters, detect_capabilities, detect_data_types,
+        detect_edit_action, detect_imports, split_addable_capabilities,
     )
 
     text = (message or "").strip()
@@ -391,14 +416,26 @@ def deterministic_module_op(
     imports = detect_imports(text)
     basins = detect_basins_with_adapters(text)
     dtypes = detect_data_types(text)  # weather variables (precipitation, ...)
-    if not (imports or basins or dtypes):
+    # Capabilities the slot resolvers don't model, matched against each
+    # pattern's OWN declared keywords. Only those whose required variables are
+    # all defaulted can be added as-is; the rest are reported by the caller.
+    matched_caps = detect_capabilities(text, catalog)
+    caps, needs_input = split_addable_capabilities(matched_caps, catalog)
+    if not (imports or basins or dtypes or caps):
+        if needs_input:
+            # We KNOW what they asked for — it just needs values first. Do NOT
+            # fall through to the LLM here: given "set up archive import" it
+            # guesses a superficially-similar real import (WSCHistoric) which
+            # then passes catalog validation and gets applied. A deterministic
+            # no-op lets the caller report what the capability actually needs.
+            return ExtractedOperation(action="none", confidence=1.0)
         return None  # nothing from the catalog → let the LLM read the prose
 
     has_remove = _has_cue(low, _EDIT_REMOVE_CUES)
     has_add = _has_cue(low, _ADD_CUES)
     has_change = _has_cue(low, _EDIT_CHANGE_CUES)
 
-    def _op(action, imps, bsns, dts) -> ExtractedOperation | None:
+    def _op(action, imps, bsns, dts, cps=None) -> ExtractedOperation | None:
         if focus_module is not None and not focus_module.supports(action):
             return None
         fields: dict[str, Any] = {}
@@ -408,6 +445,8 @@ def deterministic_module_op(
             fields["basins"] = bsns
         if dts:
             fields["data_types"] = dts
+        if cps:
+            fields["extra_patterns"] = cps
         return ExtractedOperation(action=action, fields=fields, confidence=1.0)
 
     # REMOVE — use the cue-position-aware NL edit detector so a mixed sentence
@@ -427,11 +466,24 @@ def deterministic_module_op(
             return None
         return _op("remove", rem_imports, rem_basins, rem_dtypes)
 
+    # A basin named WITH its adapter ("Liard uses raven", "Rhine with wflow") is
+    # already a complete, unambiguous add specification — no cue needed. This is
+    # the exact phrasing the agent itself suggests, and "uses" is not an add cue
+    # ("use " / "using" are), so without this the suggested phrase fell through
+    # to the LLM while every import shorthand was deterministic.
+    if basins and not has_change and all(b.get("model_adapter") for b in basins):
+        return _op("add", imports, basins, dtypes, caps)
+
+    # A named capability ("add SFINCS", "CMEMS ocean data") is as unambiguous as
+    # a named import — the alias only matches the capability's own vocabulary.
+    if caps and not has_change:
+        return _op("add", imports, basins, dtypes, caps)
+
     # ADD — an add cue (incl. "set up"), or a bare mention, and no change cue.
     # The add-cue guard stops questions ("what is precipitation?") from applying.
     names = list(imports) + [b.get("basin_name", "") for b in basins] + list(dtypes)
     if has_add or (not has_change and _is_bare_entity(text, names)):
-        return _op("add", imports, basins, dtypes)
+        return _op("add", imports, basins, dtypes, caps)
 
     return None  # a scalar change / ambiguous → the LLM parser
 
@@ -442,6 +494,7 @@ def extract_operation(
     focus_module: Module,
     provider,
     model: str = "qwen2.5:7b-instruct",
+    catalog=None,
 ) -> ExtractedOperation:
     """Parse one operation on ``focus_module`` — an ADAPTER over parse_turn.
 
@@ -463,9 +516,15 @@ def extract_operation(
     if switch_target:
         return ExtractedOperation(action="select_module", module=switch_target,
                                   confidence=1.0)
-    det = deterministic_module_op(message, focus_module)
+    det = deterministic_module_op(message, focus_module, catalog)
     if det is not None:
         return det
+
+    # "build it" / "generate it" — checked AFTER the entity pass so a message
+    # that also names entities is treated as the edit it is. The agent now says
+    # "want me to build it?" instead of "/build", so this must be reliable.
+    if deterministic_build_op(message):
+        return ExtractedOperation(action="build", confidence=1.0)
 
     pt = parse_turn(message, focus_module=focus_module, provider=provider,
                     model=model)

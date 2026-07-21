@@ -8,6 +8,7 @@ description: >-
   parameter; the emitted IdMap maps it onto the internal parameterId.
   Location id mappings are project data - add them to the IdMap via
   inputs/ when the CSV station labels differ from FEWS locationIds.
+keywords: [station csv, stations from csv, csv observations, observations from csv]
 variables:
   # Names the module instance (Import<source_name>), the workflow and the
   # idMap (IdImport<source_name>CSV). Keep the default unless the project

@@ -1,14 +1,20 @@
 Focused module: [[ module_label ]]
 This module's job: [[ module_job ]]
 
+RECENT CONVERSATION (oldest first; "You" is you — do NOT repeat what you already said):
+[[ history_text ]]
+
 User just said: [[ user_message ]]
+TURN KIND: [[ turn_kind ]]
 WHAT CHANGED this turn (engine already applied it — acknowledge past tense): [[ changed ]]
 
 CHECKLIST for this module
-  DONE (already set — safe to reference by name): [[ done_text ]]
-  TODO (not yet set — ask for these, never invent): [[ todo_text ]]
-  READY TO BUILD: [[ ready ]]
+  CONFIGURED (already set — safe to reference by name): [[ done_text ]]
+  NOT YET CONFIGURED (ask for these, never invent): [[ todo_text ]]
+  ALREADY BUILT (rendered + XSD-validated): [[ built_text ]]
+  NOT YET BUILT: [[ unbuilt_text ]]
+  ENOUGH CONFIGURED TO BUILD: [[ ready ]]
 
-SUGGESTED NEXT STEP (guide toward this, phrased naturally): [[ suggested_next ]]
+SUGGESTED NEXT STEP ([[ guidance_mode ]]): [[ suggested_next ]]
 
 Compose the guiding reply.

@@ -37,6 +37,7 @@ from fews_agent.agent.project_intents import (
     compose_help_reply,
     compose_status_reply,
     compute_input_status,
+    detect_coordinates_request,
     detect_help_query,
     detect_status_query,
     is_intent_ready,
@@ -59,6 +60,7 @@ from fews_agent.agent.turn_engine import (
     apply_edit_action,
     module_edit_reply,
     module_list_reply,
+    module_vars_reply,
     module_welcome,
     resolve_patterns,
     run_module_turn,
@@ -755,7 +757,7 @@ class ChatSession:
         """
         res = run_module_turn(
             self.state, message, self.catalog, focus, provider=provider,
-            just_entered=just_entered,
+            just_entered=just_entered, history=self.history,
         )
         if res.wants_build:
             return self._app_module_scope_build(focus, turn)
@@ -805,6 +807,37 @@ class ChatSession:
         if slug and slug in _GRID_RESOLUTION_DEGREES:
             return _GRID_RESOLUTION_DEGREES[slug]
         return _bundled_grid_cell_size(name) or 0.25
+
+    def _open_coordinates(self, turn: int, token: str = "") -> TurnResult:
+        """Open the grid-coordinates subwindow for one or all NWP grids.
+
+        Shared by the ``/coordinates`` command AND the free-language route
+        (``detect_coordinates_request`` — "set GFS's map area"), so the agent
+        can talk in plain English instead of instructing the user to type a
+        slash command. ``token`` optionally pre-selects a grid by name.
+        """
+        grids = self._nwp_grid_imports()
+        if not grids:
+            reply = (
+                "There's no gridded import to set an area for yet — add one "
+                "first, for example by saying \"add GFS\"."
+            )
+            self.history.append({"role": "agent", "message": reply})
+            self._append_md(turn, "agent", reply, note="coordinates: none")
+            self._save()
+            return TurnResult(agent_message=reply, kind="reply")
+        want = (token or "").strip().lower()
+        if want:
+            grids = [g for g in grids if g["name"].lower() in want] or grids
+        names = ", ".join(g["name"] for g in grids)
+        reply = f"Set the map area for {names} below."
+        self.history.append({"role": "agent", "message": reply})
+        self._append_md(turn, "agent", reply, note="coordinates: open")
+        self._save()
+        self._logger.info("coordinates turn=%d grids=%d", turn, len(grids))
+        return TurnResult(
+            agent_message=reply, kind="coordinates", coordinates_request=grids,
+        )
 
     def apply_grid_geometry(
         self, name: str, *,
@@ -1115,9 +1148,14 @@ class ChatSession:
             self._logger.info("phases turn=%d", turn)
             return TurnResult(agent_message=reply, kind="reply")
 
-        # /list — instance-level listing (finer than /phases) + next-step hint.
-        if cmd in {"/list", "list", "/show", "show"}:
-            reply = module_list_reply(self.state, self.catalog)
+        # /vars [name] — bare: what's in the project (the old /list); with a
+        # name: that instance's tunable variables + which are still defaults.
+        # list/show stay as aliases of the bare form.
+        if cmd in {"/vars", "vars"} or cmd.startswith(("/vars ", "vars ")) \
+                or cmd in {"/list", "list", "/show", "show"}:
+            _parts = message.strip().split(None, 1)
+            _target = _parts[1].strip() if len(_parts) > 1 else None
+            reply = module_vars_reply(self.state, self.catalog, _target)
             self.history.append({"role": "agent", "message": reply})
             self._append_md(turn, "agent", reply, note="module list")
             self._save()
@@ -1129,32 +1167,9 @@ class ChatSession:
         # returns a UI signal (kind="coordinates") the web app turns into a
         # modal; submitting it calls apply_grid_geometry().
         if cmd == "/coordinates" or cmd.startswith(("/coordinates ", "/coords")):
-            grids = self._nwp_grid_imports()
-            if not grids:
-                reply = (
-                    "No NWP grid imports to set coordinates for yet. Add one "
-                    "first (e.g.  /add GFS  or  \"add an HRDPS import\")."
-                )
-                self.history.append({"role": "agent", "message": reply})
-                self._append_md(turn, "agent", reply, note="coordinates: none")
-                self._save()
-                return TurnResult(agent_message=reply, kind="reply")
-            # An optional name pre-selects one grid; otherwise offer all.
-            token = ""
             parts = message.strip().split(None, 1)
-            if len(parts) > 1:
-                token = parts[1].strip().lower()
-            if token:
-                grids = [g for g in grids if g["name"].lower() == token] or grids
-            names = ", ".join(g["name"] for g in grids)
-            reply = f"Set grid coordinates for: {names}."
-            self.history.append({"role": "agent", "message": reply})
-            self._append_md(turn, "agent", reply, note="coordinates: open")
-            self._save()
-            self._logger.info("coordinates turn=%d grids=%d", turn, len(grids))
-            return TurnResult(
-                agent_message=reply, kind="coordinates",
-                coordinates_request=grids,
+            return self._open_coordinates(
+                turn, parts[1].strip() if len(parts) > 1 else "",
             )
 
         # /add /remove /drop /set — explicit edits. The command IS the
@@ -1469,6 +1484,18 @@ class ChatSession:
         # app's repeat-turn missing-input snooze (a CLI-absent behaviour).
         provider = get_provider(model=self.model)
 
+        # Free-language route to the coordinates subwindow ("set GFS's map
+        # area"). Runs before the module pipeline because it's a UI action, not
+        # a slot edit — and it's what lets the agent say "want to set its map
+        # area?" in plain English instead of "/coordinates". Deterministic.
+        if detect_coordinates_request(message):
+            _named = ""
+            for _g in self._nwp_grid_imports():
+                if _g["name"].lower() in message.lower():
+                    _named = _g["name"]
+                    break
+            return self._open_coordinates(turn, _named)
+
         # Pure module-mode: the app builds one FEWS-folder module at a time —
         # there is NO whole-project intent flow ("build a forecasting project"
         # etc.). Un-focused prose either enters a module (cold entry),
@@ -1480,7 +1507,7 @@ class ChatSession:
             _entry = module_focus.detect_module_entry(message)
             if not _entry:
                 from fews_agent.agent.extractor import deterministic_module_op
-                _op = deterministic_module_op(message, None)
+                _op = deterministic_module_op(message, None, self.catalog)
                 if _op is not None and _op.fields:
                     # imports / basins / weather variables all live in processing
                     _entry = "processing"

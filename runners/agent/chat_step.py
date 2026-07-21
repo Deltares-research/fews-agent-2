@@ -60,6 +60,7 @@ from fews_agent.agent.turn_engine import (
     apply_edit_action,
     module_edit_reply,
     module_list_reply,
+    module_vars_reply,
     module_welcome,
     resolve_patterns as _resolve_patterns,
     run_module_turn,
@@ -313,7 +314,7 @@ def _run_module_operation(
     provider = _resolve_provider(model)
     res = run_module_turn(
         state, message, catalog, focus, provider=provider,
-        just_entered=just_entered,
+        just_entered=just_entered, history=history,
     )
     if res.wants_build:
         rc = _run_module_scope_build(
@@ -717,9 +718,13 @@ def main(argv: list[str] | None = None) -> int:
         console.print(f"\n[bold magenta]agent[/bold magenta]: {reply}")
         return 0
 
-    # Instance-level listing (finer than /phases) + next-step hint.
-    if cmd in {"/list", "list", "/show", "show"}:
-        reply = module_list_reply(state, catalog)
+    # /vars [name] — bare: what's in the project (the old /list); with a name:
+    # that instance's tunable variables. list/show are aliases of the bare form.
+    if cmd in {"/vars", "vars"} or cmd.startswith(("/vars ", "vars ")) \
+            or cmd in {"/list", "list", "/show", "show"}:
+        _parts = args.message.strip().split(None, 1)
+        _target = _parts[1].strip() if len(_parts) > 1 else None
+        reply = module_vars_reply(state, catalog, _target)
         history.append({"role": "agent", "message": reply})
         _append_log(project_dir, turn, "agent", reply, "module list")
         _save(project_dir, state, history)

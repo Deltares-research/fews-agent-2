@@ -12,6 +12,7 @@ description: >-
   Numeric FEWS placeholders are lifted to concrete Jinja vars; folder/executable
   placeholders ($ModulesFolder$, $SfincsExecutable$, $DumpFilesFolder$,
   $MODULE_INSTANCE_ID$) stay literal.
+keywords: [sfincs, coastal flood, storm surge, surge model, compound flooding, coastal model]
 variables:
   # Model domain / nest (NorthAtlantic overview, Saba, Statia, ...). Drives
   # ids, rootDir, grid locationId and the station locationSet.

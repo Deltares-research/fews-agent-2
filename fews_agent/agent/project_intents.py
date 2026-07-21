@@ -674,6 +674,139 @@ def detect_wants_visualization(text: str) -> bool | None:
     return True if any(p in lower for p in _VISUALIZATION_PHRASES) else None
 
 
+# Prose that means "I want to set a grid's map area / coordinates" — the
+# free-language route to the coordinates subwindow, so the agent never has to
+# tell the user to type `/coordinates`. Deliberately specific noun phrases: a
+# bare "area"/"region" is too collision-prone with the region gazetteer.
+_COORDINATES_PHRASES: tuple[str, ...] = (
+    "coordinate",          # covers coordinate/coordinates
+    "map area", "map extent", "grid area", "grid extent",
+    "grid geometry", "grid box", "bounding box", "bbox",
+    "first cell", "firstcellcenter",
+    "rows and columns", "columns and rows",
+    "lat/lon box", "lat lon box",
+    "area it covers", "area it should cover",
+    "area should it cover", "region should it cover",
+    "region it covers", "region it should cover",
+    "where it should cover", "what area it covers",
+    "set the area", "set its area", "define the area",
+)
+
+
+# --- capability resolution, driven by the patterns themselves --------------
+#
+# Each harvested pattern declares its own vocabulary in ``pattern.yaml``:
+#
+#     keywords: [sfincs, coastal flood, storm surge, ...]
+#
+# and its own contract in ``variables`` (which are required, which default).
+# Everything below reads THAT — there is no hand-maintained alias table to keep
+# in sync, so harvesting a new pattern with keywords makes it reachable by
+# conversation immediately, with no Python change.
+#
+# A pattern WITHOUT keywords is deliberately not directly nameable: the
+# ``tpl_*``/``wf_*`` fragments are attached by the slot resolvers as part of a
+# larger capability and don't stand alone, and the import/basin patterns are
+# owned by ``_IMPORT_PATTERN_MAP`` / the basin route, which also fill their
+# required variables.
+
+
+def _routed_elsewhere() -> frozenset[str]:
+    """Patterns another route already owns, so they must not be name-matched.
+
+    Derived from the existing routes rather than hand-listed: the import map
+    owns every ``nwp_grid_*``/scalar import (and fills its ``nwp_name``), the
+    basin route owns the basin models, and ``wants_visualization`` owns the
+    display. The legacy ``imports/``/``models/`` patterns are superseded by
+    their ``auto/`` equivalents and carry very generic keywords ("precipitation",
+    "weather", "grid") that would otherwise match almost any sentence.
+    """
+    owned = {entry[0] for entry in _IMPORT_PATTERN_MAP.values()}
+    owned |= {
+        "auto/raven_basin", "auto/wflow_basin",     # basin route
+        "auto/spatial_display_grid",                # wants_visualization
+        "imports/nwp_grid", "models/raven_basin",   # legacy, superseded
+    }
+    return frozenset(owned)
+
+
+def _capability_entries(catalog) -> list:
+    """Catalog entries that are directly nameable: they declare keywords AND
+    aren't already owned by the import/basin/display routes."""
+    skip = _routed_elsewhere()
+    return [
+        e for e in (catalog or [])
+        if getattr(e, "keywords", None) and getattr(e, "path", None) not in skip
+    ]
+
+
+def detect_capabilities(text: str, catalog) -> list[str]:
+    """Pattern paths whose declared keywords appear in the prose.
+
+    Longest keyword first, so "cyclone track" wins over a bare "cyclone", and a
+    pattern already matched by a longer phrase isn't matched again by a shorter
+    one belonging to a different capability.
+    """
+    lower = f" {' '.join((text or '').lower().split())} "
+    pairs: list[tuple[str, str]] = []
+    for entry in _capability_entries(catalog):
+        for kw in entry.keywords:
+            kw = str(kw).strip().lower()
+            if kw:
+                pairs.append((kw, entry.path))
+    hits: list[str] = []
+    consumed = ""
+    for kw, path in sorted(pairs, key=lambda kv: -len(kv[0])):
+        if kw in consumed:          # already accounted for by a longer phrase
+            continue
+        if kw in lower:
+            consumed += f" {kw}"
+            if path not in hits:
+                hits.append(path)
+    return hits
+
+
+def capability_required_variables(path: str, catalog) -> list[str]:
+    """Required variables a pattern declares (empty = addable as-is)."""
+    for entry in (catalog or []):
+        if getattr(entry, "path", None) == path:
+            return [
+                name for name, spec in (entry.variables or {}).items()
+                if isinstance(spec, dict) and spec.get("required")
+            ]
+    return []
+
+
+def split_addable_capabilities(
+    paths: list[str], catalog,
+) -> tuple[list[str], list[tuple[str, list[str]]]]:
+    """Split matched capabilities into (addable, needs-input).
+
+    A pattern whose required variables are all defaulted can be instantiated
+    as-is; one that declares required variables we'd be guessing at is reported
+    with what it still needs, rather than added broken. Derived from the
+    pattern's own ``variables`` block — nothing hand-maintained.
+    """
+    addable: list[str] = []
+    needs: list[tuple[str, list[str]]] = []
+    for path in paths:
+        req = capability_required_variables(path, catalog)
+        (addable.append(path) if not req else needs.append((path, req)))
+    return addable, needs
+
+
+def detect_coordinates_request(text: str) -> bool:
+    """True when prose asks to set a grid's map area / coordinates.
+
+    Lets "set GFS's map area" reach the same subwindow as ``/coordinates``, so
+    the agent can talk in plain language instead of instructing the user to
+    type a slash command. Conservative on purpose — matches specific noun
+    phrases only, so naming a region ("the Gulf of Guinea") doesn't trigger it.
+    """
+    lower = (text or "").lower()
+    return any(p in lower for p in _COORDINATES_PHRASES)
+
+
 _MAINTENANCE_PHRASES: tuple[str, ...] = (
     "amalgamate", "maintenance", "housekeeping", "house keeping",
     "datastore cleanup", "datastore clean up", "keep the datastore lean",
@@ -3044,12 +3177,16 @@ COMMANDS: list[dict[str, str]] = [
     },
     # Build commands — build / edit the project one module at a time
     {
-        "name": "/list",
-        "aliases": "list, show",
+        "name": "/vars [<name>]",
+        "aliases": "vars, list, show",
         "group": "Build",
         "description": (
-            "List each module instance with its built/ready status and "
-            "editable variables, so you know what you can /set or /remove."
+            "Bare `/vars` lists each module instance with its built/ready "
+            "status. `/vars GFS` shows everything you can tune on that one — "
+            "each variable, its current value, and whether that came from you "
+            "or from the pattern's default (most variables are defaulted, so "
+            "this is how you discover what's changeable). `list`/`show` are "
+            "aliases of the bare form."
         ),
     },
     {

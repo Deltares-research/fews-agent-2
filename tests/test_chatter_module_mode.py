@@ -176,7 +176,9 @@ def test_coordinates_with_no_grids_is_a_plain_reply(tmp_path, monkeypatch):
     # Nothing to set coordinates for yet → a normal reply, no subwindow.
     assert res.kind == "reply"
     assert res.coordinates_request is None
-    assert "Add one first" in res.agent_message
+    # It tells them what to do in PLAIN LANGUAGE — no slash command.
+    assert "add one first" in res.agent_message.lower()
+    assert "/add" not in res.agent_message
 
 
 def test_coordinates_opens_subwindow_for_resolved_grids(tmp_path, monkeypatch):

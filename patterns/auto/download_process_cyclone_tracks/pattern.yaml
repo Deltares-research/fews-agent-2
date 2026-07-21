@@ -8,6 +8,7 @@ description: >-
   spiderweb geometry, storm selection), then runs the script; the .cyc / track
   outputs are picked up downstream by import_cyclone_cyc / import_cyclone_jtwc.
   Folder/executable placeholders stay literal.
+keywords: [cyclone track, cyclone tracks, hurricane track, typhoon track, ibtracs, spiderweb]
 variables:
   name:
     type: str

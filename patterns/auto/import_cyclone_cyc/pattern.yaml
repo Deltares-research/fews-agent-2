@@ -8,6 +8,7 @@ description: >-
   No idMap - the valueColumns map parameter + location inline. Writes into the
   running instance ($MODULE_INSTANCE_ID$, kept literal) as nonequidistant
   scalar track series.
+keywords: [cyc file, cyclone file, processed cyclone track]
 variables:
   source_name:
     type: str

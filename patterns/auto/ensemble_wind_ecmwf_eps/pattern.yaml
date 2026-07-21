@@ -8,6 +8,7 @@ description: >-
   interpolation of all members to station points, (3) wind speed +
   direction derivation from the U/V components, (4) ensemble statistics
   (min / max / median / percentiles) over the derived wind speed.
+keywords: [ecmwf eps, eps ensemble, ensemble wind, ensemble prediction]
 variables:
   # Names every module instance (Import<source_name>, ...), the grid
   # locationId, the idMap and the import folder.

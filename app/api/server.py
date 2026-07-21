@@ -54,6 +54,7 @@ from fews_agent.agent.turn_engine import (
     _module_list_text,
     apply_disambiguation_answer,
     module_list_reply,
+    module_vars_reply,
     module_welcome,
     resolve_patterns,
     run_module_turn,
@@ -290,8 +291,11 @@ def _module_command(state: dict, message: str, catalog) -> str | None:
         token = message.strip().split(None, 1)[1].strip()
         _module, reply = module_focus.set_focus(state, token)
         return module_welcome(state, _module) if _module is not None else reply
-    if cmd in {"/list", "list", "/show", "show"}:
-        return module_list_reply(state, catalog)
+    if cmd in {"/vars", "vars"} or cmd.startswith(("/vars ", "vars ")) \
+            or cmd in {"/list", "list", "/show", "show"}:
+        _parts = message.strip().split(None, 1)
+        _target = _parts[1].strip() if len(_parts) > 1 else None
+        return module_vars_reply(state, catalog, _target)
     return None
 
 
@@ -358,7 +362,7 @@ def run_turn(session_id: str, req: TurnRequest) -> TurnResponse:
         try:
             res = run_module_turn(
                 state, message, catalog, focus, provider=provider,
-                just_entered=just_entered,
+                just_entered=just_entered, history=history,
             )
         except Exception as exc:  # noqa: BLE001
             _save(project_dir, state, history)

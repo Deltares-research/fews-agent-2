@@ -32,6 +32,8 @@ from fews_agent.agent.project_chat import (
     set_variable,
 )
 from fews_agent.agent.project_intents import (
+    detect_capabilities,
+    split_addable_capabilities,
     ENGLISH_WORD_BLOCKLIST,
     INTENTS,
     classify_intent,
@@ -186,7 +188,20 @@ def resolve_patterns(state: dict, catalog) -> None:
     if not intent:
         return
     catalog_paths = {p.path for p in catalog}
-    state["patterns"] = intent.resolver(state.get("slots", {}), catalog_paths)
+    resolved = intent.resolver(state.get("slots", {}), catalog_paths)
+
+    # Capabilities the slot-driven resolvers don't model (coastal models, ocean
+    # grids, cyclone tracks, station CSV, ...). The three intent resolvers map
+    # imports/basins/visualisation onto patterns; everything else in the library
+    # was unreachable by conversation. `extra_patterns` is the generic escape
+    # hatch — the user names a capability, we append it here, and it survives
+    # the full rebuild that `resolve_patterns` does on every turn.
+    already = {p.get("pattern") for p in resolved}
+    for path in (state.get("slots", {}) or {}).get("extra_patterns") or []:
+        if path in catalog_paths and path not in already:
+            resolved.append({"pattern": path, "instances": [{}]})
+            already.add(path)
+    state["patterns"] = resolved
 
 
 def _normalise_set_value(variable: str, raw):
@@ -383,10 +398,15 @@ def apply_extracted_fields(state: dict, op, catalog) -> tuple[str, list[str]]:
         p["pattern"] for p in state.get("patterns", [])
         if p["pattern"] not in before
     ]
-    note = "Applied: " + "; ".join(applied) if applied else (
-        "Noted — nothing new to change."
-    )
+    note = "Applied: " + "; ".join(applied) if applied else _NOOP_NOTE
     return note, new
+
+
+# The note apply_* returns when a turn changed NOTHING. Such a turn is not an
+# edit — it's a question, a greeting, or prose we couldn't act on — so the
+# shells must NOT show it as a grey "what changed" fact, and the reply should
+# ANSWER the user instead of acknowledging a non-existent edit.
+_NOOP_NOTE = "Noted — nothing new to change."
 
 
 def _sync_module_intent(state: dict) -> None:
@@ -532,10 +552,138 @@ def _module_list_text(state: dict, catalog) -> str:
                 lines.append(f"- **{label}** · `{short}` · {mark}{extra_txt}")
     lines.append("")
     lines.append(
-        "_Edit:_ `/add <name>` · `/remove <name>` · "
-        "`/set <name> <var> <value>` · _build one:_ `/build <name>`"
+        "_Just say what you want — e.g. \"what can I change on "
+        f"{_first_instance_label(state) or 'GFS'}?\", \"add HRDPS\", "
+        "\"remove it\", or \"build it\". (`/help` lists the commands.)_"
     )
     return "\n".join(lines)
+
+
+# --- /vars: what can I actually tune? -------------------------------------
+#
+# Across the library only ~45 of ~336 pattern variables are REQUIRED; the other
+# ~291 carry an explicit default (blueprint._apply_defaults: instance value →
+# default → loud error if a required one is missing). So the agent rightly asks
+# for very little — but that left every optional knob undiscoverable: `/set`
+# existed with no way to learn which <var> names were valid, what they're
+# currently set to, or whether that value came from you or from the default.
+# This renders exactly that, straight from the catalog's `variables` block, so
+# it can never drift from what the pattern actually accepts.
+
+
+def _first_instance_label(state: dict) -> str:
+    """The first instance label in the project (for a concrete example)."""
+    for p in state.get("patterns") or []:
+        short = str(p.get("pattern", "")).rsplit("/", 1)[-1]
+        for inst in p.get("instances") or [{}]:
+            return next(
+                (str(inst[k]) for k in _LABEL_VAR_KEYS if inst.get(k)), short
+            )
+    return ""
+
+
+def _catalog_variables(catalog, pattern_path: str) -> dict:
+    """The declared ``variables`` block for a pattern path, from the catalog."""
+    for entry in catalog or []:
+        if getattr(entry, "path", None) == pattern_path:
+            return dict(getattr(entry, "variables", {}) or {})
+    return {}
+
+
+def _instances_matching(state: dict, target: str | None) -> list[tuple[str, str, dict]]:
+    """``(pattern_path, label, instance)`` for instances whose label matches.
+
+    ``target`` None/empty matches everything; otherwise matches the instance
+    label (e.g. "GFS") or the short pattern name, case-insensitively.
+    """
+    want = (target or "").strip().lower()
+    out: list[tuple[str, str, dict]] = []
+    for p in state.get("patterns") or []:
+        pat = str(p.get("pattern", ""))
+        short = pat.rsplit("/", 1)[-1]
+        for inst in p.get("instances") or [{}]:
+            label = next(
+                (str(inst[k]) for k in _LABEL_VAR_KEYS if inst.get(k)), short
+            )
+            if not want or want in (label.lower(), short.lower()):
+                out.append((pat, label, inst))
+    return out
+
+
+def _fmt_var_value(value) -> str:
+    """Render a variable value compactly for the /vars table."""
+    if value is None or value == "":
+        return "—"
+    if isinstance(value, bool):
+        return "yes" if value else "no"
+    if isinstance(value, list):
+        parts = []
+        for item in value:
+            if isinstance(item, dict):
+                parts.append(str(
+                    item.get("id") or item.get("basin_name")
+                    or next(iter(item.values()), "?")
+                ))
+            else:
+                parts.append(str(item))
+        return ", ".join(parts) if parts else "—"
+    if isinstance(value, dict):
+        return ", ".join(f"{k}={v}" for k, v in value.items()) or "—"
+    return str(value)
+
+
+def module_vars_text(state: dict, catalog, target: str | None = None) -> str:
+    """What you can tune — the whole project, or one instance's variables.
+
+    No ``target`` → the instance overview (what ``/list`` showed) plus a pointer
+    to the detail view. With a ``target`` → every variable the pattern declares,
+    its effective value, and whether that came from YOU or from the default.
+    Deterministic: pure catalog + blueprint data, no LLM.
+    """
+    matches = _instances_matching(state, target)
+
+    if not target:
+        # The overview's own footer already points at `/vars <name>` — don't
+        # repeat it here.
+        return _module_list_text(state, catalog)
+
+    if not matches:
+        known = [lbl for _, lbl, _ in _instances_matching(state, None)]
+        avail = ", ".join(f"`{k}`" for k in known) if known else "_(nothing yet)_"
+        return (
+            f"I don't have anything called **{target}** in this project. "
+            f"Currently here: {avail}."
+        )
+
+    blocks: list[str] = []
+    for pat, label, inst in matches:
+        declared = _catalog_variables(catalog, pat)
+        short = pat.rsplit("/", 1)[-1]
+        rows: list[str] = [f"**{label}** · `{short}`", ""]
+        if not declared:
+            rows.append("_This pattern declares no tunable variables._")
+            blocks.append("\n".join(rows))
+            continue
+        for name, spec in declared.items():
+            spec = spec if isinstance(spec, dict) else {}
+            if name in inst:
+                value, source = inst[name], "you set this"
+            elif "default" in spec:
+                value, source = spec["default"], "default"
+            elif spec.get("required"):
+                value, source = None, "**required — not set**"
+            else:
+                value, source = None, "default"
+            rows.append(
+                f"- `{name}` — {_fmt_var_value(value)} _({source})_"
+            )
+        rows.append("")
+        rows.append(
+            f"_To change one, just say it — e.g. \"make {label} "
+            f"half-degree\" or \"set {label}'s map area\"._"
+        )
+        blocks.append("\n".join(rows))
+    return "\n\n".join(blocks)
 
 
 @dataclass
@@ -569,6 +717,11 @@ def _next_step_hint(state: dict, focus) -> str:
     Progress-aware and deterministic (control-flow guidance must not drift),
     plain text so it reads the same in console / app / API JSON. Returns "" when
     there's nothing sensible to ask.
+
+    PLAIN LANGUAGE ONLY — no slash commands. Every action reachable from here
+    is reachable by just saying it ("build it", "set GFS's map area", "add
+    HRDPS"), so the agent describes the action instead of teaching syntax. The
+    command list lives in ``/help``, which is where a user who wants it looks.
     """
     if focus is None:
         return ""
@@ -583,27 +736,26 @@ def _next_step_hint(state: dict, focus) -> str:
                     "'Liard uses raven' to add a model.")
         if imports and not slots.get("data_types"):
             return (f"Which weather variables should {imports[-1]} carry? "
-                    "(e.g. precipitation, temperature) — or /build to generate.")
+                    "(e.g. precipitation, temperature)")
         target = imports[-1] if imports else "the model"
-        return (f"Want to set {target}'s map area (/coordinates), add another "
-                "source, or /build to generate + validate?")
+        return (f"Want to set {target}'s map area, add another source, or "
+                f"build what you have so far?")
 
     if key == "display":
         # Display plots the grids the session already imported (shared read),
         # so guide: nothing to plot → which source → over what window → build.
         imports = [str(i) for i in (slots.get("imports") or [])]
         if not imports:
-            return ("Nothing to visualize yet — add a gridded source in the "
-                    "processing module first (e.g. 'add GFS'), then come back "
-                    "here to plot it.")
+            return ("Nothing to visualize yet — add a gridded source first "
+                    "(e.g. say 'add GFS'), then come back here to plot it.")
         if not slots.get("wants_visualization"):
             joined = ", ".join(imports)
             return (f"Which source's grids should I visualize — {joined}? "
                     "(name one, or say 'all of them')")
         if not slots.get("forecast_horizon_hours"):
             return ("Over what forecast window should the plots run? "
-                    "(e.g. '7 days') — or /build the display now.")
-        return "Display's set — /build it, or 'done' to assemble everything."
+                    "(e.g. '7 days') — or say you're ready to build.")
+        return "The display is set up — want me to build it?"
 
     if key == "locations":
         # The station list itself is a locations.csv input; the one variable
@@ -614,16 +766,16 @@ def _next_step_hint(state: dict, focus) -> str:
                     "locations.csv you drop in inputs/.")
         return ("Datum's set. Add your stations as inputs/locations.csv "
                 "(id, name, lat/lon, attributes) if you haven't yet — then "
-                "/build, or 'done' to assemble everything.")
+                "tell me when you'd like to build.")
 
     if getattr(focus, "supports", lambda _op: False)("set"):
         var = module_focus.next_unfilled_variable(state, focus)
         if var:
-            return f"What should {var} be? (or /build when this module is ready)"
-        return "Ready to /build this module?"
+            return f"What should {var} be?"
+        return "That's everything this module needs — want me to build it?"
 
     # View-only module (filters, topology, ...) — nothing to add/set here.
-    return "Ready to /build this module, or 'done' to assemble everything?"
+    return "This module is ready — want me to build it?"
 
 
 def module_edit_reply(note: str, state: dict) -> str:
@@ -691,17 +843,69 @@ def _module_progress(state: dict, focus, catalog) -> dict:
     else:
         ready = True  # view-only modules are always buildable
 
+    # CONFIGURED is not BUILT. ``done``/``todo`` describe slots the user has
+    # filled in; these describe what has actually been rendered + XSD-validated.
+    # Without them the reply can only ever talk about configuration, so it can't
+    # answer "what's already built?" — it would call a never-built module done.
+    built_phases = set(state.get("built_phases") or [])
+    built_instances = [
+        str(m).split("::")[-1] for m in (state.get("built_modules") or [])
+    ]
+    mod_phases = list(getattr(focus, "phases", ()) or ())
+    built_here = [p for p in mod_phases if p in built_phases]
+    unbuilt_here = [p for p in mod_phases if p not in built_phases]
+
     return {
         "done": done,
         "todo": todo,
         "ready": ready,
+        "built": built_here,
+        "unbuilt": unbuilt_here,
+        "built_instances": built_instances,
         "suggested_next": _next_step_hint(state, focus),
     }
 
 
+def agentic_guidance_enabled() -> bool:
+    """Whether the model may CHOOSE the next step instead of narrating ours.
+
+    Off by default: ``suggested_next`` is an instruction, so control-flow
+    guidance is deterministic and cannot drift. Set
+    ``FEWS_AGENT_AGENTIC_GUIDANCE=1`` to hand the model the full picture and let
+    it decide — more agentic, less predictable. Kept as a flag so the two can be
+    compared side by side on the same project.
+    """
+    import os
+    return (os.environ.get("FEWS_AGENT_AGENTIC_GUIDANCE") or "").strip().lower() in {
+        "1", "true", "yes", "on",
+    }
+
+
+def _history_text(history: list | None, limit: int = 6) -> str:
+    """The last few turns, oldest→newest, for the composer prompt.
+
+    Without this the model sees only a state snapshot and the latest message —
+    it has no memory of what it just said, which is why two different questions
+    in a row produced near-identical replies. Truncated per message so a long
+    build panel can't crowd out the conversation.
+    """
+    if not history:
+        return "(this is the first thing they've said)"
+    lines: list[str] = []
+    for entry in list(history)[-limit:]:
+        role = "User" if entry.get("role") == "user" else "You"
+        msg = " ".join(str(entry.get("message", "")).split())
+        if len(msg) > 300:
+            msg = msg[:300] + "…"
+        if msg:
+            lines.append(f"{role}: {msg}")
+    return "\n".join(lines) or "(this is the first thing they've said)"
+
+
 def compose_module_reply(
     state: dict, focus, changed_note: str, catalog, *, provider,
-    model: str = "qwen2.5:7b-instruct",
+    model: str = "qwen2.5:7b-instruct", help_mode: bool = False,
+    history: list | None = None,
 ) -> str:
     """LLM-composed guiding reply for a module-mode turn.
 
@@ -724,7 +928,18 @@ def compose_module_reply(
     from .providers.base import Message
 
     def _fallback() -> str:
-        return _next_step_hint(state, focus) or "Done — this module is ready to /build."
+        hint = _next_step_hint(state, focus) or "This module is ready to /build."
+        if help_mode:
+            # A question deserves an answer even with no LLM: say what this
+            # module does, then the concrete next step.
+            what = getattr(focus, "description", "") or getattr(focus, "label", "")
+            return (
+                f"You're in the {getattr(focus, 'label', 'current')} module — "
+                f"{what} You can add or change things in plain language "
+                f"(e.g. 'add HRDPS', 'remove temperature'), see what's here "
+                f"with /list, or /build to generate and validate. {hint}"
+            )
+        return hint
 
     if provider is None:
         return _fallback()
@@ -738,11 +953,29 @@ def compose_module_reply(
         "module_reply.user",
         module_label=label,
         module_job=job,
+        turn_kind=(
+            "question/help — the user asked something; NOTHING changed. "
+            "Answer and teach; do not report a non-edit."
+            if help_mode else
+            "edit — the engine applied the change below"
+        ),
         user_message=repr(state.get("_last_user_message", "")),
         changed=changed_note or "(nothing new)",
         done_text="; ".join(prog["done"]) or "(nothing yet)",
         todo_text="; ".join(prog["todo"]) or "(nothing left)",
         ready="yes" if prog["ready"] else "not yet",
+        built_text=(
+            ", ".join(prog["built"]) if prog["built"]
+            else "nothing built yet — everything here is still only configured"
+        ),
+        unbuilt_text=", ".join(prog["unbuilt"]) or "(nothing pending)",
+        history_text=_history_text(history),
+        guidance_mode=(
+            "a SUGGESTION — you may follow it or choose a better next step "
+            "yourself, using your judgement about what this user needs"
+            if agentic_guidance_enabled() else
+            "the step to guide toward — follow it"
+        ),
         suggested_next=prog["suggested_next"] or "(module is complete)",
     )
     try:
@@ -774,18 +1007,28 @@ def module_welcome(state: dict, module) -> str:
     )
 
 
-def module_list_reply(state: dict, catalog) -> str:
-    """The instance listing + the proactive 'Next:' nudge for the focused
-    module. Shared by every shell's ``/list`` handler and the prose-``list``
-    path, so the guidance is identical everywhere (and appears once)."""
-    text = _module_list_text(state, catalog)
+def module_vars_reply(state: dict, catalog, target: str | None = None) -> str:
+    """``/vars`` — what's in the project, or what you can tune on one instance,
+    plus the proactive next-step nudge.
+
+    ONE command for both questions: bare ``/vars`` answers "what's in my
+    project?" (the old ``/list``), ``/vars GFS`` answers "what can I change on
+    GFS?". ``list``/``show`` are aliases of the bare form, so there is no second
+    overlapping concept to learn."""
+    text = module_vars_text(state, catalog, target)
     hint = _next_step_hint(state, module_focus.get_focus(state))
     return text + (f"\n\n{hint}" if hint else "")
 
 
+def module_list_reply(state: dict, catalog) -> str:
+    """Back-compat alias for the bare ``/vars`` overview (the prose-``list``
+    path and older call sites still use this name)."""
+    return module_vars_reply(state, catalog, None)
+
+
 def run_module_turn(
     state: dict, message: str, catalog, focus, *, provider,
-    just_entered: bool = False,
+    just_entered: bool = False, history: list | None = None,
 ) -> ModuleTurnResult:
     """Module-mode prose turn — the ONE shared implementation all shells call.
 
@@ -824,7 +1067,8 @@ def run_module_turn(
                 state, op_from_dict(pending), catalog
             )
             guidance = compose_module_reply(
-                state, focus, changed, catalog, provider=provider
+                state, focus, changed, catalog, provider=provider,
+                history=history,
             )
             return ModuleTurnResult(
                 guidance, "module op: confirmed", kind="edit",
@@ -833,7 +1077,8 @@ def run_module_turn(
         # Unclear answer → drop the stale pending op, process this fresh.
         state["_pending_operation"] = None
 
-    op = extract_operation(message, focus_module=focus, provider=provider)
+    op = extract_operation(message, focus_module=focus, provider=provider,
+                           catalog=catalog)
 
     # build / list are DRIVER-executed (I/O differs per shell).
     if op.action == "build":
@@ -881,14 +1126,51 @@ def run_module_turn(
     # to the deterministic template inside compose_module_reply if the LLM is
     # unavailable. Catalog-dropped values stay LOUD — appended to the main
     # reply, never buried in the grey confirmation.
-    guidance = compose_module_reply(
-        state, focus, changed, catalog, provider=provider
+    # A turn that changed NOTHING is not an edit — it's a question ("help me
+    # out", "what is GFS?") or prose we couldn't act on. Showing "Noted —
+    # nothing new to change." as a grey what-changed fact is noise, and asking
+    # the model to acknowledge a non-existent edit produced the useless
+    # "Noted … / here's your state again" reply. Answer the user instead.
+    _is_noop = changed == _NOOP_NOTE
+
+    # A capability we HAVE but can't instantiate without values we'd be
+    # guessing at — derived from the pattern's own required variables, not a
+    # hand-maintained list.
+    _, _needs_input = split_addable_capabilities(
+        detect_capabilities(message, catalog), catalog,
     )
+
+    if _needs_input and _is_noop:
+        # We know EXACTLY what they asked for and exactly what it still needs,
+        # so answer deterministically. Letting the model improvise here made it
+        # invent instructions that don't apply ("say 'add archive import for
+        # GFS'") — a confidently wrong explanation over a correct fact.
+        lines = [
+            f"I can set up **{path.rsplit('/', 1)[-1]}**, but it needs "
+            f"{', '.join(needed)} first — tell me those and I'll add it."
+            for path, needed in _needs_input
+        ]
+        return ModuleTurnResult(
+            "\n\n".join(lines), f"module op: {op.action}", kind="edit",
+            action=op.action, new_patterns=new_patterns,
+        )
+
+    guidance = compose_module_reply(
+        state, focus, "" if _is_noop else changed, catalog, provider=provider,
+        help_mode=_is_noop, history=history,
+    )
+    if _is_noop:
+        changed = ""  # nothing changed → no grey confirmation
     if op.dropped:
         guidance += (
             "\n\n[!] Ignored (not in the catalog, so not applied): "
             + ", ".join(op.dropped)
             + ". Rephrase with a known name if you meant something valid."
+        )
+    for path, needed in _needs_input:
+        guidance += (
+            f"\n\n[!] I can set up `{path.rsplit('/', 1)[-1]}`, but it needs "
+            f"{', '.join(needed)} first — tell me those and I'll add it."
         )
     return ModuleTurnResult(
         guidance, f"module op: {op.action}", kind="edit", action=op.action,

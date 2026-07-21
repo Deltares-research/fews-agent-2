@@ -9,6 +9,7 @@ description: >-
   ratingCurves are folder-only; historicalEvents reads `<archive_root>`
   directly via idMapId. Emits the ImportArchiveModule config + the
   From_Archive_<Name> workflow that runs it.
+keywords: [archive import, open archive import, from the archive, read the archive]
 variables:
   # Archive import name → filenames + moduleInstanceId (FromArchive<Name>).
   name:

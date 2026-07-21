@@ -16,6 +16,7 @@ description: >-
   (ModuleDataSetFiles/<...>) and the .cdsapirc credential (see
   howto_install_python.md). Note: the source's <importUnitConversionsId> and
   the purge <description>s are omitted (not modelled by the schema).
+keywords: [cds api, copernicus download, python venv download, external download script]
 variables:
   # Data source name → module id Download<Source>, rootDir, default venv/idMap.
   source_name:

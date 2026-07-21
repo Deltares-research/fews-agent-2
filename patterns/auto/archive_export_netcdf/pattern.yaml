@@ -13,6 +13,7 @@ description: >-
   scalar observed export (exportObserved, e.g. GHCND station precip with
   ncMetaData / flags / thresholds). Emits the ExportArchiveModule config plus
   the To_Archive_<Name> workflow that runs it.
+keywords: [archive export, export to archive, open archive export, netcdf export]
 variables:
   # Archive export name → filenames + moduleInstanceId (ToArchive<Name>).
   name:
