@@ -226,13 +226,9 @@ with st.sidebar:
         if st.button("Refresh models"):
             st.rerun()
     else:
-        # Cloud provider — the "model" is a deployment name owned by
-        # the AZURE_OPENAI_DEPLOYMENT env var. Show it read-only.
-        _deployment = (
-            _os.environ.get("AZURE_OPENAI_DEPLOYMENT")
-            or _os.environ.get("FEWS_AGENT_MODEL")
-            or "gpt-4o-mini"
-        )
+        # Cloud provider — the model / deployment is owned by
+        # FEWS_AGENT_MODEL (the single source of truth). Show it read-only.
+        _deployment = _os.environ.get("FEWS_AGENT_MODEL") or "gpt-4o-mini"
         st.selectbox(
             f"Model (provider: {_provider_env})",
             options=[_deployment],
@@ -680,8 +676,29 @@ if _done_stash and _done_stash.get("chat_key") == st.session_state.get("_chat_ke
         # doesn't change on every rerun — streamlit treats the new
         # ``data`` as a different payload otherwise and the download
         # offer can flicker.
-        _out_root_path = Path(_vs.get("output_root", ""))
-        if _out_root_path.is_dir():
+        # SAFETY: never fall back to a relative/empty path. ``Path("")`` is
+        # ``Path(".")`` — the Streamlit process CWD, i.e. the whole repo — so a
+        # summary without ``output_root`` (scoped phase/module builds used to
+        # omit it) would zip the entire codebase INCLUDING .env. Require an
+        # absolute path that is a real directory and is not an ancestor of the
+        # repo/CWD before offering any download.
+        _raw_out_root = str(_vs.get("output_root") or "").strip()
+        _out_root_path = Path(_raw_out_root) if _raw_out_root else None
+        if _out_root_path is not None:
+            _cwd = Path.cwd().resolve()
+            _resolved = _out_root_path.resolve()
+            if (
+                not _out_root_path.is_absolute()
+                or not _resolved.is_dir()
+                or _resolved == _cwd
+                or _resolved in _cwd.parents
+            ):
+                st.warning(
+                    "Download unavailable: the build did not report a valid "
+                    "output directory, so there is nothing safe to bundle."
+                )
+                _out_root_path = None
+        if _out_root_path is not None:
             import io as _io
             import zipfile as _zip
             _buf = _io.BytesIO()

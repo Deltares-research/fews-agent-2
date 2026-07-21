@@ -5,9 +5,8 @@ runners) can change provider without code edits:
 
     FEWS_AGENT_PROVIDER = ollama | azure | anthropic | litellm | hf
                          | openai | gemini
-    FEWS_AGENT_MODEL    = provider-specific model id (or Azure
-                          deployment name when provider=azure; can also
-                          be set via AZURE_OPENAI_DEPLOYMENT)
+    FEWS_AGENT_MODEL    = provider-specific model id (or the Azure
+                          deployment name when provider=azure)
 
 Defaults: ollama + qwen2.5:7b-instruct. ``azure`` is the cloud path
 used by the deployed web app — see ``azure_openai_provider.py`` for

@@ -99,7 +99,7 @@ services:
 #           --env-vars \
 #               FEWS_AGENT_PROVIDER=AZURE \
 #               AZURE_OPENAI_ENDPOINT=$AZURE_OPENAI_ENDPOINT \
-#               AZURE_OPENAI_DEPLOYMENT=$AZURE_OPENAI_DEPLOYMENT \
+#               FEWS_AGENT_MODEL=$AZURE_DEPLOYMENT_NAME \
 #               AZURE_OPENAI_API_VERSION=2024-10-21 \
 #               AZURE_OPENAI_API_KEY=secretref:azure-openai-key
 #

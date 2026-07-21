@@ -102,7 +102,7 @@ ENV STREAMLIT_SERVER_HEADLESS=true \
 #     FEWS_AGENT_PROVIDER=AZURE
 #     AZURE_OPENAI_ENDPOINT=https://<resource>.openai.azure.com
 #     AZURE_OPENAI_API_KEY=<resource-key>
-#     AZURE_OPENAI_DEPLOYMENT=<deployment-name>
+#     FEWS_AGENT_MODEL=<deployment-name>
 #
 # Real process env wins over .env, so the image needs no rebuild to
 # switch providers — set them in Azure Container Apps / App Service

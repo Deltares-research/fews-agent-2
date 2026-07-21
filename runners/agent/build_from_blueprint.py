@@ -1758,6 +1758,9 @@ def build_phase(
     return {
         "ok": ok,
         "phase": phase,
+        # Consumers (the app's download bundle) MUST get a real absolute path;
+        # omitting it made them fall back to Path("") == the CWD/repo root.
+        "output_root": str(output_root),
         "files_total": len(manifest["written"]),
         "files_xml": n_xml,
         "files_xsd_ok": n_xsd_ok,
@@ -1901,6 +1904,8 @@ def build_module(
         "ok": ok,
         "module": pattern,
         "instance_match": instance_match,
+        # See build_phase: consumers must never have to guess this path.
+        "output_root": str(output_root),
         "files_total": len(manifest["written"]),
         "files_xml": n_xml,
         "files_xsd_ok": n_xsd_ok,

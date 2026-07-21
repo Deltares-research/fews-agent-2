@@ -51,7 +51,12 @@ def test_single_half_import_auto_focuses_and_resolves(session):
     assert res.kind == "edit"
     assert session.state["current_module"] == "processing"
     assert "auto/nwp_grid_noaa" in _pattern_paths(session.state)
-    assert "?" not in res.agent_message.split("\n")[0]  # confirmation, not a gate
+    # The applied fact rides in the grey confirmation; a guiding follow-up
+    # question in the reply is fine — what must NOT appear is the old
+    # "imports only vs full project?" disambiguation gate.
+    assert "GFS" in res.confirmation
+    reply_low = res.agent_message.lower()
+    assert "imports only" not in reply_low and "full project" not in reply_low
 
 
 def test_intent_is_derived_not_asked(session):

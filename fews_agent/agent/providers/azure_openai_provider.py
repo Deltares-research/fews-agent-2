@@ -14,11 +14,12 @@ beyond what's listed — fail loudly if they're missing):
   AZURE_OPENAI_ENDPOINT     https://<resource>.openai.azure.com
   AZURE_OPENAI_API_KEY      the resource key
   AZURE_OPENAI_API_VERSION  defaults to "2024-10-21"
-  AZURE_OPENAI_DEPLOYMENT   deployment name (Azure's "model" field).
-                            Overrides the ``model`` ctor arg when set —
-                            Azure deployments are usually named per
-                            environment (e.g. "gpt-4o-mini-prod"),
-                            not after the underlying model id.
+
+The deployment name (Azure's "model" field) is the ``model`` ctor arg,
+which the factory fills from FEWS_AGENT_MODEL — the single source of
+truth for which model/deployment to call. (Azure deployments are usually
+named per environment, e.g. "gpt-4o-mini-prod", so set FEWS_AGENT_MODEL
+to the deployment name, not the underlying model id.)
 
 Why a separate provider rather than reusing OpenAIProvider: Azure's
 client wants ``azure_endpoint`` + ``api_version`` and uses deployment
@@ -70,7 +71,6 @@ class AzureOpenAIProvider:
         endpoint = os.environ.get("AZURE_OPENAI_ENDPOINT")
         api_key = os.environ.get("AZURE_OPENAI_API_KEY")
         api_version = os.environ.get("AZURE_OPENAI_API_VERSION") or _DEFAULT_API_VERSION
-        deployment = os.environ.get("AZURE_OPENAI_DEPLOYMENT")
 
         if not endpoint:
             raise RuntimeError(
@@ -83,9 +83,9 @@ class AzureOpenAIProvider:
                 "Add the resource key to your environment."
             )
 
-        # Deployment name wins over the model arg, since Azure treats
-        # the ``model`` request field as a deployment id, not a model id.
-        self.model = deployment or model
+        # Azure treats the ``model`` request field as a deployment id, so
+        # ``model`` (from FEWS_AGENT_MODEL) IS the deployment name.
+        self.model = model
         self._client = AzureOpenAI(
             azure_endpoint=endpoint,
             api_key=api_key,
