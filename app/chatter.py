@@ -67,6 +67,7 @@ from fews_agent.agent.turn_engine import (
     run_turn_pipeline,
 )
 from fews_agent.agent import module_focus
+from fews_agent.agent.llm_turn import run_llm_turn
 from fews_agent.agent.modules import module_for_pattern
 from fews_agent.agent.project_chat import set_grid_geometry
 
@@ -516,6 +517,12 @@ class ChatSession:
                 inputs_dir=inputs_dir if inputs_dir.is_dir() else None,
                 console=silent_console,
             )
+            if isinstance(summary, dict):
+                # Grounds the next llm turn (build_digest) + turns the
+                # deriver modules green in the sidebar when assembly is ok.
+                self.state["last_build_summary"] = summary
+                if summary.get("ok"):
+                    self.state["full_build_ok"] = True
             return summary, None
         except Exception as exc:  # noqa: BLE001
             self._logger.exception("build_from_blueprint crashed: %s", exc)
@@ -539,7 +546,12 @@ class ChatSession:
 
         try:
             console = Console(file=io.StringIO(), force_terminal=False)
-            return fn(console), None
+            summary = fn(console)
+            # Ground the NEXT llm turn: the model reads this via build_digest
+            # so "why did that file fail?" gets an answered, not a guess.
+            if isinstance(summary, dict):
+                self.state["last_build_summary"] = summary
+            return summary, None
         except Exception as exc:  # noqa: BLE001
             self._logger.exception("partial build crashed: %s", exc)
             tail = "\n".join(traceback.format_exc().splitlines()[-12:])
@@ -766,6 +778,51 @@ class ChatSession:
             turn, res.reply, res.note, kind=res.kind,
             new_patterns=res.new_patterns, confirmation=res.confirmation,
         )
+
+    def module_statuses(self) -> list[dict]:
+        """Per-FEWS-module status for the sidebar navigator, in registry order.
+
+        Each entry: ``{"key", "label", "built", "focused"}``. ``built`` (the
+        green light) means the module's XMLs actually exist: for modules that
+        own capability phases (processing, display) — every phase of theirs
+        with resolved content is in ``built_phases`` (and there IS content);
+        for the deriver/view modules (locations, filters, topology, ...) —
+        their files only exist after final assembly, so green requires
+        ``full_build_ok``. Grey = not worked/built yet.
+        """
+        from fews_agent.agent.modules import list_modules
+
+        self._resolve_patterns()
+        plan = phase_plan(self.state.get("patterns") or [])
+        built_phases = set(self.state.get("built_phases") or [])
+        full_ok = bool(self.state.get("full_build_ok"))
+        focused = self.state.get("current_module")
+
+        # phase → has resolved content, per the same mapping the scoped
+        # build uses (module_for_pattern on the phase's patterns).
+        module_phases: dict[str, list[tuple[str, bool]]] = {}
+        for entry in plan:
+            pats = entry.get("patterns") or []
+            if not pats:
+                continue
+            mod_key = module_for_pattern(pats[0]["pattern"])
+            module_phases.setdefault(mod_key, []).append(
+                (entry["phase"], entry["phase"] in built_phases)
+            )
+
+        out: list[dict] = []
+        for m in list_modules():
+            short = m.label.split(" (")[0].strip() or m.key
+            if m.phases:
+                phases_here = module_phases.get(m.key) or []
+                built = bool(phases_here) and all(ok for _, ok in phases_here)
+            else:
+                built = full_ok
+            out.append({
+                "key": m.key, "label": short,
+                "built": built, "focused": m.key == focused,
+            })
+        return out
 
     # ---- grid coordinates subwindow -----------------------------------------
 
@@ -1484,49 +1541,52 @@ class ChatSession:
         # app's repeat-turn missing-input snooze (a CLI-absent behaviour).
         provider = get_provider(model=self.model)
 
-        # Free-language route to the coordinates subwindow ("set GFS's map
-        # area"). Runs before the module pipeline because it's a UI action, not
-        # a slot edit — and it's what lets the agent say "want to set its map
-        # area?" in plain English instead of "/coordinates". Deterministic.
-        if detect_coordinates_request(message):
-            _named = ""
-            for _g in self._nwp_grid_imports():
-                if _g["name"].lower() in message.lower():
-                    _named = _g["name"]
-                    break
-            return self._open_coordinates(turn, _named)
+        # LLM-first turn: ONE model call — Python assembles the grounding
+        # context (state, catalog, gap, inputs, last build, history), the
+        # model returns a reply + a slot PATCH, patch_ops validates + applies.
+        # No intent classification, no module gating, no detector pre-pass —
+        # the module in focus rides along as ADVISORY context only.
+        res = run_llm_turn(
+            self.state, message, self.catalog, provider=provider,
+            history=self.history, inputs_dir=self.session_dir / "inputs",
+        )
+        self._logger.info("llm_turn turn=%d note=%s", turn, res.note)
 
-        # Pure module-mode: the app builds one FEWS-folder module at a time —
-        # there is NO whole-project intent flow ("build a forecasting project"
-        # etc.). Un-focused prose either enters a module (cold entry),
-        # auto-focuses `processing` for a clear catalog op ("add GFS"), or asks
-        # which module to work on.
-        _focus = module_focus.get_focus(self.state)
-        _just_entered = False
-        if _focus is None:
-            _entry = module_focus.detect_module_entry(message)
-            if not _entry:
-                from fews_agent.agent.extractor import deterministic_module_op
-                _op = deterministic_module_op(message, None, self.catalog)
-                if _op is not None and _op.fields:
-                    # imports / basins / weather variables all live in processing
-                    _entry = "processing"
-            if _entry:
-                module_focus.set_focus(self.state, _entry)
-                _focus = module_focus.get_focus(self.state)
-                _just_entered = True
-        if _focus is not None:
-            return self._run_module_operation(
-                _focus, message, turn, provider, just_entered=_just_entered,
+        # Signals → the existing deterministic machinery.
+        if res.coordinates_for is not None:
+            # Record the model's reply first so the modal has conversational
+            # context above it, then open the subwindow.
+            self.history.append({"role": "agent", "message": res.reply})
+            self._append_md(turn, "agent", res.reply, note=res.note)
+            self._save()
+            return self._open_coordinates(turn, res.coordinates_for)
+        if res.wants_assemble:
+            self._reply(turn, res.reply, res.note, kind=res.kind,
+                        confirmation=res.confirmation)
+            return self.send("/done")
+        if res.wants_build:
+            self._reply(turn, res.reply, res.note, kind=res.kind,
+                        confirmation=res.confirmation)
+            focus = module_focus.get_focus(self.state)
+            if res.build_scope:
+                normalized = normalize_phase(res.build_scope)
+                if normalized:
+                    return self._app_phase_build(normalized, turn)
+            if focus is not None:
+                return self._app_module_scope_build(focus, turn)
+            self._resolve_patterns()
+            nxt = next_unbuilt_phase(
+                self.state.get("patterns") or [],
+                self.state.get("built_phases") or [],
+            )
+            if nxt:
+                return self._app_phase_build(nxt, turn)
+            return self._build_note(
+                turn, "Everything configured is already built — say "
+                "you're done to assemble the full project.",
             )
 
-        # Nothing focused and nothing to act on → guide into a module.
-        return self._reply(turn, self._module_pick_prompt(), "module: pick")
-
-    def _module_pick_prompt(self) -> str:
-        """Ask which module to work on (pure module-mode has no intent flow)."""
-        return (
-            "Which part of the config would you like to work on? Say e.g. "
-            "**'the imports module'**, **'configure locations'**, or just tell "
-            "me what to add — **'add a GFS import'**, **'Liard uses raven'**."
+        return self._reply(
+            turn, res.reply, res.note, kind=res.kind,
+            new_patterns=res.new_patterns, confirmation=res.confirmation,
         )

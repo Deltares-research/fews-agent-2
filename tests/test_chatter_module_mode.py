@@ -37,6 +37,31 @@ class _Provider:
         return _Resp(self._payload)
 
 
+class _LLMScript:
+    """Scripted {reply, patch} payloads for the LLM-first turn, in order."""
+
+    def __init__(self, *payloads):
+        self.payloads = list(payloads)
+
+    def generate_json(self, system, user, schema):
+        if not self.payloads:
+            raise AssertionError("LLM called more times than scripted")
+        return _Resp(self.payloads.pop(0))
+
+
+def _llm_session(tmp_path, monkeypatch, *payloads):
+    """A ChatSession whose prose turns run the LLM-first patch loop with the
+    given scripted responses (slash commands never consume one). ONE shared
+    script instance — get_provider is called per turn, so the queue must
+    persist across calls."""
+    script = _LLMScript(*payloads)
+    monkeypatch.setattr(chatter, "check_ollama_for_model", lambda *a, **k: None)
+    monkeypatch.setattr(chatter, "get_provider", lambda *a, **k: script)
+    return chatter.ChatSession(
+        project_name="modmode", session_dir=tmp_path, username="tester",
+    )
+
+
 def _session(tmp_path, monkeypatch, payload):
     monkeypatch.setattr(chatter, "check_ollama_for_model", lambda *a, **k: None)
     monkeypatch.setattr(
@@ -89,32 +114,30 @@ def test_module_unknown_token_does_not_change_focus(tmp_path, monkeypatch):
 
 # --- prose-operation path (extractor) -------------------------------------
 
-def test_reply_guides_with_a_next_step(tmp_path, monkeypatch):
-    # After adding an import, the agent proactively suggests what to do next
-    # (choose variables / coordinates / build) instead of only confirming.
-    s = _session(tmp_path, monkeypatch, {
-        "action": "add", "fields": {"imports": ["GFS"]},
+def test_prose_add_applies_patch_and_reply_passes_through(tmp_path, monkeypatch):
+    # LLM-first: the model's reply IS the reply (with its own follow-up
+    # question), and its patch is what gets applied. The grey channel carries
+    # the applied facts.
+    s = _llm_session(tmp_path, monkeypatch, {
+        "reply": "Added GFS. Which weather variables should it carry?",
+        "patch": [{"op": "add_import", "name": "GFS"}],
     })
-    s.send("/module processing")
     res = s.send("add a GFS import")
-    # After adding an import it ASKS the one focused next question (weather
-    # variables), rather than dumping the full list + a command menu.
-    assert "weather variables" in res.agent_message.lower()
-    assert "GFS" in res.agent_message
-    assert "Modules in this project" not in res.agent_message   # no pile-dump
-    # /list is where the full listing lives (and it still guides).
-    listing = s.send("/list").agent_message
-    assert "Modules in this project" in listing
-    # The /add slash command (deterministic edit path) also asks a question.
-    assert "?" in s.send("/add HRDPS").agent_message
+    assert res.kind == "edit"
+    assert s.state["slots"]["imports"] == ["GFS"]
+    assert "Which weather variables" in res.agent_message   # model's voice
+    assert "GFS" in res.confirmation                        # grey channel
+    assert "auto/nwp_grid_noaa" in {p["pattern"] for p in s.state["patterns"]}
+    # /vars (deterministic, no LLM payload consumed) still lists the project.
+    assert "Modules in this project" in s.send("/vars").agent_message
 
 
-def test_deterministic_prose_add_needs_no_llm(tmp_path, monkeypatch):
-    # "add GFS and HRDPS" is known structure (verb + catalog entities) → parsed
-    # deterministically; the provider (which would blow up) is never called.
+def test_slash_commands_never_call_the_llm(tmp_path, monkeypatch):
+    # The deterministic bypass lives in the SLASH commands now: with a
+    # provider that explodes, /module, /add, /vars all still work.
     class _Boom:
         def generate_json(self, *a, **k):
-            raise AssertionError("LLM extractor should not be called")
+            raise AssertionError("slash commands must not call the LLM")
 
     monkeypatch.setattr(chatter, "check_ollama_for_model", lambda *a, **k: None)
     monkeypatch.setattr(chatter, "get_provider", lambda *a, **k: _Boom())
@@ -122,50 +145,39 @@ def test_deterministic_prose_add_needs_no_llm(tmp_path, monkeypatch):
         project_name="det", session_dir=tmp_path, username="t",
     )
     s.send("/module processing")
-    res = s.send("add GFS and HRDPS")
+    res = s.send("/add GFS")
     assert res.kind == "edit"
-    assert set(s.state["slots"]["imports"]) == {"GFS", "HRDPS"}
-    assert "auto/nwp_grid_noaa" in {p["pattern"] for p in s.state["patterns"]}
+    assert "GFS" in s.state["slots"]["imports"]
+    assert "Modules in this project" in s.send("/vars").agent_message
 
 
-def test_prose_sets_weather_variables_no_llm(tmp_path, monkeypatch):
-    # "we will use precipitation" is known structure too → deterministic; the
-    # provider is never called. This is the gap the /coordinates-era testing
-    # surfaced: the hint says to set variables, so prose must set them.
-    class _Boom:
-        def generate_json(self, *a, **k):
-            raise AssertionError("LLM extractor should not be called")
-
-    monkeypatch.setattr(chatter, "check_ollama_for_model", lambda *a, **k: None)
-    monkeypatch.setattr(chatter, "get_provider", lambda *a, **k: _Boom())
-    s = chatter.ChatSession(
-        project_name="dt", session_dir=tmp_path, username="t",
-    )
-    s.send("/module processing")
-    s.send("add GFS")
-    res = s.send("we will use precipitation and temperature")
-    assert res.kind == "edit"
-    assert set(s.state["slots"]["data_types"]) == {"precipitation", "temperature"}
-
-
-def test_prose_add_via_llm_drops_hallucination(tmp_path, monkeypatch):
-    # A FUZZY phrase (no literal catalog token) bypasses the deterministic
-    # pre-pass and reaches the LLM parser, whose output is catalog-validated:
-    # a hallucinated import is dropped and surfaced loudly.
-    s = _session(tmp_path, monkeypatch, {
-        "action": "add",
-        "fields": {"imports": ["GFS", "NOTREAL"],
-                   "data_types": ["precipitation"]},
+def test_prose_compound_patch_in_one_turn(tmp_path, monkeypatch):
+    # The single-call payoff at the app level: one message, several ops.
+    s = _llm_session(tmp_path, monkeypatch, {
+        "reply": "Added GFS with precipitation and temperature.",
+        "patch": [{"op": "add_import", "name": "GFS",
+                   "data_types": ["precipitation", "temperature"]}],
     })
-    s.send("/module processing")
-    res = s.send("pull in the usual american forecast source")
+    res = s.send("add GFS with precip and temperature")
+    assert res.kind == "edit"
+    assert set(s.state["slots"]["data_types"]) == {
+        "precipitation", "temperature",
+    }
+
+
+def test_prose_hallucinated_import_dropped_loudly(tmp_path, monkeypatch):
+    # The trust boundary holds at the app level: a patch op naming something
+    # outside the catalog is dropped and surfaced, valid ops still apply.
+    s = _llm_session(tmp_path, monkeypatch, {
+        "reply": "Added GFS and NOTREAL.",
+        "patch": [{"op": "add_import", "name": "GFS"},
+                  {"op": "add_import", "name": "NOTREAL"}],
+    })
+    res = s.send("pull in the usual sources")
     assert res.kind == "edit"
     assert s.state["slots"]["imports"] == ["GFS"]        # NOTREAL dropped
-    assert s.state["slots"]["data_types"] == ["precipitation"]
     assert "NOTREAL" in res.agent_message                # surfaced loudly
-    assert "auto/nwp_grid_noaa" in {
-        p["pattern"] for p in s.state["patterns"]
-    }
+    assert "Not applied" in res.agent_message
 
 
 # --- grid coordinates subwindow (/coordinates) -----------------------------
@@ -181,12 +193,18 @@ def test_coordinates_with_no_grids_is_a_plain_reply(tmp_path, monkeypatch):
     assert "/add" not in res.agent_message
 
 
-def test_coordinates_opens_subwindow_for_resolved_grids(tmp_path, monkeypatch):
-    s = _session(tmp_path, monkeypatch, {
-        "action": "add", "fields": {"imports": ["GFS"]},
+def _gfs_added(tmp_path, monkeypatch):
+    """A session with GFS added via one scripted LLM turn."""
+    s = _llm_session(tmp_path, monkeypatch, {
+        "reply": "Added GFS.",
+        "patch": [{"op": "add_import", "name": "GFS"}],
     })
-    s.send("/module processing")
     s.send("add a GFS import")
+    return s
+
+
+def test_coordinates_opens_subwindow_for_resolved_grids(tmp_path, monkeypatch):
+    s = _gfs_added(tmp_path, monkeypatch)
     res = s.send("/coordinates")
     # kind="coordinates" signals the web app to open the modal; the payload
     # carries the eligible NWP grids (geometry None until set).
@@ -196,12 +214,23 @@ def test_coordinates_opens_subwindow_for_resolved_grids(tmp_path, monkeypatch):
     assert all(g["geometry"] is None for g in res.coordinates_request)
 
 
+def test_coordinates_via_llm_signal(tmp_path, monkeypatch):
+    # Prose route in the LLM-first world: the model emits open_coordinates.
+    s = _llm_session(
+        tmp_path, monkeypatch,
+        {"reply": "Added GFS.",
+         "patch": [{"op": "add_import", "name": "GFS"}]},
+        {"reply": "Opening the map for GFS.",
+         "patch": [{"op": "open_coordinates", "name": "GFS"}]},
+    )
+    s.send("add GFS")
+    res = s.send("i want to set the map area")
+    assert res.kind == "coordinates"
+    assert {g["name"] for g in res.coordinates_request} == {"GFS"}
+
+
 def test_coordinates_payload_carries_effective_cell_size(tmp_path, monkeypatch):
-    s = _session(tmp_path, monkeypatch, {
-        "action": "add", "fields": {"imports": ["GFS"]},
-    })
-    s.send("/module processing")
-    s.send("add a GFS import")
+    s = _gfs_added(tmp_path, monkeypatch)
     res = s.send("/coordinates")
     gfs = next(g for g in res.coordinates_request if g["name"] == "GFS")
     # Effective cell size drives the live map box; GFS's bundled default is 0.25.
@@ -215,11 +244,7 @@ def test_coordinates_payload_carries_effective_cell_size(tmp_path, monkeypatch):
 
 
 def test_apply_grid_geometry_sets_scoped_override_and_reflows(tmp_path, monkeypatch):
-    s = _session(tmp_path, monkeypatch, {
-        "action": "add", "fields": {"imports": ["GFS"]},
-    })
-    s.send("/module processing")
-    s.send("add a GFS import")
+    s = _gfs_added(tmp_path, monkeypatch)
     res = s.apply_grid_geometry(
         "GFS", first_x=-11.75, first_y=8.75, columns=48, rows=30,
     )
@@ -239,42 +264,33 @@ def test_apply_grid_geometry_sets_scoped_override_and_reflows(tmp_path, monkeypa
     assert gfs["geometry"] == geom
 
 
-def test_low_confidence_add_asks_before_applying(tmp_path, monkeypatch):
-    s = _session(tmp_path, monkeypatch, {
-        "action": "add", "fields": {"imports": ["GFS"]}, "confidence": 0.3,
-    })
-    s.send("/module processing")
-    # Fuzzy phrase (no literal catalog token) → deterministic pass defers, the
-    # LLM parser's low confidence triggers the confirm gate.
+def test_uncertain_model_asks_instead_of_applying(tmp_path, monkeypatch):
+    # The confidence gate's successor: when the model is unsure, it asks its
+    # own question with an EMPTY patch — a clean reply turn, nothing applied,
+    # no pending-op machinery. Confirming is then just the next turn's patch.
+    s = _llm_session(
+        tmp_path, monkeypatch,
+        {"reply": "Did you mean the NOAA GFS global forecast?", "patch": []},
+        {"reply": "Added GFS.",
+         "patch": [{"op": "add_import", "name": "GFS"}]},
+    )
     res = s.send("hmm, maybe that global weather source?")
-    assert "confirm" in res.agent_message.lower()
-    assert s.state.get("_pending_operation") is not None
-    assert not s.state["slots"].get("imports")     # NOT applied yet
-    # confirming applies it (the 'yes' is intercepted before re-extraction)
-    s.send("yes")
+    assert res.kind == "reply"
+    assert not s.state["slots"].get("imports")     # NOT applied
+    assert res.confirmation == ""                  # no grey fact
+    s.send("yes, that one")
     assert s.state["slots"]["imports"] == ["GFS"]
-    assert s.state.get("_pending_operation") is None
 
 
-def test_low_confidence_add_can_be_declined(tmp_path, monkeypatch):
-    s = _session(tmp_path, monkeypatch, {
-        "action": "add", "fields": {"imports": ["GFS"]}, "confidence": 0.2,
+def test_prose_without_focus_still_applies(tmp_path, monkeypatch):
+    # No module focus needed: prose goes straight to the LLM-first turn and
+    # the patch applies — there is no whole-project intent pipeline and no
+    # cold-entry routing to satisfy first.
+    s = _llm_session(tmp_path, monkeypatch, {
+        "reply": "Added GFS.",
+        "patch": [{"op": "add_import", "name": "GFS"}],
     })
-    s.send("/module processing")
-    s.send("uh, gfs?")
-    res = s.send("no")
-    assert "cancel" in res.agent_message.lower()
-    assert not s.state["slots"].get("imports")
-    assert s.state.get("_pending_operation") is None
-
-
-def test_prose_without_focus_is_pure_module_mode(tmp_path, monkeypatch):
-    # Pure module-mode: with no module in focus, a clear catalog request
-    # auto-focuses `processing` and applies — it does NOT run a whole-project
-    # intent pipeline. (The LLM stub would raise if reached.)
-    s = _session(tmp_path, monkeypatch, {})
     assert s.state.get("current_module") is None
     res = s.send("set up an import project with GFS")
     assert res.kind == "edit"
-    assert s.state["current_module"] == "processing"
     assert s.state["slots"]["imports"] == ["GFS"]

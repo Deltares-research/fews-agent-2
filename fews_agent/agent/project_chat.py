@@ -16,7 +16,7 @@ and the deterministic engine that consumes the project.yaml.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field as dataclasses_field
 from pathlib import Path
 from typing import Any
 
@@ -39,6 +39,9 @@ class PatternSummary:
     description: str
     keywords: list[str]
     variables: dict[str, dict[str, Any]]  # var_name → {type, default, ...}
+    # Declared output file paths (Jinja placeholders left literal) — lets the
+    # agent tell the user concretely what adding this pattern will generate.
+    outputs: list[str] = dataclasses_field(default_factory=list)
 
 
 def build_pattern_catalog(patterns_root: Path) -> list[PatternSummary]:
@@ -66,12 +69,18 @@ def build_pattern_catalog(patterns_root: Path) -> list[PatternSummary]:
             continue
         if not isinstance(data, dict):
             continue
+        outputs = [
+            str(o.get("output", "")).strip()
+            for o in (data.get("outputs") or [])
+            if isinstance(o, dict) and o.get("output")
+        ]
         out.append(PatternSummary(
             path=rel,
             name=data.get("name", rel),
             description=data.get("description", "").strip(),
             keywords=data.get("keywords", []),
             variables=data.get("variables", {}),
+            outputs=outputs,
         ))
     return out
 

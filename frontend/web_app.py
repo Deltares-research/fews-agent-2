@@ -161,120 +161,43 @@ _project = st.session_state["_project"]
 
 with st.sidebar:
     # Two slots reserved at the very top — the /done button + the
-    # inputs uploader. Both depend on state that isn't computed yet
-    # (chat session, readiness, intent), so we fill them with
-    # ``slot.container()`` further down once those values exist.
-    # Defining empty slots here pins their visual order to the top
-    # of the sidebar.
+    # inputs uploader (filled via ``slot.container()`` once the chat
+    # session exists). Below them: the FEWS module navigator (filled
+    # late too — it needs the session). Everything else the sidebar
+    # used to carry (project header, model selector, command tips,
+    # reset button, files footer) is gone: prose + /help cover it.
     _done_slot = st.empty()
     _inputs_slot = st.empty()
     st.markdown("---")
-
-    st.header("Project")
-    st.markdown(f"**{_project['name']}**")
-    st.caption(f"`{Path(_project['session_dir']).name}`")
-    if st.button("Switch project", use_container_width=True):
-        for _k in ("_project", "chat", "_chat_key", "_last_done",
-                   "_coords_request"):
-            st.session_state.pop(_k, None)
-        st.rerun()
+    _modules_slot = st.empty()
 
     project_name = _project["name"]
     username = getpass.getuser() or "user"  # attribution in the session log
-    st.markdown("---")
 
-    # Provider selection is env-driven (FEWS_AGENT_PROVIDER). For
-    # Ollama we list locally-installed models so the user can pick;
-    # for Azure (and other cloud providers) the "model" is a deployment
-    # name owned by the env vars — we surface it read-only and skip
-    # the Ollama-specific selector entirely.
+    # Model resolution is env-driven and silent — no selector UI.
     import os as _os
     _provider_env = (_os.environ.get("FEWS_AGENT_PROVIDER") or "ollama").lower().strip()
     if _provider_env in {"azure_openai", "azure-openai", "azureopenai"}:
         _provider_env = "azure"
 
     if _provider_env == "ollama":
-        # Populated from `ollama list`. If Ollama is down or has no
-        # models, ``available_models`` is empty and we fall back to a
-        # disabled selectbox + a prominent error in the main panel.
         available_models = list_ollama_models()
-        if available_models:
-            # Default selection: the project was tuned against
-            # ``qwen2.5:7b-instruct`` (strong tool-calling JSON, ~7B
-            # params), so prefer it. Fall back to other small/known
-            # models in order of expected quality. Honour the user's
-            # last pick this session.
-            prev = st.session_state.get("_last_model")
-            if prev in available_models:
-                default_idx = available_models.index(prev)
-            else:
-                _preferred = ("qwen2.5:7b-instruct",
-                              "phi3.5:latest", "phi3.5", "phi3")
-                default_idx = next(
-                    (available_models.index(m) for m in _preferred
-                     if m in available_models),
-                    0,
-                )
-            model = st.selectbox(
-                "Model", options=available_models, index=default_idx,
-            )
-            st.session_state["_last_model"] = model
-        else:
-            model = ""
-            st.selectbox("Model", options=["(no models found)"], disabled=True)
-
-        if st.button("Refresh models"):
-            st.rerun()
-    else:
-        # Cloud provider — the model / deployment is owned by
-        # FEWS_AGENT_MODEL (the single source of truth). Show it read-only.
-        _deployment = _os.environ.get("FEWS_AGENT_MODEL") or "gpt-4o-mini"
-        st.selectbox(
-            f"Model (provider: {_provider_env})",
-            options=[_deployment],
-            disabled=True,
+        _preferred = ("qwen2.5:7b-instruct", "phi3.5:latest", "phi3.5", "phi3")
+        model = next(
+            (m for m in _preferred if m in available_models),
+            available_models[0] if available_models else "",
         )
-        model = _deployment
-        available_models = [_deployment]
+    else:
+        model = _os.environ.get("FEWS_AGENT_MODEL") or "gpt-4o-mini"
+        available_models = [model]
 
-    show_internals = st.toggle("Show engine internals", value=False)
+    show_internals = False  # internals expander retired from the sidebar
 
     st.markdown("---")
-    st.caption(
-        "**Tip:** the first project-related message after picking a model is "
-        "slow — Ollama loads the model into RAM. Subsequent replies are fast."
-    )
-    st.caption("Commands:")
-    st.caption(
-        "**Project**: `/done` (write project.yaml — also the big "
-        "button), `/force-done` (write with open warnings), "
-        "`/preview` (dry-run project.yaml)."
-    )
-    st.caption(
-        "**Build & edit (one module at a time)**: `/list` (modules + "
-        "editable vars), `/phases` (the imports→process→model→visualize "
-        "plan), `/add <name>` (e.g. `/add GFS`, `/add Liard uses raven`), "
-        "`/remove <name>`, `/set <name> <var> <value>` (e.g. "
-        "`/set GFS horizon 7-day`), `/build <phase|name>` (build + "
-        "XSD-validate one module/phase now). You can also just say it in "
-        "plain language — *“also add an HRDPS import”*, *“drop RDPS”*."
-    )
-    st.caption(
-        "**Inspect**: `/help` (commands + concept glossary; follow "
-        "up with *'more'*, *'example'*, *'compare X and Y'*), "
-        "`/status` (what's filled / missing)."
-    )
-    st.caption(
-        "**State**: `/undo` (roll back last turn — up to 10 deep), "
-        "`/reset` (clear state, keeps session folder; asks to "
-        "confirm), `/edit <file>` / `/cancel-edit`, `yes`/`no` "
-        "(confirm/cancel a pending action)."
-    )
-
-    if st.button("Reset cached session"):
-        st.session_state.pop("chat", None)
-        st.session_state.pop("_chat_key", None)
-        st.session_state.pop("_last_done", None)
+    if st.button("Switch project", use_container_width=True):
+        for _k in ("_project", "chat", "_chat_key", "_last_done",
+                   "_coords_request"):
+            st.session_state.pop(_k, None)
         st.rerun()
 
 
@@ -410,6 +333,26 @@ with _inputs_slot.container():
             "Auto-detected on the next message; missing/recommended "
             "files for the modules you've added are flagged."
         )
+
+# ----- FEWS module navigator -------------------------------------------------
+#
+# The fixed list of FEWS modules (same for every project). Click = focus the
+# agent on that module — the click routes through the SAME `/module` turn the
+# chat uses, so it's recorded in history and feeds the LLM's advisory context;
+# it can never drift from prose behaviour. 🟢 = its XMLs are built, ⚪ = not
+# yet. The focused module renders as the primary (highlighted) button.
+with _modules_slot.container():
+    st.caption("**FEWS modules** — click to focus")
+    for _ms in chat.module_statuses():
+        _icon = "🟢" if _ms["built"] else "⚪"
+        if st.button(
+            f"{_icon} {_ms['label']}",
+            key=f"_mod_{_ms['key']}",
+            type="primary" if _ms["focused"] else "secondary",
+            use_container_width=True,
+        ):
+            chat.send(f"/module {_ms['key']}")
+            st.rerun()
 
 # ----- header ---------------------------------------------------------------
 
@@ -798,12 +741,3 @@ if _done_stash and _done_stash.get("chat_key") == st.session_state.get("_chat_ke
             )
 
 # ----- footer: persisted files ----------------------------------------------
-
-with st.sidebar:
-    st.markdown("---")
-    st.caption("**Files in this session**")
-    for name in ("project.yaml", ".chat_state.json", ".chat_history.json",
-                 "_conversation.md", "_app.log"):
-        p = chat.session_dir / name
-        marker = "✓" if p.exists() else "·"
-        st.caption(f"{marker} `{name}`")

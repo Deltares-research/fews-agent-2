@@ -124,18 +124,44 @@ def test_slash_list_and_phases_are_readonly(session):
 
 # --- natural-language edits (full pipeline; LLM stubbed) -----------------
 
-def test_nl_edit_adds_a_second_import(session):
-    # Establish data-import intent (narrowing phrase skips the gate).
+class _PatchScript:
+    """Scripted {reply, patch} payloads for the LLM-first prose turns."""
+
+    def __init__(self, *payloads):
+        self.payloads = list(payloads)
+
+    def generate_json(self, system, user, schema):
+        class _R:
+            def __init__(self, data):
+                self.data = data
+        if not self.payloads:
+            raise AssertionError("LLM called more times than scripted")
+        return _R(self.payloads.pop(0))
+
+
+def test_nl_edit_adds_a_second_import(session, monkeypatch):
+    script = _PatchScript(
+        {"reply": "Added GFS.",
+         "patch": [{"op": "add_import", "name": "GFS"}]},
+        {"reply": "Added HRDPS too.",
+         "patch": [{"op": "add_import", "name": "HRDPS"}]},
+    )
+    monkeypatch.setattr(chatter, "get_provider", lambda *a, **k: script)
     session.send("Import NOAA GFS grids, no basin model.")
     assert "GFS" in session.state["slots"].get("imports", [])
-    # NL add of a second import. The edit mutates slots in Phase 2.5 (before
-    # the additive merge / disambiguation gate), so the slot reflects it
-    # regardless of any follow-up question the gate may pose.
     session.send("Also add an HRDPS import.")
     assert "HRDPS" in session.state["slots"].get("imports", [])
 
 
-def test_nl_edit_removes_an_import(session):
+def test_nl_edit_removes_an_import(session, monkeypatch):
+    script = _PatchScript(
+        {"reply": "Added GFS and HRDPS.",
+         "patch": [{"op": "add_import", "name": "GFS"},
+                   {"op": "add_import", "name": "HRDPS"}]},
+        {"reply": "Dropped HRDPS.",
+         "patch": [{"op": "remove", "target": "HRDPS"}]},
+    )
+    monkeypatch.setattr(chatter, "get_provider", lambda *a, **k: script)
     session.send("Import GFS and HRDPS grids, no basin model.")
     assert "HRDPS" in session.state["slots"].get("imports", [])
     session.send("Actually, drop HRDPS.")

@@ -266,7 +266,11 @@ def apply_edit_action(state: dict, edit: dict, catalog) -> str:
     else:
         return f"Unknown edit op {op!r}."
 
-    # If no intent yet, infer one so the resolver has a template set.
+    # Re-derive the resolver-selecting intent from the slots each edit (same
+    # as the prose path's _sync_module_intent) — without this, "/add Liard
+    # uses raven" after an import kept the import-only resolver active and the
+    # basin never resolved into patterns.
+    _sync_module_intent(state)
     if not state.get("intent"):
         inferred = heuristic_intent_from_slots(state.get("slots", {}))
         if inferred:
@@ -707,6 +711,10 @@ class ModuleTurnResult:
     new_patterns: list[str] = field(default_factory=list)
     wants_build: bool = False
     confirmation: str = ""       # muted "what changed" fact (grey in the UI)
+    # Signals from the LLM-first patch turn (llm_turn.run_llm_turn):
+    build_scope: str | None = None       # phase/module name for wants_build
+    wants_assemble: bool = False         # the `done` path
+    coordinates_for: str | None = None   # ""=all grids, name=one, None=no
 
 
 def _next_step_hint(state: dict, focus) -> str:

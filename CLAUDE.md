@@ -1811,3 +1811,33 @@ without needing to load the memory store:
   for input JSON parsing only. `model_dump()` emits the field name,
   so templates must use the suffixed form (`import_`, `validate_`,
   etc.) rather than the aliased form.
+
+## LLM-first elicitation (branch `simplify-elicitation`)
+
+The app's prose turns no longer run intent classification, detectors, or
+module-support gating. One model call per turn (`fews_agent/agent/llm_turn.py`):
+Python assembles grounding digests — catalog (all patterns + required vars +
+outputs), state, gap-to-buildable, inputs (CSV headers/rows), last build,
+history — and the model returns `{reply, patch}`. The patch is a small CRUD
+vocabulary on slots (`fews_agent/agent/patch_ops.py`): each op validates
+against the catalog and applies through the existing slot machinery; invalid
+ops are dropped LOUDLY. Slots stay the single source of truth; resolvers and
+the entire generation half are untouched. Slash commands bypass the LLM
+entirely (deterministic). Module focus is ADVISORY context, never a gate.
+
+The sidebar is a FEWS module navigator: click = a `/module` turn (recorded in
+history, feeds the model's context); ⚪ = not built, 🟢 = XMLs built
+(`ChatSession.module_statuses()`; deriver modules go green on `full_build_ok`).
+
+**This bakes in a capable-model dependency** (gpt-4-class+; deployed:
+`azure_ai/gpt-5.4-mini`). A small local model will converse WORSE than the old
+deterministic pipeline — deliberate trade, per the Rhine-transcript evidence
+that the old scaffolding suppressed strong models.
+
+Prompts: `prompts/llm_turn.{system,user}.txt` — the system prompt IS the
+elicitation program (priority-ordered rules, op schema, few-shot examples incl.
+the never-guess-an-adapter Rhine case). Prompt regressions are caught by the
+golden-transcript eval `python -m runners.agent.eval_llm_turn` (LIVE model,
+opt-in; asserts on patches + banned internal vocabulary, never exact wording).
+Deterministic oracles: `tests/test_patch_ops.py`, `tests/test_llm_turn.py`.
+CLI/API still run the older module-mode path — switchover after app parity.

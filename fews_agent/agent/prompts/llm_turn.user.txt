@@ -1,0 +1,25 @@
+## CATALOG (everything that can be added — the only valid names)
+[[ catalog_digest ]]
+
+## PROJECT STATE
+[[ state_digest ]]
+
+## CONFIGURED INSTANCES
+[[ instances_view ]]
+
+## GAP TO A BUILDABLE PROJECT (prioritize your guidance from this)
+[[ gap_digest ]]
+
+## INPUT FILES PROVIDED
+[[ inputs_digest ]]
+
+## LAST BUILD
+[[ build_digest ]]
+
+## RECENT CONVERSATION (oldest first; "You" is you — don't repeat yourself)
+[[ history_text ]]
+
+## USER'S MESSAGE
+[[ message ]]
+
+Respond with the JSON object.
