@@ -517,15 +517,31 @@ def apply_patch(state: dict, ops: list, catalog) -> PatchResult:
         elif name == "preview_file":
             res.preview_for = str(args.get("target") or "")
         elif name == "write_input_file":
-            from fews_agent.agent.input_files import validate_rows
+            from fews_agent.agent.input_files import (
+                SUPPORTED_FILES,
+                validate_rows,
+            )
             fname = str(args.get("file") or "").strip()
-            clean, errors = validate_rows(fname, args.get("rows") or [])
-            if errors:
-                res.dropped.extend(
-                    f"write_input_file {fname or '?'}: {e}" for e in errors
-                )
+            delete_ids = [str(x).strip() for x in (args.get("delete_ids")
+                          or []) if str(x).strip()]
+            rows = args.get("rows") or []
+            if delete_ids and not rows:
+                # Pure deletion: no rows to validate, just a known file.
+                if fname in SUPPORTED_FILES:
+                    res.input_writes.append((fname, [], delete_ids))
+                else:
+                    res.dropped.append(
+                        f"write_input_file: unsupported input file {fname!r}"
+                    )
             else:
-                res.input_writes.append((fname, clean))
+                clean, errors = validate_rows(fname, rows)
+                if errors:
+                    res.dropped.extend(
+                        f"write_input_file {fname or '?'}: {e}"
+                        for e in errors
+                    )
+                else:
+                    res.input_writes.append((fname, clean, delete_ids))
         elif name == "build":
             res.wants_build = True
             res.build_scope = (str(args["scope"]).strip()

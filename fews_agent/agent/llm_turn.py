@@ -250,7 +250,7 @@ def _perform_input_writes(res, inputs_dir) -> list[str]:
     if not res.input_writes:
         return written
     from fews_agent.agent.input_files import write_input_file
-    for fname, rows in res.input_writes:
+    for fname, rows, delete_ids in res.input_writes:
         if inputs_dir is None:
             res.dropped.append(
                 f"write_input_file {fname}: this session has no inputs "
@@ -258,7 +258,9 @@ def _perform_input_writes(res, inputs_dir) -> list[str]:
             )
             continue
         try:
-            res.notes.append(write_input_file(Path(inputs_dir), fname, rows))
+            res.notes.append(write_input_file(
+                Path(inputs_dir), fname, rows, delete_ids=delete_ids,
+            ))
             written.append(fname)
         except Exception as exc:  # noqa: BLE001
             _logger.exception("input write failed for %s", fname)

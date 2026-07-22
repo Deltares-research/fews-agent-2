@@ -1669,9 +1669,15 @@ class ChatSession:
         self._logger.info("llm_turn turn=%d note=%s", turn, res.note)
 
         # The turn may have WRITTEN input CSVs (write_input_file op) — mirror
-        # them to blob now; the core-file save below doesn't cover inputs/.
+        # them to blob and show what changed in any PRE-EXISTING file (same
+        # git rule as builds: a first-time file is baselined silently).
         if res.input_files_written:
             blob_store.sync_session_up(self.session_dir, full=True)
+            _d = self._change_diff_text(
+                "update inputs: " + ", ".join(res.input_files_written)
+            )
+            if _d:
+                res.reply += "\n\n" + _d
 
         # Signals → the existing deterministic machinery.
         if res.coordinates_for is not None:

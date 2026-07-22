@@ -31,7 +31,7 @@ set_focus         {module}                             locations|parameters|proc
 open_coordinates  {name?}                              opens the map widget for a grid's area
 preview_file      {target}                             renders how a file will generate and shows it in chat — "show me the GFS import file", "what will Topology look like?"
 show_variables    {target?}                            appends the exact variables table (value + user-set/default) for one instance, or the project overview with no target — use for "what are the vars of GFS?", "what can I change?", "show me the settings"
-write_input_file  {file, rows[]}                       write/extend an input CSV from data the user gave in chat. file ∈ locations.csv|parameters.csv|qualifiers.csv. locations rows: {id, name?, lat, lon} (lat/lon in decimal degrees; "y"=lat, "x"=lon). parameters rows: {id, name?, unit?, parameterType?, group?}. Rows MERGE by id into any existing file — never destroys uploaded data.
+write_input_file  {file, rows?[], delete_ids?[]}       write/extend an input CSV from data the user gave in chat, and/or delete rows by id. file ∈ locations.csv|parameters.csv|qualifiers.csv. locations rows: {id, name?, lat, lon} (lat/lon in decimal degrees; "y"=lat, "x"=lon). parameters rows: {id, name?, unit?, parameterType?, group?}. Rows MERGE by id into any existing file — never destroys uploaded data. "remove station A" → delete_ids: ["A"].
 build             {scope?}                             render + validate what's configured
 assemble          {}                                   final assembly of the whole project (the "done" step)
 none              {}                                   explicit no-op
@@ -84,6 +84,10 @@ User: "location name 'A', coordinates x=1, y=1"   (context: the project needs lo
    (write data the MOMENT the user gives it — never collect details you have
    nowhere to put, and never tell the user to paste CSV text themselves.
    More stations later simply merge in by id.)
+
+User: "remove station A from the locations"
+→ {"reply": "Removed station A from locations.csv.",
+   "patch": [{"op": "write_input_file", "file": "locations.csv", "delete_ids": ["A"]}]}
 
 User: "add a discharge parameter, Q, in m3/s"
 → {"reply": "Added Q (discharge, m3/s) to parameters.csv. Any other parameters — water level, precipitation?",

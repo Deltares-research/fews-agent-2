@@ -32,12 +32,17 @@ _logger = logging.getLogger(__name__)
 MAX_FILES = 5           # diffs shown per action
 MAX_LINES = 120         # lines shown per file diff
 
+# inputs/* is ignored EXCEPT the CSVs: the agent can WRITE input CSVs
+# (write_input_file op) and edit uploaded ones — those changes get the same
+# diff treatment as generated files. Shapefiles/yamls stay untracked
+# (binary / bulk uploads the agent never edits).
 _SESSION_GITIGNORE = """\
 .chat_state.json
 .chat_history.json
 _conversation.md
 _app.log
-inputs/
+inputs/*
+!inputs/*.csv
 """
 
 
@@ -70,6 +75,8 @@ def ensure_repo(session_dir: Path) -> bool:
             if init.returncode != 0 or not git_dir.is_dir():
                 _logger.warning("project git init failed: %s", init.stderr)
                 return False
+            # The ignore rules MUST exist before the baseline add — without
+            # them the baseline would commit chat state and logs.
             (session_dir / ".gitignore").write_text(
                 _SESSION_GITIGNORE, encoding="utf-8",
             )
@@ -79,6 +86,12 @@ def ensure_repo(session_dir: Path) -> bool:
             # later `diff HEAD` is well-defined).
             _run(session_dir, "add", "-A")
             _run(session_dir, "commit", "--allow-empty", "-m", "baseline")
+        # Keep the ignore rules current for repos made by older versions —
+        # rewriting the same content is a no-op for git.
+        gi = session_dir / ".gitignore"
+        if (not gi.is_file()
+                or gi.read_text(encoding="utf-8") != _SESSION_GITIGNORE):
+            gi.write_text(_SESSION_GITIGNORE, encoding="utf-8")
         return True
     except Exception as exc:  # noqa: BLE001
         _logger.warning("project git unavailable for %s: %s: %s",

@@ -183,22 +183,35 @@ def build_csv(filename: str, rows: list[dict]) -> str:
     return buf.getvalue()
 
 
-def write_input_file(inputs_dir: Path, filename: str,
-                     rows: list[dict]) -> str:
-    """Merge validated rows into ``inputs_dir/filename`` and return a note
-    ("Wrote inputs/locations.csv — 1 new row (2 total)."). Caller validates
-    first; this only merges + writes."""
+def write_input_file(inputs_dir: Path, filename: str, rows: list[dict],
+                     delete_ids: list[str] | None = None) -> str:
+    """Merge validated rows into ``inputs_dir/filename`` (and/or delete rows
+    by id) and return a note. Caller validates first; this only merges,
+    deletes and writes. A delete id that isn't in the file is reported in
+    the note rather than silently ignored."""
     spec, _, _ = SUPPORTED_FILES[filename]
     inputs_dir = Path(inputs_dir)
     inputs_dir.mkdir(parents=True, exist_ok=True)
     path = inputs_dir / filename
     existing = read_existing(path, spec)
     merged, added, updated = merge_rows(existing, rows)
+    removed, missing = [], []
+    for rid in delete_ids or []:
+        rid = str(rid).strip()
+        before = len(merged)
+        merged = [r for r in merged
+                  if str(r.get("id", "")).strip() != rid]
+        (removed if len(merged) < before else missing).append(rid)
     path.write_text(build_csv(filename, merged), encoding="utf-8")
     bits = []
     if added:
         bits.append(f"{added} new row{'s' if added != 1 else ''}")
     if updated:
         bits.append(f"{updated} updated")
+    if removed:
+        bits.append(f"removed {', '.join(removed)}")
     detail = " + ".join(bits) if bits else "no changes"
-    return f"Wrote inputs/{filename} — {detail} ({len(merged)} total)."
+    note = f"Wrote inputs/{filename} — {detail} ({len(merged)} total)."
+    if missing:
+        note += f" Not found (nothing to remove): {', '.join(missing)}."
+    return note

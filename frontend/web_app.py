@@ -335,6 +335,10 @@ with _inputs_slot.container():
             st.caption(f"Saved {len(uploaded)} file(s) to `inputs/`.")
             from app import blob_store as _blob
             _blob.sync_session_up(chat.session_dir, full=True)
+            # Baseline the upload in the session git so a later AGENT edit
+            # of this file diffs against what the user actually provided.
+            from app import project_git as _pg
+            _pg.commit_and_diff(chat.session_dir, "user upload")
 
         existing_inputs = sorted(
             p.name for p in inputs_dir.iterdir() if p.is_file()
@@ -342,7 +346,13 @@ with _inputs_slot.container():
         if existing_inputs:
             st.caption("**In `inputs/`:**")
             for _n in existing_inputs:
-                st.caption(f"• `{_n}`")
+                _ci_name, _ci_dl = st.columns([4, 1])
+                _ci_name.caption(f"• `{_n}`")
+                _ci_dl.download_button(
+                    "⬇", data=(inputs_dir / _n).read_bytes(),
+                    file_name=_n, key=f"_dl_input_{_n}",
+                    help=f"Download {_n}",
+                )
         else:
             st.caption("_No input files yet._")
         st.caption(

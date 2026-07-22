@@ -190,6 +190,79 @@ def test_llm_turn_without_inputs_dir_repairs_the_claim(state, catalog):
     assert res.input_files_written == []
 
 
+def test_delete_row_by_id(tmp_path):
+    write_input_file(tmp_path, "locations.csv",
+                     [{"id": "A", "y": 1.0, "x": 1.0},
+                      {"id": "B", "y": 2.0, "x": 2.0}])
+    note = write_input_file(tmp_path, "locations.csv", [],
+                            delete_ids=["A"])
+    assert "removed A" in note
+    text = (tmp_path / "locations.csv").read_text(encoding="utf-8")
+    assert "B" in text and "\nA," not in text
+
+
+def test_delete_missing_id_reported_not_silent(tmp_path):
+    write_input_file(tmp_path, "locations.csv",
+                     [{"id": "A", "y": 1.0, "x": 1.0}])
+    note = write_input_file(tmp_path, "locations.csv", [],
+                            delete_ids=["Z"])
+    assert "Not found" in note and "Z" in note
+
+
+def test_pure_delete_op_needs_no_rows(state, catalog):
+    res = apply_patch(state, [{"op": "write_input_file",
+                               "file": "locations.csv",
+                               "delete_ids": ["A"]}], catalog)
+    assert res.dropped == []
+    assert res.input_writes == [("locations.csv", [], ["A"])]
+
+
+def test_llm_turn_delete_flows_through(state, catalog, tmp_path):
+    write_input_file(tmp_path, "locations.csv",
+                     [{"id": "A", "y": 1.0, "x": 1.0}])
+    prov = _Scripted({"reply": "Removed station A.",
+                      "patch": [{"op": "write_input_file",
+                                 "file": "locations.csv",
+                                 "delete_ids": ["A"]}]})
+    res = run_llm_turn(state, "remove station A", catalog, provider=prov,
+                       inputs_dir=tmp_path)
+    assert res.input_files_written == ["locations.csv"]
+    text = (tmp_path / "locations.csv").read_text(encoding="utf-8")
+    assert "A" not in text.splitlines()[-1] or len(text.splitlines()) == 1
+
+
+def test_chatter_shows_diff_for_agent_csv_edit(tmp_path, monkeypatch):
+    """End-to-end: agent writes a station, then edits the file — the second
+    turn's reply carries a ```diff of the pre-existing CSV."""
+    from app import chatter as C
+    from app import project_git
+    if not project_git.available():
+        pytest.skip("git not on PATH")
+    monkeypatch.setattr(C, "check_ollama_for_model", lambda *a, **k: None)
+
+    payloads = [
+        {"reply": "Station A saved.",
+         "patch": [{"op": "write_input_file", "file": "locations.csv",
+                    "rows": [{"id": "A", "lat": 1.0, "lon": 1.0}]}]},
+        {"reply": "Station B added.",
+         "patch": [{"op": "write_input_file", "file": "locations.csv",
+                    "rows": [{"id": "B", "lat": 2.0, "lon": 2.0}]}]},
+    ]
+
+    class _Prov:
+        def generate_json(self, system, user, schema):
+            return _Resp(payloads.pop(0))
+
+    monkeypatch.setattr(C, "get_provider", lambda *a, **k: _Prov())
+    s = C.ChatSession(project_name="csvdiff", session_dir=tmp_path,
+                      username="t")
+    first = s.send("station A at 1,1")
+    assert "```diff" not in first.agent_message      # first write: new file
+    second = s.send("station B at 2,2")
+    assert "```diff" in second.agent_message
+    assert "+B" in second.agent_message
+
+
 def test_gap_clears_after_the_write(state, catalog, tmp_path):
     """Writing locations.csv actually closes the build gap it was blocking."""
     from fews_agent.agent.llm_turn import gap_digest

@@ -64,12 +64,35 @@ def test_new_files_are_never_shown_but_become_diffable(session):
     assert [d[0] for d in diffs] == ["generated/RegionConfigFiles/Topology.xml"]
 
 
-def test_chat_state_and_inputs_are_ignored(session):
+def test_chat_state_and_bulk_inputs_are_ignored_but_csvs_tracked(session):
+    """Chat noise and bulk uploads (shapefiles, yamls) never show; input
+    CSVs are tracked since the agent can now WRITE them — a first write
+    baselines silently, an edit shows a diff."""
     project_git.commit_and_diff(session, "baseline")
     (session / ".chat_state.json").write_text('{"x": 1}', encoding="utf-8")
     (session / "inputs").mkdir()
-    (session / "inputs" / "locations.csv").write_text("id\nA", encoding="utf-8")
-    assert project_git.commit_and_diff(session, "chat noise") == []
+    (session / "inputs" / "basin.shp").write_bytes(b"\x00\x01")
+    csv_file = session / "inputs" / "locations.csv"
+    csv_file.write_text("id,lat,lon\nA,1.0,2.0\n", encoding="utf-8")
+    assert project_git.commit_and_diff(session, "upload") == []  # all new/ignored
+    csv_file.write_text("id,lat,lon\nA,1.0,2.0\nB,3.0,4.0\n", encoding="utf-8")
+    diffs = project_git.commit_and_diff(session, "agent adds B")
+    assert [d[0] for d in diffs] == ["inputs/locations.csv"]
+    assert "+B,3.0,4.0" in diffs[0][1]
+    # ...while the shapefile stays invisible forever.
+    (session / "inputs" / "basin.shp").write_bytes(b"\x00\x02")
+    assert project_git.commit_and_diff(session, "shp noise") == []
+
+
+def test_old_repos_pick_up_the_csv_rule(session):
+    """A session repo created with the old blanket inputs/ ignore gets its
+    .gitignore refreshed on the next action."""
+    project_git.commit_and_diff(session, "baseline")
+    (session / ".gitignore").write_text(
+        ".chat_state.json\ninputs/\n", encoding="utf-8")
+    project_git.commit_and_diff(session, "next action")
+    assert "!inputs/*.csv" in (session / ".gitignore").read_text(
+        encoding="utf-8")
 
 
 def test_commands_are_confined_to_the_session_repo(session, tmp_path):
