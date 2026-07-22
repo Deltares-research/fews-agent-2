@@ -227,6 +227,15 @@ wrong, not the eval.
   silently breaks EVERY llm call into fallbacks.
 - Windows console is cp1252: no emoji in engine strings (the sidebar's ⚪🟢
   live only in web_app.py). Set utf-8 wrapper in scripts that print replies.
+- Per-session git (`app/project_git.py`): `projects/` sits INSIDE the dev
+  repo's tree, so every git command MUST run with explicit
+  `--git-dir=<session>/.git --work-tree=<session>` — a bare `git -C <session>`
+  without a repo there walks UP and operates on the development repository
+  (a confinement test pins this). Commit-after-every-action is what makes
+  "diff pre-existing files only" work: new files are untracked → invisible to
+  `git diff HEAD` → committed silently as the next baseline. Runtime Docker
+  images need the git binary (slim ships without it; both Dockerfiles install
+  it); git missing degrades to a logged no-op, never a broken build.
 - Streamlit does NOT reload deep modules — after engine changes, fully
   Ctrl+C and restart the app; "Rerun" is not enough.
 - Prompts live as .txt under `fews_agent/agent/prompts/` (gitignore negation

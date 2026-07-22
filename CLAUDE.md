@@ -1848,6 +1848,19 @@ formatter (`fews_agent/agent/preview.py`) renders header + XSD badge + fenced
 XML identically for slash and prose. The prompt forbids the model writing XML
 itself — what appears in chat is always the deterministic render.
 
+**Per-project git change tracking (`app/project_git.py`).** Every session dir
+carries its own local git repo (no remotes) over what the agent generates
+(`generated/` + `project.yaml`; chat state/logs/inputs excluded via the
+session repo's `.gitignore`). After each agent action (`/build`, module
+build, full assembly — all three shells) `commit_and_diff` appends unified
+diffs to the build reply for files that PRE-EXISTED the action and changed;
+first-time files are untracked → never shown → committed as the next
+baseline. Diffs land in chat history, so the LLM can answer "why did that
+line change?". Confinement is load-bearing: `projects/` sits inside this dev
+repo's tree, so every command uses explicit `--git-dir`/`--work-tree`
+(pinned by a test); git missing → logged no-op. Docker images install git.
+`blob_store` full-sync skips `.git/`.
+
 Prompts: `prompts/llm_turn.{system,user}.txt` — the system prompt IS the
 elicitation program (priority-ordered rules, op schema, few-shot examples incl.
 the never-guess-an-adapter Rhine case). Prompt regressions are caught by the
