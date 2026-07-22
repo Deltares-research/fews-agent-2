@@ -271,11 +271,14 @@ def _perform_input_writes(res, inputs_dir) -> list[str]:
     return written
 
 
-def _repair_reply(provider, message: str, draft: str, res) -> str:
+def _repair_reply(provider, message: str, draft: str, res,
+                  res_state: dict | None = None) -> str:
     """Rewrite a draft reply after ops were dropped, so it can't claim
     success for changes that never applied. Falls back to a deterministic
     honest sentence when the repair call itself fails."""
     try:
+        import time
+        t0 = time.monotonic()
         resp = provider.generate_json(
             system=prompts.load("llm_repair.system"),
             user=prompts.load(
@@ -291,6 +294,8 @@ def _repair_reply(provider, message: str, draft: str, res) -> str:
                 "required": ["reply"],
             },
         )
+        if res_state is not None:
+            _add_usage(res_state, resp, time.monotonic() - t0)
         fixed = str((resp.data or {}).get("reply") or "").strip()
         if fixed:
             return fixed
@@ -312,9 +317,39 @@ def _fallback_reply(state: dict) -> str:
     )
 
 
+def _supports_on_delta(provider) -> bool:
+    import inspect
+    try:
+        return "on_delta" in inspect.signature(
+            provider.generate_json).parameters
+    except (TypeError, ValueError):
+        return False
+
+
+def _add_usage(state: dict, resp, seconds: float) -> None:
+    """Accumulate per-session token/latency telemetry onto state (persisted
+    with it) and log the per-call line. Providers without usage report only
+    latency."""
+    usage = getattr(resp, "usage", None) or {}
+    totals = state.setdefault("llm_usage", {
+        "prompt_tokens": 0, "completion_tokens": 0, "calls": 0,
+        "seconds": 0.0,
+    })
+    totals["prompt_tokens"] += int(usage.get("prompt_tokens") or 0)
+    totals["completion_tokens"] += int(usage.get("completion_tokens") or 0)
+    totals["calls"] += 1
+    totals["seconds"] = round(totals["seconds"] + seconds, 2)
+    _logger.info(
+        "llm call: %.2fs prompt=%s completion=%s (session: %d calls, "
+        "%d tokens)", seconds, usage.get("prompt_tokens", "?"),
+        usage.get("completion_tokens", "?"), totals["calls"],
+        totals["prompt_tokens"] + totals["completion_tokens"],
+    )
+
+
 def run_llm_turn(
     state: dict, message: str, catalog, *, provider,
-    history: list | None = None, inputs_dir=None,
+    history: list | None = None, inputs_dir=None, on_reply_delta=None,
 ) -> ModuleTurnResult:
     """One user message → one model call → validated patch → result."""
     system = prompts.load("llm_turn.system")
@@ -339,9 +374,14 @@ def run_llm_turn(
                 user + "\n\nYour previous response was invalid "
                 f"({last_err}). Return ONLY the JSON object."
             )
-            resp = provider.generate_json(
-                system=system, user=ask, schema=_RESPONSE_SCHEMA,
-            )
+            import time
+            kwargs = {"system": system, "user": ask,
+                      "schema": _RESPONSE_SCHEMA}
+            if on_reply_delta is not None and _supports_on_delta(provider):
+                kwargs["on_delta"] = on_reply_delta
+            t0 = time.monotonic()
+            resp = provider.generate_json(**kwargs)
+            _add_usage(state, resp, time.monotonic() - t0)
             data = resp.data or {}
             reply = str(data.get("reply") or "").strip()
             ops = data.get("patch")
@@ -387,7 +427,7 @@ def run_llm_turn(
         # human testing). One repair call rewrites the reply from the actual
         # outcome; if it fails, a deterministic honest reply replaces the
         # draft — the fabricated success text never ships either way.
-        reply = _repair_reply(provider, message, reply, res)
+        reply = _repair_reply(provider, message, reply, res, state)
         reply += (
             "\n\n[!] Not applied (failed validation): "
             + "; ".join(res.dropped)

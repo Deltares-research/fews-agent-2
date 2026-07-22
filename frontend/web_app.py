@@ -416,7 +416,14 @@ with _modules_slot.container():
 
 st.title("FEWS configurator agent")
 st.caption(f"session: `{chat.session_dir.name}`  ·  project: `{chat.project_name}`")
-st.caption(f"model: `{chat.model}`")
+_usage = chat.state.get("llm_usage") or {}
+_tok = int(_usage.get("prompt_tokens", 0)) + int(_usage.get("completion_tokens", 0))
+st.caption(
+    f"model: `{chat.model}`"
+    + (f"  ·  session LLM usage: {_tok:,} tokens over "
+       f"{_usage.get('calls', 0)} calls, {_usage.get('seconds', 0):.0f}s"
+       if _tok else "")
+)
 
 if not _llm_ok:
     st.error(_llm_err_msg)
@@ -462,8 +469,21 @@ if prompt:
     with st.chat_message("user"):
         st.markdown(prompt)
     with st.chat_message("assistant"):
+        # Stream the model's reply as it arrives (prose turns; slash
+        # commands return instantly). The placeholder is replaced by the
+        # FINAL reply below — which may differ from the streamed draft when
+        # validation rewrote it (the honesty repair), so the final text
+        # always wins.
+        _stream_ph = st.empty()
+        _stream_acc: list[str] = []
+
+        def _on_delta(text: str) -> None:
+            _stream_acc.append(text)
+            _stream_ph.markdown("".join(_stream_acc) + "▌")
+
         with st.spinner("Thinking…"):
-            result = chat.send(prompt)
+            result = chat.send(prompt, on_reply_delta=_on_delta)
+        _stream_ph.empty()
         if result.confirmation:
             st.caption(result.confirmation)
         st.markdown(result.agent_message)

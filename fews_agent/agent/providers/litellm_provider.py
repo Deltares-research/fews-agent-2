@@ -116,23 +116,62 @@ class LiteLLMProvider:
         system: str,
         user: str,
         schema: dict[str, Any],
+        on_delta=None,
     ) -> StructuredResponse:
+        """Structured call. With ``on_delta``, the response streams and the
+        callback receives the ``"reply"`` field's text as it arrives (the
+        full JSON is still parsed normally at the end). Any streaming
+        failure falls back to the plain call — streaming is a UX nicety,
+        never a correctness dependency."""
         prompt = (
             f"{user}\n\nReturn ONLY a single JSON object matching this JSON schema "
             f"(no prose, no fences, no keys outside the schema):\n"
             f"{json.dumps(schema, indent=2)}"
         )
+        messages = [
+            {"role": "system", "content": system},
+            {"role": "user", "content": prompt},
+        ]
+        if on_delta is not None:
+            try:
+                return self._generate_json_streaming(messages, on_delta)
+            except Exception:  # noqa: BLE001 — fall back to non-streaming
+                pass
         resp = litellm.completion(
-            model=self.model,
-            messages=[
-                {"role": "system", "content": system},
-                {"role": "user", "content": prompt},
-            ],
-            temperature=0.1,
+            model=self.model, messages=messages, temperature=0.1,
         )
         content = resp.choices[0].message.content or ""
         data = self._extract_json(content)
         return StructuredResponse(data=data, usage=self._usage(resp))
+
+    def _generate_json_streaming(self, messages, on_delta) -> StructuredResponse:
+        from fews_agent.agent.reply_stream import ReplyStreamExtractor
+
+        stream = litellm.completion(
+            model=self.model, messages=messages, temperature=0.1,
+            stream=True, stream_options={"include_usage": True},
+        )
+        extractor = ReplyStreamExtractor()
+        parts: list[str] = []
+        usage = None
+        for chunk in stream:
+            u = self._usage(chunk)
+            if u:
+                usage = u
+            choices = getattr(chunk, "choices", None) or []
+            delta = (getattr(choices[0].delta, "content", None)
+                     if choices else None)
+            if delta:
+                parts.append(delta)
+                fresh = extractor.feed(delta)
+                if fresh:
+                    try:
+                        on_delta(fresh)
+                    except Exception:  # noqa: BLE001 — UI must not kill the call
+                        pass
+        content = "".join(parts)
+        data = self._extract_json(content)
+        return StructuredResponse(data=data, usage=usage)
 
     # --- helpers -----------------------------------------------------
 

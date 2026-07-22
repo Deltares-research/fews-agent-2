@@ -1085,10 +1085,14 @@ class ChatSession:
         """Chat history as a list of ``{role, message}`` dicts (a snapshot copy)."""
         return list(self.history)
 
-    def send(self, message: str) -> TurnResult:
-        """Process one user message; persist state, history, markdown, and app log."""
+    def send(self, message: str,
+             on_reply_delta=None) -> TurnResult:
+        """Process one user message; persist state, history, markdown, and app log.
+
+        ``on_reply_delta`` (optional) receives the model reply's text as it
+        streams — prose turns only; slash commands are instant anyway."""
         try:
-            return self._send_inner(message)
+            return self._send_inner(message, on_reply_delta=on_reply_delta)
         except Exception as exc:  # noqa: BLE001
             self._logger.exception("send_failed message=%r", message[:200])
             return TurnResult(
@@ -1129,7 +1133,7 @@ class ChatSession:
 
     # ---- the turn pipeline (mirrors runners/agent/chat_step.py::main) --------
 
-    def _send_inner(self, message: str) -> TurnResult:
+    def _send_inner(self, message: str, on_reply_delta=None) -> TurnResult:
         turn = self._turn_count() + 1
         self.history.append({"role": "user", "message": message})
         self._append_md(turn, "user", message)
@@ -1729,6 +1733,7 @@ class ChatSession:
         res = run_llm_turn(
             self.state, message, self.catalog, provider=provider,
             history=self.history, inputs_dir=self.session_dir / "inputs",
+            on_reply_delta=on_reply_delta,
         )
         self._logger.info("llm_turn turn=%d note=%s", turn, res.note)
 
