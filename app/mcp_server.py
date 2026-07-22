@@ -5,9 +5,14 @@ and other MCP-compatible AI applications via the Model Context Protocol.
 
 This is a **direct-call** implementation (Option B from the design doc): the
 MCP server imports and calls the same engine functions the HTTP API uses —
-``run_llm_turn``, ``build_from_blueprint``, etc. — with no HTTP hop. Sessions
-persist under ``projects/`` (the same folder the CLI, Streamlit, and HTTP
-drivers use), so a project started via MCP is resumable from any other shell.
+``run_llm_turn``, ``build_from_blueprint``, etc. — with no HTTP hop.
+
+**Where projects live.** By default sessions persist under the agent repo's
+``projects/`` (same as the CLI / Streamlit / HTTP drivers). When the client
+passes ``workspace_dir`` to ``create_project``, the session + generated XML
+are written under ``<workspace_dir>/fews-projects/`` instead — so a user
+working in another VS Code workspace can open the files next to their own
+code. The agent repo (``cwd``) still holds patterns, XSDs, and ``.env``.
 
 Run manually for testing::
 
@@ -88,11 +93,17 @@ from runners.agent.build_from_blueprint import (
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 PATTERNS_ROOT = REPO_ROOT / "patterns"
+# Default project store when no workspace_dir is passed (agent-repo local).
 OUTPUT_ROOT = REPO_ROOT / "projects"
+# Under a client workspace, sessions land in <workspace>/fews-projects/.
+WORKSPACE_PROJECTS_SUBDIR = "fews-projects"
+# Maps session_id → absolute project_dir so later tools find workspace
+# sessions without re-passing workspace_dir every turn.
+_SESSION_INDEX_PATH = OUTPUT_ROOT / ".mcp_session_index.json"
 DEFAULT_MODEL = "qwen2.5:7b-instruct"
 
 # ---------------------------------------------------------------------------
-# Session persistence — identical to app/api/server.py
+# Session persistence — identical layout to app/api/server.py
 # ---------------------------------------------------------------------------
 
 
@@ -104,9 +115,56 @@ def _history_path(project_dir: Path) -> Path:
     return project_dir / ".chat_history.json"
 
 
-def _new_session_dir(project_name: str) -> Path:
-    """Mint a fresh datetime-stamped instance dir for a new session."""
-    parent = OUTPUT_ROOT / project_name
+def _sanitize_project_name(name: str) -> str:
+    """Make a project name filesystem-safe."""
+    return "".join(c if (c.isalnum() or c in "-_.") else "-" for c in name)
+
+
+def _is_safe_session_id(session_id: str) -> bool:
+    return bool(session_id) and not any(
+        c in session_id for c in ("/", "\\", "..")
+    )
+
+
+def resolve_projects_root(
+    workspace_dir: str | None,
+    *,
+    create: bool = False,
+) -> tuple[Path | None, str | None]:
+    """Return ``(projects_root, error)``.
+
+    * ``workspace_dir is None`` → agent-repo ``projects/``.
+    * otherwise → ``<workspace_dir>/fews-projects/``.
+      The workspace directory itself must already exist. Pass
+      ``create=True`` (create_project) to mkdir the fews-projects folder.
+    """
+    if workspace_dir is None or not str(workspace_dir).strip():
+        return OUTPUT_ROOT, None
+    raw = Path(str(workspace_dir).strip()).expanduser()
+    try:
+        workspace = raw.resolve(strict=False)
+    except OSError as exc:
+        return None, f"Invalid workspace_dir {workspace_dir!r}: {exc}"
+    if not workspace.is_dir():
+        return None, (
+            f"workspace_dir does not exist or is not a directory: {workspace}"
+        )
+    projects_root = workspace / WORKSPACE_PROJECTS_SUBDIR
+    if create:
+        projects_root.mkdir(parents=True, exist_ok=True)
+    # Stay inside the workspace (no symlink escape after resolve of children).
+    try:
+        projects_root.resolve().relative_to(workspace.resolve())
+    except ValueError:
+        return None, (
+            f"Refusing projects root outside workspace: {projects_root}"
+        )
+    return projects_root, None
+
+
+def _new_session_dir(project_name: str, projects_root: Path) -> Path:
+    """Mint a fresh datetime-stamped instance dir under ``projects_root``."""
+    parent = projects_root / project_name
     parent.mkdir(parents=True, exist_ok=True)
     dt = datetime.now().strftime("%Y-%m-%d_%H%M%S")
     new_dir = parent / f"{project_name}_{dt}"
@@ -119,14 +177,102 @@ def _new_session_dir(project_name: str) -> Path:
     return new_dir
 
 
-def _resolve_session_dir(session_id: str) -> Path | None:
-    """Find the instance dir for a session id, or None if not found."""
-    if "/" in session_id or "\\" in session_id or ".." in session_id:
+def _load_session_index() -> dict[str, dict]:
+    if not _SESSION_INDEX_PATH.is_file():
+        return {}
+    try:
+        data = json.loads(_SESSION_INDEX_PATH.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def _save_session_index(index: dict[str, dict]) -> None:
+    _SESSION_INDEX_PATH.parent.mkdir(parents=True, exist_ok=True)
+    _SESSION_INDEX_PATH.write_text(
+        json.dumps(index, indent=2, default=str), encoding="utf-8",
+    )
+
+
+def _index_session(
+    session_id: str,
+    project_dir: Path,
+    *,
+    workspace_dir: str | None = None,
+) -> None:
+    index = _load_session_index()
+    entry: dict = {"project_dir": str(project_dir.resolve())}
+    if workspace_dir:
+        entry["workspace_dir"] = str(Path(workspace_dir).expanduser().resolve())
+    index[session_id] = entry
+    _save_session_index(index)
+
+
+def _find_session_under(projects_root: Path, session_id: str) -> Path | None:
+    if not projects_root.is_dir():
         return None
-    for cand in OUTPUT_ROOT.glob(f"*/{session_id}"):
+    for cand in projects_root.glob(f"*/{session_id}"):
         if cand.is_dir() and _state_path(cand).is_file():
             return cand
     return None
+
+
+def _resolve_session_dir(
+    session_id: str,
+    workspace_dir: str | None = None,
+) -> Path | None:
+    """Find the instance dir for a session id, or None if not found.
+
+    Lookup order:
+      1. ``<workspace_dir>/fews-projects/`` when ``workspace_dir`` is given
+      2. Session index (workspace sessions created earlier in this agent home)
+      3. Default agent-repo ``projects/``
+    """
+    if not _is_safe_session_id(session_id):
+        return None
+
+    if workspace_dir is not None and str(workspace_dir).strip():
+        root, err = resolve_projects_root(workspace_dir)
+        if err is None and root is not None:
+            found = _find_session_under(root, session_id)
+            if found is not None:
+                return found
+
+    index = _load_session_index()
+    entry = index.get(session_id)
+    if isinstance(entry, dict):
+        raw = entry.get("project_dir")
+        if raw:
+            cand = Path(str(raw))
+            if cand.is_dir() and _state_path(cand).is_file():
+                return cand
+
+    return _find_session_under(OUTPUT_ROOT, session_id)
+
+
+def _list_sessions_under(projects_root: Path) -> list[dict]:
+    """Scan one projects root for sessions (newest first per project folder)."""
+    projects: list[dict] = []
+    if not projects_root.is_dir():
+        return projects
+    for project_folder in sorted(projects_root.iterdir()):
+        if not project_folder.is_dir() or project_folder.name.startswith("."):
+            continue
+        for session_dir in sorted(project_folder.iterdir(), reverse=True):
+            state_file = _state_path(session_dir)
+            if not state_file.is_file():
+                continue
+            try:
+                mtime = datetime.fromtimestamp(state_file.stat().st_mtime)
+                projects.append({
+                    "project_name": project_folder.name,
+                    "session_id": session_dir.name,
+                    "project_dir": str(session_dir.resolve()),
+                    "last_modified": mtime.isoformat(),
+                })
+            except OSError:
+                continue
+    return projects
 
 
 def _load(project_dir: Path) -> tuple[dict, list]:
@@ -156,9 +302,8 @@ def _model_for(state: dict) -> str:
     return state.get("model") or DEFAULT_MODEL
 
 
-def _sanitize_project_name(name: str) -> str:
-    """Make a project name filesystem-safe."""
-    return "".join(c if (c.isalnum() or c in "-_.") else "-" for c in name)
+def _generated_dir(project_dir: Path) -> Path:
+    return project_dir / "generated"
 
 
 # ---------------------------------------------------------------------------
@@ -171,12 +316,18 @@ mcp = FastMCP(
         "FEWS config-generation agent. Use these tools to create Delft-FEWS "
         "XML configuration files through a conversational interface.\n\n"
         "Typical workflow:\n"
-        "1. create_project — start a new project\n"
+        "1. create_project — start a new project. ALWAYS pass workspace_dir "
+        "set to the user's open VS Code / IDE workspace folder (absolute "
+        "path) so session state and generated XML land in "
+        "<workspace>/fews-projects/ where the user can open them. Omit "
+        "workspace_dir only when the user is working inside the agent repo.\n"
         "2. chat — add imports (GFS, HRDPS...), basin models (Raven, Wflow...), "
         "set parameters\n"
-        "3. build — generate the XML files\n\n"
+        "3. build — generate the XML files; tell the user the absolute "
+        "output_root path so they can browse the files\n\n"
         "Use list_imports to see valid NWP sources. Use get_status to check "
-        "current state. Sessions persist under projects/ and can be resumed."
+        "current state. Pass the same workspace_dir to list_projects / "
+        "get_status / build when helpful."
     ),
 )
 
@@ -187,39 +338,82 @@ mcp = FastMCP(
 
 
 @mcp.tool()
-def create_project(project_name: str | None = None) -> str:
+def create_project(
+    project_name: str | None = None,
+    workspace_dir: str | None = None,
+) -> str:
     """Create a new FEWS configuration project.
 
     Args:
         project_name: Name for the project. If not provided, a timestamped
-            name is generated. The name becomes a folder under projects/.
+            name is generated.
+        workspace_dir: Absolute path to the user's open IDE workspace.
+            When set, the session (and later generated XML) are written under
+            ``<workspace_dir>/fews-projects/<name>/<name>_<timestamp>/`` so
+            the user can browse them in their own workspace. When omitted,
+            files go under the agent repo's ``projects/`` folder. Prefer
+            always passing this when the user is not working inside the
+            agent repository.
 
     Returns:
-        JSON with session_id (use this for subsequent calls) and project_dir.
+        JSON with session_id (use this for subsequent calls), absolute
+        project_dir, workspace_dir, and where generated XML will appear.
     """
+    projects_root, err = resolve_projects_root(workspace_dir, create=True)
+    if err or projects_root is None:
+        return json.dumps({"error": err or "Could not resolve projects root."})
+
     name = (project_name or "").strip() or (
         "mcp-project-" + datetime.now().strftime("%Y%m%d-%H%M%S")
     )
     safe = _sanitize_project_name(name)
-    project_dir = _new_session_dir(safe)
+    project_dir = _new_session_dir(safe, projects_root)
     (project_dir / "inputs").mkdir(exist_ok=True)
+
+    workspace_abs = (
+        str(Path(workspace_dir).expanduser().resolve())
+        if workspace_dir and str(workspace_dir).strip()
+        else None
+    )
 
     state = initial_state(safe)
     state.setdefault("intent", None)
     state.setdefault("slots", {})
     state["model"] = os.environ.get("FEWS_AGENT_MODEL") or DEFAULT_MODEL
+    if workspace_abs:
+        state["workspace_dir"] = workspace_abs
+    state["project_dir"] = str(project_dir.resolve())
     _save(project_dir, state, [])
+    _index_session(
+        project_dir.name, project_dir, workspace_dir=workspace_abs,
+    )
 
+    generated = _generated_dir(project_dir)
     return json.dumps({
         "session_id": project_dir.name,
         "project_name": safe,
-        "project_dir": str(project_dir),
-        "message": f"Created project '{safe}'. Use the session_id in subsequent calls.",
+        "project_dir": str(project_dir.resolve()),
+        "workspace_dir": workspace_abs,
+        "projects_root": str(projects_root.resolve()),
+        "generated_dir": str(generated.resolve()),
+        "message": (
+            f"Created project '{safe}'. Use session_id in subsequent calls. "
+            + (
+                f"Session and generated XML live under {projects_root} "
+                f"(open generated/ after build in the user's workspace)."
+                if workspace_abs
+                else f"Session lives under {projects_root} (agent-repo default)."
+            )
+        ),
     })
 
 
 @mcp.tool()
-def chat(session_id: str, message: str) -> str:
+def chat(
+    session_id: str,
+    message: str,
+    workspace_dir: str | None = None,
+) -> str:
     """Send a message to the FEWS agent and get a response.
 
     This is the main conversational interface. Use it to:
@@ -231,15 +425,19 @@ def chat(session_id: str, message: str) -> str:
     Args:
         session_id: The session_id from create_project.
         message: Your message to the agent.
+        workspace_dir: Optional. Same workspace path passed to create_project;
+            helps locate the session if the index is missing.
 
     Returns:
         JSON with the agent's reply, any confirmation of changes made,
         new patterns added, and whether a build was requested.
     """
-    project_dir = _resolve_session_dir(session_id)
+    project_dir = _resolve_session_dir(session_id, workspace_dir)
     if project_dir is None:
         return json.dumps({
             "error": f"Session '{session_id}' not found. Use create_project first.",
+            "hint": "If the project was created with workspace_dir, pass the "
+                    "same workspace_dir here.",
         })
 
     try:
@@ -271,26 +469,35 @@ def chat(session_id: str, message: str) -> str:
         "confirmation": result.confirmation or None,
         "new_patterns": result.new_patterns or [],
         "wants_build": result.wants_build or result.wants_assemble,
+        "project_dir": str(project_dir.resolve()),
     }
     if result.wants_build or result.wants_assemble:
-        response["hint"] = "Use the build tool to generate XML files."
+        response["hint"] = (
+            "Use the build tool to generate XML files. "
+            f"They will appear under {_generated_dir(project_dir)}."
+        )
 
     return json.dumps(response)
 
 
 @mcp.tool()
-def get_status(session_id: str) -> str:
+def get_status(
+    session_id: str,
+    workspace_dir: str | None = None,
+) -> str:
     """Get the current status of a project.
 
     Returns the configured imports, basins, patterns, warnings, and build progress.
 
     Args:
         session_id: The session_id from create_project.
+        workspace_dir: Optional. Same workspace path passed to create_project.
 
     Returns:
-        JSON with current project state including slots, patterns, and build status.
+        JSON with current project state including slots, patterns, build
+        status, and absolute project_dir / generated_dir paths.
     """
-    project_dir = _resolve_session_dir(session_id)
+    project_dir = _resolve_session_dir(session_id, workspace_dir)
     if project_dir is None:
         return json.dumps({"error": f"Session '{session_id}' not found."})
 
@@ -300,6 +507,7 @@ def get_status(session_id: str) -> str:
         return json.dumps({"error": f"Failed to load session: {e}"})
 
     slots = state.get("slots") or {}
+    generated = _generated_dir(project_dir)
     return json.dumps({
         "project_name": state.get("name"),
         "imports": slots.get("imports") or [],
@@ -309,43 +517,83 @@ def get_status(session_id: str) -> str:
         "built_phases": state.get("built_phases") or [],
         "full_build_ok": state.get("full_build_ok", False),
         "current_module": state.get("current_module"),
+        "workspace_dir": state.get("workspace_dir"),
+        "project_dir": str(project_dir.resolve()),
+        "generated_dir": str(generated.resolve()),
+        "generated_exists": generated.is_dir(),
     })
 
 
 @mcp.tool()
-def list_projects() -> str:
-    """List all existing FEWS projects.
+def list_projects(workspace_dir: str | None = None) -> str:
+    """List existing FEWS projects.
+
+    Args:
+        workspace_dir: Optional. When set, list sessions under
+            ``<workspace_dir>/fews-projects/``. When omitted, list the
+            agent-repo ``projects/`` store (plus any workspace sessions
+            still recorded in the session index).
 
     Returns:
-        JSON with list of projects, each with name, session_id, and last modified time.
+        JSON with list of projects, each with name, session_id,
+        absolute project_dir, and last modified time.
     """
-    projects = []
-    if OUTPUT_ROOT.is_dir():
-        for project_folder in sorted(OUTPUT_ROOT.iterdir()):
-            if not project_folder.is_dir():
-                continue
-            # Find session dirs within the project folder
-            for session_dir in sorted(project_folder.iterdir(), reverse=True):
-                state_file = _state_path(session_dir)
-                if state_file.is_file():
-                    try:
-                        mtime = datetime.fromtimestamp(state_file.stat().st_mtime)
-                        projects.append({
-                            "project_name": project_folder.name,
-                            "session_id": session_dir.name,
-                            "last_modified": mtime.isoformat(),
-                        })
-                    except OSError:
-                        continue
+    if workspace_dir is not None and str(workspace_dir).strip():
+        root, err = resolve_projects_root(workspace_dir)
+        if err or root is None:
+            return json.dumps({"error": err or "Could not resolve projects root."})
+        projects = _list_sessions_under(root)
+        return json.dumps({
+            "projects": projects,
+            "count": len(projects),
+            "projects_root": str(root.resolve()),
+            "workspace_dir": str(Path(workspace_dir).expanduser().resolve()),
+        })
+
+    # Default: agent-repo projects/ + any indexed workspace sessions not
+    # already under OUTPUT_ROOT (so list_projects still finds them).
+    seen: set[str] = set()
+    projects: list[dict] = []
+    for entry in _list_sessions_under(OUTPUT_ROOT):
+        seen.add(entry["session_id"])
+        projects.append(entry)
+    for session_id, meta in _load_session_index().items():
+        if session_id in seen or not isinstance(meta, dict):
+            continue
+        raw = meta.get("project_dir")
+        if not raw:
+            continue
+        session_dir = Path(str(raw))
+        if not session_dir.is_dir() or not _state_path(session_dir).is_file():
+            continue
+        try:
+            mtime = datetime.fromtimestamp(
+                _state_path(session_dir).stat().st_mtime
+            )
+            projects.append({
+                "project_name": session_dir.parent.name,
+                "session_id": session_id,
+                "project_dir": str(session_dir.resolve()),
+                "workspace_dir": meta.get("workspace_dir"),
+                "last_modified": mtime.isoformat(),
+            })
+            seen.add(session_id)
+        except OSError:
+            continue
 
     return json.dumps({
         "projects": projects,
         "count": len(projects),
+        "projects_root": str(OUTPUT_ROOT.resolve()),
     })
 
 
 @mcp.tool()
-def build(session_id: str, force: bool = False) -> str:
+def build(
+    session_id: str,
+    force: bool = False,
+    workspace_dir: str | None = None,
+) -> str:
     """Build the full FEWS configuration (generate XML files).
 
     This runs the complete build pipeline: writes project.yaml, expands
@@ -355,12 +603,14 @@ def build(session_id: str, force: bool = False) -> str:
     Args:
         session_id: The session_id from create_project.
         force: If True, build even if there are warnings. Default False.
+        workspace_dir: Optional. Same workspace path passed to create_project.
 
     Returns:
         JSON with build results: ok (bool), file counts, XSD validation status,
-        output directory, and any errors.
+        absolute output_root / project_dir, and any errors. Tell the user
+        where the files are so they can open them in their workspace.
     """
-    project_dir = _resolve_session_dir(session_id)
+    project_dir = _resolve_session_dir(session_id, workspace_dir)
     if project_dir is None:
         return json.dumps({"error": f"Session '{session_id}' not found."})
 
@@ -415,17 +665,20 @@ def build(session_id: str, force: bool = False) -> str:
             state["full_build_ok"] = True
         _save(project_dir, state, history)
 
+    output_root = summary.get("output_root") or str(_generated_dir(project_dir))
     return json.dumps({
         "ok": bool(summary.get("ok")),
         "files_total": summary.get("files_total", 0),
         "files_xml": summary.get("files_xml", 0),
         "files_xsd_ok": summary.get("files_xsd_ok", 0),
         "errors": list(summary.get("errors") or []),
-        "output_root": summary.get("output_root"),
-        "project_yaml": str(project_path),
+        "output_root": output_root,
+        "project_dir": str(project_dir.resolve()),
+        "workspace_dir": state.get("workspace_dir"),
+        "project_yaml": str(Path(project_path).resolve()),
         "message": (
             f"Build complete: {summary.get('files_xsd_ok', 0)}/{summary.get('files_xml', 0)} "
-            f"XML files passed XSD validation."
+            f"XML files passed XSD validation. Open the files at: {output_root}"
             if summary.get("ok")
             else f"Build completed with errors: {len(summary.get('errors') or [])} error(s)."
         ),
@@ -433,7 +686,11 @@ def build(session_id: str, force: bool = False) -> str:
 
 
 @mcp.tool()
-def build_phase(session_id: str, phase: str) -> str:
+def build_phase(
+    session_id: str,
+    phase: str,
+    workspace_dir: str | None = None,
+) -> str:
     """Build a single capability phase (scoped build).
 
     Use this to build incrementally: imports → process → model → visualize.
@@ -442,9 +699,10 @@ def build_phase(session_id: str, phase: str) -> str:
     Args:
         session_id: The session_id from create_project.
         phase: One of: imports, process, model, visualize.
+        workspace_dir: Optional. Same workspace path passed to create_project.
 
     Returns:
-        JSON with build results for that phase.
+        JSON with build results for that phase, including absolute output_root.
     """
     valid_phases = ("imports", "process", "model", "visualize")
     phase_lower = phase.lower().strip()
@@ -453,7 +711,7 @@ def build_phase(session_id: str, phase: str) -> str:
             "error": f"Invalid phase '{phase}'. Valid phases: {', '.join(valid_phases)}",
         })
 
-    project_dir = _resolve_session_dir(session_id)
+    project_dir = _resolve_session_dir(session_id, workspace_dir)
     if project_dir is None:
         return json.dumps({"error": f"Session '{session_id}' not found."})
 
@@ -499,14 +757,19 @@ def build_phase(session_id: str, phase: str) -> str:
         state["last_build_summary"] = summary
         _save(project_dir, state, history)
 
+    output_root = summary.get("output_root") or str(_generated_dir(project_dir))
     return json.dumps({
         "ok": bool(summary.get("ok")),
         "phase": phase_lower,
         "files_total": summary.get("files_total", 0),
         "files_xsd_ok": summary.get("files_xsd_ok", 0),
         "errors": list(summary.get("errors") or []),
+        "output_root": output_root,
+        "project_dir": str(project_dir.resolve()),
+        "workspace_dir": state.get("workspace_dir"),
         "message": (
-            f"Phase '{phase_lower}' built: {summary.get('files_xsd_ok', 0)} files XSD-valid."
+            f"Phase '{phase_lower}' built: {summary.get('files_xsd_ok', 0)} files "
+            f"XSD-valid. Open the files at: {output_root}"
             if summary.get("ok")
             else f"Phase '{phase_lower}' completed with errors."
         ),
