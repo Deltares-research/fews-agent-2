@@ -1668,6 +1668,11 @@ class ChatSession:
         )
         self._logger.info("llm_turn turn=%d note=%s", turn, res.note)
 
+        # The turn may have WRITTEN input CSVs (write_input_file op) — mirror
+        # them to blob now; the core-file save below doesn't cover inputs/.
+        if res.input_files_written:
+            blob_store.sync_session_up(self.session_dir, full=True)
+
         # Signals → the existing deterministic machinery.
         if res.coordinates_for is not None:
             # Record the model's reply first so the modal has conversational

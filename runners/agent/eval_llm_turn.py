@@ -16,6 +16,7 @@ the deterministic oracle remains tests/test_llm_turn.py.
 from __future__ import annotations
 
 import io
+import tempfile
 import os
 import sys
 from pathlib import Path
@@ -71,6 +72,44 @@ def _scenarios():
             "didn't name the missing locations.csv"
         ]
 
+    def nag(state, transcript):
+        """PDF 2: 'you still need locations.csv...' re-appended after every
+        turn, including two straight declines. One mention is fine; the same
+        reminder after BOTH "no"s is the nag."""
+        declines = [r.lower() for m, r in transcript if m == "no"]
+        if len(declines) >= 2 and all("locations.csv" in r for r in declines):
+            return ["repeated the locations.csv reminder after every decline"]
+        return []
+
+    def eccc_fixed(state, transcript):
+        """PDF 1: claimed HRDPS's resolution is changeable — it's fixed."""
+        problems = []
+        ov = (state["slots"].get("import_overrides") or {}).get("HRDPS") or {}
+        if "grid_resolution" in ov:
+            problems.append("applied a resolution override to ECCC HRDPS")
+        reply = transcript[-1][1].lower()
+        if not any(w in reply for w in ("fixed", "native", "cannot", "can't",
+                                        "isn't", "not")):
+            problems.append("didn't say HRDPS's resolution is fixed")
+        return problems
+
+    def station_write(state, transcript):
+        """PDF 2: the agent collected a station and had nowhere to put it.
+        Now the data must land in inputs/locations.csv."""
+        path = state["_eval_inputs_dir"] / "locations.csv"
+        if not path.is_file():
+            return ["locations.csv was not written"]
+        text = path.read_text(encoding="utf-8")
+        return [] if "A" in text else [f"station A missing: {text[:80]}"]
+
+    def scoped_build(state, transcript):
+        """PDF 1: refused 'build it' over missing CSVs — scoped builds don't
+        need them."""
+        reply = transcript[-1][1].lower()
+        bad = ("can't build", "cannot build", "couldn't build", "couldn't b")
+        return (["refused a scoped build over missing CSVs"]
+                if any(b in reply for b in bad) else [])
+
     return [
         ("rhine-basin", [
             "add GFS", "i need it for the rhine basin",
@@ -83,6 +122,15 @@ def _scenarios():
         ("gap-report", [
             "add GFS with precipitation", "whats left to build?",
         ], gap),
+        ("nag-throttle", ["add GFS", "no", "no"], nag),
+        ("eccc-fixed-resolution", [
+            "add HRDPS", "can i change the resolution of HRDPS?",
+        ], eccc_fixed),
+        ("station-write", [
+            "add GFS",
+            'add a station: location name "A", coordinates x=1, y=1',
+        ], station_write),
+        ("scoped-build-not-refused", ["add GFS", "build it"], scoped_build),
     ]
 
 
@@ -103,12 +151,14 @@ def main() -> int:
     for name, turns, check in _scenarios():
         state = {"slots": {}, "current_module": "processing",
                  "intent": "build_data_import_only"}
+        inputs_dir = Path(tempfile.mkdtemp(prefix="eval_inputs_"))
+        state["_eval_inputs_dir"] = inputs_dir     # for scenario checks
         history: list[dict] = []
         transcript: list[tuple[str, str]] = []
         for msg in turns:
             history.append({"role": "user", "message": msg})
             res = run_llm_turn(state, msg, catalog, provider=provider,
-                               history=history)
+                               history=history, inputs_dir=inputs_dir)
             history.append({"role": "agent", "message": res.reply})
             transcript.append((msg, res.reply))
 

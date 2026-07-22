@@ -715,6 +715,7 @@ class ModuleTurnResult:
     build_scope: str | None = None       # phase/module name for wants_build
     wants_assemble: bool = False         # the `done` path
     coordinates_for: str | None = None   # ""=all grids, name=one, None=no
+    input_files_written: list[str] = field(default_factory=list)
 
 
 def _next_step_hint(state: dict, focus) -> str:

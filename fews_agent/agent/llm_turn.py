@@ -239,6 +239,36 @@ def build_digest(state: dict) -> str:
 # The single call
 # ---------------------------------------------------------------------------
 
+def _perform_input_writes(res, inputs_dir) -> list[str]:
+    """Execute validated write_input_file ops into the session's inputs/.
+
+    Runs BEFORE the dropped-ops repair check so a failed write lands in
+    ``res.dropped`` and the reply gets corrected — the model claims the
+    write in its draft, so failure must rewrite that claim. Returns the
+    filenames actually written."""
+    written: list[str] = []
+    if not res.input_writes:
+        return written
+    from fews_agent.agent.input_files import write_input_file
+    for fname, rows in res.input_writes:
+        if inputs_dir is None:
+            res.dropped.append(
+                f"write_input_file {fname}: this session has no inputs "
+                f"folder to write into"
+            )
+            continue
+        try:
+            res.notes.append(write_input_file(Path(inputs_dir), fname, rows))
+            written.append(fname)
+        except Exception as exc:  # noqa: BLE001
+            _logger.exception("input write failed for %s", fname)
+            res.dropped.append(
+                f"write_input_file {fname}: write failed "
+                f"({type(exc).__name__})"
+            )
+    return written
+
+
 def _repair_reply(provider, message: str, draft: str, res) -> str:
     """Rewrite a draft reply after ops were dropped, so it can't claim
     success for changes that never applied. Falls back to a deterministic
@@ -326,6 +356,7 @@ def run_llm_turn(
                                 "failed", kind="reply")
 
     res = apply_patch(state, ops, catalog)
+    written_inputs = _perform_input_writes(res, inputs_dir)
 
     # show_variables: append the deterministic /vars table (same output as
     # the slash command) so "what are the vars of GFS?" answers with the real
@@ -368,4 +399,5 @@ def run_llm_turn(
         wants_build=res.wants_build, build_scope=res.build_scope,
         wants_assemble=res.wants_assemble,
         coordinates_for=res.coordinates_for,
+        input_files_written=written_inputs,
     )

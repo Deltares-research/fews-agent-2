@@ -50,13 +50,16 @@ class PatchResult:
     coordinates_for: str | None = None   # "" = all grids, name = one, None = no
     vars_for: str | None = None          # "" = overview, name = one instance
     preview_for: str | None = None       # /show target — file preview
+    # write_input_file ops that passed validation: (filename, clean_rows).
+    # patch_ops stays pure — llm_turn performs the disk write.
+    input_writes: list = field(default_factory=list)
 
 
 # The op names the model may emit. Anything else is dropped loudly.
 OP_NAMES = (
     "add_import", "add_basin", "add_capability", "set_variables",
     "remove", "set_focus", "open_coordinates", "show_variables",
-    "preview_file",
+    "preview_file", "write_input_file",
     "build", "assemble", "none",
 )
 
@@ -513,6 +516,16 @@ def apply_patch(state: dict, ops: list, catalog) -> PatchResult:
             res.vars_for = str(args.get("target") or "")
         elif name == "preview_file":
             res.preview_for = str(args.get("target") or "")
+        elif name == "write_input_file":
+            from fews_agent.agent.input_files import validate_rows
+            fname = str(args.get("file") or "").strip()
+            clean, errors = validate_rows(fname, args.get("rows") or [])
+            if errors:
+                res.dropped.extend(
+                    f"write_input_file {fname or '?'}: {e}" for e in errors
+                )
+            else:
+                res.input_writes.append((fname, clean))
         elif name == "build":
             res.wants_build = True
             res.build_scope = (str(args["scope"]).strip()
