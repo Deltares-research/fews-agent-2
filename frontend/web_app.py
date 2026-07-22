@@ -68,6 +68,20 @@ st.set_page_config(
     layout="wide",
 )
 
+# Sidebar at 60% of Streamlit's default width (21rem → ~12.6rem). The module
+# navigator + download buttons are compact, so the chat gets the room back.
+st.markdown(
+    """<style>
+    section[data-testid="stSidebar"] {
+        width: 12.6rem !important;
+        min-width: 12.6rem !important;
+        max-width: 12.6rem !important;
+    }
+    section[data-testid="stSidebar"] button { font-size: 0.78rem; }
+    </style>""",
+    unsafe_allow_html=True,
+)
+
 
 def _ensure_session(
     username: str, project_name: str, model: str, session_dir: str,
@@ -345,7 +359,9 @@ with _modules_slot.container():
     st.caption("**FEWS modules** — click to focus")
     for _ms in chat.module_statuses():
         _icon = "🟢" if _ms["built"] else "⚪"
-        if st.button(
+        _dl = chat.module_zip(_ms["key"])
+        _c_name, _c_dl = st.columns([5, 1])
+        if _c_name.button(
             f"{_icon} {_ms['label']}",
             key=f"_mod_{_ms['key']}",
             type="primary" if _ms["focused"] else "secondary",
@@ -353,6 +369,28 @@ with _modules_slot.container():
         ):
             chat.send(f"/module {_ms['key']}")
             st.rerun()
+        if _dl is not None:
+            _bytes, _n = _dl
+            _c_dl.download_button(
+                "⬇", data=_bytes,
+                file_name=f"{chat.project_name}-{_ms['key']}.zip",
+                mime="application/zip", key=f"_dl_{_ms['key']}",
+                help=f"Download this module's {_n} generated file(s)",
+            )
+
+    # The full delivery: everything rendered, wrapped as Config/ with the
+    # complete FEWS folder skeleton (empty folders included).
+    _cfg = chat.config_zip()
+    if _cfg is not None:
+        _cfg_bytes, _cfg_n = _cfg
+        st.download_button(
+            f"⬇ Download Config ({_cfg_n} files)", data=_cfg_bytes,
+            file_name=f"{chat.project_name}-Config.zip",
+            mime="application/zip", type="primary",
+            use_container_width=True, key="_dl_config",
+            help="The whole generated tree as a Config/ folder, including "
+                 "empty standard FEWS folders",
+        )
 
 # ----- header ---------------------------------------------------------------
 
@@ -615,92 +653,15 @@ if _done_stash and _done_stash.get("chat_key") == st.session_state.get("_chat_ke
         )
         st.caption(f"output: `{_vs.get('output_root', '?')}`")
 
-        # One-click bundle of everything under output_root — XMLs +
-        # sa_global.Properties + any mirrored assets — zipped in
-        # memory so colleagues can grab the whole config in a single
-        # download. Rebuilt each script run; cost is trivial at demo
-        # scale (~30 files, <1MB). The zip filename embeds a
-        # SESSION-STABLE timestamp (taken from ``_last_done``) so it
-        # doesn't change on every rerun — streamlit treats the new
-        # ``data`` as a different payload otherwise and the download
-        # offer can flicker.
-        # SAFETY: never fall back to a relative/empty path. ``Path("")`` is
-        # ``Path(".")`` — the Streamlit process CWD, i.e. the whole repo — so a
-        # summary without ``output_root`` (scoped phase/module builds used to
-        # omit it) would zip the entire codebase INCLUDING .env. Require an
-        # absolute path that is a real directory and is not an ancestor of the
-        # repo/CWD before offering any download.
-        _raw_out_root = str(_vs.get("output_root") or "").strip()
-        _out_root_path = Path(_raw_out_root) if _raw_out_root else None
-        if _out_root_path is not None:
-            _cwd = Path.cwd().resolve()
-            _resolved = _out_root_path.resolve()
-            if (
-                not _out_root_path.is_absolute()
-                or not _resolved.is_dir()
-                or _resolved == _cwd
-                or _resolved in _cwd.parents
-            ):
-                st.warning(
-                    "Download unavailable: the build did not report a valid "
-                    "output directory, so there is nothing safe to bundle."
-                )
-                _out_root_path = None
-        # Bundle EXACTLY the files this build reported in its manifest
-        # (``summary["files"]`` → one entry per written file, path relative to
-        # output_root) — NOT a directory sweep. A manifest-driven zip cannot
-        # pick up anything the build didn't write, so source code / .env /
-        # unrelated projects can never end up in it even if output_root were
-        # wrong. Each entry is still resolved and confined under output_root as
-        # a second check against a traversal-ish path.
-        _manifest = [
-            str(_e.get("path", "")).strip()
-            for _e in (_vs.get("files") or [])
-            if str(_e.get("path", "")).strip()
-        ]
-        if _out_root_path is not None and not _manifest:
-            st.warning(
-                "Download unavailable: the build reported no files, so there "
-                "is nothing to bundle."
-            )
-            _out_root_path = None
-        if _out_root_path is not None:
-            import io as _io
-            import zipfile as _zip
-            _root = _out_root_path.resolve()
-            _buf = _io.BytesIO()
-            _file_count = 0
-            _skipped = 0
-            with _zip.ZipFile(_buf, "w", _zip.ZIP_DEFLATED) as _zf:
-                for _rel in sorted(set(_manifest)):
-                    _fp = (_root / _rel).resolve()
-                    # Confine to output_root and require it to still exist.
-                    if _root not in _fp.parents and _fp != _root:
-                        _skipped += 1
-                        continue
-                    if not _fp.is_file():
-                        _skipped += 1
-                        continue
-                    _zf.write(_fp, _fp.relative_to(_root))
-                    _file_count += 1
-            _zip_bytes = _buf.getvalue()
-            if _skipped:
-                st.caption(f"({_skipped} manifest entr(y/ies) missing on disk)")
-            _stash_dt = _done_stash.setdefault(
-                "zip_timestamp",
-                datetime.now().strftime("%Y%m%d-%H%M%S"),
-            )
-            _zip_name = f"{chat.project_name}-config-{_stash_dt}.zip"
-            st.download_button(
-                f"⬇ Download all {_file_count} generated files (.zip, "
-                f"{len(_zip_bytes) // 1024} KB)",
-                data=_zip_bytes,
-                file_name=_zip_name,
-                mime="application/zip",
-                type="primary",
-                use_container_width=True,
-                key="download_bundle",
-            )
+        # Downloads moved to the LEFT PANEL: a per-module ⬇ next to each
+        # module name, and the full 'Download Config' bundle (complete FEWS
+        # folder skeleton, empty folders included). The chat records only
+        # the canned generation+XSD summary, which also grounds the LLM's
+        # build_digest context.
+        st.caption(
+            "⬇ Downloads are in the left panel — per module, or the full "
+            "Config bundle."
+        )
 
         # Pydantic / render-time errors — these prevented files
         # from being generated, so they don't appear in the

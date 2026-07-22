@@ -781,6 +781,73 @@ class ChatSession:
             })
         return out
 
+    # ---- download bundles (sidebar) ------------------------------------------
+
+    @property
+    def output_root(self) -> Path:
+        """Where this session's builds render: <session>/generated."""
+        return self.session_dir / "generated"
+
+    def _generated_files(self) -> list[tuple[Path, str]]:
+        """(abs_path, posix_relpath) for every rendered file, session-scoped."""
+        root = self.output_root
+        if not root.is_dir():
+            return []
+        return sorted(
+            (p, p.relative_to(root).as_posix())
+            for p in root.rglob("*") if p.is_file()
+        )
+
+    def module_zip(self, module_key: str) -> tuple[bytes, int] | None:
+        """Zip ONE module's rendered files (for the sidebar ⬇ next to its
+        name). Scoping comes from the module registry's ``folders`` — a
+        trailing-slash entry is a directory prefix; a ``…/X.xml`` entry also
+        matches split variants (``FiltersLiard.xml``) via its stem. Returns
+        ``(zip_bytes, n_files)`` or None when the module has nothing yet."""
+        import io
+        import zipfile
+
+        from fews_agent.agent.modules import get_module
+
+        module = get_module(module_key)
+        if module is None:
+            return None
+        prefixes = [
+            f[:-4] if f.endswith(".xml") else f for f in module.folders
+        ]
+        picked = [
+            (p, rel) for p, rel in self._generated_files()
+            if any(rel.startswith(pre) for pre in prefixes)
+        ]
+        if not picked:
+            return None
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+            for p, rel in picked:
+                zf.write(p, rel)
+        return buf.getvalue(), len(picked)
+
+    def config_zip(self) -> tuple[bytes, int] | None:
+        """Zip the whole rendered tree as a ``Config/`` folder — including an
+        EMPTY directory entry for every folder a Delft-FEWS Config normally
+        carries (CONFIG_FOLDERS), so the bundle drops into a FEWS region as a
+        complete skeleton even where this project generated nothing."""
+        import io
+        import zipfile
+
+        from fews_agent.agent.modules import CONFIG_FOLDERS
+
+        files = self._generated_files()
+        if not files:
+            return None
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+            for folder in CONFIG_FOLDERS:
+                zf.writestr(zipfile.ZipInfo(f"Config/{folder}/"), b"")
+            for p, rel in files:
+                zf.write(p, f"Config/{rel}")
+        return buf.getvalue(), len(files)
+
     # ---- grid coordinates subwindow -----------------------------------------
 
     def _nwp_grid_imports(self) -> list[dict]:

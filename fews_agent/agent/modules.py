@@ -364,3 +364,28 @@ def modules_present(patterns: list[dict[str, Any]] | None) -> list[str]:
     for entry in patterns or []:
         seen.add(module_for_pattern(entry.get("pattern", "")))
     return [k for k in MODULE_ORDER if k in seen]
+
+
+# The folders a delivered Delft-FEWS Config directory normally contains.
+# Used by the "download Config" bundle: every folder is present in the zip
+# even when this project generated nothing into it (empty folders included),
+# so the download drops straight into a FEWS region as a complete skeleton.
+CONFIG_FOLDERS: tuple[str, ...] = (
+    "ColdStateFiles",
+    "CoefficientSetsFiles",
+    "DisplayConfigFiles",
+    "FlagConversionsFiles",
+    "IconFiles",
+    "IdMapFiles",
+    "MapLayerFiles",
+    "ModuleConfigFiles",
+    "ModuleDataSetFiles",
+    "ModuleParFiles",
+    "PiClientConfigFiles",
+    "RegionConfigFiles",
+    "ReportTemplateFiles",
+    "RootConfigFiles",
+    "SystemConfigFiles",
+    "UnitConversionsFiles",
+    "WorkflowFiles",
+)
