@@ -1861,6 +1861,30 @@ repo's tree, so every command uses explicit `--git-dir`/`--work-tree`
 (pinned by a test); git missing → logged no-op. Docker images install git.
 `blob_store` full-sync skips `.git/`.
 
+**Human-test hardening batch (2026-07-22, all shipped).** Driven by two
+configurator test transcripts: (1) **honest replies** — dropped ops trigger a
+repair call that rewrites the success-claiming draft (`llm_repair.*` prompts;
+deterministic fallback); (2) **catalog-driven `set_variables`** — any variable
+the target's pattern declares is settable (typed coercion → `import_overrides`
+→ resolver stamps it on the instance); (3) **input CSV authoring** —
+`write_input_file` op writes/upserts/deletes rows in `inputs/*.csv` validated
+against the ingest's own alias table (`input_files.py`); CSVs are git-tracked
+(diffs in chat; uploads baseline-commit) and downloadable per-file; (4) prompt
+rules 4b–4d (no nagging, changeable=vars-table + ECCC resolution fixed, scoped
+build needs no CSVs) pinned by 8 live eval scenarios; (5) **FEWS-loadable
+Config bundle** — `fews_bundle_path` remaps `WorkflowFiles/`→`Config/Workflows/`
+and puts lowercase `sa_global.properties` at the region root (delivery-time
+only; generation tree keeps the tutorial layout for the byte-eq oracle); (6)
+**stale/forced amber sidebar** — builds stamp content fingerprints, mismatch →
+🟠, `/force-done` → 🟠 until a clean done; (7) **prose undo** op (double-pop
+snapshot); (8) **streaming replies** (`reply_stream.py` extracts the reply
+field from the JSON stream; LiteLLM-only, falls back silently) + **telemetry**
+(`state["llm_usage"]` totals, header caption); (9) **semantic validation in
+chat** — full assembly retains rendered Pydantic models, runs
+`validate_semantic`, and `build_digest` carries refs/unresolved (+examples).
+Sidebar module click sends "Let's build <folder>!" not `/module`. Deliberately
+NOT done: concurrency lock, CLI switchover + strangling (both user-skipped).
+
 Prompts: `prompts/llm_turn.{system,user}.txt` — the system prompt IS the
 elicitation program (priority-ordered rules, op schema, few-shot examples incl.
 the never-guess-an-adapter Rhine case). Prompt regressions are caught by the

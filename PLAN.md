@@ -75,6 +75,9 @@ slash cmds ─► existing deterministic handlers (never call the LLM)
 | `frontend/web_app.py` | sidebar module navigator + chat render | UI only |
 | `fews_agent/agent/preview.py` | /show · /present · preview_file: live render + last-build fallback + shared formatter | preview behaviour |
 | `app/project_git.py` | per-session git: commit after every agent action, diff PRE-EXISTING changed files into the chat | change-tracking behaviour |
+| `fews_agent/agent/input_files.py` | write_input_file op: CSV authoring/upsert/delete validated against the ingest alias table | input authoring |
+| `fews_agent/agent/reply_stream.py` | incremental reply-field extraction from the streaming JSON response | streaming UX |
+| `fews_agent/agent/prompts/llm_repair.*` | honest-reply rewrite when patch ops are dropped | anti-fabrication |
 | `app/blob_store.py` | PHASE-switched session store (dev local / prod Azure Blob); skips `.git/` | prod persistence |
 | `runners/agent/eval_llm_turn.py` | golden-transcript LIVE eval | after ANY prompt change |
 | `tests/test_patch_ops.py`, `tests/test_llm_turn.py` | deterministic oracles | with every engine change |
