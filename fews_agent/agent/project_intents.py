@@ -1372,6 +1372,14 @@ def _resolve_import_patterns(
         _geom = _ov.get("grid_geometry")
         if _geom and path.startswith("auto/nwp_grid_"):
             instance["grid_geometry"] = _geom
+        # Any OTHER per-import override is a pattern variable set by name
+        # (catalog-validated in patch_ops against the pattern's declared
+        # variables — e.g. contribute_parameters). The user's explicit value
+        # wins over anything this resolver put on the instance above.
+        for _k, _v in _ov.items():
+            if _k not in ("grid_resolution", "forecast_horizon_hours",
+                          "grid_geometry"):
+                instance[_k] = _v
         existing = next((p for p in out if p["pattern"] == path), None)
         if existing:
             existing["instances"].append(instance)

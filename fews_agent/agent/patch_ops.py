@@ -175,6 +175,59 @@ def _op_add_capability(state: dict, args: dict, catalog, res: PatchResult) -> No
     res.new_patterns.extend(new)
 
 
+def _declared_variables(target: str, catalog) -> tuple[str | None, dict]:
+    """(canonical import name, declared pattern variables) for a target.
+
+    This is what makes ``set_variables`` CATALOG-driven: any variable the
+    target's pattern declares (the same set the /vars table shows) is
+    settable — not just a hand-maintained scalar whitelist. Returns
+    ``(None, {})`` when the target isn't a known import.
+    """
+    from fews_agent.agent.project_intents import _IMPORT_PATTERN_MAP
+
+    imp = _canonical_import(str(target or ""))
+    if imp is None or imp not in _IMPORT_PATTERN_MAP:
+        return None, {}
+    path = _IMPORT_PATTERN_MAP[imp][0]
+    for entry in catalog or []:
+        if getattr(entry, "path", "") == path:
+            variables = getattr(entry, "variables", {}) or {}
+            return imp, {k: v for k, v in variables.items()
+                         if isinstance(v, dict)}
+    return imp, {}
+
+
+def _coerce_declared(value, spec: dict):
+    """Coerce a raw value to the declared variable's shape (default's type).
+
+    Returns the coerced value, or ``None`` when it can't be read as that
+    type — the caller drops the op loudly.
+    """
+    default = spec.get("default")
+    if isinstance(default, bool):
+        if isinstance(value, bool):
+            return value
+        token = str(value).strip().lower()
+        if token in ("true", "yes", "y", "on", "1"):
+            return True
+        if token in ("false", "no", "n", "off", "0"):
+            return False
+        return None
+    if isinstance(default, int) and not isinstance(default, bool):
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return None
+    if isinstance(default, float):
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return None
+    if isinstance(default, (list, dict)):
+        return value if isinstance(value, type(default)) else None
+    return str(value)
+
+
 def _op_set_variables(state: dict, args: dict, catalog, res: PatchResult) -> None:
     from fews_agent.agent.turn_engine import (
         _SET_VAR_CANON,
@@ -252,7 +305,33 @@ def _op_set_variables(state: dict, args: dict, catalog, res: PatchResult) -> Non
                                    "forecast_horizon_hours") else None
         )
         if variable is None:
-            res.dropped.append(f"set_variables: unknown variable {raw_var!r}")
+            # CATALOG-driven fallback: any variable the target's pattern
+            # declares (exactly what the /vars table advertises) is settable
+            # via the per-import override channel; the resolver stamps it
+            # onto the instance. Fixes "the table lists contribute_parameters
+            # but set_variables calls it unknown".
+            imp, declared = _declared_variables(target, catalog)
+            spec = declared.get(str(raw_var).strip())
+            if imp is not None and spec is not None:
+                coerced = _coerce_declared(raw_val, spec)
+                if coerced is None:
+                    res.dropped.append(
+                        f"set_variables: couldn't parse {raw_val!r} "
+                        f"for {raw_var}"
+                    )
+                    continue
+                overrides = state.setdefault("slots", {}).setdefault(
+                    "import_overrides", {})
+                overrides.setdefault(imp, {})[str(raw_var).strip()] = coerced
+                res.notes.append(
+                    f"Set {raw_var} to {coerced} for {imp}."
+                )
+                continue
+            hint = (f" {imp} has: {', '.join(sorted(declared))}."
+                    if imp and declared else "")
+            res.dropped.append(
+                f"set_variables: unknown variable {raw_var!r}.{hint}"
+            )
             continue
         value = _normalise_set_value(variable, raw_val)
         if value is None:
@@ -303,11 +382,28 @@ def _op_remove(state: dict, args: dict, catalog, res: PatchResult) -> None:
             ("grid_resolution", "forecast_horizon_hours", "region",
              "wants_visualization", "wants_interpolation") else None
         )
-        if canon is None:
-            res.dropped.append(f"remove: unknown variable {var_token!r}")
-            return
         overrides = slots.get("import_overrides") or {}
         imp = _canonical_import(token)
+        if canon is None:
+            # A catalog-declared variable set via the override channel
+            # ("remove GFS's contribute_parameters") clears the same way.
+            _imp2, declared = _declared_variables(token, catalog)
+            for name in declared:
+                if name.lower() == var_token:
+                    if imp and name in (overrides.get(imp) or {}):
+                        overrides[imp].pop(name, None)
+                        resolve_patterns(state, catalog)
+                        res.notes.append(
+                            f"Cleared {name} for {imp} (back to default)."
+                        )
+                    else:
+                        res.dropped.append(
+                            f"remove: {token!r} has no {name} override to "
+                            f"clear"
+                        )
+                    return
+            res.dropped.append(f"remove: unknown variable {var_token!r}")
+            return
         if imp and imp in overrides and canon in overrides[imp]:
             overrides[imp].pop(canon, None)
             resolve_patterns(state, catalog)

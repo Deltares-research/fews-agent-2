@@ -68,14 +68,14 @@ st.set_page_config(
     layout="wide",
 )
 
-# Sidebar at 60% of Streamlit's default width (21rem → ~12.6rem). The module
+# Sidebar at 60% of Streamlit's default width (21rem → ~16.4rem). The module
 # navigator + download buttons are compact, so the chat gets the room back.
 st.markdown(
     """<style>
     section[data-testid="stSidebar"] {
-        width: 12.6rem !important;
-        min-width: 12.6rem !important;
-        max-width: 12.6rem !important;
+        width: 16.4rem !important;
+        min-width: 16.4rem !important;
+        max-width: 16.4rem !important;
     }
     section[data-testid="stSidebar"] button { font-size: 0.78rem; }
     </style>""",
@@ -369,7 +369,7 @@ with _modules_slot.container():
             type="primary" if _ms["focused"] else "secondary",
             use_container_width=True,
         ):
-            chat.send(f"/module {_ms['key']}")
+            chat.focus_module(_ms["key"])
             st.rerun()
         if _dl is not None:
             _bytes, _n = _dl
@@ -398,7 +398,7 @@ with _modules_slot.container():
 
 st.title("FEWS configurator agent")
 st.caption(f"session: `{chat.session_dir.name}`  ·  project: `{chat.project_name}`")
-st.caption(f"`{chat.session_dir}`  ·  model: `{chat.model}`")
+st.caption(f"model: `{chat.model}`")
 
 if not _llm_ok:
     st.error(_llm_err_msg)

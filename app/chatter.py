@@ -1038,6 +1038,37 @@ class ChatSession:
                 kind="error",
             )
 
+    def focus_module(self, module_key: str) -> TurnResult:
+        """Sidebar click = focus a module, recorded as a NATURAL user turn.
+
+        Same deterministic focus as ``/module <key>`` (no LLM), but the
+        history shows "Let's build <FEWS folder label>!" instead of command
+        syntax — the click is a statement of intent, not a keystroke.
+        """
+        from fews_agent.agent.modules import get_module
+
+        module = get_module(module_key)
+        if module is None:
+            return self.send(f"/module {module_key}")   # unknown → old path
+        turn = self._turn_count() + 1
+        short = module.label.split(" (")[0].strip()
+        message = f"Let's build {short}!"
+        self.history.append({"role": "user", "message": message})
+        self._append_md(turn, "user", message)
+        focused, _ = module_focus.set_focus(self.state, module_key)
+        reply = module_welcome(self.state, focused)
+        confirmation = module_focus.focus_card(self.state, focused)
+        entry = {"role": "agent", "message": reply}
+        if confirmation:
+            entry["confirmation"] = confirmation
+        self.history.append(entry)
+        self._append_md(turn, "agent", reply, note="module focus (sidebar)")
+        self._save()
+        self._logger.info("module_focus_click turn=%d module=%s", turn,
+                          module_key)
+        return TurnResult(agent_message=reply, kind="reply",
+                          confirmation=confirmation)
+
     # ---- the turn pipeline (mirrors runners/agent/chat_step.py::main) --------
 
     def _send_inner(self, message: str) -> TurnResult:

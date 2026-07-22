@@ -239,6 +239,39 @@ def build_digest(state: dict) -> str:
 # The single call
 # ---------------------------------------------------------------------------
 
+def _repair_reply(provider, message: str, draft: str, res) -> str:
+    """Rewrite a draft reply after ops were dropped, so it can't claim
+    success for changes that never applied. Falls back to a deterministic
+    honest sentence when the repair call itself fails."""
+    try:
+        resp = provider.generate_json(
+            system=prompts.load("llm_repair.system"),
+            user=prompts.load(
+                "llm_repair.user",
+                message=message,
+                draft_reply=draft,
+                applied="\n".join(res.notes),
+                rejected="\n".join(res.dropped),
+            ),
+            schema={
+                "type": "object",
+                "properties": {"reply": {"type": "string"}},
+                "required": ["reply"],
+            },
+        )
+        fixed = str((resp.data or {}).get("reply") or "").strip()
+        if fixed:
+            return fixed
+    except Exception as exc:  # noqa: BLE001
+        _logger.warning("repair reply failed: %s: %s",
+                        type(exc).__name__, exc)
+    applied = ("I applied: " + "; ".join(res.notes) + " ") if res.notes else ""
+    return (
+        f"{applied}I couldn't apply the rest of that — see the details "
+        f"below."
+    )
+
+
 def _fallback_reply(state: dict) -> str:
     return (
         "I couldn't reach the language model just now, so nothing was "
@@ -315,6 +348,13 @@ def run_llm_turn(
         )
 
     if res.dropped:
+        # The model wrote its reply ASSUMING the whole patch would apply; when
+        # part of it was rejected, that draft may claim success ("Set GFS to
+        # keep its parameters separate" over a dropped op — seen twice in
+        # human testing). One repair call rewrites the reply from the actual
+        # outcome; if it fails, a deterministic honest reply replaces the
+        # draft — the fabricated success text never ships either way.
+        reply = _repair_reply(provider, message, reply, res)
         reply += (
             "\n\n[!] Not applied (failed validation): "
             + "; ".join(res.dropped)

@@ -1,0 +1,13 @@
+USER MESSAGE
+[[ message ]]
+
+YOUR DRAFT REPLY (may wrongly claim success)
+[[ draft_reply ]]
+
+WHAT WAS ACTUALLY APPLIED
+[[ applied if applied else "(nothing)" ]]
+
+WHAT WAS REJECTED (not applied)
+[[ rejected ]]
+
+Write the corrected reply as {"reply": "..."}.
