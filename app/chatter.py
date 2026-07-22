@@ -862,6 +862,46 @@ class ChatSession:
         )
 
 
+    def _step_render_diff(self) -> str:
+        """Live-diff mode: after an EDIT turn, re-render the project's
+        pattern files to generated/ and return the chat diff section for
+        pre-existing files the edit changed ('' when nothing did).
+
+        Uses the same in-memory ``blueprint.expand`` as previews (~10 ms per
+        file); only pattern-derived files re-render — singletons, standards
+        and derivers still belong to builds/assembly, so their diffs appear
+        at those actions as before. Gated by ``state['live_diffs']``.
+        """
+        try:
+            from fews_agent.agent.blueprint import (
+                Blueprint, PatternRef, expand,
+            )
+
+            self._resolve_patterns()
+            refs = [
+                PatternRef(pattern=p["pattern"],
+                           instances=list(p.get("instances") or [{}]))
+                for p in self.state.get("patterns") or []
+            ]
+            if not refs:
+                return ""
+            bp = Blueprint(
+                name=self.state.get("name") or "live",
+                output_root=Path("live"), patterns=refs,
+                singleton_seeds=dict(
+                    self.state.get("singleton_seeds") or {}),
+            )
+            result = expand(bp, PATTERNS_ROOT)
+            gen = self.session_dir / "generated"
+            for f in result.rendered_files:
+                target = gen / f.relpath
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_text(f.content, encoding="utf-8")
+            return self._change_diff_text("live re-render after edit")
+        except Exception:  # noqa: BLE001 — live diffs must never break a turn
+            self._logger.exception("live step render failed")
+            return ""
+
     def _change_diff_text(self, label: str) -> str:
         """Commit this action into the per-session git and return the chat
         section showing diffs of PRE-EXISTING files it changed ('' if none —
@@ -1745,6 +1785,14 @@ class ChatSession:
             _d = self._change_diff_text(
                 "update inputs: " + ", ".join(res.input_files_written)
             )
+            if _d:
+                res.reply += "\n\n" + _d
+
+        # Live diffs: when enabled, an edit turn re-renders the pattern
+        # files immediately so the user sees WHAT the edit changed in the
+        # XML without waiting for the next build.
+        if res.kind == "edit" and self.state.get("live_diffs"):
+            _d = self._step_render_diff()
             if _d:
                 res.reply += "\n\n" + _d
 

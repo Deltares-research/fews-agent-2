@@ -202,3 +202,51 @@ def test_prose_undo_with_empty_stack_is_honest(tmp_path, monkeypatch):
                       username="t")
     res = s.send("undo that please")
     assert "nothing to undo" in res.agent_message.lower()
+
+
+# --- live per-step diffs ----------------------------------------------------
+
+def test_live_diffs_show_xml_change_on_edit_turn(tmp_path, monkeypatch):
+    """With live_diffs on, an EDIT re-renders pattern files and the reply
+    carries the XML diff immediately - no build needed."""
+    from app import chatter as C
+    from app import project_git
+    if not project_git.available():
+        pytest.skip("git not on PATH")
+    monkeypatch.setattr(C, "check_ollama_for_model", lambda *a, **k: None)
+    payloads = [
+        {"reply": "Added GFS.", "patch": [{"op": "add_import", "name": "GFS"}]},
+        {"reply": "Half-degree set.",
+         "patch": [{"op": "set_variables", "target": "GFS",
+                    "values": {"grid_resolution": "0p50"}}]},
+    ]
+
+    class _Prov:
+        def generate_json(self, system, user, schema):
+            return _Resp(payloads.pop(0))
+
+    monkeypatch.setattr(C, "get_provider", lambda *a, **k: _Prov())
+    s = C.ChatSession(project_name="livediff", session_dir=tmp_path,
+                      username="t")
+    s.state["live_diffs"] = True
+    first = s.send("add GFS")
+    assert "```diff" not in first.agent_message      # first render: all new
+    second = s.send("make GFS half-degree")
+    assert "```diff" in second.agent_message
+    assert "gfs_0p50" in second.agent_message
+
+
+def test_live_diffs_off_by_default(tmp_path, monkeypatch):
+    from app import chatter as C
+    monkeypatch.setattr(C, "check_ollama_for_model", lambda *a, **k: None)
+
+    class _Prov:
+        def generate_json(self, system, user, schema):
+            return _Resp({"reply": "Added GFS.",
+                          "patch": [{"op": "add_import", "name": "GFS"}]})
+
+    monkeypatch.setattr(C, "get_provider", lambda *a, **k: _Prov())
+    s = C.ChatSession(project_name="nolive", session_dir=tmp_path,
+                      username="t")
+    s.send("add GFS")
+    assert not (tmp_path / "generated").exists()     # no silent rendering
