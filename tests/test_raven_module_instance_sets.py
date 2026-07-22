@@ -24,7 +24,7 @@ from fews_agent.generators.base import render as render_template
 from fews_agent.validation.xsd import validate_xsd
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-PATTERNS_ROOT = REPO_ROOT / "patterns"
+PATTERNS_ROOT = REPO_ROOT / "fews_agent" / "patterns"
 
 
 def _expand(flag):

@@ -25,7 +25,7 @@ from runners.agent import chat_step
 from runners.agent.build_from_blueprint import build_from_blueprint
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
-_PATTERNS_ROOT = _REPO_ROOT / "patterns"
+_PATTERNS_ROOT = _REPO_ROOT / "fews_agent" / "patterns"
 
 
 class _Resp:

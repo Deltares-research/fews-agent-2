@@ -75,8 +75,16 @@ when `--diff-against` is set).
 
 ## Repository layout
 
+> **Relocation note (2026-07-22):** `patterns/` and `schemas/` now live INSIDE
+> `fews_agent/` (`fews_agent/patterns/`, `fews_agent/schemas/`). Older prose in
+> this file may still say the root-level paths. The wizard-era stack
+> (wizard/checklist/progress/nl_parser/tools/loop/db/TUI + its runners and the
+> sessions/ store) was deleted in the LLM-first cleanup — see PLAN.md.
+
 ```
 fews_agent/
+  patterns/                        Pattern library (moved from repo root 2026-07-22)
+  schemas/                         FEWS XSDs, pinned (moved from repo root 2026-07-22)
   schema/                          Pydantic v2 models, one module per FEWS spec
     common.py                      FewsModel base + shared types
     ids.py                         Typed id strings (LocationId, WorkflowId, ...)
@@ -104,18 +112,12 @@ fews_agent/
     standard_inputs/               Bundled fallback yamls (timeSteps, idMaps, ...)
     providers/ollama_provider.py   LLM gateway (qwen2.5 via Ollama HTTP)
 
-patterns/                          Pattern library — one folder per pattern
-  auto/<pattern_name>/
-    pattern.yaml                   Variables + outputs (Jinja-templated)
-    contributions.yaml             Optional: cross-file singleton fragments
-
 runners/
   agent/
     build_from_blueprint.py        Main runner: project.yaml → rendered config tree
     chat_step.py                   Single-turn chat driver
     replay.py                      Re-run a saved chat history
 
-schemas/                           FEWS XSDs, pinned to a specific FEWS version
 examples/
   config-tutorial/                 Reference FEWS config (regression fixture)
 projects/                          Per-project blueprints (one folder per project)

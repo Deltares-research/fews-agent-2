@@ -26,7 +26,7 @@ from fews_agent.generators import SPECS
 
 
 XS_NS = {"xs": "http://www.w3.org/2001/XMLSchema"}
-SCHEMAS_DIR = Path(__file__).resolve().parents[1] / "schemas"
+SCHEMAS_DIR = Path(__file__).resolve().parents[1] / "fews_agent" / "schemas"
 _NS_RE = re.compile(r"\}(\w+)")
 
 

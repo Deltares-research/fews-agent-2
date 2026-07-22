@@ -32,8 +32,6 @@ from typing import Any
 
 from jinja2 import Environment, FileSystemLoader, StrictUndefined
 
-from .. import checklist as _checklist
-from ..tools import TOOLS
 
 # ---------------------------------------------------------------------------
 # Prompt loader (the standing-rule API)
@@ -73,55 +71,4 @@ def load(name: str, /, **variables) -> str:
     return _template(filename).render(**variables)
 
 
-# ---------------------------------------------------------------------------
-# Legacy tool-wizard system-prompt builder
-# ---------------------------------------------------------------------------
-
-_SNAPSHOT_BUDGET = 2000  # chars in the JSON snapshot
-
-
-def _short_snapshot(data: dict[str, Any]) -> str:
-    text = json.dumps(data, indent=2, ensure_ascii=False, default=str)
-    if len(text) > _SNAPSHOT_BUDGET:
-        return text[:_SNAPSHOT_BUDGET] + "\n... (truncated)"
-    return text
-
-
-def _render_checklist(spec_name: str) -> str:
-    entries = _checklist.checklist_for(spec_name)
-    if not entries:
-        return "(no checklist available for this spec)"
-    required = []
-    optional = []
-    for e in entries:
-        if e.get("kind") == "static":
-            continue
-        line = f"- {e['path']} [{e.get('kind', 'scalar')}]"
-        if e.get("allowed_values"):
-            line += f" allowed={e['allowed_values']}"
-        if e.get("ref"):
-            line += f" ref={e['ref']}"
-        if e.get("declares"):
-            line += f" declares={e['declares']}"
-        (required if e.get("required") else optional).append(line)
-    lines = ["Required:"] + (required or ["  (none)"])
-    if optional:
-        lines += ["Optional:"] + optional
-    return "\n".join(lines)
-
-
-def _tool_summary() -> str:
-    return "\n".join(f"- {t.name}: {t.description.splitlines()[0]}" for t in TOOLS)
-
-
-def build_system_prompt(spec_name: str, project_data: dict[str, Any]) -> str:
-    return load(
-        "wizard_system",
-        tool_summary=_tool_summary(),
-        spec_name=spec_name,
-        checklist=_render_checklist(spec_name),
-        snapshot=_short_snapshot(project_data),
-    )
-
-
-__all__ = ["load", "build_system_prompt"]
+__all__ = ["load"]

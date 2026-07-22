@@ -123,54 +123,8 @@ def _current_provider_name() -> str:
     return name
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-PATTERNS_ROOT = REPO_ROOT / "patterns"
+PATTERNS_ROOT = REPO_ROOT / "fews_agent" / "patterns"
 OUTPUT_ROOT = REPO_ROOT / "projects"
-SESSIONS_ROOT = REPO_ROOT / "sessions"
-DOCS_PATH = REPO_ROOT / "CLAUDE.md"
-
-
-def _load_project_docs() -> str:
-    """Read the project documentation used by the help meta intent.
-
-    Cached per-process: CLAUDE.md is ~40KB / ~12K tokens; loading it
-    once per process is fine, and it stays put across a session so
-    Ollama's prefix caching can benefit consecutive help turns.
-    """
-    if not hasattr(_load_project_docs, "_cached"):
-        try:
-            _load_project_docs._cached = (
-                DOCS_PATH.read_text(encoding="utf-8")
-                if DOCS_PATH.is_file() else ""
-            )
-        except Exception:  # noqa: BLE001
-            _load_project_docs._cached = ""
-    return _load_project_docs._cached
-
-
-def new_session_dir(username: str, root: Path = SESSIONS_ROOT) -> Path:
-    """Create a fresh ``<username>_<YYYY-MM-DD_HHMMSS>/`` session folder."""
-    dt = datetime.now().strftime("%Y-%m-%d_%H%M%S")
-    safe = "".join(c if (c.isalnum() or c in "-_.") else "_" for c in username)
-    out = root / f"{safe}_{dt}"
-    out.mkdir(parents=True, exist_ok=True)
-    return out
-
-
-def list_sessions(username: str | None = None, root: Path = SESSIONS_ROOT) -> list[Path]:
-    """Return existing session folders, newest first.
-
-    If ``username`` is provided, only sessions whose folder name starts with
-    ``<username>_`` are returned.
-    """
-    if not root.is_dir():
-        return []
-    prefix = f"{username}_" if username else ""
-    return sorted(
-        (d for d in root.iterdir() if d.is_dir() and d.name.startswith(prefix)),
-        reverse=True,
-    )
-
-
 # --- projects/ store (the app's project picker; shared layout with the CLI) --
 #
 # A *project* is a folder ``projects/<name>/`` holding one or more
@@ -381,8 +335,11 @@ class ChatSession:
         self.project_name = project_name
         self.model = model
         if session_dir is None:
-            import getpass
-            session_dir = new_session_dir(username or getpass.getuser() or "user")
+            raise ValueError(
+                "session_dir is required — sessions live in the shared "
+                "projects/ store (new_project_session_dir / "
+                "latest_project_session_dir)."
+            )
         self.session_dir = session_dir
         self.state, self.history = self._load_state()
         # If resuming, prefer the project_name persisted in state.

@@ -109,7 +109,7 @@ def diff_pattern(
 
 
 if __name__ == "__main__":
-    pattern_dir = REPO_ROOT / "patterns" / "imports" / "nwp_grid"
+    pattern_dir = REPO_ROOT / "fews_agent" / "patterns" / "imports" / "nwp_grid"
     out_root = REPO_ROOT / "data" / "patterns" / "_validate"
 
     # Two instances drawn from the tutorial — should both be byte-equivalent

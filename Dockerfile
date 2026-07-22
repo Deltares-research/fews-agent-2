@@ -80,8 +80,6 @@ COPY app/        ./app/
 COPY frontend/   ./frontend/
 COPY fews_agent/ ./fews_agent/
 COPY runners/    ./runners/
-COPY patterns/   ./patterns/
-COPY schemas/    ./schemas/
 COPY CLAUDE.md   ./
 
 # These live outside the image — bind-mount at run time so chat

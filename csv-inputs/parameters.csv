@@ -1,5 +1,0 @@
-id,name,shortName,group,unit,parameterType
-P,Precipitation,P,hydromet,mm,instantaneous
-T,Air temperature,T,hydromet,degC,instantaneous
-Q,Discharge,Q,flow,m3/s,instantaneous
-H,Water level,H,flow,m,instantaneous

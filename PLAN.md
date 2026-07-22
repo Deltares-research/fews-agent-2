@@ -179,6 +179,14 @@ wrong, not the eval.
       run_llm_turn exactly like chatter.send (keep `_module_command` slash
       bypass; map signals onto TurnResponse; migrate the API tests that
       stubbed the old seams the way tests/test_chatter_*.py were migrated).
+- [x] **Repo restructure (2026-07-22)**: `patterns/`+`schemas/` moved into
+      `fews_agent/`; wizard-era island deleted (wizard, checklist, progress,
+      nl_parser, review, agent/tools/, agent/loop.py, fews_agent/db/,
+      fews_agent/chatter/ TUI, runners build_from_csvs/build_project/replay/
+      new_project/auto_build_project/run_tui, retired sessions/ store,
+      data/, csv-inputs/, questions/, templates/, secrets/). ChatSession now
+      REQUIRES session_dir. Gitignore negation moved to
+      `!fews_agent/patterns/auto/**/*.yaml` — the silent-drop trap.
 - [ ] **CLI switchover**: `runners/agent/chat_step.py` same treatment.
 - [ ] **Strangle** (only AFTER both switchovers; delete in this order, running
       the suite between deletions):

@@ -17,7 +17,7 @@ from runners.agent.build_from_blueprint import build_from_blueprint
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 FIXTURE = REPO_ROOT / "tests" / "fixtures" / "conform_inputs"
-PATTERNS_ROOT = REPO_ROOT / "patterns"
+PATTERNS_ROOT = REPO_ROOT / "fews_agent" / "patterns"
 
 
 def test_all_four_csvs_ingest_cleanly():

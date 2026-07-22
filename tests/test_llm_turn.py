@@ -26,7 +26,7 @@ REPO = Path(__file__).resolve().parents[1]
 
 @pytest.fixture(scope="module")
 def catalog():
-    return build_pattern_catalog(REPO / "patterns")
+    return build_pattern_catalog(REPO / "fews_agent" / "patterns")
 
 
 @pytest.fixture()

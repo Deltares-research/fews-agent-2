@@ -1,4 +1,0 @@
-id,name,color,iconName,historicOverlayIconName,forecastOverlayIconName
-0,No threshold exceeded,green,default1.gif,historicwarninglevel1.gif,historicwarninglevel1.gif
-1,Alert Level,orange,warninglevel1.gif,historicwarninglevel1.gif,forecastwarninglevel1.gif
-2,Warning Level,red,warninglevel2.gif,historicwarninglevel2.gif,forecastwarninglevel2.gif

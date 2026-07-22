@@ -1,6 +1,0 @@
-[% if group_label %]The wizard is asking about: [[ group_label ]]
-
-[% endif %]User reply:
-[[ text ]]
-
-Extract any field values present in the reply. Omit fields the user did not mention.

@@ -223,6 +223,13 @@ def _collect_ids(project_dir: Path) -> dict[str, list[str]]:
     handler degrades to free-text prompts in that case.
     """
     candidates: list[Path] = []
+    # Session-local output first — new sessions render into
+    # <session>/generated (output_root: "generated"). The root validation/
+    # location is only the landing zone of pre-relocation fixture blueprints;
+    # kept as a graceful fallback for those.
+    local = project_dir / "generated"
+    if local.is_dir():
+        candidates.append(local)
     repo_root = _find_repo_root(project_dir)
     if repo_root is not None:
         rendered_root = repo_root / "validation" / project_dir.name / "generated"

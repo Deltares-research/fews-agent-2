@@ -84,7 +84,7 @@ from app.api.models import (
 # This module lives at app/api/server.py, so the repo root is two
 # levels up (parents[0]=app/api, parents[1]=app, parents[2]=repo root).
 REPO_ROOT = Path(__file__).resolve().parents[2]
-PATTERNS_ROOT = REPO_ROOT / "patterns"
+PATTERNS_ROOT = REPO_ROOT / "fews_agent" / "patterns"
 # Sessions live under the same tree the CLI driver uses, so a session
 # started over HTTP is inspectable/rerunnable from the terminal and vice
 # versa. Overridable in tests via monkeypatch.

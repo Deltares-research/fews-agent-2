@@ -18,7 +18,7 @@ from pathlib import Path
 from lxml import etree
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-SCHEMAS_DIR = REPO_ROOT / "schemas"
+SCHEMAS_DIR = REPO_ROOT / "fews_agent" / "schemas"
 BASE_URL = "http://fews.wldelft.nl/schemas/version1.0/"
 XSI_NS = "{http://www.w3.org/2001/XMLSchema-instance}"
 

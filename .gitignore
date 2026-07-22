@@ -237,7 +237,7 @@ __marimo__/
 # ignore would silently drop NEW patterns (existing ones survive only
 # because they were force-added), so a new capability could be left out
 # of a commit without warning. Keep all pattern yamls tracked.
-!patterns/auto/**/*.yaml
+!fews_agent/patterns/auto/**/*.yaml
 
 # LLM prompts live as .txt files (standing rule — see fews_agent/agent/
 # prompts/__init__.py). The blanket *.txt ignore above would silently drop

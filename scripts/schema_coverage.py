@@ -49,7 +49,7 @@ from fews_agent.generators import SPECS
 
 REPO = Path(__file__).resolve().parents[1]
 TEMPLATES = REPO / "fews_agent" / "generators" / "templates"
-SCHEMAS = REPO / "schemas"
+SCHEMAS = REPO / "fews_agent" / "schemas"
 
 # Generic XML metadata that is never a model field — don't count as a gap.
 _IGNORE_ATTRS = {"version", "xmlns", "schemaLocation", "noNamespaceSchemaLocation"}

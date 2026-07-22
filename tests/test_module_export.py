@@ -286,7 +286,7 @@ def test_integration_gfs_closure_against_real_build():
     from runners.agent.build_from_blueprint import build_from_blueprint, build_module
 
     repo = Path(__file__).resolve().parents[1]
-    patterns = repo / "patterns"
+    patterns = repo / "fews_agent" / "patterns"
     with tempfile.TemporaryDirectory() as td:
         proj = Path(td) / "p"
         proj.mkdir(parents=True)

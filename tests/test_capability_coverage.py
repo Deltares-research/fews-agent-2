@@ -41,7 +41,7 @@ PROC = M.get_module("processing")
 
 @pytest.fixture(scope="module")
 def catalog():
-    return build_pattern_catalog(REPO / "patterns")
+    return build_pattern_catalog(REPO / "fews_agent" / "patterns")
 
 
 def _nameable(catalog):
@@ -135,7 +135,7 @@ def test_every_nameable_capability_renders_or_reports_what_it_needs(catalog):
             name="t", output_root=Path("out"),
             patterns=[PatternRef(pattern=entry.path, instances=[{}])],
         )
-        res = expand(bp, REPO / "patterns")
+        res = expand(bp, REPO / "fews_agent" / "patterns")
         assert not res.errors, f"{entry.path}: {res.errors}"
         assert res.rendered_files, f"{entry.path} rendered nothing"
         for f in res.rendered_files:

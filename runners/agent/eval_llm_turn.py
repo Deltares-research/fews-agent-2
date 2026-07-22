@@ -96,7 +96,7 @@ def main() -> int:
     from fews_agent.agent.providers.factory import get_provider
 
     provider = get_provider(model=os.environ.get("FEWS_AGENT_MODEL"))
-    catalog = build_pattern_catalog(REPO / "patterns")
+    catalog = build_pattern_catalog(REPO / "fews_agent" / "patterns")
     print(f"model: {os.environ.get('FEWS_AGENT_MODEL')}")
 
     failures = 0

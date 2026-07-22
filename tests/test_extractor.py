@@ -145,7 +145,7 @@ from fews_agent.agent.turn_engine import (
     extracted_removal_edits,
 )
 
-_CATALOG = build_pattern_catalog(Path(__file__).resolve().parents[1] / "patterns")
+_CATALOG = build_pattern_catalog(Path(__file__).resolve().parents[1] / "fews_agent" / "patterns")
 
 
 class _Op:

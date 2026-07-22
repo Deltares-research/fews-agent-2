@@ -20,7 +20,7 @@ import pytest
 from runners.agent.build_from_blueprint import build_module
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-PATTERNS_ROOT = REPO_ROOT / "patterns"
+PATTERNS_ROOT = REPO_ROOT / "fews_agent" / "patterns"
 PATTERN = "auto/wf_interpolate_nwp_to_stations"
 NS = {"f": "http://www.wldelft.nl/fews"}
 

@@ -19,7 +19,7 @@ from fews_agent.agent.blueprint import Blueprint, PatternRef, expand
 from fews_agent.validation.xsd import validate_xsd
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-PATTERNS_ROOT = REPO_ROOT / "patterns"
+PATTERNS_ROOT = REPO_ROOT / "fews_agent" / "patterns"
 PATTERN = "auto/tpl_generate_reference_et"
 
 

@@ -68,7 +68,7 @@ from fews_agent.generators.base import canonicalize
 from fews_agent.validation import validate_xsd
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_PATTERN_ROOT = REPO_ROOT / "patterns"
+DEFAULT_PATTERN_ROOT = REPO_ROOT / "fews_agent" / "patterns"
 
 
 def _csv_results_to_base_data(

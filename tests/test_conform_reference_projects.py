@@ -23,7 +23,7 @@ sys.path.insert(0, str(REPO_ROOT))
 from runners.agent.build_from_blueprint import build_from_blueprint  # noqa: E402
 from scripts.check_references import analyze  # noqa: E402
 
-PATTERNS_ROOT = REPO_ROOT / "patterns"
+PATTERNS_ROOT = REPO_ROOT / "fews_agent" / "patterns"
 
 _PARAMS = (
     "Category,ParameterId,ParameterName,ShortName,ParameterGroupId,"

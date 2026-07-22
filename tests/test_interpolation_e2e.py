@@ -27,7 +27,7 @@ from rich.console import Console
 from runners.agent.build_from_blueprint import build_from_blueprint
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-PATTERNS_ROOT = REPO_ROOT / "patterns"
+PATTERNS_ROOT = REPO_ROOT / "fews_agent" / "patterns"
 NS = {"f": "http://www.wldelft.nl/fews"}
 
 # Full NOAA param rows (the resolver supplies units; the pattern reads them).

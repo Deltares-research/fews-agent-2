@@ -58,8 +58,6 @@ RUN pip install --no-cache-dir . pyyaml
 COPY app/        ./app/
 COPY frontend/   ./frontend/
 COPY runners/    ./runners/
-COPY patterns/   ./patterns/
-COPY schemas/    ./schemas/
 COPY CLAUDE.md   ./
 
 # Bind-mount targets for chat sessions + built projects (survive restarts).
