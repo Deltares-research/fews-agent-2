@@ -56,6 +56,24 @@ variable "fews_agent_model" {
   default     = "azure_ai/Llama-3.3-70B-Instruct"
 }
 
+variable "phase" {
+  description = "Session-store phase: dev = local disk only, prod = mirror sessions to Azure Blob (survives container restarts)"
+  type        = string
+  default     = "prod"
+}
+
+variable "azure_storage_connection_string" {
+  description = "Storage account connection string for the prod session store (Storage account -> Access keys). Keep secret."
+  type        = string
+  sensitive   = true
+}
+
+variable "azure_storage_container" {
+  description = "Blob container holding project sessions (created on first use if absent)"
+  type        = string
+  default     = "fews-projects"
+}
+
 # -----------------------------------------------------------------------------
 # Random suffix for globally unique names
 # -----------------------------------------------------------------------------
@@ -125,6 +143,13 @@ resource "azurerm_linux_web_app" "main" {
     AZURE_AI_API_BASE   = var.azure_ai_api_base
     AZURE_AI_API_KEY    = var.azure_ai_api_key
     FEWS_AGENT_MODEL    = var.fews_agent_model
+
+    # PHASE-switched session store (app/blob_store.py): prod mirrors project
+    # sessions to Azure Blob so they survive container restarts/redeploys
+    # (App Service container disk is ephemeral).
+    PHASE                           = var.phase
+    AZURE_STORAGE_CONNECTION_STRING = var.azure_storage_connection_string
+    AZURE_STORAGE_CONTAINER         = var.azure_storage_container
 
     # Pull the latest image from ACR on restart.
     DOCKER_ENABLE_CI = "true"
