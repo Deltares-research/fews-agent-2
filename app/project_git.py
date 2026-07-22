@@ -115,7 +115,11 @@ def commit_and_diff(session_dir: Path, label: str) -> list[tuple[str, str]]:
         diffs: list[tuple[str, str]] = []
         for name in names[:MAX_FILES]:
             d = _run(session_dir, "diff", "HEAD", "--unified=3", "--", name)
-            lines = d.stdout.splitlines()
+            # The filename is shown as our own header — drop git's noisy
+            # preamble (diff --git / index / --- / +++), keep the @@ hunks.
+            lines = [ln for ln in d.stdout.splitlines()
+                     if not ln.startswith(("diff --git", "index ",
+                                           "--- ", "+++ "))]
             if len(lines) > MAX_LINES:
                 lines = lines[:MAX_LINES] + [
                     f"… (truncated, {len(d.stdout.splitlines())} lines total)"

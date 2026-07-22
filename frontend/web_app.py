@@ -643,7 +643,11 @@ if _coords_req and _coords_req.get("chat_key") == st.session_state.get("_chat_ke
 # the download button's rerun (which fires with no prompt) doesn't make
 # the panel vanish. Driven entirely by ``st.session_state["_last_done"]``;
 # cleared when the user switches sessions (chat_key changes).
-_done_stash = st.session_state.get("_last_done")
+# Render ONCE, then clear: the panel used to persist because the download
+# button lived here; downloads moved to the sidebar, and a permanently
+# floating summary reads as a stuck message box (human-test remark). The
+# canned build line in chat history remains the durable record.
+_done_stash = st.session_state.pop("_last_done", None)
 if _done_stash and _done_stash.get("chat_key") == st.session_state.get("_chat_key"):
     _build_error = _done_stash.get("build_error")
     _vs = _done_stash.get("validation_summary")
