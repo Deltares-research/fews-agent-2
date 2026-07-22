@@ -1,0 +1,142 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schema targetNamespace="http://www.wldelft.nl/fews" xmlns:fews="http://www.wldelft.nl/fews" xmlns="http://www.w3.org/2001/XMLSchema" elementFormDefault="qualified" attributeFormDefault="unqualified" version="1.0">
+	<include schemaLocation="sharedTypes.xsd"/>
+	<!-- -->
+	<element name="overtoppingModule" type="fews:OvertoppingModuleComplexType"/>
+	<!-- -->
+	<complexType name="OvertoppingModuleComplexType">
+		<sequence>
+			<element name="general" type="fews:OvertoppingGeneralComplexType"/>
+			<element name="overtoppingMethod" type="fews:OvertoppingMethodEnumStringType"/>
+			<element name="input" type="fews:OvertoppingFileComplexType" maxOccurs="unbounded"/>
+			<element name="output" type="fews:OvertoppingFileComplexType" maxOccurs="unbounded"/>
+			<element name="mappings" type="fews:OvertoppingFileDataMappingsComplexType" maxOccurs="unbounded"/>
+			<element name="coefficients" type="fews:OvertoppingDataCoefficientMappingsComplexType" minOccurs="0" maxOccurs="unbounded"/>
+		</sequence>
+		<attribute name="version" type="fews:versionStringType" use="required" fixed="1.1"/>
+	</complexType>
+	<!-- -->
+	<complexType name="OvertoppingGeneralComplexType">
+		<sequence>
+			<element name="inputDir" type="fews:directoryStringType">
+				<annotation>
+					<documentation>Location to retrieve input files</documentation>
+				</annotation>
+			</element>
+			<element name="lookupDataSetDir" type="fews:directoryStringType" minOccurs="0">
+				<annotation>
+					<documentation>Location to retrieve lookup matrices files, if not given then it is equal to inputDir</documentation>
+				</annotation>
+			</element>
+			<element name="outputDir" type="fews:directoryStringType">
+				<annotation>
+					<documentation>Location to write output files</documentation>
+				</annotation>
+			</element>
+			<element name="diagnosticFile" type="fews:fileStringType">
+				<annotation>
+					<documentation>Diagnostics file</documentation>
+				</annotation>
+			</element>
+			<element name="debugLevel" type="int" default="0" minOccurs="0"/>
+		</sequence>
+	</complexType>
+	<!-- -->
+	<simpleType name="OvertoppingMethodEnumStringType">
+		<restriction base="string">
+			<enumeration value="southeastWales"/>
+		</restriction>
+	</simpleType>
+	<!-- -->
+	<complexType name="OvertoppingFileComplexType">
+		<attribute name="filename" type="fews:idStringType" use="required"/>
+		<attribute name="fileType" type="fews:OvertoppingFileEnumStringType" use="required"/>
+		<attribute name="mappingId" type="fews:idStringType" use="required"/>
+		<attribute name="coefficientId" type="fews:idStringType" use="optional"/>
+		<attribute name="outputvariableId" type="fews:OvertoppingModuleVariablesEnumStringType" use="optional"/>
+	</complexType>
+	<!-- -->
+	<complexType name="OvertoppingFileDataMappingsComplexType">
+		<sequence>
+			<element name="mapping" type="fews:OvertoppingFileDataMappingComplexType" maxOccurs="unbounded"/>
+		</sequence>
+		<attribute name="id" type="fews:idStringType" use="required"/>
+	</complexType>
+	<!-- -->
+	<complexType name="OvertoppingFileDataMappingComplexType">
+		<attribute name="variable" type="fews:OvertoppingModuleVariablesEnumStringType" use="required"/>
+		<attribute name="column" type="positiveInteger" use="required"/>
+		<attribute name="dataType" type="fews:dataTypeEnumStringType" use="optional" default="float"/>
+		<attribute name="ordering" type="fews:OvertoppingFileDataOrderingEnumStringType" use="optional"/>
+		<attribute name="columnHeader" type="string" use="optional"/>
+	</complexType>
+	<!-- -->
+	<complexType name="OvertoppingDataCoefficientMappingsComplexType">
+		<sequence>
+			<element name="coefficient" type="fews:OvertoppingDataCoefficientComplexType" maxOccurs="unbounded"/>
+		</sequence>
+		<attribute name="id" type="fews:idStringType" use="required"/>
+	</complexType>
+	<!-- -->
+	<complexType name="OvertoppingDataCoefficientComplexType">
+		<attribute name="variable" type="fews:OvertoppingModuleVariablesEnumStringType" use="required"/>
+		<attribute name="value" type="string" use="optional"/>
+		<attribute name="dataType" type="fews:dataTypeEnumStringType" use="optional" default="float"/>
+	</complexType>
+	<!-- -->
+	<simpleType name="OvertoppingFileEnumStringType">
+		<restriction base="string">
+			<enumeration value="timeseries"/>
+			<enumeration value="supportSite"/>
+			<enumeration value="lookup"/>
+			<enumeration value="twodimlookupmatrix"/>
+			<enumeration value="sectiondetails"/>
+		</restriction>
+	</simpleType>
+	<!-- -->
+	<simpleType name="OvertoppingModuleVariablesEnumStringType">
+		<restriction base="string">
+			<enumeration value="tidalLevel"/>
+			<enumeration value="tidalRange"/>
+			<enumeration value="tidalState"/>
+			<enumeration value="windSpeed"/>
+			<enumeration value="windDirection"/>
+			<enumeration value="waveHeight"/>
+			<enumeration value="meanWavePeriod"/>
+			<enumeration value="waveDirection"/>
+			<enumeration value="wavewallefficiency"/>
+			<enumeration value="sectionId"/>
+			<enumeration value="chainage"/>
+			<enumeration value="slopeRoughness"/>
+			<enumeration value="seawallslope"/>
+			<enumeration value="wavewallheight"/>
+			<enumeration value="wavewallheightfactor"/>
+			<enumeration value="topofrevetment"/>
+			<enumeration value="meanresiduals"/>
+			<enumeration value="netovertoppingrate"/>
+			<enumeration value="overtoppingrate"/>
+			<enumeration value="bermlevel"/>
+			<enumeration value="bermwidth"/>
+			<enumeration value="relativebermlevel"/>
+			<enumeration value="coefficientA"/>
+			<enumeration value="coefficientB"/>
+			<enumeration value="bermcoefficientA"/>
+			<enumeration value="bermcoefficientB"/>
+			<enumeration value="coefficientC"/>
+			<enumeration value="coefficientCF"/>
+			<enumeration value="effectiveSlope"/>
+			<enumeration value="topofwavewallelevation"/>
+			<enumeration value="interpolationTypeTidalLevel"/>
+			<enumeration value="interpolationTypeWaveHeight"/>
+			<enumeration value="interpolationTypeMeanWavePeriod"/>
+			<enumeration value="arbitrarypointChainage"/>
+		</restriction>
+	</simpleType>
+	<!-- -->
+	<simpleType name="OvertoppingFileDataOrderingEnumStringType">
+		<restriction base="string">
+			<enumeration value="ascending"/>
+			<enumeration value="descending"/>
+		</restriction>
+	</simpleType>
+</schema>

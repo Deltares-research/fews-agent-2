@@ -1,0 +1,204 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schema targetNamespace="http://www.wldelft.nl/fews" xmlns:fews="http://www.wldelft.nl/fews" xmlns="http://www.w3.org/2001/XMLSchema" elementFormDefault="qualified" attributeFormDefault="unqualified" version="1.0">
+	<include schemaLocation="sharedTypes.xsd"/>
+	<element name="prtfDisplay" type="fews:PRTFDisplayComplexType">
+		<annotation>
+			<documentation>Root element for PRTF display configuration.</documentation>
+		</annotation>
+	</element>
+	<complexType name="PRTFDisplayComplexType">
+		<sequence>
+			<element name="title" type="string">
+				<annotation>
+					<documentation>Title of this PRTF model.</documentation>
+				</annotation>
+			</element>
+			<element name="idMapId" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>Id of IdMap to be used for locationId- and parameterId mapping</documentation>
+				</annotation>
+			</element>
+            <element name="scenarioIdMapId" type="fews:idStringType" minOccurs="0">
+                <annotation>
+                    <documentation>Id of IdMap to be used for scenario locationId- and parameterId mapping</documentation>
+                </annotation>
+            </element>
+			<element name="globalParameter" type="fews:PRTFParameterComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>List of parameters that are required for all PRTF groups.</documentation>
+				</annotation>
+			</element>
+			<element name="inputVariable" type="fews:VariableComplexType" maxOccurs="unbounded">
+				<annotation>
+					<documentation>All input variables that are defined by the PRTF models.</documentation>
+				</annotation>
+			</element>
+			<element name="prtfGroup" type="fews:PRTFGroupComplexType" maxOccurs="unbounded">
+				<annotation>
+					<documentation>List of PRTF model subsets.</documentation>
+				</annotation>
+			</element>
+			<element name="displayOptions" type="fews:DisplayOptionsComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Definition of line and marker styles. Display options must be linked to configured variables using their keys.</documentation>
+				</annotation>
+			</element>
+			<element name="outputVariable" type="fews:VariableComplexType" maxOccurs="unbounded">
+				<annotation>
+					<documentation>All input variables that are defined by the PRTF models.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="PRTFGroupComplexType">
+		<sequence>
+			<element name="workflowId" type="fews:idStringType">
+				<annotation>
+					<documentation>Id defining this PRTF group. Must match the workflow id.</documentation>
+				</annotation>
+			</element>
+			<element name="moduleInstanceId" type="fews:idStringType">
+				<annotation>
+					<documentation>Id of the prtf module configuration file.</documentation>
+				</annotation>
+			</element>
+			<choice minOccurs="0">
+				<element name="locationId" type="fews:idStringType" maxOccurs="unbounded"/>
+				<element name="locationSetId" type="fews:idStringType"/>
+			</choice>
+			<element name="subGroup" type="fews:PRTFSubGroupComplexType" minOccurs="0" maxOccurs="unbounded"/>
+			<element name="approvedWorkflowId" type="fews:idStringType" minOccurs="0"/>
+			<element name="groupOptions" type="fews:PRTFGroupOptionsComplexType"/>
+		</sequence>
+		<attribute name="name" type="fews:idStringType" use="optional"/>
+	</complexType>
+	<complexType name="PRTFSubGroupComplexType">
+		<choice>
+			<element name="locationId" type="fews:idStringType" maxOccurs="unbounded"/>
+			<element name="locationSetId" type="fews:idStringType"/>
+		</choice>
+		<attribute name="name" type="fews:idStringType" use="required"/>
+	</complexType>
+	<complexType name="PRTFGroupOptionsComplexType">
+		<sequence>
+			<element name="groupParameter" type="fews:PRTFParameterComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>List of parameters that are required for running this PRTF group.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="PRTFParameterComplexType">
+		<sequence>
+			<element name="name" type="fews:idStringType">
+				<annotation>
+					<documentation>Name of parameter</documentation>
+				</annotation>
+			</element>
+			<element name="item" type="fews:PRTFItemComplexType" maxOccurs="unbounded">
+				<annotation>
+					<documentation>List of available items for parameter.</documentation>
+				</annotation>
+			</element>
+			<element name="default" type="int" minOccurs="0">
+				<annotation>
+					<documentation>Index of default parameter item.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="PRTFItemComplexType">
+		<sequence>
+			<element name="key" type="fews:idStringType">
+				<annotation>
+					<documentation>Key defining parameter item</documentation>
+				</annotation>
+			</element>
+			<element name="data" type="fews:ParameterDataComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Data value belonging to this item. Optional</documentation>
+				</annotation>
+			</element>
+			<element name="description" type="string" minOccurs="0"/>
+		</sequence>
+	</complexType>
+	<complexType name="ParameterDataComplexType">
+		<choice>
+			<element name="booleanData">
+				<complexType>
+					<simpleContent>
+						<extension base="boolean">
+							<attribute name="allowAdjust" type="boolean" use="optional" default="0">
+								<annotation>
+									<documentation>if this is set to true the NFFS is allowed to adjust
+                                        this parameter.</documentation>
+								</annotation>
+							</attribute>
+						</extension>
+					</simpleContent>
+				</complexType>
+			</element>
+			<element name="doubleData">
+				<complexType>
+					<simpleContent>
+						<extension base="double">
+							<attribute name="maxVal" type="double" use="required">
+								<annotation>
+									<documentation>maximum value allowed for this parameter</documentation>
+								</annotation>
+							</attribute>
+							<attribute name="minVal" type="double" use="required">
+								<annotation>
+									<documentation>minimum value allowed for this parameter</documentation>
+								</annotation>
+							</attribute>
+							<attribute name="allowAdjust" type="boolean" use="optional" default="0">
+								<annotation>
+									<documentation>if this is set to true the NFFS is allowed to adjust
+                                        this parameter.</documentation>
+								</annotation>
+							</attribute>
+							<attribute name="stepSize" type="double" use="optional">
+								<annotation>
+									<documentation>Optional step size hint for model calibration.
+                                        Only used if allowAdjust = 1</documentation>
+								</annotation>
+							</attribute>
+						</extension>
+					</simpleContent>
+				</complexType>
+			</element>
+			<element name="intData">
+				<complexType>
+					<simpleContent>
+						<extension base="int">
+							<attribute name="maxVal" type="int" use="required">
+								<annotation>
+									<documentation>maximum value allowed for this parameter</documentation>
+								</annotation>
+							</attribute>
+							<attribute name="minVal" type="int" use="required">
+								<annotation>
+									<documentation>minimum value allowed for this parameter</documentation>
+								</annotation>
+							</attribute>
+							<attribute name="allowAdjust" type="boolean" use="optional" default="0">
+								<annotation>
+									<documentation>if this is set to true the NFFS is allowed to adjust
+                                        this parameter.</documentation>
+								</annotation>
+							</attribute>
+							<attribute name="stepSize" type="int" use="optional">
+								<annotation>
+									<documentation>Optional step size hint for model calibration.
+                                        Only used if allowAdjust = 1</documentation>
+								</annotation>
+							</attribute>
+						</extension>
+					</simpleContent>
+				</complexType>
+			</element>
+			<element name="stringData" type="string"/>
+		</choice>
+	</complexType>
+</schema>

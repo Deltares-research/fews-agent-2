@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schema xmlns="http://www.w3.org/2001/XMLSchema" xmlns:fews="http://www.wldelft.nl/fews/archive"
+		targetNamespace="http://www.wldelft.nl/fews/archive" elementFormDefault="qualified"
+		attributeFormDefault="unqualified" version="1.0">
+	<include schemaLocation="archive_sharedTypes.xsd"/>
+	<element name="deletedDataSets" type="fews:DeletedDataSetsComplexType"/>
+	<complexType name="DeletedDataSetsComplexType">
+		<group ref="fews:UpdatedDataSetGroup"/>
+	</complexType>
+</schema>

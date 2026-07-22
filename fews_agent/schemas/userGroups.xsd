@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--Delft FEWS (Copyright 2003 WL | Delft Hydraulics) -->
+<schema xmlns:fews="http://www.wldelft.nl/fews" xmlns="http://www.w3.org/2001/XMLSchema" targetNamespace="http://www.wldelft.nl/fews" elementFormDefault="qualified" attributeFormDefault="unqualified" version="1.0">
+  <include schemaLocation="sharedTypes.xsd"/>
+  <element name="userGroups" type="fews:UserGroupsComplexType"/>
+  <!--    -->
+  <!--UserGroupComplex Type-->
+  <complexType name="UserGroupComplexType">
+    <sequence>
+      <choice maxOccurs="unbounded">
+        <element name="userGroup" type="fews:UserGroupId"/>
+        <element name="user" type="fews:UserId"/>
+        <element name="systemUserGroup" type="fews:UserId">
+            <annotation>
+                <documentation>AD User group. If domain user the format is as follows "DOMAIN\GROUP" </documentation>
+            </annotation>
+        </element>
+      </choice>
+    </sequence>
+    <attribute name="id" type="fews:idStringType" use="required"/>
+    <attribute name="name" type="fews:nameStringType" use="optional"/>
+  </complexType>
+  <!---->
+  <complexType name="UserGroupsComplexType">
+    <sequence>
+      <element name="userGroup" type="fews:UserGroupComplexType" maxOccurs="unbounded">
+        <key name="userGroup">
+          <selector xpath="."/>
+          <field xpath="@id"/>
+        </key>
+      </element>
+    </sequence>
+  </complexType>
+  
+ <complexType name="UserGroupId">
+    <attribute name="id" use="required" type="fews:idStringType" />
+  </complexType>
+  <complexType name="UserId">
+    <attribute name="id" use="required" type="fews:idStringType" />
+  </complexType>
+  <complexType name="SystemUserGroupId">
+    <attribute name="id" use="required" type="fews:idStringType" />
+  </complexType>
+</schema>

@@ -1,0 +1,33 @@
+<?xml version="1.0"?>
+<schema xmlns="http://www.w3.org/2001/XMLSchema"
+		targetNamespace="http://www.wldelft.nl/fews/archive" elementFormDefault="qualified"
+		attributeFormDefault="unqualified" version="1.0">
+	<include schemaLocation="archiveFilters.xsd"/>
+	<include schemaLocation="archiveAmalgamate.xsd"/>
+	<include schemaLocation="archive_sharedTypes.xsd"/>
+	<include schemaLocation="archiveServer.xsd"/>
+	<include schemaLocation="archiveTasksSchedule.xsd"/>
+	<include schemaLocation="areas.xsd"/>
+	<include schemaLocation="configMetaData.xsd"/>
+	<include schemaLocation="dataImport.xsd"/>
+	<include schemaLocation="dataManagementTool.xsd"/>
+	<include schemaLocation="editedDataMetaData.xsd"/>
+	<include schemaLocation="event.xsd"/>
+	<include schemaLocation="eventTypes.xsd"/>
+	<include schemaLocation="externalForecastMetaData.xsd"/>
+	<include schemaLocation="externalStorage.xsd"/>
+	<include schemaLocation="logFileMetaData.xsd"/>
+	<include schemaLocation="netcdfMetaData.xsd"/>
+	<include schemaLocation="messagesMetaData.xsd"/>
+	<include schemaLocation="productsMetaData.xsd"/>
+	<include schemaLocation="ratingCurvesMetaData.xsd"/>
+	<include schemaLocation="runInfo.xsd"/>
+	<include schemaLocation="simulationMetaData.xsd"/>
+	<include schemaLocation="simulatedHistoricalMetaData.xsd"/>
+	<include schemaLocation="snapShotMetaData.xsd"/>
+	<include schemaLocation="sources.xsd"/>
+	<include schemaLocation="dataTypeInfo.xsd"/>
+	<include schemaLocation="insertedDataSets.xsd"/>
+	<include schemaLocation="deletedDataSets.xsd"/>
+	<include schemaLocation="changedDataSets.xsd"/>
+</schema>

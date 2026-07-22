@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--Delft FEWS (Copyright 2003 WL | Delft Hydraulics) -->
+<schema targetNamespace="http://www.wldelft.nl/fews" xmlns:fews="http://www.wldelft.nl/fews" xmlns="http://www.w3.org/2001/XMLSchema" elementFormDefault="qualified" attributeFormDefault="unqualified" version="1.0">
+	<include schemaLocation="sharedTypes.xsd"/>
+	<element name="configurationValidation" type="fews:ConfigurationValidationComplexType">
+		<annotation>
+			<documentation>Schema for configuration Validation</documentation>
+		</annotation>
+	</element>
+	<complexType name="ConfigurationValidationComplexType">
+		<sequence>
+			<element name="configType" type="fews:ConfigTypeComplexType" maxOccurs="unbounded"/>
+		</sequence>
+		<attribute name="version" type="fews:versionStringType" use="required" fixed="1.0"/>
+	</complexType>
+	<complexType name="ConfigTypeComplexType">
+		<sequence>
+			<element name="configRef" type="fews:ConfigRefComplexType" minOccurs="0" maxOccurs="unbounded" />
+		</sequence>
+		<attribute name="name" type="fews:nameStringType" use="required"/>
+	</complexType>
+	<complexType name="ConfigRefComplexType">
+		<sequence>
+			<element name="sourceElement" type="string"/>
+			<element name="sourceAttribute" type="string"/>
+			<choice>
+				<element name="refFileNamesFolder" type="string"/>
+				<sequence>
+					<element name="refConfig" type="string"/>
+					<element name="refElement" type="string"/>
+					<element name="refAttribute" type="string"/>
+				</sequence>
+			</choice>
+            <element name="refOptional" type="boolean" minOccurs="0"/>
+		</sequence>
+	</complexType>
+</schema>

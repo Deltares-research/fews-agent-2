@@ -1,0 +1,66 @@
+<schema targetNamespace="http://www.wldelft.nl/fews" xmlns:fews="http://www.wldelft.nl/fews" xmlns="http://www.w3.org/2001/XMLSchema" elementFormDefault="qualified" attributeFormDefault="unqualified" version="1.0">
+	<include schemaLocation="sharedTypes.xsd"/>
+	<element name="products" type="fews:ProductsComplexType"/>
+	<complexType name="ProductsComplexType">
+		<sequence>
+			<element name="productCategory" type="fews:CategoryComplexType" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Products are organised into categories. Each category will contain one or more products. Example categories are: Meteo, Hydro etc.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="CategoryComplexType">
+		<sequence>
+			<element name="product" type="fews:ProductComplexType" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Defines a product id and which time series this product id will be associated with.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+		<attribute name="id" type="fews:idStringType" use="required">
+			<annotation>
+				<documentation>Unique category id.</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="name" type="string">
+			<annotation>
+				<documentation>Name of the category as will be displayed in FEWS. By default the id will be used.</documentation>
+			</annotation>
+		</attribute>
+	</complexType>
+	<complexType name="ProductComplexType">
+		<sequence>
+			<element name="expiryTime" type="fews:TimeSpanComplexType">
+				<annotation>
+					<documentation>The time span after which product info for this product will be deleted from the database.</documentation>
+				</annotation>
+			</element>
+			<element name="viewPermission" type="string" minOccurs="0">
+				<annotation>
+					<documentation>Set a permission to control who can view product information on this product.</documentation>
+				</annotation>
+			</element>
+			<element name="editPermission" type="string" minOccurs="0">
+				<annotation>
+					<documentation>Set a permission to control who can add, edit and delete product information on this product.</documentation>
+				</annotation>
+			</element>
+			<element name="timeSeriesFilter" type="fews:TimeSeriesFilterComplexType" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Each timeSeriesFilter defines criteria for time series sets to be related to this product. If a given time series has a module instance, location, parameter and qualifier combination that is valid for at least one of the filters defined for a product, FEWS will connect that product to the time series.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+		<attribute name="id" type="fews:idStringType" use="required">
+			<annotation>
+				<documentation>Unique product id</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="name" type="string">
+			<annotation>
+				<documentation>Name of the product as will be displayed in FEWS. By default the id will be used.</documentation>
+			</annotation>
+		</attribute>
+	</complexType>
+</schema>

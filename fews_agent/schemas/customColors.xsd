@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--Delft FEWS (Copyright 2003 WL | Delft Hydraulics) -->
+<schema xmlns="http://www.w3.org/2001/XMLSchema" xmlns:fews="http://www.wldelft.nl/fews" targetNamespace="http://www.wldelft.nl/fews" elementFormDefault="qualified" attributeFormDefault="unqualified" version="1.1">
+	<include schemaLocation="sharedTypes.xsd"/>
+	<element name="customColors" type="fews:CustomColorsComplexType"/>
+	<complexType name="CustomColorsComplexType">
+		<sequence>
+			<element name="defaultCustomColorKeys" type="fews:DefaultCustomColorKeysComplexType"/>
+		</sequence>
+		<attribute name="version" type="fews:versionStringType" use="optional" fixed="1.0"/>
+	</complexType>
+	<complexType name="DefaultCustomColorKeysComplexType">
+		<sequence>
+			<element name="customColorKey" type="fews:CustomColorKeyComplexType" minOccurs="1" maxOccurs="unbounded"/>
+		</sequence>
+	</complexType>
+</schema>

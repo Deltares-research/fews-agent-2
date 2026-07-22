@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schema xmlns="http://www.w3.org/2001/XMLSchema" xmlns:fews="http://www.wldelft.nl/fews/archive"
+		targetNamespace="http://www.wldelft.nl/fews/archive" elementFormDefault="qualified"
+		attributeFormDefault="unqualified" version="1.0">
+	<include schemaLocation="archive_sharedTypes.xsd"/>
+	<element name="areas" type="fews:AreasComplexType"/>
+	<complexType name="AreasComplexType">
+		<sequence>
+			<element name="area" type="fews:ArchiveAreaComplexType" maxOccurs="unbounded"/>
+		</sequence>
+	</complexType>
+	<complexType name="ArchiveAreaComplexType">
+		<attribute name="id" type="string" use="required"/>
+		<attribute name="name" type="string" use="optional"/>
+	</complexType>
+</schema>

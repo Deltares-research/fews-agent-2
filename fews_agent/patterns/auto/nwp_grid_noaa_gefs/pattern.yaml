@@ -1,0 +1,134 @@
+{%- set member_file = 'gep%COUNTER(' ~ member_range ~ ')%' -%}
+name: nwp_grid_noaa_gefs
+description: >-
+  Import the NOAA GEFS ensemble forecast grids from the NOAA Nomads GRIB-filter
+  server. Farmed from FEWS-Conform (ModuleConfigFiles/Import/ImportGefs.xml +
+  IdMapFiles/Import/IdMapFromGefs.xml). Distinct from the deterministic
+  nwp_grid_noaa (GFS): the ensemble is imported as TWO <import> blocks with
+  different filenames — the perturbed members via a %COUNTER(01-30-1)% loop
+  (gep01..gep30) and the control member (gec00) — both tagged ensembleId so
+  members + control land in one ensemble. Nomads GRIB-filter URL with a
+  subregion bbox (%TOP_LAT% etc.). Emits the timeSeriesImportRun, its
+  workflow, and the from-GEFS idMap.
+variables:
+  source_name:
+    type: str
+    required: false
+    default: Gefs
+  # Perturbed-member enumeration for %COUNTER(start-end-step)% (gep01..gep30).
+  member_range:
+    type: str
+    required: false
+    default: 01-30-1
+  # Forecast-hour enumeration for %COUNTER(start-end-step)% (f000..f384 by 6).
+  hour_range:
+    type: str
+    required: false
+    default: 000-384-6
+  time_step_hours:
+    type: int
+    required: false
+    default: 6
+  # Ensemble grids synchronise at level 6 so all members complete together.
+  synch_level:
+    type: int
+    required: false
+    default: 6
+  ensemble_id:
+    type: str
+    required: false
+    default: Gefs
+  data_feed_id:
+    type: str
+    required: false
+    default: Noaa.Gefs
+  expiry_property:
+    type: str
+    required: false
+    default: $ExpiryTimeGridExternalForecastingInDays$
+  emit_idmap:
+    type: bool
+    required: false
+    default: true
+  emit_workflow:
+    type: bool
+    required: false
+    default: true
+  # Imported parameters. Each: id (FEWS parameterId), unit (externUnit wire
+  # unit), external (idMap grib name), cumulativeSum (optional bool).
+  parameters:
+    type: list
+    required: false
+    default:
+      - id: Precipitation
+        unit: mm
+        external: Total precipitation
+      - id: AirTemperature
+        unit: K
+        external: Temperature
+outputs:
+- schema: TimeSeriesImportRun
+  output: ModuleConfigFiles/Import/Import{{ source_name }}.xml
+  data:
+    import:
+{% for filetoken in [member_file, 'gec00'] %}
+    - general:
+        importType: NomadsGribFilterServer
+        serverUrl: 'https://nomads.ncep.noaa.gov/cgi-bin/filter_gefs_atmos_0p50a.pl?dir=%2Fgefs.%TIME_ZERO(yyyyMMdd)%%2F%TIME_ZERO(HH)%%2Fatmos%2Fpgrb2ap5&file={{ filetoken }}.t%TIME_ZERO(HH)%z.pgrb2a.0p50.f%COUNTER({{ hour_range }})%&var_APCP=on&var_TMP=on&lev_2_m_above_ground=on&lev_surface=on&subregion=&toplat=%TOP_LAT%&leftlon=%LEFT_LON%&rightlon=%RIGHT_LON%&bottomlat=%BOTTOM_LAT%'
+        idMapId: IdMapFrom{{ source_name }}
+        unitConversionsId: ImportUnitConversions
+        importTimeZone:
+          timeZoneName: GMT
+        dataFeedId: {{ data_feed_id }}
+        expiryTime:
+          unit: day
+          multiplier: {{ expiry_property }}
+      properties:
+        string:
+          - key: variable_identification_method
+            value: grib2_parameter_name
+      timeSeriesSet:
+{% for p in parameters %}
+      - moduleInstanceId: Import{{ source_name }}
+        valueType: grid
+        parameterId: {{ p.id }}
+        locationId: {{ source_name }}
+        timeSeriesType: external forecasting
+        timeStep:
+          unit: hour
+          multiplier: {{ time_step_hours }}
+        readWriteMode: add originals
+        synchLevel: {{ synch_level }}
+        ensembleId: {{ ensemble_id }}
+{% endfor %}
+      externUnit:
+{% for p in parameters %}
+      - parameterId: {{ p.id }}
+        unit: {{ p.unit }}
+{% if p.get('cumulativeSum') %}
+        cumulativeSum: true
+{% endif %}
+{% endfor %}
+{% endfor %}
+{% if emit_workflow %}
+- schema: Workflow
+  output: WorkflowFiles/Import/Import{{ source_name }}.xml
+  data:
+    version: '1.1'
+    activity:
+    - runIndependent: true
+      moduleInstanceId: Import{{ source_name }}
+{% endif %}
+{% if emit_idmap %}
+- schema: IdMap
+  output: IdMapFiles/Import/IdMapFrom{{ source_name }}.xml
+  data:
+    version: '1.1'
+    parameter:
+{% for p in parameters %}
+    - internal: {{ p.id }}
+      external: '{{ p.external }}'
+{% endfor %}
+    enableOneToOneMapping: true
+{% endif %}
+contributions: []

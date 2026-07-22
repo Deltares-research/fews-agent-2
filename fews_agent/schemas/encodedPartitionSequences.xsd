@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schema targetNamespace="http://www.wldelft.nl/fews" xmlns:fews="http://www.wldelft.nl/fews" xmlns="http://www.w3.org/2001/XMLSchema" elementFormDefault="qualified" attributeFormDefault="unqualified"
+		version="1.0">
+	<include schemaLocation="sharedTypes.xsd"/>
+	<element name="encodedPartitionSequences" type="fews:EncodedPartitionSequencesComplexType"/>
+	<complexType name="EncodedPartitionSequencesComplexType">
+		<sequence>
+			<element name="encodedPartitionSequence" type="fews:EncodedPartitionSequenceComplexType" minOccurs="0" maxOccurs="unbounded"/>
+		</sequence>
+	</complexType>
+	<complexType name="EncodedPartitionSequenceComplexType">
+		<attribute name="workflowId" type="fews:idStringType" use="required"/>
+		<attribute name="value" type="string" use="required"/>
+	</complexType>
+</schema>

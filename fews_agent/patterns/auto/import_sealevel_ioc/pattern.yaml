@@ -1,0 +1,113 @@
+name: import_sealevel_ioc
+description: >-
+  Import sea-level observations from the IOC Sea Level Monitoring service
+  (built-in IOCSeaLevelMonitoring importType). Farmed from the FEWS-Caribbean
+  config (Config/ModuleConfigFiles/Import/ImportIoc.xml +
+  IdMapFiles/Import/IdMapFromIoc.xml). One <import> block: a per-station
+  sensor-selection <properties> map, a tolerance, and one scalar WaterLevel
+  timeSeriesSet over the station locationSet, plus the workflow and idMap.
+  The station->sensor `sensors` list is DEPLOYMENT data (the real config has
+  ~135 entries); the default carries a couple of examples - supply the full
+  list in the blueprint instance.
+variables:
+  source_name:
+    type: str
+    required: false
+    default: Ioc
+  station_locationset_id:
+    type: str
+    required: false
+    default: StationsIoc
+  parameter_id:
+    type: str
+    required: false
+    default: WaterLevelObserved
+  # External IOC parameter name the idMap maps `parameter_id` onto.
+  external_parameter:
+    type: str
+    required: false
+    default: slevel
+  # relativeViewPeriod lookback (days, start overrulable to 0).
+  view_period_start_days:
+    type: int
+    required: false
+    default: -7
+  expiry_days:
+    type: int
+    required: false
+    default: 365
+  # De-dup tolerance window in seconds.
+  tolerance_seconds:
+    type: int
+    required: false
+    default: 30
+  # Per-station sensor selection: which IOC sensor code to import for each
+  # station key. DEPLOYMENT DATA - replace with the project's full list.
+  #   station  IOC station key
+  #   sensor   IOC sensor code (pwl, rad, prs, flt, bub, ...)
+  sensors:
+    type: list
+    required: false
+    default:
+      - station: agua
+        sensor: pwl
+      - station: alva
+        sensor: flt
+outputs:
+- schema: TimeSeriesImportRun
+  output: ModuleConfigFiles/Import/Import{{ source_name }}.xml
+  data:
+    import:
+    - general:
+        importType: IOCSeaLevelMonitoring
+        serverUrl: http://www.ioc-sealevelmonitoring.org/service.php
+        connectionTimeOutMillis: 30000
+        relativeViewPeriod:
+          unit: day
+          start: {{ view_period_start_days }}
+          end: 0
+          startOverrulable: true
+        idMapId: IdMapFrom{{ source_name }}
+        dataFeedId: IOC
+        expiryTime:
+          unit: day
+          multiplier: {{ expiry_days }}
+      tolerance:
+      - timeUnit: second
+        unitCount: {{ tolerance_seconds }}
+        parameterId: {{ parameter_id }}
+{% if sensors %}
+      properties:
+        string:
+{% for s in sensors %}
+        - key: {{ s.station }}
+          value: {{ s.sensor }}
+{% endfor %}
+{% endif %}
+      timeSeriesSet:
+      - moduleInstanceId: Import{{ source_name }}
+        valueType: scalar
+        parameterId: {{ parameter_id }}
+        locationSetId: {{ station_locationset_id }}
+        timeSeriesType: external historical
+        timeStep:
+          unit: minute
+        readWriteMode: add originals
+- schema: Workflow
+  output: WorkflowFiles/Import/Import{{ source_name }}.xml
+  data:
+    version: '1.1'
+    activity:
+    - runIndependent: true
+      moduleInstanceId: Import{{ source_name }}
+- schema: IdMap
+  output: IdMapFiles/Import/IdMapFrom{{ source_name }}.xml
+  data:
+    version: '1.1'
+    parameter:
+    - internal: {{ parameter_id }}
+      external: '{{ external_parameter }}'
+    locationIdFunction:
+    - internalLocationSet: {{ station_locationset_id }}
+      externalLocationFunction: '@{{ source_name }}Id@'
+contributions: []

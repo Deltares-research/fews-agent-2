@@ -1,0 +1,222 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--Delft FEWS (Copyright 2003 WL | Delft Hydraulics) -->
+<schema xmlns="http://www.w3.org/2001/XMLSchema" xmlns:fews="http://www.wldelft.nl/fews" targetNamespace="http://www.wldelft.nl/fews" elementFormDefault="qualified" attributeFormDefault="unqualified" version="1.0">
+	<include schemaLocation="sharedTypes.xsd"/>
+	<element name="pcrTransformationSets" type="fews:PcrTransformationSetsComplexType"/>
+	<!--Transformation Schema with element  transformationSets-->
+	<!--Complex Types definitions for different types of Transformations-->
+	<!--PcrTransformationSetsComplexType-->
+	<complexType name="PcrTransformationSetsComplexType">
+		<annotation>
+			<documentation>Transformation Sets contains one or more transformation Set </documentation>
+		</annotation>
+		<sequence>
+			<element name="logLevel" type="fews:logLevelEnumStringType" default="INFO" minOccurs="0">
+				<annotation>
+					<documentation>Indicate the Logging Level : Five levels are available - (in order of increasing severity)  Debug, Info, Warn, Error and Fatal: If the user would not like to see DEBUG messages then the logLevel here should be set to INFO. This means that all INFO, WARN. ERROR and FATAL will be written but no DEBUG message. Since DENIG message is of low severity then INFO messages.</documentation>
+				</annotation>
+			</element>
+			<element name="pcrTransformationSet" type="fews:PcrTransformationSetComplexType" maxOccurs="unbounded"/>
+		</sequence>
+		<attribute name="version" type="fews:versionStringType" use="required" fixed="1.1"/>
+	</complexType>
+	<!--PcrTransformationSetComplexType-->
+	<complexType name="PcrTransformationSetComplexType">
+		<annotation>
+			<documentation>Transformation Sets contains one or more transformation Set </documentation>
+		</annotation>
+		<sequence>
+			<element name="areaMap" type="fews:PcrAreaMapComplexType"/>
+			<element name="definitions" type="fews:PcrDefinitionsComplexType"/>
+			<element name="pcrModel" type="fews:PcrScriptTextModelComplexType">
+				<annotation>
+					<documentation>This should hold a pcraster script. this maps to the pcrtextmodel element in the pcraster XML. In our case several tags will have to be replace by numbers on the fly: $timesteps$ (this will be the second number in the timer section).
+A similar procedure may be needed for variables that are linked to FEWS time series sets</documentation>
+				</annotation>
+			</element>
+		</sequence>
+		<attribute name="id" type="fews:idStringType"/>
+	</complexType>
+	<!-- PcrDefinitionComplexType-->
+	<complexType name="PcrDefinitionsComplexType">
+		<sequence>
+			<element name="dataExchange" type="fews:PcrDataExchangeEnumStringType" default="memory" minOccurs="0">
+				<annotation>
+					<documentation>Element to set data exchange to file or memory. Default is memory. File may be needed for very large grids or can be useful for debugging. the pcraster XML allows to set this separate fro both reading and writing. We set it for both</documentation>
+				</annotation>
+			</element>
+			<element name="internalVariable" type="fews:PcrInternalVariableComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Both the input and output time series will have to be translated to the field element in the pcraster XML . Both grid and scalar time series are supported. For internal variable no time series is given</documentation>
+				</annotation>
+			</element>
+			<element name="inputVariable" type="fews:PcrInputVariableComplexType" maxOccurs="unbounded">
+				<annotation>
+					<documentation>definition of input variables</documentation>
+				</annotation>
+			</element>
+			<element name="outputVariable" type="fews:PcrOutputVariableComplexType" maxOccurs="unbounded">
+				<annotation>
+					<documentation>definition of output variables</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="PcrAreaMapComplexType">
+		<annotation>
+			<documentation>Here the area map is defined. Either using a grid definition, a location id (points to a grid definition) or a time series sets which already holds a grid (from import data). This maps to the areaMap element in the pcraster XML. </documentation>
+		</annotation>
+		<choice>
+			<element name="gridDefinition" type="fews:GridDefinitionComplexType"/>
+			<element name="locationId" type="fews:idStringType">
+				<annotation>
+					<documentation>FEWS location id</documentation>
+				</annotation>
+			</element>
+			<element name="timeSeriesSet" type="fews:TimeSeriesSetComplexType">
+				<annotation>
+					<documentation>A valid TimeSeries Set with valueType = Grid</documentation>
+				</annotation>
+			</element>
+		</choice>
+	</complexType>
+	<!-- PCraster exchange types -->
+	<simpleType name="PcrDataExchangeEnumStringType">
+		<restriction base="string">
+			<enumeration value="memory"/>
+			<enumeration value="file"/>
+		</restriction>
+	</simpleType>
+	<!-- PCrater Script (TextModel) Complex type -->
+	<complexType name="PcrScriptTextModelComplexType">
+		<sequence>
+			<element name="text" type="string"/>
+		</sequence>
+		<attribute name="id" type="fews:idStringType" use="optional"/>
+	</complexType>
+	<!-- PCraster Data Enum type-->
+	<simpleType name="PcrDataEnumStringType">
+		<restriction base="string">
+			<enumeration value="boolean"/>
+			<enumeration value="nominal"/>
+			<enumeration value="ordinal"/>
+			<enumeration value="scalar"/>
+			<enumeration value="ldd"/>
+			<enumeration value="directional"/>
+		</restriction>
+	</simpleType>
+	<!-- PCraster Scalar Data Enum type-->
+	<simpleType name="PcrScalarDataEnumStringType">
+		<restriction base="string">
+			<enumeration value="timeInJulian"/>
+			<enumeration value="timeAsDayofYear"/>
+			<enumeration value="timeAsDayofMonth"/>
+			<enumeration value="timeAsHourofDay"/>
+			<enumeration value="timeAsDaysElapsedSince"/>
+			<enumeration value="timeAsHoursElapsedSince"/>
+		</restriction>
+	</simpleType>
+	<simpleType name="PcrSpatialEnumStringType">
+		<restriction base="string">
+			<enumeration value="spatial"/>
+			<enumeration value="nonspatial"/>
+		</restriction>
+	</simpleType>
+	<complexType name="PcrInputVariableComplexType">
+		<annotation>
+			<documentation>input/output Data Set which can consist of TimeSeriesSet or defined data (so called - typical
+                Profile) each identified with unique variable ID</documentation>
+		</annotation>
+		<choice>
+			<element name="timeSeriesSet" type="fews:TimeSeriesSetComplexType">
+				<annotation>
+					<documentation>A TimeSeries Set with valueType = Grid Or valueType = scalar </documentation>
+				</annotation>
+			</element>
+			<element name="value" type="float">
+				<annotation>
+					<documentation>a constant value</documentation>
+				</annotation>
+			</element>
+			<element name="external" type="fews:fileStringType">
+				<annotation>
+					<documentation>refers to external file</documentation>
+				</annotation>
+			</element>
+		</choice>
+		<attribute name="variableId" type="fews:idStringType" use="required">
+			<annotation>
+				<documentation>this variable id may be used in the pcraster text model to refer to this time series set. This will have to be mapped to the field element in the pcraster XML</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="dataType" type="fews:PcrDataEnumStringType" use="optional" default="scalar">
+			<annotation>
+				<documentation>enumeration of pcraster data type to which the FEWS data is to be converted. Default = scalar. Options are boolean, nominal, scalar, directional, ldd. ordinal</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="scalarType" type="fews:PcrScalarDataEnumStringType" use="optional">
+			<annotation>
+				<documentation>If the base dataType is Scalar, one will get the float values from the given TimeSeries; However if one wants to get the time from TimeSeries instead of values; then use scalarType to define what sort of data is needed from the TimeSeries. For example: use timeInJulian option to get the julian times from the TimeSeries  or constant</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="convertDatum" type="boolean" use="optional" default="false">
+			<annotation>
+				<documentation>Convert datum from Ordnance level during Import.
+Convert datum to Ordnance level during Export.</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="referenceDate" type="fews:dateType">
+			<annotation>
+				<documentation>use of this reference date is required in association with the scalarType Enum "timeAsDaysElapsedSince"</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="spatialType" type="fews:PcrSpatialEnumStringType">
+			<annotation>
+				<documentation>input to be treated as spatial or non-spatial data. By  Default all grid TimeSeries are spatial and all scalar timeSeries are non-spatial</documentation>
+			</annotation>
+		</attribute>
+	</complexType>
+	<complexType name="PcrInternalVariableComplexType">
+		<annotation>
+			<documentation>Internal variable  which can consist of name/id and dataType</documentation>
+		</annotation>
+		<attribute name="variableId" type="fews:idStringType" use="required">
+			<annotation>
+				<documentation>this variable id may be used in the pcraster text model to refer to this time series set. This will have to be mapped to the field element in the pcraster XML</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="dataType" type="fews:PcrDataEnumStringType" use="optional" default="scalar">
+			<annotation>
+				<documentation>enumeration of pcraster data type to which the FEWS data is to be converted. Default = scalar. Options are boolean, nominal, scalar, directional, ldd. ordinal</documentation>
+			</annotation>
+		</attribute>
+	</complexType>
+	<complexType name="PcrOutputVariableComplexType">
+		<annotation>
+			<documentation>input/output Data Set which can consist of TimeSeriesSet or defined data (so called - typical
+                Profile) each identified with unique variable ID</documentation>
+		</annotation>
+		<sequence>
+			<element name="timeSeriesSet" type="fews:TimeSeriesSetComplexType">
+				<annotation>
+					<documentation>A TimeSeries Set with valueType = Grid </documentation>
+				</annotation>
+			</element>
+		</sequence>
+		<attribute name="variableId" type="fews:idStringType" use="required">
+			<annotation>
+				<documentation>this variable id may be used in the pcraster text model to refer to this time series set. This will have to be mapped to the field element in the pcraster XML</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="dataType" type="fews:PcrDataEnumStringType" use="optional" default="scalar">
+			<annotation>
+				<documentation>enumeration of pcraster data type to which the FEWS data is to be converted. Default = scalar. Options are boolean, nominal, scalar, directional, ldd. ordinal</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="convertDatum" type="boolean" use="optional" default="false">
+			<annotation>
+				<documentation>Convert datum from Ordnance level during Import.            Convert datum to Ordnance level during Export.</documentation>
+			</annotation>
+		</attribute>
+	</complexType>
+</schema>

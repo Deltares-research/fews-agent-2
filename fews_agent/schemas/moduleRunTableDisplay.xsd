@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schema xmlns="http://www.w3.org/2001/XMLSchema" xmlns:fews="http://www.wldelft.nl/fews" targetNamespace="http://www.wldelft.nl/fews" elementFormDefault="qualified" attributeFormDefault="unqualified" version="1.0">
+	<include schemaLocation="sharedTypes.xsd"/>
+	<element name="moduleRunTableDisplay" type="fews:ModuleRunTableDisplay"/>
+	<complexType name="ModuleRunTableDisplay">
+		<sequence>
+		</sequence>
+	</complexType>
+</schema>

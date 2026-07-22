@@ -1,0 +1,149 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- edited with XMLSpy v2007 sp2 (http://www.altova.com) by WL | Delft Hydraulics (WL | Delft Hydraulics) -->
+<schema xmlns="http://www.w3.org/2001/XMLSchema" xmlns:fews="http://www.wldelft.nl/fews" targetNamespace="http://www.wldelft.nl/fews" elementFormDefault="qualified" attributeFormDefault="unqualified" version="1.0">
+	<include schemaLocation="sharedTypes.xsd"/>
+	<!-- -->
+	<element name="sobekModel" type="fews:SobekModelComplexType"/>
+	<!-- -->
+	<complexType name="SobekModelComplexType">
+		<sequence>
+			<element name="description" type="string" minOccurs="0"/>
+			<element name="directories" type="fews:SobekFolderNamesComplexType"/>
+			<element name="adapterfiles" type="fews:SobekAdapterFilesComplexType">
+				<annotation>
+					<documentation>files used by Adapter</documentation>
+				</annotation>
+			</element>
+			<element name="modelFiles" type="fews:SobekModelFilesComplexType">
+				<annotation>
+					<documentation>files used by model</documentation>
+				</annotation>
+			</element>
+			<element name="mapping" type="fews:AdapterMappingComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Contains mapping for the Kalman filters. </documentation>
+				</annotation>
+			</element>
+		</sequence>
+		<attribute name="version" type="fews:versionStringType" use="required" fixed="1.1"/>
+	</complexType>
+	<!-- -->
+	<complexType name="SobekModelDirectoriesCompexType">
+		<sequence>
+			<element name="rootDir" type="fews:directoryStringType">
+				<annotation>
+					<documentation>Root directory of the module instance. This may be either a relative or absolute path.</documentation>
+				</annotation>
+			</element>
+			<element name="stateDir" type="fews:directoryStringType">
+				<annotation>
+					<documentation>Directory of State files</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<!-- -->
+	<complexType name="SobekAdapterFilesComplexType">
+		<sequence>
+			<element name="stateFile" type="fews:fileStringType" minOccurs="0">
+				<annotation>
+					<documentation>State xml file: Contains information on where to retrieve the state file that is to be used for the forecast.</documentation>
+				</annotation>
+			</element>
+			<element name="diagnosticFile" type="fews:fileStringType" minOccurs="0">
+				<annotation>
+					<documentation>Diagnostic file: Contains all messages produced by the sobek module adapter.</documentation>
+				</annotation>
+			</element>
+			<element name="branchFile" type="fews:fileStringType" minOccurs="0">
+				<annotation>
+					<documentation>Branch file: Contains branch definition required to produce longitudinal profile file.</documentation>
+				</annotation>
+			</element>
+			<element name="controlsDefTemplateFile" type="fews:fileStringType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2017.01 Template file to replace @YYYY@ with year of startDate and write to controls.def</documentation>
+				</annotation>
+			</element>
+			<element name="triggersDefTemplateFile" type="fews:fileStringType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2017.01 Template file to replace @YYYY@ with year of startDate and write to triggers.def</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<!-- -->
+	<complexType name="SobekModelFilesComplexType">
+		<sequence>
+			<element name="useNefis4" type="boolean" default="false" minOccurs="0"/>
+			<element name="mdaFile" type="fews:fileStringType">
+				<annotation>
+					<documentation>SOBEK input binary NEFIS file </documentation>
+				</annotation>
+			</element>
+			<element name="dataFile" type="fews:fileStringType">
+				<annotation>
+					<documentation>SOBEK restart data file.</documentation>
+				</annotation>
+			</element>
+			<element name="definitionFile" type="fews:fileStringType" minOccurs="0">
+				<annotation>
+					<documentation>SOBEK restart definition file (set to optional -for backward compatibility- since definition file always remains together with rst or dataFile as defined earlier)</documentation>
+				</annotation>
+			</element>
+			<element name="rstDataClusterFile" type="fews:fileStringType" minOccurs="0">
+				<annotation>
+					<documentation>restart data to be copied to sobek RST file in Extended preprocessor while in postprocessor it is written from sobek rst file. This way the model state can be communicated to say for example filtering routines like kalman filter etc. If rstDataClusterFile is present it is used otherwise not.</documentation>
+				</annotation>
+			</element>
+			<element name="modelRunPeriodFile" type="fews:fileStringType" minOccurs="0">
+				<annotation>
+					<documentation>optional if given then model is runned for ths period (used in Extended preprocessor)</documentation>
+				</annotation>
+			</element>
+			<element name="logFile" type="fews:fileStringType" minOccurs="0">
+				<annotation>
+					<documentation>SOBEK module log file: Contains messages produced by the SOBEK modules.</documentation>
+				</annotation>
+			</element>
+			<element name="hisFile" type="fews:fileStringType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>SOBEK output data file </documentation>
+				</annotation>
+			</element>
+			<element name="mapFile" type="fews:fileStringType" minOccurs="0">
+				<annotation>
+					<documentation>SOBEK output data containing longitudinal profile data. Requires configuration of Branch file.</documentation>
+				</annotation>
+			</element>
+			<element name="returnFile" type="fews:fileStringType" minOccurs="0">
+				<annotation>
+					<documentation>SOBEK return file. Contains 0 when run completed successfully else contains error number.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<!-- -->
+	<complexType name="SobekFolderNamesComplexType">
+		<annotation>
+			<documentation>Folder names required by the HbV modules</documentation>
+		</annotation>
+		<sequence>
+			<element name="configDir" type="fews:directoryStringType"/>
+			<element name="workDir" type="fews:directoryStringType"/>
+			<element name="purgeWorkDir" type="boolean" default="true" minOccurs="0"/>
+			<element name="moduleDir" type="fews:directoryStringType"/>
+			<element name="importDir" type="fews:directoryStringType">
+				<annotation>
+					<documentation>Directory for the input time series files.</documentation>
+				</annotation>
+			</element>
+			<element name="exportDir" type="fews:directoryStringType">
+				<annotation>
+					<documentation>Directory for the output time series files.</documentation>
+				</annotation>
+			</element>
+			<element name="purgeExportDir" type="boolean" default="true" minOccurs="0"/>
+		</sequence>
+	</complexType>
+</schema>

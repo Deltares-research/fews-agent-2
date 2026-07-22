@@ -1,0 +1,424 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- edited with XMLSPY v2004 rel. 3 U (http://www.xmlspy.com) by rooij_e (WL | Delft Hydraulics) -->
+<!--  Delft FEWS Published Interface (Copyright 2003 WL | Delft Hydraulics) -->
+<schema xmlns="http://www.w3.org/2001/XMLSchema" xmlns:fews="http://www.wldelft.nl/fews/archive"
+		targetNamespace="http://www.wldelft.nl/fews/archive" elementFormDefault="qualified"
+		attributeFormDefault="unqualified" version="1.0">
+	<complexType name="CalendarTimeSpanComplexType">
+		<attribute name="unit" type="fews:calendarTimeUnitEnumStringType" use="required"/>
+		<attribute name="divider" type="positiveInteger" use="optional" default="1"/>
+		<attribute name="multiplier" type="nonNegativeInteger" use="optional" default="1"/>
+	</complexType>
+	<simpleType name="calendarTimeUnitEnumStringType">
+		<restriction base="string">
+			<enumeration value="second"/>
+			<enumeration value="minute"/>
+			<enumeration value="hour"/>
+			<enumeration value="day"/>
+			<enumeration value="week"/>
+			<enumeration value="month"/>
+			<enumeration value="year"/>
+		</restriction>
+	</simpleType>
+	<group name="SharedGeneralSettingsGroup">
+		<sequence>
+			<element name="dataSetName" type="string" minOccurs="0"/>
+			<element name="customProperty" type="fews:StringPropertyComplexType" minOccurs="0" maxOccurs="unbounded"/>
+		</sequence>
+	</group>
+	<complexType name="StringPropertyComplexType">
+		<attribute name="key" type="string" use="required"/>
+		<attribute name="value" type="string" use="required"/>
+	</complexType>
+	<complexType name="TimeSpanComplexType">
+		<attribute name="unit" type="fews:timeUnitStringType" use="required"/>
+		<attribute name="divider" type="fews:positiveIntegerStringType" use="optional"/>
+		<attribute name="multiplier" type="fews:nonNegativeIntegerStringType" use="optional"/>
+	</complexType>
+	<simpleType name="timeUnitStringType">
+		<union memberTypes="fews:timeUnitEnumStringType fews:propertyReferenceString"/>
+	</simpleType>
+	<simpleType name="timeUnitEnumStringType">
+		<restriction base="string">
+			<enumeration value="second"/>
+			<enumeration value="minute"/>
+			<enumeration value="hour"/>
+			<enumeration value="day"/>
+			<enumeration value="week"/>
+		</restriction>
+	</simpleType>
+	<simpleType name="positiveIntegerStringType">
+		<annotation>
+			<documentation>Integer that allows (global) properties</documentation>
+		</annotation>
+		<union memberTypes="positiveInteger fews:propertyReferenceString"/>
+	</simpleType>
+	<simpleType name="nonNegativeIntegerStringType">
+		<annotation>
+			<documentation>Integer that allows (global) properties</documentation>
+		</annotation>
+		<union memberTypes="nonNegativeInteger fews:propertyReferenceString"/>
+	</simpleType>
+	<simpleType name="fileStringType">
+		<restriction base="string">
+			<maxLength value="255"/>
+			<pattern value="([^\s])|([^\s].*[^\s])"/>
+		</restriction>
+	</simpleType>
+	<simpleType name="directoryStringType">
+		<restriction base="string">
+			<maxLength value="255"/>
+			<pattern value="([^\s])|([^\s].*[^\s])"/>
+		</restriction>
+	</simpleType>
+	<simpleType name="booleanStringType">
+		<annotation>
+			<documentation>
+				Boolean that allows (global) properties
+			</documentation>
+		</annotation>
+		<union memberTypes="boolean fews:propertyReferenceString"/>
+	</simpleType>
+	<simpleType name="propertyReferenceString">
+		<restriction base="string">
+			<pattern value=".*[\\$|%].*"/>
+		</restriction>
+	</simpleType>
+	<simpleType name="dateType">
+		<restriction base="date">
+			<pattern value="\d\d\d\d-\d\d-\d\d"/>
+		</restriction>
+	</simpleType>
+	<!-- -->
+	<simpleType name="timeStringType">
+		<union memberTypes="fews:timeType fews:propertyReferenceString"/>
+	</simpleType>
+	<simpleType name="timeType">
+		<restriction base="time">
+			<pattern value="\d\d:\d\d:\d\d"/>
+		</restriction>
+	</simpleType>
+	<complexType name="DateTimeComplexType">
+		<attribute name="date" type="fews:dateType" use="required"/>
+		<attribute name="time" type="fews:timeType" use="optional"/>
+	</complexType>
+	<simpleType name="idStringType">
+		<restriction base="string">
+			<minLength value="1"/>
+			<maxLength value="64"/>
+		</restriction>
+	</simpleType>
+	<simpleType name="longIdStringType">
+		<restriction base="string">
+			<minLength value="1"/>
+			<maxLength value="200"/>
+		</restriction>
+	</simpleType>
+
+
+	<simpleType name="statisticsTypeString">
+		<restriction base="string">
+			<maxLength value="255"/>
+			<enumeration value="max"/>
+			<enumeration value="min"/>
+			<enumeration value="mean"/>
+		</restriction>
+	</simpleType>
+	<simpleType name="nonEmptyStringType">
+		<restriction base="string">
+			<minLength value="1"/>
+		</restriction>
+	</simpleType>
+	<simpleType name="nameStringType">
+		<restriction base="string">
+			<minLength value="1"/>
+		</restriction>
+	</simpleType>
+	<group name="UserAndPassword">
+		<sequence>
+			<element name="user" type="fews:nonEmptyStringType">
+				<annotation>
+					<documentation>User name used for authentication</documentation>
+				</annotation>
+			</element>
+			<choice minOccurs="0">
+				<element name="encryptedPassword" type="string">
+					<annotation>
+						<documentation>Encrypted user's password. Password is encrypted with clipboard utils in F12 menu in (any) SA/OC</documentation>
+					</annotation>
+				</element>
+				<element name="password" type="string">
+					<annotation>
+						<documentation>The user's password. Error will be logged when used. Error message will contain the encrypted password to replace this element with the element
+							encryptedPassword
+						</documentation>
+					</annotation>
+				</element>
+			</choice>
+		</sequence>
+	</group>
+	<complexType name="AttributeComplexType">
+		<attribute name="id" type="string" use="required"/>
+		<attribute name="name" type="string" use="required"/>
+	</complexType>
+	<complexType name="SimulationNetcdfComplexType">
+		<sequence>
+			<element name="relativeFilePath" type="fews:nonEmptyStringType"/>
+			<element name="valueType" type="fews:valueType"/>
+			<element name="sourceId" type="fews:idStringType" minOccurs="0"/>
+			<element name="startTime" type="fews:DateTimeComplexType"/>
+			<element name="endTime" type="fews:DateTimeComplexType"/>
+			<element name="header" type="fews:ContentHeaderComplexType" minOccurs="0" maxOccurs="unbounded"/>
+			<element name="netcdfStorageAttribute" type="fews:AttributeComplexType" minOccurs="0" maxOccurs="unbounded"/>
+			<element name="statistics" type="fews:StatisticsComplexType" minOccurs="0"/>
+		</sequence>
+	</complexType>
+	<complexType name="ObservedNetcdfComplexType">
+		<sequence>
+			<element name="relativeFilePath" type="fews:nonEmptyStringType"/>
+			<element name="valueType" type="fews:valueType"/>
+			<element name="timeSeriesType" type="fews:archiveTimeSeriesType"/>
+			<element name="areaId" type="fews:idStringType"/>
+			<element name="sourceId" type="fews:idStringType" minOccurs="0"/>
+			<element name="creationTime" type="fews:DateTimeComplexType"/>
+			<element name="startTime" type="fews:DateTimeComplexType"/>
+			<element name="endTime" type="fews:DateTimeComplexType"/>
+			<element name="header" type="fews:ContentHeaderComplexType" minOccurs="0" maxOccurs="unbounded"/>
+			<element name="statistics" type="fews:StatisticsComplexType" minOccurs="0"/>
+		</sequence>
+	</complexType>
+	<complexType name="ExternalForecastNetcdfComplexType">
+		<sequence>
+			<element name="relativeFilePath" type="fews:nonEmptyStringType"/>
+			<element name="valueType" type="fews:valueType"/>
+			<element name="timeSeriesType" type="fews:archiveTimeSeriesType"/>
+			<element name="areaId" type="fews:idStringType"/>
+			<element name="sourceId" type="fews:idStringType" minOccurs="0"/>
+			<element name="creationTime" type="fews:DateTimeComplexType"/>
+			<element name="startTime" type="fews:DateTimeComplexType"/>
+			<element name="endTime" type="fews:DateTimeComplexType"/>
+			<element name="externalForecastTime" type="fews:DateTimeComplexType"/>
+			<element name="header" type="fews:ContentHeaderComplexType" minOccurs="0" maxOccurs="unbounded"/>
+			<element name="statistics" type="fews:StatisticsComplexType" minOccurs="0"/>
+		</sequence>
+	</complexType>
+
+	<complexType name="StatisticsComplexType">
+		<sequence>
+			<element name="thresholdCrossings" type="fews:ThresholdsCrossingsComplexType" minOccurs="0"
+					 maxOccurs="unbounded"/>
+			<!--<element name="valueRange" type="fews:ValueRangeComplexType" minOccurs="0"-->
+			<!--maxOccurs="unbounded"/>-->
+		</sequence>
+	</complexType>
+	<!-- TODO FEWS-16094: RWS create tool to generate metadata.xml for matroos -->
+	<!--<complexType name="ValueRangeComplexType">-->
+	<!--<sequence>-->
+	<!--<element name="header" type="fews:StatisticsHeaderComplexType"/>-->
+	<!--<element name="units" type="string" minOccurs="0"/>-->
+	<!--<element name="min" type="double" minOccurs="0"/>-->
+	<!--<element name="max" type="double" minOccurs="0"/>-->
+	<!--</sequence>-->
+	<!--</complexType>-->
+	<complexType name="ThresholdsCrossingsComplexType">
+		<sequence>
+			<element name="startTime" type="fews:DateTimeComplexType" minOccurs="0"/>
+			<element name="endTime" type="fews:DateTimeComplexType" minOccurs="0"/>
+			<element name="header" type="fews:StatisticsHeaderComplexType"/>
+			<element name="thresholdCrossing" type="fews:ThresholdCrossingComplexType" maxOccurs="unbounded"/>
+		</sequence>
+	</complexType>
+	<complexType name="ThresholdCrossingComplexType">
+		<sequence>
+			<element name="thresholdId" type="fews:idStringType"/>
+			<element name="value" type="float"/>
+		</sequence>
+	</complexType>
+	<complexType name="DateTimeValueComplexType">
+		<attribute name="date" type="fews:dateType" use="required">
+			<annotation>
+				<documentation>ISO 8601 (yyyy-mm-dd)</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="time" type="fews:timeType" use="required">
+			<annotation>
+				<documentation>ISO 8601 (hh:mm:ss.dsec e.g. 16:30:0.001)</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="value" type="double" use="required"/>
+	</complexType>
+	<complexType name="ContentHeaderComplexType">
+		<sequence>
+			<element name="parameterId" type="fews:longIdStringType"/>
+			<element name="domainParameterId" type="fews:idStringType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>For a spectrum specify the frequency / wave length parameter. For a directional spectrum specify first the frequency parameter and secondly the directional parameter
+					</documentation>
+				</annotation>
+			</element>
+			<element name="locationId" type="fews:idStringType" maxOccurs="unbounded"/>
+			<element name="ensembleId" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>Optional field for running ensembles. Ensemble id's in a time series set will override ensemble id's defined in the workflow.</documentation>
+				</annotation>
+			</element>
+			<element name="ensembleMemberId" type="fews:nonEmptyStringType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Optional field used for reading or writing one or more particular ensemble member</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="StatisticsHeaderComplexType">
+		<sequence>
+			<element name="parameterId" type="fews:idStringType"/>
+			<element name="locationId" type="fews:idStringType"/>
+			<element name="ensembleId" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>Optional field for running ensembles. Ensemble id's in a time series set will override ensemble id's defined in the workflow.</documentation>
+				</annotation>
+			</element>
+			<element name="ensembleMemberId" type="fews:nonEmptyStringType" minOccurs="0">
+				<annotation>
+					<documentation>Optional field used for reading or writing one or more particular ensemble member</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<simpleType name="valueType">
+		<restriction base="string">
+			<maxLength value="255"/>
+			<enumeration value="scalar"/>
+			<enumeration value="grid"/>
+		</restriction>
+	</simpleType>
+	<simpleType name="netcdfStorageTimeSeriesType">
+		<restriction base="string">
+			<maxLength value="255"/>
+			<enumeration value="observed"/>
+			<enumeration value="externalForecast"/>
+		</restriction>
+	</simpleType>
+	<simpleType name="archiveTimeSeriesType">
+		<restriction base="string">
+			<maxLength value="255"/>
+			<enumeration value="observed"/>
+			<enumeration value="simulated"/>
+			<enumeration value="externalForecast"/>
+		</restriction>
+	</simpleType>
+	<complexType name="TimeStepComplexType">
+		<attribute name="unit" type="fews:timeStepUnitEnumStringType" use="optional"/>
+		<attribute name="multiplier" type="positiveInteger" use="optional"/>
+	</complexType>
+	<simpleType name="timeStepUnitEnumStringType">
+		<annotation>
+			<documentation>Same as timeUnitEnumStringType plus the nonequidistant time step</documentation>
+		</annotation>
+		<restriction base="string">
+			<enumeration value="minute"/>
+			<enumeration value="hour"/>
+			<enumeration value="day"/>
+			<enumeration value="nonequidistant"/>
+		</restriction>
+	</simpleType>
+	<simpleType name="metaDataVersionType">
+		<restriction base="string">
+			<enumeration value="2015.01"/>
+		</restriction>
+	</simpleType>
+	<complexType name="DataFolderFilterConstraintsComplexType">
+		<sequence>
+			<element name="allValid" type="fews:MultipleDataFolderContainsComplexType" minOccurs="0">
+				<annotation>
+					<documentation>All the criteria listed in this section should be valid. If not then the files will not be harvested.
+						However the subfolders will be harvested because other sub-folders might comply with the filter.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="anyValid" type="fews:MultipleDataFolderContainsComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Any of the criteria listed in this section can be valid to pass the filter. If not then the files will not be harvested.
+						However the subfolders will be harvested because other sub-folders might comply with the filter.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="not" type="fews:DataFolderNotComplexType" minOccurs="0">
+				<annotation>
+					<documentation>None of the criteria listed in this section must be valid. Otherwise the found path will not pass the filter. The files in this folder and its subfolder will not be
+						harvested.
+					</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="DataFolderNotComplexType">
+		<sequence>
+			<element name="anyValid" type="fews:MultipleDataFolderContainsComplexType"/>
+		</sequence>
+	</complexType>
+	<complexType name="FileNotComplexType">
+		<sequence>
+			<element name="anyValid" type="fews:MultipleFileContainsComplexType"/>
+		</sequence>
+	</complexType>
+
+	<complexType name="MultipleDataFolderContainsComplexType">
+		<sequence>
+			<element name="dataFolderContains" type="fews:DataFolderContainsComplexType" maxOccurs="unbounded"/>
+		</sequence>
+	</complexType>
+	<complexType name="MultipleFileContainsComplexType">
+		<sequence>
+			<element name="fileContains" type="fews:DataFolderContainsComplexType" maxOccurs="unbounded"/>
+		</sequence>
+	</complexType>
+	<complexType name="DataFolderContainsComplexType">
+		<attribute type="string" name="contains">
+			<annotation>
+				<documentation>A single test to test if the data folder/file is valid.</documentation>
+			</annotation>
+		</attribute>
+	</complexType>
+	<complexType name="FileNameFilterConstraintsComplexType">
+		<sequence>
+			<element name="allValid" type="fews:MultipleFileContainsComplexType" minOccurs="0">
+				<annotation>
+					<documentation>All the criteria listed in this section should be valid. If not then the files will not be harvested.
+						However the subfolders will be harvested because other sub-folders might comply with the filter.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="anyValid" type="fews:MultipleFileContainsComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Any of the criteria listed in this section can be valid to pass the filter. If not then the files will not be harvested.
+						However the subfolders will be harvested because other sub-folders might comply with the filter.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="not" type="fews:FileNotComplexType" minOccurs="0">
+				<annotation>
+					<documentation>None of the criteria listed in this section must be valid. Otherwise the found path will not pass the filter. The files in this folder and its subfolder will not be
+						harvested.
+					</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="NetcdfStorageComplexType">
+		<sequence>
+			<element name="relativeFilePath" type="fews:nonEmptyStringType" maxOccurs="unbounded"/>
+		</sequence>
+	</complexType>
+	<complexType name="OpenArchiveComplexType">
+		<sequence>
+			<element name="relativeFilePath" type="fews:nonEmptyStringType" maxOccurs="unbounded"/>
+		</sequence>
+	</complexType>
+	<group name="UpdatedDataSetGroup">
+		<sequence>
+			<element name="netcdfStorage" type="fews:NetcdfStorageComplexType" minOccurs="0"/>
+			<element name="openArchive" type="fews:OpenArchiveComplexType" minOccurs="0"/>
+		</sequence>
+	</group>
+</schema>

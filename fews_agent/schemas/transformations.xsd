@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- edited with XMLSpy v2007 sp2 (http://www.altova.com) by WL | Delft Hydraulics (WL | Delft Hydraulics) -->
+<!--Delft FEWS (Copyright 2003 WL | Delft Hydraulics) -->
+<schema xmlns:fews="http://www.wldelft.nl/fews" xmlns="http://www.w3.org/2001/XMLSchema" targetNamespace="http://www.wldelft.nl/fews" elementFormDefault="qualified" attributeFormDefault="unqualified" version="1.0">
+	<include schemaLocation="sharedTypes.xsd"/>
+	<element name="transformations" type="fews:TransformationsComplexType">
+		<annotation>
+			<documentation>List of regional transformations</documentation>
+		</annotation>
+	</element>
+	<complexType name="TransformationsComplexType">
+		<annotation>
+			<documentation>List of regional transformations</documentation>
+		</annotation>
+		<sequence>
+			<element name="transformation" type="fews:TransformationComplexType" maxOccurs="unbounded"/>
+		</sequence>
+		<attribute name="version" type="fews:versionStringType" use="required" fixed="1.1"/>
+	</complexType>
+	<complexType name="TransformationComplexType">
+		<annotation>
+			<documentation>Transformation information</documentation>
+		</annotation>
+		<sequence>
+			<element name="periodDependantTransformation" type="fews:PeriodDependantTransformationComplexType" maxOccurs="unbounded"/>
+		</sequence>
+		<attribute name="id" type="fews:idStringType" use="required">
+			<annotation>
+				<documentation>Id defining the transformation.</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="name" type="fews:nameStringType"/>
+	</complexType>
+	<complexType name="TransformationTableComplexType">
+		<annotation>
+			<documentation>Transformation table.</documentation>
+		</annotation>
+		<sequence>
+			<element name="tableRecord" type="fews:TransformationTableRecordComplexType" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Table record defines the source value (x) and the destination value (y). 
+
+Note! The input values must be ascending.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="TransformationTableRecordComplexType">
+		<annotation>
+			<documentation>Transformation table record.</documentation>
+		</annotation>
+		<attribute name="input" type="float" use="required"/>
+		<attribute name="output" type="float" use="required"/>
+	</complexType>
+	<complexType name="PeriodDependantTransformationComplexType">
+		<sequence>
+			<element name="validPeriod" type="fews:ValidPeriodComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Period for which this transformation is valid. If missing, transformation is always valid.</documentation>
+				</annotation>
+			</element>
+			<choice>
+				<element name="table" type="fews:TransformationTableComplexType"/>
+			</choice>
+		</sequence>
+	</complexType>
+</schema>

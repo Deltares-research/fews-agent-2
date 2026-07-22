@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- edited with XMLSpy v2009 sp1 (http://www.altova.com) by ICT (Stichting Deltares) -->
+<!--Delft FEWS (Copyright 2003 WL | Delft Hydraulics) -->
+<schema xmlns="http://www.w3.org/2001/XMLSchema" xmlns:fews="http://www.wldelft.nl/fews" targetNamespace="http://www.wldelft.nl/fews" elementFormDefault="qualified" attributeFormDefault="unqualified"
+		version="1.0">
+	<include schemaLocation="sharedTypes.xsd"/>
+	<element name="dataDownloadDisplay" type="fews:DataDownloadDisplayComplexType">
+		<annotation>
+			<documentation>Since 2024.01 DWO-651 Separate data download menu in the Web OC</documentation>
+		</annotation>
+	</element>
+	<complexType name="DataDownloadDisplayComplexType">
+		<sequence>
+			<element name="displayTemplate" type="fews:DisplayTemplateComplexType" maxOccurs="unbounded"/>
+		</sequence>
+	</complexType>
+	<complexType name="DisplayTemplateComplexType">
+		<sequence>
+			<element name="showLocationName" type="fews:displayNameStringType">
+				<annotation>
+					<documentation>Determines how the name of the location will be displayed in the web OC</documentation>
+				</annotation>
+			</element>
+			<element name="showParameterName" type="fews:displayNameStringType">
+				<annotation>
+					<documentation>Determines how the name of the parameter will be displayed in the web OC</documentation>
+				</annotation>
+			</element>
+			<element name="locationAttributes" type="fews:locationAttributesComplexType">
+				<annotation>
+					<documentation>A list of attributes which will be used to select time series data from FEWS.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+		<attribute name="id" type="string"/>
+	</complexType>
+	<simpleType name="displayNameStringType">
+		<restriction base="string">
+			<enumeration value="id"/>
+			<enumeration value="short name"/>
+			<enumeration value="name"/>
+		</restriction>
+	</simpleType>
+	<complexType name="locationAttributesComplexType">
+		<sequence>
+			<element name="attributeId" type="fews:idStringType" maxOccurs="unbounded"/>
+		</sequence>
+	</complexType>
+</schema>

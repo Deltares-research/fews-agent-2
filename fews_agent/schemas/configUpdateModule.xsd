@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schema xmlns="http://www.w3.org/2001/XMLSchema" xmlns:fews="http://www.wldelft.nl/fews"
+		targetNamespace="http://www.wldelft.nl/fews" elementFormDefault="qualified" attributeFormDefault="unqualified"
+		version="1.0">
+	<include schemaLocation="sharedTypes.xsd"/>
+	<element name="configUpdateModule" type="fews:ConfigUpdateModuleComplexType">
+		<annotation>
+			<documentation>The threshold export is a module that exports files based on threshold crossings logged within the same workflow
+			</documentation>
+		</annotation>
+	</element>
+	<complexType name="ConfigUpdateModuleComplexType">
+		<sequence>
+			<element name="mapLayerImport" type="fews:ConfigUpdateImportComplexType"/>
+		</sequence>
+	</complexType>
+	<complexType name="ConfigUpdateImportComplexType">
+		<sequence>
+			<element name="importDir" type="fews:fileStringType"/>
+			<element name="backupDir" type="fews:fileStringType"/>
+			<element name="failedDir" type="fews:fileStringType"/>
+		</sequence>
+		<attribute name="skipUpdateOnValidationFailure" default="false" type="boolean"/>
+	</complexType>
+</schema>

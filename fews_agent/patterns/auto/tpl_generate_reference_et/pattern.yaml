@@ -1,0 +1,149 @@
+{%- set is_fc = simulation_type == 'Forecast' -%}
+{%- set tst_in = 'external forecasting' if is_fc else 'external historical' -%}
+{%- set tst_slope = 'temporary external forecasting' if is_fc else 'temporary' -%}
+{%- set rwm_in = 'read complete forecast' if is_fc else 'read only' -%}
+{%- set rwm_wr = 'read complete forecast' if is_fc else 'add originals' -%}
+{%- set grid_expiry = '$ExpiryTimeGridExternalForecastingInDays$' if is_fc else '$ExpiryTimeGridExternalHistoricalInDays$' -%}
+{%- set view_start = '0' if simulation_type == 'Hindcast' else '$ViewPeriodStartInHours$' -%}
+{%- set view_end = '0' if simulation_type == 'Hindcast' else '$ViewPeriodEndInHours$' -%}
+name: tpl_generate_reference_et
+description: >-
+  Generate reference-crop evapotranspiration (Penman-Monteith / Makkink ETref
+  per KNMI) from gridded air temperature + solar radiation, via user `simple`
+  expression transforms. Farmed from FEWS-Conform
+  Generate{Forecast,Hindcast,Historical}EvapotranspirationTemplate.xml — one
+  template-family selected by `simulation_type`; the Slope + ETref formulas
+  (with a coefficientSet: Rho, UnitConversionEvapotranspiration,
+  UnitConversionRadiationSolar) are identical across variants, only the
+  timeSeriesType / readWriteMode / relativeViewPeriod switch. A `tpl_` shared
+  template: FEWS $PLACEHOLDER$s ($MeteoModuleInstanceId$, $MeteoLocationId$,
+  $MODULE_INSTANCE_ID$, expiry, view period) stay literal and are bound by the
+  running workflow. Feeds the Wflow prepare chain (EvapotranspirationReference
+  grid), but is model-agnostic.
+variables:
+  # Forecast | Hindcast | Historical — drives timeSeriesType, readWriteMode
+  # and the relativeViewPeriod (none / 0-0 / $ViewPeriod$).
+  simulation_type:
+    type: str
+    required: false
+    default: Forecast
+  # Source of the RadiationSolar + AirTemperature grids (kept as the FEWS
+  # workflow-bound placeholder by default).
+  meteo_module_instance:
+    type: str
+    required: false
+    default: $MeteoModuleInstanceId$
+  meteo_location:
+    type: str
+    required: false
+    default: $MeteoLocationId$
+outputs:
+- schema: TransformationModule
+  output: ModuleConfigFiles/Import/Generate{{ simulation_type }}EvapotranspirationTemplate.xml
+  data:
+    version: '1.0'
+    variable:
+    - variableId: RadiationSolar
+      timeSeriesSet:
+        moduleInstanceId: {{ meteo_module_instance }}
+        valueType: grid
+        parameterId: RadiationSolar
+        locationId: {{ meteo_location }}
+        timeSeriesType: {{ tst_in }}
+        timeStep:
+          unit: hour
+          multiplier: 1
+{% if not is_fc %}
+        relativeViewPeriod:
+          unit: hour
+          start: '{{ view_start }}'
+          end: '{{ view_end }}'
+          startOverrulable: true
+          endOverrulable: true
+{% endif %}
+        readWriteMode: {{ rwm_in }}
+    - variableId: AirTemperature
+      timeSeriesSet:
+        moduleInstanceId: {{ meteo_module_instance }}
+        valueType: grid
+        parameterId: AirTemperature
+        locationId: {{ meteo_location }}
+        timeSeriesType: {{ tst_in }}
+        timeStep:
+          unit: hour
+          multiplier: 1
+{% if not is_fc %}
+        relativeViewPeriod:
+          unit: hour
+          start: '{{ view_start }}'
+          end: '{{ view_end }}'
+          startOverrulable: true
+          endOverrulable: true
+{% endif %}
+        readWriteMode: {{ rwm_in }}
+    - variableId: Slope
+      timeSeriesSet:
+        moduleInstanceId: $MODULE_INSTANCE_ID$
+        valueType: grid
+        parameterId: Slope
+        locationId: {{ meteo_location }}
+        timeSeriesType: {{ tst_slope }}
+        timeStep:
+          unit: hour
+          multiplier: 1
+{% if not is_fc %}
+        relativeViewPeriod:
+          unit: hour
+          start: '{{ view_start }}'
+          end: '{{ view_end }}'
+          startOverrulable: true
+          endOverrulable: true
+{% endif %}
+        readWriteMode: {{ rwm_wr }}
+    - variableId: EvapotranspirationReference
+      timeSeriesSet:
+        moduleInstanceId: $MODULE_INSTANCE_ID$
+        valueType: grid
+        parameterId: EvapotranspirationReference
+        locationId: {{ meteo_location }}
+        timeSeriesType: {{ tst_in }}
+        timeStep:
+          unit: hour
+          multiplier: 1
+{% if not is_fc %}
+        relativeViewPeriod:
+          unit: hour
+          start: '{{ view_start }}'
+          end: '{{ view_end }}'
+          startOverrulable: true
+          endOverrulable: true
+{% endif %}
+        readWriteMode: {{ rwm_wr }}
+        expiryTime:
+          unit: day
+          multiplier: {{ grid_expiry }}
+    transformation:
+    - id: Slope
+      body:
+        user:
+          simple:
+            expression: '((7.5*237.3)/((237.3+AirTemperature)^2))*ln(10) * (0.6107*10^((7.5*AirTemperature)/(237.3+AirTemperature)))'
+            outputVariable:
+              variableId: Slope
+    - id: EvapotranspirationReference
+      body:
+        user:
+          simple:
+            trimOutput: true
+            expression: 'UnitConversionEvapotranspiration*UnitConversionRadiationSolar*(0.65*(Slope/(Slope+(0.0646+0.00006*AirTemperature)))*RadiationSolar) / (Rho*(1000*(2501-2.375*AirTemperature)))'
+            coefficientSet:
+              coefficient:
+              - '@id': Rho
+                '@value': '1000'
+              - '@id': UnitConversionEvapotranspiration
+                '@value': '1000'
+              - '@id': UnitConversionRadiationSolar
+                '@value': '3600'
+            outputVariable:
+              variableId: EvapotranspirationReference
+contributions: []

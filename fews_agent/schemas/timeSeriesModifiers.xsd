@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--Delft FEWS (Copyright 2003 WL | Delft Hydraulics) -->
+<schema xmlns:fews="http://www.wldelft.nl/fews" xmlns="http://www.w3.org/2001/XMLSchema" targetNamespace="http://www.wldelft.nl/fews" elementFormDefault="qualified" attributeFormDefault="unqualified" version="1.0">
+	<include schemaLocation="sharedTypes.xsd"/>
+	<element name="timeSeriesModifiers" type="fews:TimeSeriesModifiersComplexType"/>
+	<complexType name="TimeSeriesModifiersComplexType">
+		<sequence>
+			<element name="TimeSeriesModifier" type="fews:TimeSeriesModifierComplexType" minOccurs="0" maxOccurs="unbounded"/>
+		</sequence>
+	</complexType>
+	<complexType name="TimeSeriesModifierComplexType">
+		<sequence>
+			<element name="timeSeriesSet" type="fews:TimeSeriesSetComplexType" maxOccurs="unbounded"/>
+		</sequence>
+		<attribute name="id" type="string" use="required"/>
+	</complexType>
+</schema>

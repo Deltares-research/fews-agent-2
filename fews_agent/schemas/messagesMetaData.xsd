@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schema xmlns="http://www.w3.org/2001/XMLSchema" xmlns:fews="http://www.wldelft.nl/fews/archive"
+		targetNamespace="http://www.wldelft.nl/fews/archive" elementFormDefault="qualified"
+		attributeFormDefault="unqualified" version="1.0">
+	<include schemaLocation="archive_sharedTypes.xsd"/>
+	<element name="messagesMetaData" type="fews:MessagesMetaDataComplexType"/>
+	<complexType name="MessagesMetaDataComplexType">
+		<sequence>
+			<group ref="fews:SharedGeneralSettingsGroup" minOccurs="0"/>
+			<element name="messages" type="fews:MessagesComplexType" minOccurs="0" maxOccurs="unbounded"/>
+		</sequence>
+	</complexType>
+	<complexType name="MessagesComplexType">
+		<sequence>
+			<element name="relativeFilePath" type="fews:nonEmptyStringType"/>
+			<element name="type" type="fews:archiveMessagesType"/>
+			<element name="areaId" type="fews:idStringType"/>
+			<element name="creationTime" type="fews:DateTimeComplexType"/>
+			<element name="startTime" type="fews:DateTimeComplexType"/>
+			<element name="endTime" type="fews:DateTimeComplexType"/>
+		</sequence>
+	</complexType>
+	<simpleType name="archiveMessagesType">
+		<restriction base="string">
+			<maxLength value="255"/>
+			<enumeration value="forecasterNotes"/>
+		</restriction>
+	</simpleType>
+</schema>

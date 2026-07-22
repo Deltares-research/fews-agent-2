@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schema xmlns="http://www.w3.org/2001/XMLSchema" xmlns:fews="http://www.wldelft.nl/fews" targetNamespace="http://www.wldelft.nl/fews" elementFormDefault="qualified" attributeFormDefault="unqualified" version="1.0">
+	<include schemaLocation="sharedTypes.xsd"/>
+	<element name="forecastManagement" type="fews:ForecastManagementDisplayComplexType"/>
+	<complexType name="ForecastManagementDisplayComplexType">
+		<annotation>
+			<documentation>Configures the tab 'Forecast Management'</documentation>
+		</annotation>
+		<sequence>
+			<element name="defaultDispatchTimeThreshold" type="fews:DefaultTimeThresholdComplexType">
+				<annotation>
+					<documentation>Since 2015.02 When the time between computer time and last dispatch time exceeds the periodLength, the accompanying table cell background wil be colored with the configured color. Default background remains white.</documentation>
+				</annotation>
+			</element>
+			<element name="extraDispatchTimeThreshold" type="fews:ExtraDispatchTimeThresholdComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Since 2015.02 When the time between computer time and last dispatch time exceeds the periodLength, the accompanying table cell background wil be colored with the configured color. This can be configured for workflows that match specific id's or id patterns</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="ExtraDispatchTimeThresholdComplexType">
+		<sequence>
+			<element name="workflowId" type="fews:idStringType" minOccurs="0" maxOccurs="unbounded"/>
+			<element name="workflowIdPattern" type="fews:idStringType" minOccurs="0" maxOccurs="unbounded"/>
+			<element name="timeThreshold" type="fews:TimeThresholdComplexType" maxOccurs="unbounded"/>
+		</sequence>
+	</complexType>
+</schema>

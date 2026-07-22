@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schema xmlns="http://www.w3.org/2001/XMLSchema" xmlns:fews="http://www.wldelft.nl/fews"
+		targetNamespace="http://www.wldelft.nl/fews" elementFormDefault="qualified" attributeFormDefault="unqualified"
+		version="1.0">
+	<include schemaLocation="sharedTypes.xsd"/>
+	<element name="contentUpdateChecker" type="fews:ContentUpdateCheckerComplexType">
+		<annotation>
+			<documentation>The ContentUpdateChecker is a module that can be used at the start of a workflow to see if new content is available from either a file or url. If so a log message with event code + the new content is logged, a debug message is logged when no new content is found. In case an empty file is found, the last modification date will be used as content in date format: 'yyyyMMddHHmmss'.</documentation>
+		</annotation>
+	</element>
+	<complexType name="ContentUpdateCheckerComplexType">
+		<sequence>
+			<choice>
+				<element name="file" type="fews:fileStringType"/>
+				<sequence>
+					<element name="url" type="fews:nonEmptyStringType"/>
+					<group ref="fews:UserAndPassword" minOccurs="0"/>
+				</sequence>
+			</choice>
+			<element name="eventCode" type="fews:nonEmptyStringType"/>
+			<element name="messagePrefix" type="fews:nonEmptyStringType"/>
+			<element name="interval" type="fews:TimeSpanComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Time between subsequent checks for new content</documentation>
+				</annotation>
+			</element>
+			<element name="timeout" type="fews:TimeSpanComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Total run time the task keeps checking for new content</documentation>
+				</annotation>
+			</element>
+			<element name="stopAfterNewContent" type="boolean" minOccurs="0"/>
+            <element name="contentIgnorePattern" type="fews:nonEmptyStringType" minOccurs="0" maxOccurs="unbounded"/>
+		</sequence>
+	</complexType>
+</schema>

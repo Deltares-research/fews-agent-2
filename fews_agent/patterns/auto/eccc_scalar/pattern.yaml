@@ -1,0 +1,83 @@
+name: eccc_scalar
+description: 'Auto-derived pattern from tutorial instances: ECCCScalar.'
+variables:
+  source_name:
+    type: str
+    required: true
+outputs:
+- schema: TimeSeriesImportRun
+  output: ModuleConfigFiles/Import/{{ source_name }}/Import{{ source_name }}.xml
+  data:
+    import:
+    - general:
+        importType: CanadaMeteo
+        serverUrl: https://dd.meteo.gc.ca/observations/xml
+        relativeViewPeriod:
+          unit: day
+          start: $STARTTIME$
+          end: $ENDTIME$
+          startOverrulable: true
+          endOverrulable: true
+        idMapId: IdImportECCCScalar
+        importTimeZone:
+          timeZoneName: $TIMEZONE$
+        dataFeedId: $LOCATIONSET$
+      properties:
+        string:
+        - key: RegionDirectory
+          value: $REGION$
+        - key: TimeDirectory
+          value: hourly, today, yesterday
+      timeSeriesSet:
+      - moduleInstanceId: ImportECCCScalar
+        valueType: scalar
+        parameterId: TA.obs
+        locationSetId: $LOCATIONSET$
+        timeSeriesType: external historical
+        timeStep:
+          unit: nonequidistant
+        readWriteMode: add originals
+      - moduleInstanceId: ImportECCCScalar
+        valueType: scalar
+        parameterId: TA.obs
+        qualifierId: max
+        locationSetId: $LOCATIONSET$
+        timeSeriesType: external historical
+        timeStep:
+          unit: nonequidistant
+        readWriteMode: add originals
+      - moduleInstanceId: ImportECCCScalar
+        valueType: scalar
+        parameterId: TA.obs
+        qualifierId: min
+        locationSetId: $LOCATIONSET$
+        timeSeriesType: external historical
+        timeStep:
+          unit: nonequidistant
+        readWriteMode: add originals
+      - moduleInstanceId: ImportECCCScalar
+        valueType: scalar
+        parameterId: PC.obs
+        locationSetId: $LOCATIONSET$
+        timeSeriesType: external historical
+        timeStep:
+          unit: nonequidistant
+        readWriteMode: add originals
+- schema: Workflow
+  output: WorkflowFiles/Import/{{ source_name }}/Import{{ source_name }}.xml
+  data:
+    version: '1.1'
+    properties:
+      string:
+      - key: STARTTIME
+        value: '-30'
+      - key: ENDTIME
+        value: '0'
+      - key: LOCATIONSET
+        value: ECCCStations
+    activity:
+    - runIndependent: true
+      moduleInstanceId: ImportECCCScalar
+    - runIndependent: true
+      moduleInstanceId: PreprocessECCCScalar
+contributions: []

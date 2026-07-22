@@ -1,0 +1,142 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- edited with XMLSpy v2009 sp1 (http://www.altova.com) by ICT (Stichting Deltares) -->
+<!-- edited with XMLSPY v5 rel. 4 U (http://www.xmlspy.com) by Juzer Dhondia (WL | Delft Hydraulics) -->
+<schema xmlns="http://www.w3.org/2001/XMLSchema" xmlns:fews="http://www.wldelft.nl/fews" targetNamespace="http://www.wldelft.nl/fews" elementFormDefault="qualified" attributeFormDefault="unqualified" version="1.0">
+	<include schemaLocation="sharedTypes.xsd"/>
+	<!-- -->
+	<element name="pcRaster" type="fews:PCRasterComplexType"/>
+	<!-- -->
+	<complexType name="PCRasterComplexType">
+		<sequence>
+			<element name="description" type="string" minOccurs="0"/>
+			<element name="directories" type="fews:PCRasterDirectoriesCompexType"/>
+			<element name="adapterfiles" type="fews:PCRasterAdapterFilesComplexType">
+				<annotation>
+					<documentation>files used by Adapter</documentation>
+				</annotation>
+			</element>
+			<element name="modelFiles" type="fews:PCRasterModelFilesComplexType">
+				<annotation>
+					<documentation>files used by model</documentation>
+				</annotation>
+			</element>
+		</sequence>
+		<attribute name="version" type="fews:versionStringType" use="required" fixed="1.1"/>
+	</complexType>
+	<!-- -->
+	<complexType name="PCRasterAdapterFilesComplexType">
+		<sequence>
+			<element name="stateFile" type="fews:fileStringType" minOccurs="0">
+				<annotation>
+					<documentation>State xml file: Contains information on where to retrieve the state file that is to be used for the forecast. relative to workDir</documentation>
+				</annotation>
+			</element>
+			<element name="parameterFile" type="fews:fileStringType" minOccurs="0">
+				<annotation>
+					<documentation>parameter files to update the PcRaster script file relative to workDir</documentation>
+				</annotation>
+			</element>
+			<element name="inputFile" type="fews:PCRasterFileComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>outFilesof PCRaster to be converted to the PITimeSeries XML file. Presently only text TimeSeries output files from PCRaster are supported</documentation>
+				</annotation>
+			</element>
+			<element name="outputFile" type="fews:PCRasterFileComplexType" maxOccurs="unbounded">
+				<annotation>
+					<documentation>outFilesof PCRaster to be converted to the PITimeSeries XML file. Presently only text TimeSeries output files from PCRaster are supported</documentation>
+				</annotation>
+			</element>
+			<element name="diagnosticFile" type="fews:fileStringType" minOccurs="0">
+				<annotation>
+					<documentation>Diagnostic file: Contains all messages produced by the pcraster module adapter.</documentation>
+				</annotation>
+			</element>
+			<element name="inputMapStackFile" type="fews:fileStringType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>DEPRECATED - USE INSTEAD inputFile - require for getting the correct period and checking if the number of files are correct</documentation>
+				</annotation>
+			</element>
+			<element name="longTermAverageInputFile" type="fews:PCRasterLongTermAverageInputFileComplexType" minOccurs="0" maxOccurs="unbounded"/>
+		</sequence>
+	</complexType>
+	<!-- -->
+	<complexType name="PCRasterModelFilesComplexType">
+		<sequence>
+			<choice>
+				<element name="pcrasterModFile" type="fews:fileStringType">
+					<annotation>
+						<documentation>pcraster script file</documentation>
+					</annotation>
+				</element>
+				<element name="pcrasterXMLFile" type="fews:fileStringType">
+					<annotation>
+						<documentation>pcraster XML script file</documentation>
+					</annotation>
+				</element>
+			</choice>
+			<element name="logFile" type="fews:fileStringType" minOccurs="0">
+				<annotation>
+					<documentation>PCRaster module log file: Contains messages produced by the PCRaster modules.</documentation>
+				</annotation>
+			</element>
+			<element name="timeShiftFromMonthDay" type="gMonthDay" minOccurs="0"/>
+		</sequence>
+	</complexType>
+	<!-- -->
+	<complexType name="PCRasterDirectoriesCompexType">
+		<annotation>
+			<documentation>Folder names required by the PCRaster modules</documentation>
+		</annotation>
+		<sequence>
+			<element name="workDir" type="fews:directoryStringType" minOccurs="0">
+				<annotation>
+					<documentation>pcraster script file directory and other data directory, if optional it is taken same as root dir</documentation>
+				</annotation>
+			</element>
+			<element name="inputDir" type="fews:directoryStringType"/>
+			<element name="outputDir" type="fews:directoryStringType"/>
+			<element name="stateDir" type="fews:directoryStringType" minOccurs="0">
+				<annotation>
+					<documentation>if no stateDir is defined it is taken same as rootDir</documentation>
+				</annotation>
+			</element>
+			<element name="longTermAverageInputDir" type="fews:directoryStringType" minOccurs="0">
+				<annotation>
+					<documentation>dir where long term average files are stored</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<!-- -->
+	<complexType name="PCRasterFileComplexType">
+		<annotation>
+			<documentation>conversion file name is required if required for the correct location parameter or optionally on parameter</documentation>
+		</annotation>
+		<attribute name="fileType" type="fews:PCRasterFileTypeEnumStringType" use="required"/>
+		<attribute name="file" type="fews:fileStringType" use="required"/>
+		<attribute name="xmlFile" type="fews:fileStringType" use="required"/>
+		<attribute name="conversionFile" type="fews:fileStringType" use="optional"/>
+		<attribute name="parameterID" type="fews:idStringType" use="optional"/>
+		<attribute name="locationIdPrefix" type="fews:idStringType" use="optional">
+			<annotation>
+				<documentation>use locationIdPrefix or LocationId</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="locationID" type="fews:idStringType" use="optional"/>
+	</complexType>
+	<!-- -->
+	<complexType name="PCRasterLongTermAverageInputFileComplexType">
+		<attribute name="inputFile" type="fews:fileStringType" use="required"/>
+		<attribute name="outputFile" type="fews:fileStringType" use="required"/>
+	</complexType>
+	<!-- -->
+	<simpleType name="PCRasterFileTypeEnumStringType">
+		<restriction base="string">
+			<enumeration value="pcrastertimeseries"/>
+			<enumeration value="pcrastermaps"/>
+			<enumeration value="pitimeseries"/>
+			<enumeration value="pimapstack"/>
+			<enumeration value="pitimeseriesSkipFirstTimeStep"/>
+		</restriction>
+	</simpleType>
+</schema>

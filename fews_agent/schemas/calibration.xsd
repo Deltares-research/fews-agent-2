@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--Delft FEWS (Copyright 2003 WL | Delft Hydraulics) -->
+<schema targetNamespace="http://www.wldelft.nl/fews" xmlns:fews="http://www.wldelft.nl/fews" xmlns="http://www.w3.org/2001/XMLSchema" elementFormDefault="qualified" attributeFormDefault="unqualified" version="1.0">
+	<include schemaLocation="sharedTypes.xsd"/>
+	<include schemaLocation="taskProperties.xsd"/>
+	<include schemaLocation="performanceIndicatorSets.xsd"/>
+	<element name="calibrationSet" type="fews:CalibrationSetComplexType">
+		<annotation>
+			<documentation>LEGACY</documentation>
+		</annotation>
+	</element>
+	<complexType name="CalibrationSetComplexType">
+		<sequence>
+			<element name="calibrationMethod" type="fews:CalibrationMethodEnumStringType"/>
+			<element name="description" type="string" minOccurs="0"/>
+			<element name="workflowDescriptorId" type="fews:idStringType"/>
+			<element name="moduleInstanceDescriptorId" type="fews:idStringType"/>
+			<element name="moduleParameterFileVersion" type="fews:versionStringType"/>
+			<element name="calibrationPeriod" type="fews:PeriodComplexType"/>
+			<element name="observedTimeSeriesSet" type="fews:TimeSeriesSetComplexType"/>
+			<element name="simulatedTimeSeriesSet" type="fews:TimeSeriesSetComplexType"/>
+			<element name="performanceIndicator" type="fews:modulePerformanceEnumStringType"/>
+			<element name="stopCriteria" type="fews:CalibrationStopCriteriaComplexType" minOccurs="0"/>
+		</sequence>
+		<attribute name="version" type="fews:versionStringType" use="required" fixed="1.1"/>
+		<attribute name="id" type="fews:idStringType" use="optional"/>
+		<attribute name="name" type="fews:nameStringType" use="required"/>
+	</complexType>
+	<complexType name="CalibrationStopCriteriaComplexType">
+		<attribute name="maxIterations" type="int" use="optional" default="1"/>
+		<attribute name="minChangeinPerformance" type="float" use="optional" default="0.0"/>
+		<attribute name="minChangeinParameterVector" type="float" use="optional" default="0.0"/>
+	</complexType>
+	<simpleType name="CalibrationMethodEnumStringType">
+		<restriction base="string">
+			<enumeration value="superdud"/>
+		</restriction>
+	</simpleType>
+</schema>

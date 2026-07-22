@@ -1,0 +1,1361 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--  Delft FEWS (Copyright 2003 WL | Delft Hydraulics) -->
+<schema targetNamespace="http://www.wldelft.nl/fews" xmlns="http://www.w3.org/2001/XMLSchema" xmlns:fews="http://www.wldelft.nl/fews" elementFormDefault="qualified" version="1.0">
+	<include schemaLocation="sharedTypes.xsd"/>
+	<element name="clientConfiguration" type="fews:ClientConfigComplexType"/>
+	<complexType name="ClientConfigComplexType">
+		<sequence>
+			<element name="title" type="string" minOccurs="0">
+				<annotation>
+					<documentation>Since 2018.01. Name of the OC connection. The user can choose between client config files of type OC</documentation>
+				</annotation>
+			</element>
+			<element name="clientType" type="fews:ClientTypeSimpleType" minOccurs="0">
+				<annotation>
+					<documentation>Client type</documentation>
+				</annotation>
+			</element>
+			<element name="otherRootConfigFiles" type="fews:RootConfigFilesComplexType" minOccurs="0">
+				<annotation>
+					<documentation>SINCE 2018.01. List of root config files that is used by this instance. Automatically downloaded on startup</documentation>
+				</annotation>
+			</element>
+			<group ref="fews:ConnectionsChoice" minOccurs="0"/>
+			<element name="jvmOption" type="fews:nonEmptyStringType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>SINCE 2018.01. Option to tune the java virtual machine for an OC or FSS</documentation>
+				</annotation>
+			</element>
+			<element name="localCacheSizeMB" type="nonNegativeInteger" default="500" minOccurs="0">
+				<annotation>
+					<documentation>SINCE 2012.01/2015.01. Local cache size for downloaded time series from central database (when not using synchronization) or from the new archive server. Since 2015.01 downloaded blobs are stored in the temp dir and deleted on exit.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="localDataStoreFormat" type="fews:dataStoreFormatEnumStringType" minOccurs="0">
+				<annotation>
+					<documentation>SINCE 2012.02. Local datastore database format. Only applicable for SA or OC with synchronization</documentation>
+				</annotation>
+			</element>
+			<element name="logging" type="fews:LoggingComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2014.01. Adds additional (system) logging.</documentation>
+				</annotation>
+			</element>
+			<element name="coldStatesDirectory" type="fews:directoryStringType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2020.02. Directory that contains all cold states. In this case all the cold states that are in the database are ignored.</documentation>
+				</annotation>
+			</element>
+			<element name="warmStatesDirectory" type="fews:directoryStringType" minOccurs="0">
+				<annotation>
+					<documentation>In the import state activity for the general adapter there is an option to keep the zipped state outside the database and stored inside this directory. </documentation>
+				</annotation>
+			</element>
+			<element name="autoExportModuleDataSet" type="fews:AutoExportModuleDataSetComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Since 2018.01. Module data set that is automatically exported on a FSS or OC. As soon the module data is changed the export dir is deleted and re-exported </documentation>
+				</annotation>
+			</element>
+			<group ref="fews:ProxyAutoConfigChoice" minOccurs="0"/>
+			<sequence>
+				<element name="directSynchProfile" type="fews:DirectSynchProfileComplexType" minOccurs="0">
+					<annotation>
+						<documentation>Since 2022.02. Dummy profile. Not using a local datastore. Configure this when you want to allow the user to select DDA besides a synch profile. Database blobs (e.g. time series) are downloaded on the fly. When the connection to the database is lost the user has to wait till the connection is reastablisched.  With a local datastore synch profile the OC goes into read-only mode after the connection to the database is lost. </documentation>
+					</annotation>
+				</element>
+				<element name="synchProfile" type="fews:SynchProfileComplexType" minOccurs="0" maxOccurs="unbounded">
+					<annotation>
+						<documentation>SINCE 2017.02. Defines synchronization channels which control what exactly is synchronized to the Operator client when using synchronization (not using direct database access). Profile ids the user can choose from are listed with the connections earlier in this file.
+						</documentation>
+					</annotation>
+				</element>
+			</sequence>
+			<element name="externalTables" type="fews:ExternalTablesComplexType" minOccurs="0">
+				<annotation>
+					<documentation>SINCE 2012.01. Parameters, Locations, Qualifiers and External Historical Time Series can by kept outside the MC database (without blobs or xml)</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="DirectSynchProfileComplexType">
+		<sequence>
+			<element name="description" type="string" minOccurs="0">
+				<annotation>
+					<documentation>Optional description of the profile.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+		<attribute name="id" type="fews:idStringType" use="required"/>
+		<attribute name="name" type="fews:idStringType"/>
+	</complexType>
+	<simpleType name="dataStoreFormatEnumStringType">
+		<restriction base="string">
+			<enumeration value="Firebird">
+				<annotation>
+					<documentation>single fdb file, native driver, only works on Windows and Linux</documentation>
+				</annotation>
+			</enumeration>
+			<enumeration value="Derby">
+				<annotation>
+					<documentation>derby directory. Works on every platform</documentation>
+				</annotation>
+			</enumeration>
+			<enumeration value="HyperSQL">
+				<annotation>
+					<documentation>HyperSQL. Only use for testing. Currently beta</documentation>
+				</annotation>
+			</enumeration>
+		</restriction>
+	</simpleType>
+	<!-- ClientTypeSimpleType -->
+	<simpleType name="ClientTypeSimpleType">
+		<restriction base="string">
+			<enumeration value="Forecasting Shell">
+				<annotation>
+					<documentation/>
+				</annotation>
+			</enumeration>
+			<enumeration value="Operator Client">
+				<annotation>
+					<documentation/>
+				</annotation>
+			</enumeration>
+			<enumeration value="Stand alone">
+				<annotation>
+					<documentation/>
+				</annotation>
+			</enumeration>
+			<enumeration value="Computational Framework">
+				<annotation>
+					<documentation>Since 2020.01. Stand alone with extra features not available in OC</documentation>
+				</annotation>
+			</enumeration>
+			<enumeration value="Web Services">
+				<annotation>
+					<documentation>Since 2020.02. Client for Delft-FEWS Web Services.</documentation>
+				</annotation>
+			</enumeration>
+			<enumeration value="WaterCoach Leader">
+				<annotation>
+					<documentation>Since 2025.02. Course Leader for Delft-FEWS WaterCoach client-server.</documentation>
+				</annotation>
+			</enumeration>
+			<enumeration value="WaterCoach Participant">
+				<annotation>
+					<documentation>Since 2025.02. Participant for Delft-FEWS WaterCoach client-server.</documentation>
+				</annotation>
+			</enumeration>
+
+		</restriction>
+	</simpleType>
+	<complexType name="AutoExportModuleDataSetComplexType">
+		<attribute name="name" type="string" use="required">
+			<annotation>
+				<documentation>Name of the module data set</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="exportDir" type="string" use="required">
+			<annotation>
+				<documentation>exported dir relative to the region home</documentation>
+			</annotation>
+		</attribute>
+	</complexType>
+	<complexType name="ExternalTablesComplexType">
+		<sequence>
+			<group ref="fews:databaseChoice" minOccurs="0">
+				<annotation>
+					<documentation>Database when the external tables are not hosted by the MC database server. When local datastore is used the database is not optional</documentation>
+				</annotation>
+			</group>
+			<choice>
+				<element name="mirror" type="boolean" default="false" minOccurs="0">
+					<annotation>
+						<documentation>By default (false) the open database has read write access by FEWS and others. Changes in the open database by others are visible in FEWS. When data is only stored in the open database clients needs direct access to the open database because data in the open database can not be synchronised to the local datastore. When true the data is the open database is not replacing the config and time series in the FEWS/MC database. The data is stored in the MC database AND in the open database. The open database is write only for FEWS and read only for others. Mirroring increases also the performance and reduces the network load and external time series are still synchronized to clients.</documentation>
+					</annotation>
+				</element>
+				<element name="mirrorSynchLevel" type="int" minOccurs="0" maxOccurs="unbounded">
+					<annotation>
+						<documentation>Time series written with this synch level are written to the blobbed database and to the unblobbed external open database. When not specified all external historical time series are written to the external database and none of the external historical time series are written to the FEWS blobbed database</documentation>
+					</annotation>
+				</element>
+			</choice>
+			<sequence minOccurs="0">
+				<element name="parameterGroupsTable" type="fews:ParametersGroupsTableComplexType">
+					<annotation>
+						<documentation>Database schema of the table that contains parameter groups. This table is required. Items in this table are added to the region config when they are not in the xml configuration. Items are added to this table on the fly as soon they are referenced by written time series. All items from region config can be copied to this table at once with the F12 menu
+						</documentation>
+					</annotation>
+				</element>
+				<element name="parametersTable" type="fews:ParametersTableComplexType">
+					<annotation>
+						<documentation>Database schema of the table that contains parameter groups. This table is required. Items in this table are added to the region config when they are not in the xml configuration. Items are added to this table on the fly as soon they are referenced by written time series. All items from region config can be copied to this table at once with the F12 menu
+						</documentation>
+					</annotation>
+				</element>
+				<sequence minOccurs="0">
+					<element name="parameterNodesTable" type="fews:ParameterNodesTableComplexType">
+						<annotation>
+							<documentation>Database schema of the table that contains parameters. This table is optional. Table is needed when the parameters are grouped into a tree. Items in this table are added to the the region config when they are not in the xml configuration. Items are added to this table on the fly as soon they are referenced by written time series. All items from region config can be copied to this table at once with the F12 menu
+							</documentation>
+						</annotation>
+					</element>
+					<element name="parameterNodeParametersTable" type="fews:ParameterNodeParametersTableComplexType">
+						<annotation>
+							<documentation>Database schema of the table that links parameters to parameter nodes. This table is optional. Items in this table are added to the the region config when they are not in the xml configuration. Items are added to this table on the fly as soon they are referenced by written time series. All items from region config can be copied to this table at once with the F12 menu</documentation>
+						</annotation>
+					</element>
+				</sequence>
+				<element name="locationsTable" type="fews:LocationsTableComplexType">
+					<annotation>
+						<documentation>Database schema of the table that contains locations. This table is required. Items in this table are added to the the region config when they are not in the xml configuration. Items are added to this table on the fly as soon they are referenced by written time series. All items from region config can be copied to this table at once with the F12 menu.
+						</documentation>
+					</annotation>
+				</element>
+				<sequence minOccurs="0">
+					<element name="qualifiersTable" type="fews:QualifiersTableComplexType">
+						<annotation>
+							<documentation>Database schema of the table that contains qualifiers. This table is optional when you don't use qualifiers in your time series sets. This table replace can replace region configuration. Items in this table are added to the the region config when they are not in the configuration. Items are added to this table on the fly as soon they are referenced by written time series. All items from region config can be copied to this table at once with the F12 menu
+							</documentation>
+						</annotation>
+					</element>
+					<element name="qualifierSetsTable" type="fews:QualifierSetsTableComplexType">
+						<annotation>
+							<documentation>Database schema of the table that contains qualifier sets. This table is optional when you don't use qualifiers in your time series sets. This table is dynamic and depends on qualifiers sets in your time series sets
+							</documentation>
+						</annotation>
+					</element>
+				</sequence>
+				<element name="moduleInstancesTable" type="fews:ModuleInstancesTableComplexType" minOccurs="0">
+					<annotation>
+						<documentation>Database schema of the table that contains module instance. This table is optional when you ensure the parameter / location / qualifier combination is unique. Items are added to this table on the fly as soon they are referenced by written time series. All items from region config can be copied to this table at once with the F12 menu
+						</documentation>
+					</annotation>
+				</element>
+				<element name="timeStepsTable" type="fews:TimeStepsTableComplexType" minOccurs="0">
+					<annotation>
+						<documentation>Database schema of the table that contains time steps. This table is optional when you ensure the parameter / location / qualifier combination is unique. Items are added to this table on the fly as soon they are referenced by written time series. All items from region config can be copied to this table at once with the F12 menu
+						</documentation>
+					</annotation>
+				</element>
+				<element name="aggregationPeriodsTable" type="fews:AggregationPeriodsTableComplexType" minOccurs="0">
+					<annotation>
+						<documentation>Database schema of the table that contains aggregation periods. This table is optional when you ensure the parameter / location / qualifier combination is unique. Items are added to this table on the fly as soon they are referenced by written time series. All items from region config can be copied to this table at once with the F12 menu
+						</documentation>
+					</annotation>
+				</element>
+				<element name="usersTableTable" type="fews:UsersTableComplexType" minOccurs="0">
+					<annotation>
+						<documentation>Database schema of the table that contains the users. This table is optional when you don't have a manual edit history table. Items are added to this table on the fly as soon they are referenced by written time series. All items from region config can be copied to this table at once with the F12 menu
+						</documentation>
+					</annotation>
+				</element>
+				<element name="timeSeriesKeysTable" type="fews:TimeSeriesSeriesKeysTableComplexType">
+					<annotation>
+						<documentation>Database schema of the table that contains a key for every parameter/location/qualifier/moduleInstance/timeStep/aggregationPeriod/valueType combination. The qualifier, timeStep, moduleInstance, timeStep, aggregationPeriod and value type columns are optional. These columns are optional when you ensure the parameter / location / qualifier combination is unique.
+						</documentation>
+					</annotation>
+				</element>
+				<element name="timeSeriesValuesAndFlagsTable" type="fews:TimeSeriesValuesAndFlagsTableComplexType">
+					<annotation>
+						<documentation>Database schema of the table that stores the values of external historical time series series. When specified the the external historical data is no longer stored in the FEWS database or read from the FEWS database.
+						</documentation>
+					</annotation>
+				</element>
+				<element name="timeSeriesCommentsTable" type="fews:TimeSeriesCommentsTableComplexType" minOccurs="0">
+					<annotation>
+						<documentation>Database schema of the table that stores the comments of external historical time series series. When not specified comments are not saved.
+						</documentation>
+					</annotation>
+				</element>
+				<element name="timeSeriesManualEditsHistoryTable" type="fews:TimeSeriesManualEditsHistoryTableComplexType" minOccurs="0">
+					<annotation>
+						<documentation>Database schema of the table that stores the manual edit history of external historical time series. When not specified the edit history is not available in the time series dialog
+						</documentation>
+					</annotation>
+				</element>
+				<element name="samplesTable" type="fews:SamplesTableComplexType" minOccurs="0">
+					<annotation>
+						<documentation>Database schema of the table that stores the sample meta data. The sample data it self is stored in the timeSeriesValuesAndFlagsTable. Every sample provider should use it's own set of locations. When not specified the sample meta data is lost and sample data is shown as external historical data.
+						</documentation>
+					</annotation>
+				</element>
+				<sequence minOccurs="0">
+					<element name="filtersTable" type="fews:FiltersTableComplexType">
+						<annotation>
+							<documentation>Database schema of the table that stores the filters. A filter groups the times in the TimeSeriesKey table into a tree. This table defines the tree, the filterTimeSeriesKeys table links the time series to the leafs. This table is optional and only required if an external application wants to mirror the filter tree. It is not required for writing or reading time series. This table is only updated by FEWS and is a mirror of the Filters.xml. The time series in a filter can be controlled by changing the attributes of a location or sample parameter. In the Filters.xml the referenced locations sets are based on constraints on attributes. Sample parameters can be added to a filter based on parameter attributes
+							</documentation>
+						</annotation>
+					</element>
+					<element name="filterTimeSeriesKeysTable" type="fews:FilterTimeSeriesKeysTableComplexType">
+						<annotation>
+							<documentation>Database schema of the table that links time series to filters. Contains filter key / time series key pairs
+							</documentation>
+						</annotation>
+					</element>
+				</sequence>
+			</sequence>
+		</sequence>
+	</complexType>
+	<complexType name="ParametersGroupsTableComplexType">
+		<sequence>
+			<element name="table" type="fews:nonEmptyStringType">
+				<annotation>
+					<documentation>Name of the table</documentation>
+				</annotation>
+			</element>
+			<element name="keyColumn" type="fews:nonEmptyStringType">
+				<annotation>
+					<documentation>Auto generated unique integer by database instance. Used in foreign key relations
+					</documentation>
+				</annotation>
+			</element>
+			<element name="idColumn" type="fews:nonEmptyStringType">
+				<annotation>
+					<documentation>Column for the ids of the parameters in the table.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="nameColumn" type="fews:nonEmptyStringType" minOccurs="0">
+				<annotation>
+					<documentation>Name of the parameter group. When not specified the id is used as name
+					</documentation>
+				</annotation>
+			</element>
+			<element name="descriptionColumn" type="fews:nonEmptyStringType" minOccurs="0">
+				<annotation>
+					<documentation>Long (descriptive) name of location (tool tip) or description.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="parameterTypeColumn" type="fews:nonEmptyStringType" minOccurs="0">
+				<annotation>
+					<documentation>integer column 0:instantaneous/1:accumulative/2:mean.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="unitColumn" type="fews:nonEmptyStringType">
+				<annotation>
+					<documentation>The unit of the values internally stored in the data store. By specifying a display unit you can use another unit seen by the user
+					</documentation>
+				</annotation>
+			</element>
+			<element name="displayUnitColumn" type="fews:nonEmptyStringType" minOccurs="0">
+				<annotation>
+					<documentation>Specify when the unit seen by the user is not the same as the unit of the values internally stored in the data store. Also specify displayUnitConversionsId above as first element in this config file. In this unit conversions the conversion from (internal) unit to display unit should be available
+					</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="ParametersTableComplexType">
+		<sequence>
+			<element name="table" type="fews:nonEmptyStringType">
+				<annotation>
+					<documentation>Name of the table</documentation>
+				</annotation>
+			</element>
+			<element name="keyColumn" type="fews:nonEmptyStringType">
+				<annotation>
+					<documentation>Auto generated unique integer by database instance. Used in foreign key relations
+					</documentation>
+				</annotation>
+			</element>
+			<element name="idColumn" type="fews:nonEmptyStringType">
+				<annotation>
+					<documentation>Unique text identifier. Not generated by the database server.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="persistentIdColumn" type="fews:nonEmptyStringType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2017.01. Column for the persistent ids. The persistent ids will never change. In the fews database and the archive the persistent ids will be used. The regular id is used in configuration and may change over time while the persistent id keeps the same.</documentation>
+				</annotation>
+			</element>
+			<element name="nameColumn" type="fews:nonEmptyStringType" minOccurs="0">
+				<annotation>
+					<documentation>Short name of parameter for charts. When not available the id is used</documentation>
+				</annotation>
+			</element>
+			<element name="shortNameColumn" type="fews:nonEmptyStringType" minOccurs="0">
+				<annotation>
+					<documentation>Short name of parameter for chart axes. When not specified the id is used
+					</documentation>
+				</annotation>
+			</element>
+			<element name="descriptionColumn" type="fews:nonEmptyStringType" minOccurs="0">
+				<annotation>
+					<documentation>Long (descriptive) name of location (tool tip) or description.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="parameterGroupKeyColumn" type="fews:nonEmptyStringType">
+				<annotation>
+					<documentation>Reference to a parameter group in the parameters groups table
+					</documentation>
+				</annotation>
+			</element>
+			<element name="valueResolutionColumn" type="fews:nonEmptyStringType" minOccurs="0">
+				<annotation>
+					<documentation>Default accuracy (smallest increment between two values) of the calculated or measured values for all parameters in this group. Value resolution can also be specified for a single parameter (since 2011.01). By default the resolution is dynamic and the values are stored as a 32 bit floating point with 6 significant digits. Floating points don't compress very well and are slow to decode. It is far more efficient to store a value as an integer with a scale factor (= value resolution). When a 8, 16 or 24 bit integer is not big enough to achieve the value resolution the default 32 bit floating point is used as fall back. E.g. When the accuracy of the water level is half a centimeter specify 0.005. When the accuracy of the discharge in 10 m3/s specify 10.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="allowMissingColumn" type="fews:nonEmptyStringType" minOccurs="0">
+				<annotation>
+					<documentation>Option to indicate if a time series of this parameter type is allowed to contain missing values when being used by a model or a transformation. When omitted this value will default to 'true'. If this is used for a transformation, then it is also required to set the option checkMissing in the inputVariable of the transformation to true.
+					</documentation>
+				</annotation>
+			</element>
+			<sequence minOccurs="0">
+				<element name="standardNameColumn" type="fews:nonEmptyStringType">
+					<annotation>
+						<documentation>Standard name defined by the netcdf CF convention. Standard name is rejected when not in list version 57, see https://cfconventions.org/Data/cf-standard-names/57/build/cf-standard-name-table.html</documentation>
+					</annotation>
+				</element>
+				<element name="standardNameModifierColumn" type="fews:nonEmptyStringType" minOccurs="0">
+					<annotation>
+						<documentation>Standard name modifier defined by the netcdf CF convention</documentation>
+					</annotation>
+				</element>
+			</sequence>
+			<element name="cellMethodColumn" type="fews:nonEmptyStringType" minOccurs="0">
+				<annotation>
+					<documentation>Cell method as defined in the netcdf CF convention. See https://cfconventions.org/cf-conventions/v1.6.0/cf-conventions.html#cell-methods</documentation>
+				</annotation>
+			</element>
+			<element name="verticalPositiveDirectionColumn" type="fews:nonEmptyStringType" minOccurs="0">
+				<annotation>
+					<documentation>SINCE 2016.02. Optional geospatial_vertical_positive attribute as defined in the netcdf DataDiscoveryAttConvention convention. This is currently only used for export to netcdf files when this parameter is used as domain parameter in a time series set. This attribute indicates which direction is positive (a value of "up" means that z increases up, like units of height, while a value of "down" means that z increases downward, like units of pressure or depth). The use of these further geospatial attributes is suggested. http://www.unidata.ucar.edu/software/thredds/current/netcdf-java/metadata/DataDiscoveryAttConvention.html</documentation>
+				</annotation>
+			</element>
+			<element name="attribute" type="fews:DatabaseAttributeComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Custom attribute that can be referenced from id maps, validation rules, thresholds, warning levels, transformations.
+					</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="ParameterNodesTableComplexType">
+		<sequence>
+			<element name="table" type="fews:nonEmptyStringType">
+				<annotation>
+					<documentation>Name of the table</documentation>
+				</annotation>
+			</element>
+			<element name="keyColumn" type="fews:nonEmptyStringType">
+				<annotation>
+					<documentation>Auto generated unique integer by database instance. Used in foreign key relations</documentation>
+				</annotation>
+			</element>
+			<element name="idColumn" type="fews:nonEmptyStringType">
+				<annotation>
+					<documentation>Unique text identifier. Not generated by the database server.</documentation>
+				</annotation>
+			</element>
+			<element name="nameColumn" type="fews:nonEmptyStringType" minOccurs="0">
+				<annotation>
+					<documentation>When not available the id is used</documentation>
+				</annotation>
+			</element>
+			<element name="descriptionColumn" type="fews:nonEmptyStringType" minOccurs="0">
+				<annotation>
+					<documentation>Long (descriptive) name of location (tool tip) or description.</documentation>
+				</annotation>
+			</element>
+			<element name="parentNodeIdColumn" type="fews:nonEmptyStringType">
+				<annotation>
+					<documentation>Reference to a parameterNode is this table</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<!---->
+	<complexType name="ParameterNodeParametersTableComplexType">
+		<sequence>
+			<element name="table" type="fews:nonEmptyStringType">
+				<annotation>
+					<documentation>Name of the table</documentation>
+				</annotation>
+			</element>
+			<element name="parameterNodeKeyColumn" type="fews:nonEmptyStringType">
+				<annotation>
+					<documentation>reference to parameter nodes table</documentation>
+				</annotation>
+			</element>
+			<element name="parameterKeyColumn" type="fews:nonEmptyStringType">
+				<annotation>
+					<documentation>reference to parameters table</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<!---->
+	<complexType name="LocationsTableComplexType">
+		<sequence>
+			<element name="geoDatum" type="fews:geoDatumStringType">
+				<annotation>
+					<documentation>Coordinate reference system used for the x y columns</documentation>
+				</annotation>
+			</element>
+			<element name="table" type="fews:nonEmptyStringType">
+				<annotation>
+					<documentation>Name of the table</documentation>
+				</annotation>
+			</element>
+			<element name="keyColumn" type="fews:nonEmptyStringType">
+				<annotation>
+					<documentation>Auto generated unique integer by database instance. Used in foreign key relations</documentation>
+				</annotation>
+			</element>
+			<element name="idColumn" type="fews:nonEmptyStringType">
+				<annotation>
+					<documentation>Unique text identifier. Not generated by the database server.</documentation>
+				</annotation>
+			</element>
+			<element name="persistentIdColumn" type="fews:nonEmptyStringType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2017.01. Column for the persistent ids. The persistent ids will never change. In the fews database and the archive the persistent ids will be used. The regular id is used in configuration and may change over time while the persistent id keeps the same.</documentation>
+				</annotation>
+			</element>
+			<element name="nameColumn" type="fews:nonEmptyStringType" minOccurs="0">
+				<annotation>
+					<documentation>Short name of location for chart legend</documentation>
+				</annotation>
+			</element>
+			<element name="shortNameColumn" type="fews:nonEmptyStringType" minOccurs="0">
+				<annotation>
+					<documentation>Short name of location for chart legend.</documentation>
+				</annotation>
+			</element>
+			<element name="descriptionColumn" type="fews:nonEmptyStringType" minOccurs="0">
+				<annotation>
+					<documentation>Long (descriptive) name of location (tool tip) or description.</documentation>
+				</annotation>
+			</element>
+			<element name="iconColumn" type="fews:nonEmptyStringType" minOccurs="0">
+				<annotation>
+					<documentation>Filename of an image file in the IconFiles config directory (including file extension).</documentation>
+				</annotation>
+			</element>
+			<element name="toolTipColumn" type="fews:nonEmptyStringType" minOccurs="0">
+				<annotation>
+					<documentation>Tooltip to be displayed in the FewsExplorer. You can use use \n or CDATA or HTML when you need multiple lines. Besides the global properties and column names you can use the following virtual columns %LAST_VALUE%, %LAST_VALUE_TIME%, %FORECAST_START_TIME%, %MAXIMUM_VALUE%, %MAXIMUM_VALUE_TIME% The tooltip supports html including images and hyperlinks. The url in the hyper link can be an internet url, an executable file, a document file, or a folder. Use the CDATA xml tag to include html in a xml file. By default the following tool tip is used.
+
+						ID: id\n Name: name\n Desc: description Last value [%LAST_VALUE%] Time [%LAST_VALUE_TIME%]\n Forecast Start Time [%FORECAST_START_TIME%]\n Maximum [%MAXIMUM_VALUE%] Time [%MAXIMUM_VALUE_TIME%]
+					</documentation>
+				</annotation>
+			</element>
+			<element name="parentLocationIdColumn" type="fews:nonEmptyStringType" minOccurs="0">
+				<annotation>
+					<documentation>A tree is used in the locations list when parent/child relations are used. All the children of a location are automatically selected in the fews explorer</documentation>
+				</annotation>
+			</element>
+			<element name="visibilityStartTimeColumn" type="fews:nonEmptyStringType" minOccurs="0">
+				<annotation>
+					<documentation>Optional start time of the period for which a location is visible in the user interface. The start time is inclusive. If not defined, then a location is visible for all times before end time.</documentation>
+				</annotation>
+			</element>
+			<element name="visibilityEndTimeColumn" type="fews:nonEmptyStringType" minOccurs="0">
+				<annotation>
+					<documentation>Optional end time of the period for which a location is visible in the user interface. The end time is inclusive. If not defined, then a location is visible for all times after start time.</documentation>
+				</annotation>
+			</element>
+			<element name="xColumn" type="fews:nonEmptyStringType">
+				<annotation>
+					<documentation>X coordinate of the point (Easting).</documentation>
+				</annotation>
+			</element>
+			<element name="yColumn" type="fews:nonEmptyStringType">
+				<annotation>
+					<documentation>Y coordinate of the point (Northing)</documentation>
+				</annotation>
+			</element>
+			<element name="zColumn" type="fews:nonEmptyStringType" default="0" minOccurs="0">
+				<annotation>
+					<documentation>Z coordinate of the point (altitude). e.g. %Z%, put the actual dbase column name between %% The default z is 0</documentation>
+				</annotation>
+			</element>
+			<element name="areaColumn" type="fews:nonEmptyStringType" minOccurs="0">
+				<annotation>
+					<documentation>The area of the location/polygon.</documentation>
+				</annotation>
+			</element>
+			<element name="relation" type="fews:DatabaseLocationRelationComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Relation that can be used in time series sets. When a location relation is specified in a time series set the time series set locations are mapped to the related locations and these related locations are used to read/write the time</documentation>
+				</annotation>
+			</element>
+			<element name="attribute" type="fews:DatabaseAttributeComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Custom attribute that can be referenced from id maps, validation rules, thresholds, warning levels, transformations.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="DatabaseLocationRelationComplexType">
+		<sequence>
+			<element name="description" type="fews:nonEmptyStringType" minOccurs="0">
+				<annotation>
+					<documentation>
+						Describes where and why this relation is used
+					</documentation>
+				</annotation>
+			</element>
+			<element name="relatedLocationKeyColumn" type="fews:nonEmptyStringType">
+				<annotation>
+					<documentation>
+						Reference to another location.
+					</documentation>
+				</annotation>
+			</element>
+		</sequence>
+		<attribute name="id" type="fews:idStringType" use="required">
+			<annotation>
+				<documentation>
+					This location relation id can be referenced from time series sets.
+				</documentation>
+			</annotation>
+		</attribute>
+	</complexType>
+	<complexType name="DatabaseAttributeComplexType">
+		<sequence>
+			<element name="description" type="fews:nonEmptyStringType" minOccurs="0">
+				<annotation>
+					<documentation>
+						Describes where and why this attribute is used
+					</documentation>
+				</annotation>
+			</element>
+			<choice>
+				<element name="textColumn" type="fews:nonEmptyStringType">
+					<annotation>
+						<documentation>
+							Text that can be referenced from id maps, validation rules, thresholds, warning levels, transformations
+						</documentation>
+					</annotation>
+				</element>
+				<element name="numberColumn" type="fews:nonEmptyStringType">
+					<annotation>
+						<documentation>
+							Number that can be referenced from id maps, validation rules, thresholds, warning levels, transformations
+						</documentation>
+					</annotation>
+				</element>
+				<element name="booleanColumn" type="fews:nonEmptyStringType">
+					<annotation>
+						<documentation>
+							Can be used in transformations. Integer column with 0 and 1 is allowed besides boolean column
+						</documentation>
+					</annotation>
+				</element>
+				<element name="dateTimeColumn" type="fews:nonEmptyStringType">
+					<annotation>
+						<documentation>
+							Since 2018.01. Timestamp column. Datetime that can be referenced from id maps, validation rules, thresholds, warning levels, transformations.
+						</documentation>
+					</annotation>
+				</element>
+			</choice>
+		</sequence>
+		<attribute name="id" type="fews:idStringType" use="required">
+			<annotation>
+				<documentation>
+					Id of the attribute, this id can be referenced from id maps, validation rules, thresholds, warning levels. An attribute is referenced from other config files by quoting the attribute id with @s, e.g. @HARD_MAX@
+				</documentation>
+			</annotation>
+		</attribute>
+	</complexType>
+	<complexType name="QualifiersTableComplexType">
+		<sequence>
+			<element name="table" type="fews:nonEmptyStringType">
+				<annotation>
+					<documentation>Name of the table</documentation>
+				</annotation>
+			</element>
+			<element name="keyColumn" type="fews:nonEmptyStringType">
+				<annotation>
+					<documentation>
+						Auto increment integer column used in foreign key relations
+					</documentation>
+				</annotation>
+			</element>
+			<element name="idColumn" type="fews:nonEmptyStringType">
+				<annotation>
+					<documentation>Unique text identifier. Not generated by the database server.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="persistentIdColumn" type="fews:nonEmptyStringType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2017.01. Column for the persistent ids. The persistent ids will never change. In the fews database and the archive the persistent ids will be used. The regular id is used in configuration and may change over time while the persistent id keeps the same.</documentation>
+				</annotation>
+			</element>
+			<element name="nameColumn" type="fews:nonEmptyStringType" minOccurs="0">
+				<annotation>
+					<documentation>Short name of parameter for charts</documentation>
+				</annotation>
+			</element>
+			<element name="shortNameColumn" type="fews:nonEmptyStringType" minOccurs="0">
+				<annotation>
+					<documentation>Short name of parameter for chart axes
+					</documentation>
+				</annotation>
+			</element>
+			<element name="descriptionColumn" type="fews:nonEmptyStringType" minOccurs="0">
+				<annotation>
+					<documentation>Long (descriptive) name of location (tool tip) or description.
+					</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="QualifierSetsTableComplexType">
+		<sequence>
+			<element name="table" type="fews:nonEmptyStringType">
+				<annotation>
+					<documentation>Name of the table</documentation>
+				</annotation>
+			</element>
+			<element name="keyColumn" type="fews:nonEmptyStringType">
+				<annotation>
+					<documentation>
+						Auto increment integer column used in foreign key relations
+					</documentation>
+				</annotation>
+			</element>
+			<element name="idColumn" type="fews:nonEmptyStringType">
+				<annotation>
+					<documentation>Unique text identifier. Not generated by the database server.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="persistentIdColumn" type="fews:nonEmptyStringType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2017.01. Column for the persistent ids. The persistent ids will never change. In the fews database and the archive the persistent ids will be used. The regular
+						id is used in configuration and may change over time while the persistent id keeps the same.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="qualifierKey1Column" type="fews:nonEmptyStringType">
+				<annotation>
+					<documentation>
+						Contains references to row in Qualifiers table
+					</documentation>
+				</annotation>
+			</element>
+			<element name="qualifierKey2Column" type="fews:nonEmptyStringType" minOccurs="0">
+				<annotation>
+					<documentation>
+						Contains references to row in Qualifiers table
+					</documentation>
+				</annotation>
+			</element>
+			<element name="qualifierKey3Column" type="fews:nonEmptyStringType" minOccurs="0">
+				<annotation>
+					<documentation>
+						Contains references to row in Qualifiers table
+					</documentation>
+				</annotation>
+			</element>
+			<element name="qualifierKey4Column" type="fews:nonEmptyStringType" minOccurs="0">
+				<annotation>
+					<documentation>
+						Contains references to row in Qualifiers table
+					</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<!---->
+	<complexType name="ModuleInstancesTableComplexType">
+		<sequence>
+			<element name="table" type="fews:nonEmptyStringType">
+				<annotation>
+					<documentation>Name of the table</documentation>
+				</annotation>
+			</element>
+			<element name="keyColumn" type="fews:nonEmptyStringType">
+				<annotation>
+					<documentation>
+						Auto increment integer column used in foreign key relations
+					</documentation>
+				</annotation>
+			</element>
+			<element name="idColumn" type="fews:nonEmptyStringType">
+				<annotation>
+					<documentation>Unique text identifier. Not generated by the database server. </documentation>
+				</annotation>
+			</element>
+			<element name="persistentIdColumn" type="fews:nonEmptyStringType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2017.01. Column for the persistent ids. The persistent ids will never change. In the fews database and the archive the persistent ids will be used. The regular id is used in configuration and may change over time while the persistent id keeps the same.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="nameColumn" type="fews:nonEmptyStringType" minOccurs="0">
+				<annotation>
+					<documentation>Name</documentation>
+				</annotation>
+			</element>
+			<element name="descriptionColumn" type="fews:nonEmptyStringType" minOccurs="0">
+				<annotation>
+					<documentation>Long (descriptive) name</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<!---->
+	<complexType name="TimeStepsTableComplexType">
+		<sequence>
+			<element name="table" type="fews:nonEmptyStringType">
+				<annotation>
+					<documentation>Name of the table</documentation>
+				</annotation>
+			</element>
+			<element name="keyColumn" type="fews:nonEmptyStringType">
+				<annotation>
+					<documentation>
+						Auto increment integer column used in foreign key relations
+					</documentation>
+				</annotation>
+			</element>
+			<element name="idColumn" type="fews:nonEmptyStringType">
+				<annotation>
+					<documentation>Unique text identifier. Not generated by the database server.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="labelColumn" type="fews:nonEmptyStringType" minOccurs="0">
+				<annotation>
+					<documentation>Name</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="AggregationPeriodsTableComplexType">
+		<sequence>
+			<element name="table" type="fews:nonEmptyStringType">
+				<annotation>
+					<documentation>Name of the table</documentation>
+				</annotation>
+			</element>
+			<element name="keyColumn" type="fews:nonEmptyStringType">
+				<annotation>
+					<documentation>
+						Auto increment integer column used in foreign key relations
+					</documentation>
+				</annotation>
+			</element>
+			<element name="idColumn" type="fews:nonEmptyStringType">
+				<annotation>
+					<documentation>Unique text identifier. Not generated by the database server.
+					</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<!---->
+	<complexType name="UsersTableComplexType">
+		<sequence>
+			<element name="table" type="fews:nonEmptyStringType">
+				<annotation>
+					<documentation>Name of the table</documentation>
+				</annotation>
+			</element>
+			<element name="keyColumn" type="fews:nonEmptyStringType">
+				<annotation>
+					<documentation>
+						Auto increment integer column used in foreign key relations
+					</documentation>
+				</annotation>
+			</element>
+			<element name="idColumn" type="fews:nonEmptyStringType">
+				<annotation>
+					<documentation>Unique text identifier. Not generated by the database server.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="nameColumn" type="fews:nonEmptyStringType" minOccurs="0">
+				<annotation>
+					<documentation>ids.
+					</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<!---->
+	<complexType name="TimeSeriesSeriesKeysTableComplexType">
+		<sequence>
+			<element name="table" type="fews:nonEmptyStringType">
+				<annotation>
+					<documentation>Name of the table</documentation>
+				</annotation>
+			</element>
+			<element name="keyColumn" type="fews:nonEmptyStringType">
+				<annotation>
+					<documentation>Auto generated unique integer by database instance. Used in foreign key relations
+					</documentation>
+				</annotation>
+			</element>
+			<element name="parameterKeyColumn" type="fews:nonEmptyStringType">
+				<annotation>
+					<documentation>
+						reference to parameters table
+					</documentation>
+				</annotation>
+			</element>
+			<element name="locationKeyColumn" type="fews:nonEmptyStringType">
+				<annotation>
+					<documentation>
+						reference to location table
+					</documentation>
+				</annotation>
+			</element>
+			<element name="qualifierSetKeyColumn" type="fews:nonEmptyStringType" minOccurs="0">
+				<annotation>
+					<documentation>
+						Reference to qualifier table Column is optional when you don't use qualifiers.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="timeStepKeyColumn" type="fews:nonEmptyStringType" minOccurs="0">
+				<annotation>
+					<documentation>
+						Reference to time step table Column is optional when parameter/location/qualifier combination is unique.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="aggregationPeriodKeyColumn" type="fews:nonEmptyStringType" minOccurs="0">
+				<annotation>
+					<documentation>
+						Reference to aggregation period table Column is optional when parameter/location/qualifier combination is unique.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="moduleInstanceKeyColumn" type="fews:nonEmptyStringType" minOccurs="0">
+				<annotation>
+					<documentation>
+						Reference to module instance key column Column is optional when parameter/location/qualifier combination is unique.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="valueTypeColumn" type="fews:nonEmptyStringType" minOccurs="0">
+				<annotation>
+					<documentation>
+						0=scalar, 1=grid, 2=longitudinal profile, 3=polygon, 4=sample, 5=rating curve only scalar and sample are supported so far
+					</documentation>
+				</annotation>
+			</element>
+			<element name="modificationTimeColumn" type="fews:nonEmptyStringType" minOccurs="0">
+				<annotation>
+					<documentation>
+						Every time a row is updated/added in the TimeSeriesValuesAndFlagsTable or TimeSeriesCommentsTable this time is updated
+					</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<!--    -->
+	<complexType name="TimeSeriesValuesAndFlagsTableComplexType">
+		<sequence>
+			<element name="table" type="fews:nonEmptyStringType">
+				<annotation>
+					<documentation>Name of the table</documentation>
+				</annotation>
+			</element>
+			<element name="seriesKeyColumn" type="fews:nonEmptyStringType">
+				<annotation>
+					<documentation>
+						reference to time series keys table
+					</documentation>
+				</annotation>
+			</element>
+			<element name="timeStampColumn" type="fews:nonEmptyStringType">
+				<annotation>
+					<documentation>
+						time of the measurement
+					</documentation>
+				</annotation>
+			</element>
+			<element name="valueColumn" type="fews:nonEmptyStringType">
+				<annotation>
+					<documentation>
+						Float value column. Column should be nullable to store missing value
+					</documentation>
+				</annotation>
+			</element>
+			<element name="flagsColumn" type="fews:nonEmptyStringType">
+				<annotation>
+					<documentation>
+						Integer column, compound flags flags = flag + valueSource * 10 + loFlagSource * 100 + outOfDetectionRangeFlag * 1000 + state * 10000 + hiFlagSource * 100000;
+					</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="TimeSeriesCommentsTableComplexType">
+		<sequence>
+			<element name="table" type="fews:nonEmptyStringType">
+				<annotation>
+					<documentation>Name of the table</documentation>
+				</annotation>
+			</element>
+			<element name="seriesKeyColumn" type="fews:nonEmptyStringType">
+				<annotation>
+					<documentation>
+						reference to time series keys table
+					</documentation>
+				</annotation>
+			</element>
+			<element name="timeStampColumn" type="fews:nonEmptyStringType">
+				<annotation>
+					<documentation>
+						time of the measurement
+					</documentation>
+				</annotation>
+			</element>
+			<element name="commentColumn" type="fews:nonEmptyStringType">
+				<annotation>
+					<documentation>
+						Column with comment
+					</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="TimeSeriesManualEditsHistoryTableComplexType">
+		<sequence>
+			<element name="table" type="fews:nonEmptyStringType">
+				<annotation>
+					<documentation>Name of the table</documentation>
+				</annotation>
+			</element>
+			<element name="seriesKeyColumn" type="fews:nonEmptyStringType">
+				<annotation>
+					<documentation>
+						reference to time series keys table
+					</documentation>
+				</annotation>
+			</element>
+			<element name="timeStampColumn" type="fews:nonEmptyStringType">
+				<annotation>
+					<documentation>
+						time of the measurement
+					</documentation>
+				</annotation>
+			</element>
+			<element name="editTimeStampColumn" type="fews:nonEmptyStringType">
+				<annotation>
+					<documentation>
+						time of the edit action 1970 JAN 1, 0:00 GMT is used for the backup of the original value before any edit NULL can not be used because it is part of the primary key
+					</documentation>
+				</annotation>
+			</element>
+			<element name="userKeyColumn" type="fews:nonEmptyStringType">
+				<annotation>
+					<documentation>
+						contains reference to users table Column to store the user id NULL is used for the backup of the original value before any edit
+					</documentation>
+				</annotation>
+			</element>
+			<element name="valueColumn" type="fews:nonEmptyStringType">
+				<annotation>
+					<documentation>
+						Float value column. Column should be nullable to store missing value
+					</documentation>
+				</annotation>
+			</element>
+			<element name="flagsColumn" type="fews:nonEmptyStringType">
+				<annotation>
+					<documentation>
+						Integer column, compound flags flags = flag + valueSource * 10 + flagSource * 100 + outOfDetectionRangeFlag * 1000 + state * 10000;
+					</documentation>
+				</annotation>
+			</element>
+			<element name="commentColumn" type="fews:nonEmptyStringType" minOccurs="0">
+				<annotation>
+					<documentation>
+						Column to store the comment
+					</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="SamplesTableComplexType">
+		<sequence>
+			<element name="table" type="fews:nonEmptyStringType">
+				<annotation>
+					<documentation>Name of the table</documentation>
+				</annotation>
+			</element>
+			<element name="locationKeyColumn" type="fews:nonEmptyStringType">
+				<annotation>
+					<documentation>
+						reference to locations table. Location of the sample. All sample values in the TimeSeriesValuesAndFlagsTable for this location and time stamp belong to this sample
+					</documentation>
+				</annotation>
+			</element>
+			<element name="timeStampColumn" type="fews:nonEmptyStringType">
+				<annotation>
+					<documentation>
+						time of the sample
+					</documentation>
+				</annotation>
+			</element>
+			<element name="idColumn" type="fews:nonEmptyStringType">
+				<annotation>
+					<documentation>
+						id delivered by the provided (sample parser). Uniqueness is not enforced
+					</documentation>
+				</annotation>
+			</element>
+			<element name="descriptionColumn" type="fews:nonEmptyStringType" minOccurs="0">
+				<annotation>
+					<documentation>
+						Column that contains extra information about the sample
+					</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<!---->
+	<complexType name="FiltersTableComplexType">
+		<sequence>
+			<element name="table" type="fews:nonEmptyStringType">
+				<annotation>
+					<documentation>Name of the table</documentation>
+				</annotation>
+			</element>
+			<element name="keyColumn" type="fews:nonEmptyStringType">
+				<annotation>
+					<documentation>Auto generated unique integer by database instance. Used in foreign key relations
+					</documentation>
+				</annotation>
+			</element>
+			<element name="idColumn" type="fews:nonEmptyStringType">
+				<annotation>
+					<documentation>Unique text identifier. Not generated by the database server.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="nameColumn" type="fews:nonEmptyStringType" minOccurs="0">
+				<annotation>
+					<documentation>Short name of filter for chart legend</documentation>
+				</annotation>
+			</element>
+			<element name="descriptionColumn" type="fews:nonEmptyStringType" minOccurs="0">
+				<annotation>
+					<documentation>Optional. Long (descriptive) name of filter (tool tip) or description.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="parentFilterIdColumn" type="fews:nonEmptyStringType" minOccurs="0">
+				<annotation>
+					<documentation>Optional, Used to show the filters in a tree
+					</documentation>
+				</annotation>
+			</element>
+			<element name="validationIconsVisibleColumn" type="fews:nonEmptyStringType" minOccurs="0">
+				<annotation>
+					<documentation>
+					</documentation>
+				</annotation>
+			</element>
+			<element name="mapExtentIdColumn" type="fews:nonEmptyStringType" minOccurs="0">
+				<annotation>
+					<documentation>
+					</documentation>
+				</annotation>
+			</element>
+			<element name="viewPermissionColumn" type="fews:nonEmptyStringType" minOccurs="0">
+				<annotation>
+					<documentation>
+						Permission to control who can view this filter
+					</documentation>
+				</annotation>
+			</element>
+			<element name="editPermissionColumn" type="fews:nonEmptyStringType" minOccurs="0">
+				<annotation>
+					<documentation>
+						Permission to control who can edit time series enumerated in this filter (only editable time series can be edited)
+					</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<!---->
+	<complexType name="FilterTimeSeriesKeysTableComplexType">
+		<sequence>
+			<element name="table" type="fews:nonEmptyStringType">
+				<annotation>
+					<documentation>Name of the table</documentation>
+				</annotation>
+			</element>
+			<element name="filterKeyColumn" type="fews:nonEmptyStringType">
+				<annotation>
+					<documentation>
+						Reference to filters table
+					</documentation>
+				</annotation>
+			</element>
+			<element name="seriesKeyColumn" type="fews:nonEmptyStringType">
+				<annotation>
+					<documentation>
+						Reference to time series keys table
+					</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<!---->
+	<complexType name="DatabaseConnectionComplexType">
+		<sequence>
+			<element name="jdbcDriverClass" type="fews:nonEmptyStringType">
+				<annotation>
+					<documentation>e.g. com.microsoft.jdbc.sqlserver.SQLServerDriver or com.mysql.jdbc.Driver
+					</documentation>
+				</annotation>
+			</element>
+			<element name="jdbcConnectionString" type="fews:nonEmptyStringType">
+				<annotation>
+					<documentation>Connection string to database server. Test the connection string in db visualiser before using
+					</documentation>
+				</annotation>
+			</element>
+			<element name="jdbcConnectionTimeOutMillis" type="positiveInteger" minOccurs="0">
+				<annotation>
+					<documentation>When specified the connection to the database is first tested before asking the jdbc driver to connect. Some jdbc drivers are using a very long time out.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="user" type="string">
+				<annotation>
+					<documentation>User name</documentation>
+				</annotation>
+			</element>
+			<choice>
+				<element name="password" type="string">
+					<annotation>
+						<documentation>Password for user</documentation>
+					</annotation>
+				</element>
+				<element name="encryptedPassword" type="string">
+					<annotation>
+						<documentation>Encrypted password for user. Encrypt a password with the F12 menu</documentation>
+					</annotation>
+				</element>
+			</choice>
+			<element name="timeZone" type="fews:timeZoneStringType">
+				<annotation>
+					<documentation>Time zone used by the database for storing time stamps</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="LoggingComplexType">
+		<sequence>
+			<element name="debugEnabled" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>SINCE 2018.02, Enables debug logging </documentation>
+				</annotation>
+			</element>
+			<element name="rollingTotalSizeMB" type="int" default="5" minOccurs="0">
+				<annotation>
+					<documentation>SINCE 2018.02, Total size of the rolling files in megabytes</documentation>
+				</annotation>
+			</element>
+			<element name="logFileEntryIncludesTaskRunId" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>When true every line in the log file logged from a workflow includes the task run id eg. 2019-09-12 15:37:19.246 INFO @MC01:000001 . The task run id is prefixed with @, the @ is always at position 30 when the line includes a task run id. The task run id is followed by a space. Lines that start with a tab (\t) are a continuation of the previous line </documentation>
+				</annotation>
+			</element>
+			<element name="windowsEventLogEnabled" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>Enables logging of errors to the windows event logger. False by default. Ignored under linux.</documentation>
+				</annotation>
+			</element>
+			<element name="linuxSyslogFacility" type="fews:syslogFacilityEnumStringType" minOccurs="0">
+				<annotation>
+					<documentation>Enables logging of errors to the linux syslog using the specified facility. Ignored under Windows.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="RootConfigFilesComplexType">
+		<sequence>
+			<element name="name" type="fews:fileStringType" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Name of the root config file that is downloaded from the database</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<group name="ProxyAutoConfigChoice">
+		<choice>
+			<element name="proxyAutoConfigScriptUrl" type="fews:nonEmptyStringType">
+				<annotation>
+					<documentation>Since 2016.02. Use this when the PAC file is located on the intranet. for example. http://wpad.directory.intra/wpad.dat. SINCE 2017.01. see
+						https://en.wikipedia.org/wiki/Proxy_auto-config
+					</documentation>
+				</annotation>
+			</element>
+			<element name="proxyAutoConfigScriptContent" type="fews:nonEmptyStringType">
+				<annotation>
+					<documentation>Since 2016.02. Use this when you want to use your own WPAD script. Use a CDATA block around your script</documentation>
+				</annotation>
+			</element>
+		</choice>
+	</group>
+	<group name="ConnectionsChoice">
+		<choice>
+			<annotation>
+				<documentation>Local datastore free client (also known as Direct Datase Access).</documentation>
+			</annotation>
+			<group ref="fews:ServerConnectionGroup"/>
+			<element name="connection" type="fews:ClientConnectionComplexType" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Allows the user to select the database to connect to when multiple connections are specified via a selection dialog. NB. When specified, the standard cache files
+						are wiped, a subdirectory with the id attribute as directory name is used instead for the cache files. When for instance id=mc00, then the cache files for this connection
+						are stored under localDataStore/mc00.
+					</documentation>
+				</annotation>
+			</element>
+		</choice>
+	</group>
+	<group name="ServerConnectionGroup">
+		<sequence>
+			<element name="databaseServer" type="fews:DatabaseServerClientConfigComplexType">
+				<annotation>
+					<documentation>SINCE 2012.01. Connection to central database required for FS/OC</documentation>
+				</annotation>
+			</element>
+			<element name="jmsServer" type="fews:JMSServerInstallComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Deprecated and obsolete since 2017.02</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</group>
+	<complexType name="ClientConnectionComplexType">
+		<sequence>
+			<group ref="fews:ServerConnectionGroup"/>
+			<element name="synchProfileId" type="fews:idStringType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>SINCE 2017.02. When configured synchronization is used by this OC. The referenced profile id should be defined in this clientConfig.xml. Synchronization is only allowed for an OC. When multiple synch profile ids are listed the user can choose between different profiles at start up of this OC. When a synch profile is configured all connections in the client config should list at least one profile id.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+		<attribute name="id" type="string">
+			<annotation>
+				<documentation>id of the connection</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="name" type="string">
+			<annotation>
+				<documentation>Name of this connection in the selection dialog (defaults to above id).</documentation>
+			</annotation>
+		</attribute>
+	</complexType>
+</schema>

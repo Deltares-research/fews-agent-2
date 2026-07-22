@@ -1,0 +1,264 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- edited with XMLSpy v2009 sp1 (http://www.altova.com) by ICT (Stichting Deltares) -->
+<schema xmlns:fews="http://www.wldelft.nl/fews" xmlns="http://www.w3.org/2001/XMLSchema" targetNamespace="http://www.wldelft.nl/fews" elementFormDefault="qualified" attributeFormDefault="unqualified" version="1.0">
+	<include schemaLocation="sharedTypes.xsd"/>
+	<element name="waterCoachDisplay" type="fews:WaterCoachDisplayComplexType"/>
+	<complexType name="WaterCoachDisplayComplexType">
+		<sequence>
+			<group ref="fews:SystemsGroupChoice"/>
+			<element name="config" type="fews:configType" maxOccurs="unbounded"/>
+		</sequence>
+	</complexType>
+	<simpleType name="fileNameType">
+		<restriction base="string">
+			<maxLength value="255"/>
+			<pattern value="([^\s])|([^\s].*[^\s])"/>
+		</restriction>
+	</simpleType>
+	<complexType name="fileAssociationType">
+		<simpleContent>
+			<extension base="fews:fileNameType">
+				<attribute name="extension" type="string" use="required"/>
+			</extension>
+		</simpleContent>
+	</complexType>
+	<complexType name="timeControlType">
+		<sequence>
+			<element name="pause" type="boolean" minOccurs="0">
+				<annotation>
+					<documentation>Flag indicating whether pause button must be present.</documentation>
+				</annotation>
+			</element>
+			<element name="next" type="boolean" minOccurs="0">
+				<annotation>
+					<documentation>Flag indicating whether next button must be present.</documentation>
+				</annotation>
+			</element>
+			<element name="set" type="boolean" minOccurs="0">
+				<annotation>
+					<documentation>Flag indicating whether date/time can be adjusted.</documentation>
+				</annotation>
+			</element>
+			<element name="fastForwardBackward" type="boolean" minOccurs="0">
+				<annotation>
+					<documentation>Flag indicating whether fast forward/backward buttons must be present.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="experienceLevelType">
+		<annotation>
+			<documentation>Specify experience levels, separated by semi-colon. E.g. Novice;Medior;Expert Names given here will be used in the GUI, however in script_config.xml the levels themselves are refered to by their order in this list (starting with 0)</documentation>
+		</annotation>
+		<sequence>
+			<element name="levels" type="string" minOccurs="0">
+				<annotation>
+					<documentation>List of experience levels, separated by semi-colon. E.g.  Novice;Medior;Expert Names given here will be used in the GUI, however in script_config.xml the levels themselves are refered to by their order in this list (starting with 0)</documentation>
+				</annotation>
+			</element>
+			<element name="adjustLevel" type="boolean" minOccurs="0">
+				<annotation>
+					<documentation>Flag indicating whether button for adjusting the experience level must be present.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="configType">
+		<sequence>
+			<element name="defaultPeriod" type="fews:RelativePeriodComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Default relative period for the WC clock running in OC client mode. (without a scenario script database configured)</documentation>
+				</annotation>
+			</element>
+			<element name="scenarioScriptDatabasePath" type="string" minOccurs="0">
+				<annotation>
+					<documentation>Path (absolute or relative) to scenario/script database.</documentation>
+				</annotation>
+			</element>
+			<element name="gridBinFilesPath" type="string" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Since 2021.01. Absolute directory with gbin files. The name of a gbin file should equal the scenario name. The first directory that contains the %scenario_name%.gbin is used</documentation>
+				</annotation>
+			</element>
+			<element name="hideYear" type="boolean">
+				<annotation>
+					<documentation>Flag indicating whether the year must be hidden.</documentation>
+				</annotation>
+			</element>
+			<element name="fileAssociation" type="fews:fileAssociationType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Path (absolute or relative) to application used for opening file with indicated extension.</documentation>
+				</annotation>
+			</element>
+			<element name="timeControl" type="fews:timeControlType" minOccurs="0">
+				<annotation>
+					<documentation>Specify which buttons for time control must be available for the user.</documentation>
+				</annotation>
+			</element>
+			<element name="experienceLevel" type="fews:experienceLevelType" minOccurs="0">
+				<annotation>
+					<documentation>Specify experience levels, separated by semi-colon. E.g. Novice;Medior;Expert Names given here will be used in the GUI, however in script_config.xml the levels themselves are refered to by their order in this list (starting with 0).</documentation>
+				</annotation>
+			</element>
+			<element name="fewsLogEventCodes" type="string" minOccurs="0">
+				<annotation>
+					<documentation>List of event codes, separated by semi-colon (;) e.g. "Import.Warn;ManualForecast.started;General.info", transferred from FEWS log to Water Coach log. Notes: do not include the colon (:), event codes are case sensitive, spaces before or after the event code are ignored.
+						Note that only log messages stored in the database, i.e. which you can see in the system monitor, will be considered and filtered by the provided event codes.</documentation>
+				</annotation>
+			</element>
+			<element name="serverHostName" type="string" minOccurs="0">
+				<annotation>
+					<documentation>Host name of game engine (n/a for stand-alone game).</documentation>
+				</annotation>
+			</element>
+			<element name="serverPort" type="integer" minOccurs="0">
+				<annotation>
+					<documentation>Port number of game engine (n/a for stand-alone game).</documentation>
+				</annotation>
+			</element>
+			<element name="writePiOutput" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>Option whether to write output in PI format (default: false).</documentation>
+				</annotation>
+			</element>
+			<element name="copyLocalDataStore" type="boolean" default="true" minOccurs="0">
+				<annotation>
+					<documentation>Developer option whether to copy the local datastore or not. (default: true)</documentation>
+				</annotation>
+			</element>
+			<element name="defaultUserName" type="string" minOccurs="0">
+				<annotation>
+					<documentation>User name that is automatically put into the user name field in the start-up screen.</documentation>
+				</annotation>
+			</element>
+			<element name="defaultScenario" type="string" minOccurs="0">
+				<annotation>
+					<documentation>Scenario folder name that is automatically put into the scenario drop down box in the start-up screen. For example NewEmployeeTraining</documentation>
+				</annotation>
+			</element>
+			<element name="defaultScript" type="string" minOccurs="0">
+				<annotation>
+					<documentation>Script folder name that is automatically put into the script drop down box in the start-up screen. If there is only one scenario, then the defaultScenario element can be omitted. Otherwise also the defaultScenario must be configured</documentation>
+				</annotation>
+			</element>
+			<element name="scriptLogPath" type="string" minOccurs="0">
+				<annotation>
+					<documentation>Path to the directory that should contain the script log output. Default value is "scenarioScriptDatabasePath/log/".</documentation>
+				</annotation>
+			</element>
+			<element name="displayConfirm" type="boolean" default="true" minOccurs="0">
+				<annotation>
+					<documentation>Indicates whether "Are you sure?" confirmation messages should be displayed or not (defaults to yes).</documentation>
+				</annotation>
+			</element>
+			<element name="clientConfigExportUrl" type="anyURI" minOccurs="0">
+				<annotation>
+					<documentation>Location the clientConfig.xml should be exported to, using F12 menu 'Export participant clientConfig.xml'  The configured location should exist</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="MultipleSystemsComplexType">
+		<sequence>
+			<element name="systemTimeFile" type="fews:fileStringType">
+				<annotation>
+					<documentation>Full path to the file with the shared system time</documentation>
+				</annotation>
+			</element>
+		</sequence>
+		<attribute name="enabled" type="boolean" use="required"/>
+	</complexType>
+	<group name="SystemsGroupChoice">
+		<choice>
+			<element name="onTheFlySystem" type="fews:OnTheFlySystemComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2022.02   If configured then the data and config are downloaded from archive for the  period specified in the WaterCoach display. Also a script is generated , based on the specified period . After download Fews restarts  using the downloaded config and data, and the WaterCoach game starts</documentation>
+				</annotation>
+			</element>
+			<element name="multipleSystems" type="fews:MultipleSystemsComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Since 20019.02  If enabled, The  “master”  WaterCoach instance would write  and update a file with a timestamp to a shared drive and all other WaterCoach systems (participants)  would look at that file and update their WaterCoach time to match. WaterCoach instance can be selected as “master” in the WaterCoach Display</documentation>
+				</annotation>
+			</element>
+		</choice>
+	</group>
+	<complexType name="OnTheFlySystemComplexType">
+		<sequence>
+			<element name="eventTypeId" type="fews:idStringType">
+				<annotation>
+					<documentation>Reference to the archive eventType with a list of  dataTypes (i.e. obstimeseries, simulated time series, ....)</documentation>
+				</annotation>
+			</element>
+			<element name="areaId" type="fews:idStringType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Reference to the areaId's, available in the Archive. The time series will be downloaded for these areas. If no areaId is specified, time series for all areas will be downloaded</documentation>
+				</annotation>
+			</element>
+			<element name="permission" type="string" minOccurs="0">
+				<annotation>
+					<documentation>Permission of  the onTheFly   mode </documentation>
+				</annotation>
+			</element>
+			<element name="importGridsAsReference" type="fews:ImportGridsAsReferenceComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Grids are imported as reference by deafult   </documentation>
+				</annotation>
+			</element>
+			<element name="importModelStates" type="fews:ImportModelStatesComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Model states  are not imported  by deafult</documentation>
+				</annotation>
+			</element>
+			<element name="importModifiers" type="fews:ImportModifiersComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Modifiers are not imported  by deafult</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="ImportGridsAsReferenceComplexType">
+		<annotation>
+			<documentation>Default  true</documentation>
+		</annotation>
+		<attribute name="visible" type="boolean" use="required">
+			<annotation>
+				<documentation>If true then the check box  is visible in the display</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="import" type="boolean" use="required">
+			<annotation>
+				<documentation>Choice between  import  as reference yes or no</documentation>
+			</annotation>
+		</attribute>
+	</complexType>
+	<complexType name="ImportModelStatesComplexType">
+		<annotation>
+			<documentation>Default false</documentation>
+		</annotation>
+		<attribute name="visible" type="boolean" use="required">
+			<annotation>
+				<documentation>If true then the check box  is visible in the display</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="import" type="boolean" use="required">
+			<annotation>
+				<documentation>Choice between  import   yes or no</documentation>
+			</annotation>
+		</attribute>
+	</complexType>
+	<complexType name="ImportModifiersComplexType">
+		<annotation>
+			<documentation>Default false</documentation>
+		</annotation>
+		<attribute name="visible" type="boolean" use="required">
+			<annotation>
+				<documentation>If true then the check box  is visible in the display</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="import" type="boolean" use="required">
+			<annotation>
+				<documentation>Choice between  import   yes or no</documentation>
+			</annotation>
+		</attribute>
+	</complexType>
+</schema>

@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- edited with XMLSpy v2007 sp2 (http://www.altova.com) by WL | Delft Hydraulics (WL | Delft Hydraulics) -->
+<!-- edited with XMLSPY v2004 rel. 3 U (http://www.xmlspy.com) by tacoma (WL | Delft Hydraulics) -->
+<!--Delft FE WS (Copyright 2003 WL | Delft Hydraulics) -->
+<schema xmlns="http://www.w3.org/2001/XMLSchema" xmlns:fews="http://www.wldelft.nl/fews" targetNamespace="http://www.wldelft.nl/fews" elementFormDefault="qualified" attributeFormDefault="unqualified" version="1.0">
+	<include schemaLocation="sharedTypes.xsd"/>
+	<element name="modifierDisplay" type="fews:ModifierDisplayComplexType"/>
+	<simpleType name="ModifiersSelectionEnumStringType">
+		<annotation>
+			<documentation>Indicates which modifiers are shown in the modifiers panel
+			</documentation>
+		</annotation>
+		<restriction base="string">
+			<enumeration value="topology"/>
+			<enumeration value="filters"/>
+		</restriction>
+	</simpleType>
+	<complexType name="ModifierDisplayComplexType">
+		<sequence>
+			<element name="showImportButton" type="boolean" default="true" minOccurs="0">
+					<annotation>
+						<documentation>if this option is set to false the import modifiers button at the modifiers panel will be hidden</documentation>
+					</annotation>
+			</element>
+			<element name="showExportButton" type="boolean" default="true" minOccurs="0">
+					<annotation>
+						<documentation>if this option is set to false the export modifiers button at the modifiers panel will be shown</documentation>
+					</annotation>
+			</element>
+			<element name="rollbackModifierAfterDelete" type="boolean" default="true" minOccurs="0"/>
+			<element name="showCreateModifierButton" type="boolean" default="true" minOccurs="0"/>
+			<element name="showApplyToButton" type="boolean" default="true" minOccurs="0"/>
+			<element name="showReRunButton" type="boolean" default="true" minOccurs="0"/>
+			<element name="modifiersSelection" type="fews:ModifiersSelectionEnumStringType" minOccurs="0"/>
+			<element name="dropDownMenuDisplayOrder" type="fews:DropDownMenuModifierDisplayOrderComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2017.02. This option can be used to define the order in which the modifiers will be displayed in the drop down menu of the modifiers panel</documentation>
+				</annotation>
+			</element>
+			<element name="createModifierButtons" type="fews:CreateModifierButtonsComplexType" minOccurs="0"/>
+			<element name="timeSeriesModifiersDisplayConfig" type="fews:TimeSeriesModifiersDisplayConfigComplexType"
+					 minOccurs="0">
+				<annotation>
+					<documentation>display options for time series modifiers</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="DropDownMenuModifierDisplayOrderComplexType">
+		<sequence>
+			<element name="modifier" type="fews:DropDownMenuModifierItemComplexType" maxOccurs="unbounded">
+					<annotation>
+						<documentation>A modifier which should be displayed in the menu. The order of the modifier in the list will determine the order in the drop down menu</documentation>
+					</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="DropDownMenuModifierItemComplexType">
+		<sequence>
+			<element name="parameterId" type="fews:idStringType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>The modifier id of a modifier which should be displayed in the menu. The order of the modifier in the list will determine the order in the drop down menu
+					</documentation>
+				</annotation>
+			</element>
+		</sequence>
+		<attribute name="id" type="fews:idStringType" use="required"/>
+	</complexType>
+	<complexType name="CreateModifierButtonsComplexType">
+		<sequence>
+			<element name="modifierId" type="fews:idStringType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>This is the id of the modifier. The id is defined in the modifierTypes.xml. For each id entered here a shortcut-button for creating modifiers will be created in the modifierDisplay</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="TimeSeriesModifiersDisplayConfigComplexType">
+		<sequence>
+			<element name="showTimeShiftModifierButtons" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>These modifiers can be used to shift a modifier forward or backward in time. By default these buttons are not visible
+					</documentation>
+				</annotation>
+			</element>
+			<element name="showTablePanel" type="boolean" default="true" minOccurs="0">
+				<annotation>
+					<documentation>This element is used to indicate if the table should be shown by default after a timeseriesmodifier is selected in the modifiersPanel</documentation>
+				</annotation>
+			</element>
+			<element name="showChartPanel" type="boolean" default="true" minOccurs="0">
+				<annotation>
+					<documentation>This element is used to indicate if the chart should be shown by default after a timeseriesmodifier is selected in the modifiersPanel</documentation>
+				</annotation>
+			</element>
+			<element name="showChartLegend" type="boolean" default="true" minOccurs="0">
+				<annotation>
+					<documentation>This element is used to indicate if the chart legend should be shown by default after a timeseriesmodifier is selected in the modifiersPanel</documentation>
+				</annotation>
+			</element>
+			<element name="defaultOperationType" type="fews:timeSeriesModifierOperationEnumStringType" minOccurs="0">
+				<annotation>
+					<documentation>default operation type which is selected after startup of the modifier
+					</documentation>
+				</annotation>
+			</element>
+			<element name="incrementOperationTypeAdd" type="float" minOccurs="0">
+				<annotation>
+					<documentation>Increment for operationtypes like add, substract
+					</documentation>
+				</annotation>
+			</element>
+			<element name="viewPeriodExtension" type="integer" minOccurs="0">
+				<annotation>
+					<documentation>When a modifier is viewed in the modifierspanel, the period shown in the timeseries editor panel is determined by the start and end date of the modifier.
+						If this option is configured. The startdate is equal to startdate - viewPeriodExtension * timeStep, the end date is equal to enddate + viewPeriodExtension * timeStep.
+					This option is only available for equidistant time steps.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<simpleType name="timeSeriesModifierOperationEnumStringType">
+		<annotation>
+			<documentation>List of available operations in the timeseries-modifier</documentation>
+		</annotation>
+		<restriction base="string">
+			<enumeration value="Add"/>
+			<enumeration value="Substract"/>
+			<enumeration value="Multiply"/>
+			<enumeration value="Divide"/>
+			<enumeration value="Replace"/>
+			<enumeration value="Timeseries"/>
+		</restriction>
+	</simpleType>
+</schema>

@@ -1,0 +1,118 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- edited with XMLSpy v2009 sp1 (http://www.altova.com) by ICT (Stichting Deltares) -->
+<!-- edited with XMLSPY v2004 rel. 3 U (http://www.xmlspy.com) by tacoma (WL | Delft Hydraulics) -->
+<!--Delft FEWS (Copyright 2003 WL | Delft Hydraulics) -->
+<schema xmlns="http://www.w3.org/2001/XMLSchema" xmlns:fews="http://www.wldelft.nl/fews" targetNamespace="http://www.wldelft.nl/fews" elementFormDefault="qualified" attributeFormDefault="unqualified" version="1.0">
+	<include schemaLocation="sharedTypes.xsd"/>
+	<include schemaLocation="forecasterNotesDisplay.xsd"/>
+	<element name="systemMonitorDisplay" type="fews:SystemMonitorDisplayComplexType"/>
+	<!---->
+	<complexType name="SystemMonitorDisplayComplexType">
+		<sequence>
+			<element name="description" type="string" minOccurs="0"/>
+			<element name="defaultSelectedTab" type="fews:tabEnumStringType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2016.02  Id of the tab that should be selected by default after opening of the SystemMonitor, or when SystemMonitor get focus (again)</documentation>
+				</annotation>
+			</element>
+			<element name="importStatus" type="fews:SystemMonitorTransferStatusComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Configures the tab 'ImportStatus'</documentation>
+				</annotation>
+			</element>
+			<element name="exportStatus" type="fews:SystemMonitorTransferStatusComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Configures the tab 'ExportStatus'</documentation>
+				</annotation>
+			</element>
+			<element name="bulletinBoard" type="fews:SystemMonitorBulletinBoardComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Tab 'BulletinBoard' displays manual messages, i.e. all messages with eventCode Manual.*  New manual messages can be also added in  this bulletinBoard  </documentation>
+				</annotation>
+			</element>
+			<element name="bulletinBoardPlus" type="fews:SystemMonitorBulletinBoardPlusComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Tab 'BulletinBoardPlus' displays all (manual and other) messages that are imported from archive or that are going to be archived . These messages  satisfy the 'logEventConstraints' , as configured in ExportArchive.   New manual messages can be also added in  this bulletinBoardPlus</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<!---->
+	<complexType name="SystemMonitorTransferStatusComplexType">
+		<annotation>
+			<documentation>Configures transfer status tabs</documentation>
+		</annotation>
+		<sequence>
+			<element name="description" type="string" minOccurs="0"/>
+			<element name="tabName" type="string"/>
+			<element name="tabMnemonic" type="string" minOccurs="0"/>
+			<element name="visibleColumns" type="fews:visibleColums" minOccurs="0">
+				<annotation>
+					<documentation>Available since 2023.02. All columns are visible by default, this config options enables removing unwanted columns.</documentation>
+				</annotation>
+			</element>
+			<element name="defaultTimeThreshold" type="fews:DefaultTimeThresholdComplexType">
+				<annotation>
+					<documentation>When the last transfer time exceeds the periodLength, the accompanying table cell wil be colored with the configured color</documentation>
+				</annotation>
+			</element>
+			<choice minOccurs="0">
+				<element name="dataFeed" type="fews:TransferStatusDataFeedComplexType" minOccurs="0" maxOccurs="unbounded"/>
+				<element name="extraTimeThreshold" type="fews:DeprecatedExtraTimeThresholdComplexType" minOccurs="0" maxOccurs="unbounded">
+					<annotation>
+						<documentation>Deprecated, use dataFeed tag instead</documentation>
+					</annotation>
+				</element>
+			</choice>
+		</sequence>
+	</complexType>
+	<complexType name="visibleColums">
+		<sequence>
+			<element name="workflow" type="fews:booleanStringType" minOccurs="0">
+				<annotation>
+					<documentation>Available since 2023.02. Default is true. Setting it to false removes the workflow id column from the import status table.</documentation>
+				</annotation>
+			</element>
+			<element name="taskRun" type="fews:booleanStringType" minOccurs="0">
+				<annotation>
+					<documentation>Available since 2023.02. Default is true. Setting it to false removes the tuskRun id column from the import status table.</documentation>
+				</annotation>
+			</element>
+			<element name="suspended" type="fews:booleanStringType" minOccurs="0">
+				<annotation>
+					<documentation>Available since 2023.02. Default is true. Setting it to false removes the suspended column from the import status table.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<!---->
+	<complexType name="SystemMonitorBulletinBoardComplexType">
+		<sequence>
+			<element name="description" type="string" minOccurs="0"/>
+			<element name="tabName" type="string"/>
+			<element name="tabMnemonic" type="string" minOccurs="0"/>
+		</sequence>
+	</complexType>
+	<!---->
+	<complexType name="SystemMonitorBulletinBoardPlusComplexType">
+		<complexContent>
+			<extension base="fews:SystemMonitorBulletinBoardComplexType">
+				<group ref="fews:ForecasterNotesElements"/>
+			</extension>
+		</complexContent>
+	</complexType>
+	<simpleType name="tabEnumStringType">
+		<restriction base="string">
+			<enumeration value="logBrowser"/>
+			<enumeration value="bulletinBoard"/>
+			<enumeration value="bulletinBoardPlus"/>
+			<enumeration value="batchTasks"/>
+			<enumeration value="importStatus"/>
+			<enumeration value="liveStatus"/>
+			<enumeration value="scheduledTasks"/>
+			<enumeration value="runningTasks"/>
+			<enumeration value="synchStatus"/>
+			<enumeration value="synchLog"/>
+		</restriction>
+	</simpleType>
+</schema>

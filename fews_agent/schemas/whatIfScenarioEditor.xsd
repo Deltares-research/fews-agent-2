@@ -1,0 +1,566 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- edited with XMLSpy v2009 sp1 (http://www.altova.com) by ICT (Stichting Deltares) -->
+<schema xmlns:fews="http://www.wldelft.nl/fews" xmlns="http://www.w3.org/2001/XMLSchema" targetNamespace="http://www.wldelft.nl/fews" elementFormDefault="qualified" attributeFormDefault="unqualified" version="1.02">
+	<include schemaLocation="sharedTypes.xsd"/>
+	<include schemaLocation="taskProperties.xsd"/>
+	<include schemaLocation="whatIfScenario.xsd"/>
+	<include schemaLocation="grids.xsd"/>
+	<element name="WhatIfScenarioEditor" type="fews:WhatIfScenarioEditorComplexType">
+		<annotation>
+			<documentation>Defines the properties and behaviour to define scenarios and dispatch associated workflows. The option 'deploymentMethod' controls the behaviour of the Run button. If 'direct' is chosen, the task run properties will be determined based on the dialog properties and the selected cold state and T0. When pressing the 'Run' button a small dialog appears to check the settings before the task run is deployed. If 'viaManualForecast' is chosen, the 'Run' button will activate the Manual Forecast Dialog with the pre-selected scenario.
+			</documentation>
+		</annotation>
+	</element>
+	<complexType name="EditorDisplayDefaultsComplexType">
+		<sequence>
+			<element name="mapDefaults" type="fews:EditorMapDisplayComplexType" minOccurs="0"/>
+		</sequence>
+	</complexType>
+	<complexType name="WhatIfScenarioEditorComplexType">
+		<annotation>
+			<documentation>Defines the scenario properties. Id refers to  filters with type 'scenarioTemplate' .
+					</documentation>
+		</annotation>
+		<sequence>
+			<element name="editScenarioPermission" type="string" minOccurs="0">
+				<annotation>
+					<documentation>
+Permission to control who can edit a scenario
+                    </documentation>
+				</annotation>
+			</element>
+			<element name="createScenarioPermission" type="string" minOccurs="0">
+				<annotation>
+					<documentation>
+Permission to control who can create new scenario.
+                    </documentation>
+				</annotation>
+			</element>
+			<element name="deleteScenarioPermission" type="string" minOccurs="0">
+				<annotation>
+					<documentation>
+Permission to control who can delete a scenario.
+                    </documentation>
+				</annotation>
+			</element>
+			<element name="persistScenarioPermission" type="string" minOccurs="0">
+				<annotation>
+					<documentation>
+Permission to control who can make a scenario persistent.
+                    </documentation>
+				</annotation>
+			</element>
+			<element name="runScenarioPermission" type="string" minOccurs="0">
+				<annotation>
+					<documentation>
+Permission to control who can run a scenario.
+                    </documentation>
+				</annotation>
+			</element>
+			<element name="defaults" type="fews:EditorDisplayDefaultsComplexType" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Defines default settings (e.g. geoMaps) for reuse.</documentation>
+				</annotation>
+			</element>
+			<element name="editorFilters" type="fews:EditorFilterComplexType" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Defines the folder grouping. ScenarioTemplates will be children elements of editorFilters.</documentation>
+				</annotation>
+			</element>
+			<!--element name="editorFilters" type="fews:EditorFilterComplexType" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Tree filter (either parent-child or scenario template)</documentation>
+				</annotation>
+			</element-->
+		</sequence>
+		<attribute name="title" type="fews:idStringType" use="required"/>
+		<attribute name="description" type="string" use="optional"/>
+		<attribute name="deploymentMethod" type="fews:EditorDeploymentStringType" use="required"/>
+	</complexType>
+	<!--complexType name="EditorFiltersComplexType">
+		<sequence>
+			<element name="editorFilter" type="fews:EditorFilterComplexType" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Folder id, name, filter-type (parent; scenarioTemplate; configFiles; variable, workflow)</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType-->
+	<complexType name="EditorFilterComplexType">
+		<sequence>
+			<element name="editorFilter" type="fews:EditorFilterComplexType" minOccurs="0" maxOccurs="unbounded"/>
+			<element name="scenarioTemplates" type="fews:ScenarioTemplateComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Defines the scenario properties. Id refers to  filters with type 'scenarioTemplate'. </documentation>
+				</annotation>
+			</element>
+		</sequence>
+		<attribute name="name" type="fews:nameStringType" use="required"/>
+		<attribute name="description" type="string" use="optional"/>
+	</complexType>
+	<!--complexType name="EditorFilterComplexType">
+		<choice>
+			<element name="editorFilter" type="fews:EditorFilterComplexType"/>
+			<element name="scenarioTemplate" type="fews:ScenarioTemplateComplexType">
+				<annotation>
+					<documentation>Defines a ScenarioTemplate</documentation>
+				</annotation>
+			</element>
+		</choice>
+		<attribute name="filterId" type="fews:idStringType" use="required"/>
+		<attribute name="name" type="fews:nameStringType" use="optional"/>
+		<attribute name="description" type="string" use="optional"/>
+	</complexType-->
+	<complexType name="ScenarioTemplateComplexType">
+		<annotation>
+			<documentation>Define a workflow-independent scenario template or a set of workflow specific templates.
+			</documentation>
+		</annotation>
+		<choice>
+			<element name="basicScenarioTemplate" type="fews:BasicScenarioTemplateComplexType">
+				<annotation>
+					<documentation>Defines a normal ScenarioTemplate</documentation>
+				</annotation>
+			</element>
+			<element name="workflowSpecificScenarioTemplate" type="fews:WorkflowDependentScenarioTemplateComplexType" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Defines a ScenarioTemplate which is related to a specific workflow</documentation>
+				</annotation>
+			</element>
+		</choice>
+		<!--attribute name="name" type="fews:nameStringType" use="optional"/>
+		<attribute name="description" type="string" use="optional"/-->
+	</complexType>
+	<complexType name="ScenarioWorkflowComplexType">
+		<annotation>
+			<documentation>Defines associated workflow reference.</documentation>
+		</annotation>
+		<sequence>
+			<element name="workflowId" type="fews:idStringType"/>
+			<element name="workflowDisplay" type="fews:EditorTextDisplayComplexType">
+				<annotation>
+					<documentation>Defines the workflow related text (and caption) to be shown in display</documentation>
+				</annotation>
+			</element>
+			<element name="coldStates" type="fews:EditorColdStateComplexType" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Defines the  cold states - associated to this workflow - in the list-box. 
+					One cold state can be selected as an initial state for this scenario group</documentation>
+				</annotation>
+			</element>
+			<element name="defaultTime0" type="dateTime" minOccurs="0">
+				<annotation>
+					<documentation>Since 2015.01: Specify a default T0 that will be used if no coldState was selected.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="EditorColdStateComplexType">
+		<annotation>
+			<documentation>Defines available cold states and display.</documentation>
+		</annotation>
+		<sequence>
+			<element name="coldState" type="fews:ColdStateComplexType">
+				<annotation>
+					<documentation>
+		                Defines the cold states - associated to this workflow - in the list-box. One cold state can be selected as an initial state
+		                for this scenario group
+		            </documentation>
+				</annotation>
+			</element>
+			<element name="coldStateTextDisplay" type="fews:EditorTextDisplayComplexType">
+				<annotation>
+					<documentation>Defines the text (and caption) to be shown in display for this scenario-template.</documentation>
+				</annotation>
+			</element>
+			<element name="time0" type="dateTime" minOccurs="0">
+				<annotation>
+					<documentation>Default start time of the forecast period.
+Its lexical space is the extended format:
+
+ [-]CCYY-MM-DDThh:mm:ss[Z|(+|-)hh:mm]
+ 
+Valid values for xsd:dateTime include: 2001-10-26T21:32:52, 2001-10-26T21:32:52+02:00, 2001-10-26T19:32:52Z, 2001-10-26T19:32:52+00:00, -2001-10-26T21:32:52, or 2001-10-26T21:32:52.12679.
+
+The following values are invalid: 2001-10-26 (all the parts must be specified), 2001-10-26T21:32 (all the parts must be specified), 2001-10-26T25:32:52+02:00 (the hours part—25—is out of range), or 01-10-26T21:32 (all the parts must be specified).</documentation>
+				</annotation>
+			</element>
+			<element name="initialDisplayForecastLength" type="fews:TimeSpanComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Defines the initial Forecast Length that will populate the Forecast Length in the Scenario Editor Run Dialog. 
+					Note: divider attribute is NOT supported.
+					Note: only supports MINUTE, HOUR, DAY and WEEK units.
+					Note: default (if not specified) is 1 DAY</documentation>
+				</annotation>
+			</element>
+			<element name="minimalForecastLength" type="fews:TimeSpanComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Defines the minimal Forecast Length that will needs to be controlled by Calendar control or Forecast Length control in the Scenario Editor Run Dialog. 
+Note: divider attribute is NOT supported.
+Note: only supports MINUTE, HOUR, DAY and WEEK units.
+Note: default (if not specified) is 1 DAY</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="WorkflowDependentScenarioTemplateComplexType">
+		<annotation>
+			<documentation>Scenario template with workflow-related dependency to ModuleInstances/TimeSeriesSets.</documentation>
+		</annotation>
+		<sequence>
+			<element name="scenarioWorkflow" type="fews:ScenarioWorkflowComplexType">
+				<annotation>
+					<documentation>Defines the workflows in the list-box for this scenario group.
+					'T0method' refers to the method of specifying T0, either 'now' or via the 'cold state' (i.e. the first dateTime of the selected cold state). 
+					Please switch on the ManualForecastDisplay (see deploymentMethod) for dispatching a workflow if more advanced features are needed.</documentation>
+				</annotation>
+			</element>
+			<element name="basicScenarioTemplate" type="fews:BasicScenarioTemplateComplexType">
+				<annotation>
+					<documentation>Scenario template using workflow ModuleInstances/TimeSeriesSets.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+		<!--attribute name="name" type="fews:nameStringType" use="optional"/>
+		<attribute name="description" type="string" use="optional"/-->
+	</complexType>
+	<complexType name="BasicScenarioTemplateComplexType">
+		<annotation>
+			<documentation/>
+		</annotation>
+		<sequence maxOccurs="unbounded">
+			<element name="configFileSelection" type="fews:ConfigFileSelectionComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Defines the configFiles which can be selected within this scenario group</documentation>
+				</annotation>
+			</element>
+			<element name="variableTransformation" type="fews:VariableTransformationComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Defines the variable (TimeSeriesSet) and associated displays which can be manipulated.</documentation>
+				</annotation>
+			</element>
+			<element name="extendedLocationSpecification" type="fews:LocationParameterSpecificationComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Combines variable transformation with ability to assign module parameters to a location.</documentation>
+				</annotation>
+			</element>
+			<element name="locationSelection" type="fews:LocationSelectionSpecificationComplexType" minOccurs="0">
+				<annotation>
+					<documentation>
+Allows a selection of locations from a locationSet.
+				</documentation>
+				</annotation>
+			</element>
+			<element name="areaSelection" type="fews:AreaSelectionSpecificationComplexType" minOccurs="0">
+				<annotation>
+					<documentation>
+Allows a selection of polygons from a locationSet.
+					</documentation>
+				</annotation>
+			</element>
+		</sequence>
+		<attribute name="name" type="fews:nameStringType" use="required"/>
+		<attribute name="description" type="string" use="optional"/>
+		<!--attribute name="filterId" type="fews:idStringType" use="required"/>
+		<attribute name="name" type="fews:nameStringType" use="optional"/>
+		<attribute name="description" type="string" use="optional"/-->
+	</complexType>
+	<complexType name="VariableTransformationComplexType">
+		<annotation>
+			<documentation>Defines the transformation options for a scenario-variable.
+			If highlightModifiedLocations=true, the tree lists the locationSet of the variable and highlights shows the modified locations. </documentation>
+		</annotation>
+		<choice>
+			<element name="userDefinedFunctionVariable" type="fews:EditorVariableComplexType">
+				<annotation>
+					<documentation>Defines an existing time series set to be manipulated by user defined arithmetic function. Display always shows the Graph of associated time series set (original and transformed). Additional displays can be defined.</documentation>
+				</annotation>
+			</element>
+			<element name="typicalProfileVariable" type="fews:EditorVariableComplexType">
+				<annotation>
+					<documentation>Defines a scenario-variable. Display always includes the Graph of the associated time series set (typical profile). Additional displays can be defined.</documentation>
+				</annotation>
+			</element>
+			<element name="duoSpecificationVariable" type="fews:EditorVariableChoiceComplexType">
+				<annotation>
+					<documentation>Defines both transformation options for a semantically similar scenario-variable</documentation>
+				</annotation>
+			</element>
+		</choice>
+		<attribute name="name" type="fews:nameStringType" use="required"/>
+		<attribute name="description" type="string" use="optional"/>
+	</complexType>
+	<complexType name="EditorVariableChoiceComplexType">
+		<annotation>
+			<documentation>Defines two transformation options for the same scenario-variable. The locations/locationSets for the two options should be the same.</documentation>
+		</annotation>
+		<sequence>
+			<element name="userDefinedFunctionVariable" type="fews:EditorVariableComplexType">
+				<annotation>
+					<documentation>Defines an existing time series set to be manipulated by user defined arithmetic function.</documentation>
+				</annotation>
+			</element>
+			<element name="typicalProfileVariable" type="fews:EditorVariableComplexType">
+				<annotation>
+					<documentation>Defines a similar scenario-variable and associated displays which is created by a typical profile.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="EditorVariableComplexType">
+		<annotation>
+			<documentation>Graph display always included (Default Display caption is 'Graph').</documentation>
+		</annotation>
+		<sequence>
+			<element name="variable" type="fews:VariableComplexType">
+				<annotation>
+					<documentation>Defines scenario-variable to be manipulated</documentation>
+				</annotation>
+			</element>
+			<element name="mapDisplayReference" type="fews:RefToMapDisplayComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Optional display to show associated GeoMap. Default Display caption is 'Map'</documentation>
+				</annotation>
+			</element>
+			<element name="yearsParameterId" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>Parameter ID for storage of (integer) year values in WhatIfScenario when specifying a grid transformation within such a scenario</documentation>
+				</annotation>
+			</element>
+			<element name="factorParameterId" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>Parameter ID for storage of (seasonal) factor values per time step  in WhatIfScenario</documentation>
+				</annotation>
+			</element>
+		</sequence>
+		<attribute name="calculatorTip" type="string" use="optional">
+			<annotation>
+				<documentation>calculatorTip will be displayed in the calculationEditor, and can be used to direct users, e.g. to remind that ground-water abstractions are negative.</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="graphCaption" type="fews:idStringType" use="optional"/>
+	</complexType>
+	<complexType name="LocationParameterSpecificationComplexType">
+		<sequence>
+			<element name="locationParameters" type="fews:ModuleParametersComplexType">
+				<annotation>
+					<documentation>Enables 'adding' new locations by specifying the parameters of a predefined location set used as dummy location placeholders. 
+					As a minimum, the following parameters should be defined (id): 
+					- name (String)
+					- Easting (Double)
+					- Northing (Double)
+					- x_cellCentre (Double)
+					- y_cellCentre (Double)
+					</documentation>
+				</annotation>
+			</element>
+			<element name="typicalProfileVariable" type="fews:VariableComplexType">
+				<annotation>
+					<documentation>Defines scenario-variable to be manipulated by typical profile.
+					(Other variable-types will not be supported). display will include associated Graph by default.</documentation>
+				</annotation>
+			</element>
+			<element name="mapDisplayReference" type="fews:RefToMapDisplayComplexType">
+				<annotation>
+					<documentation>Displays associated GeoMap. Default Display caption is 'Map'. 
+					Locations will be highlighted on the map based on values for parameter 'x' and 'y'</documentation>
+				</annotation>
+			</element>
+			<element name="locationId" type="fews:idStringType">
+				<annotation>
+					<documentation>Reference to the regular Grid used to map user specified coordinates to a grid.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+		<attribute name="name" type="fews:nameStringType" use="required"/>
+		<attribute name="description" type="string" use="optional"/>
+		<attribute name="locationSetId" type="fews:idStringType" use="required">
+			<annotation>
+				<documentation>LocationSet consisting of 'dummy' locations that will be used as extended locations.</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="graphCaption" type="fews:nameStringType" use="optional"/>
+	</complexType>
+	<complexType name="ConfigFileSelectionComplexType">
+		<choice>
+			<element name="moduleDataSetFiles" type="fews:EditorModuleDataSetFileComplexType" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Defines the ModuleDataSetFiles to select from</documentation>
+				</annotation>
+			</element>
+			<element name="moduleParameterFiles" type="fews:EditorModuleParameterFileComplexType" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Defines the ModuleParameterFiles to select from</documentation>
+				</annotation>
+			</element>
+		</choice>
+		<attribute name="name" type="fews:nameStringType" use="required"/>
+		<attribute name="description" type="string" use="optional"/>
+		<attribute name="captionSelectionBox" type="fews:nameStringType" use="required"/>
+	</complexType>
+	<complexType name="EditorModuleDataSetFileComplexType">
+		<sequence>
+			<element name="moduleDataSetFile" type="fews:ConfigFileComplexType">
+				<annotation>
+					<documentation>ModuleDataSetFile available for selection</documentation>
+				</annotation>
+			</element>
+			<element name="editorTextDisplay" type="fews:EditorTextDisplayComplexType">
+				<annotation>
+					<documentation>Defines the text to be shown in display in association to the selected configFile</documentation>
+				</annotation>
+			</element>
+			<element name="mapDisplayReference" type="fews:RefToMapDisplayComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Option to show GeoMap with relevant GIS-layers. Default Display caption is 'Map'</documentation>
+				</annotation>
+			</element>
+			<element name="editorTimeSeriesDisplay" type="fews:EditorTimeSeriesDisplayComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Displays specific TimeSeriesSet to be shown. Default Display caption is 'Graph'</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="EditorModuleParameterFileComplexType">
+		<sequence>
+			<element name="moduleParameterFile" type="fews:ConfigFileComplexType">
+				<annotation>
+					<documentation>ModuleParameterFile available for selection</documentation>
+				</annotation>
+			</element>
+			<element name="editorTextDisplay" type="fews:EditorTextDisplayComplexType">
+				<annotation>
+					<documentation>Defines the text to be shown in display in association to the selected configFile</documentation>
+				</annotation>
+			</element>
+			<element name="mapDisplayReference" type="fews:RefToMapDisplayComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Displays associated GeoMap. Default Display caption is 'Map'</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="EditorTextDisplayComplexType">
+		<annotation>
+			<documentation>Defines the text (and caption) to be shown on the display. 
+			Text can be plain, in HTML or a reference to a URL.</documentation>
+		</annotation>
+		<choice>
+			<element name="description" type="string">
+				<annotation>
+					<documentation>Long description in plain text or HTML.</documentation>
+				</annotation>
+			</element>
+			<element name="URL" type="string">
+				<annotation>
+					<documentation>Display will act as web-viewer and shown the specified website.</documentation>
+				</annotation>
+			</element>
+		</choice>
+		<attribute name="caption" type="fews:nameStringType" use="required"/>
+	</complexType>
+	<complexType name="EditorTimeSeriesDisplayComplexType">
+		<sequence>
+			<element name="timeSeriesSet" type="fews:TimeSeriesSetComplexType">
+				<annotation>
+					<documentation>TimeSeriesSet to be shown.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+		<attribute name="graphCaption" type="fews:nameStringType" use="optional"/>
+	</complexType>
+	<complexType name="EditorMapDisplayComplexType">
+		<sequence>
+			<element name="geoMap" type="fews:GeoMapComplexType">
+				<annotation>
+					<documentation>GeoMap to be shown.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+		<attribute name="geoMapId" type="fews:idStringType" use="required"/>
+	</complexType>
+	<complexType name="RefToMapDisplayComplexType">
+		<annotation>
+			<documentation>Defines reference to geoMap as defined under defaults..</documentation>
+		</annotation>
+		<attribute name="geoMapId" type="fews:idStringType" use="required"/>
+		<attribute name="mapCaption" type="fews:nameStringType" use="optional"/>
+	</complexType>
+	<simpleType name="EditorT0StringType">
+		<annotation>
+			<documentation>Defines how T0 is determined. 'now' takes the currentTime.
+			 'cold state' takes the first dateTime of the selected cold state). 
+			For more advanced T0 dispatching methods one should use the ManualForecast Display. 
+			Don't forget to disable the 'allowDispatch' property at the top of this configuration file.</documentation>
+		</annotation>
+		<restriction base="string">
+			<enumeration value="now"/>
+			<enumeration value="useColdState"/>
+		</restriction>
+	</simpleType>
+	<simpleType name="EditorGUIcontrolStringType">
+		<annotation>
+			<documentation>Defines the GUI-control shown for selection. 
+			A combo-box enables selection of 1 item; a list-box enables selection of multiple items.</documentation>
+		</annotation>
+		<restriction base="string">
+			<enumeration value="comboBox"/>
+			<enumeration value="listBox"/>
+		</restriction>
+	</simpleType>
+	<simpleType name="EditorDeploymentStringType">
+		<annotation>
+			<documentation>Deployment method when 'run' is pressed. 
+			If 'direct' is chosen, the task run properties will be determined based on the dialog properties and the selected cold state and T0. 
+			If 'viaManualForecast' is chosen, the Manual Forecast Dialog is loaded with the selected scenario.</documentation>
+		</annotation>
+		<restriction base="string">
+			<enumeration value="direct"/>
+			<enumeration value="viaManualForecast"/>
+		</restriction>
+	</simpleType>
+	<simpleType name="EditorFilterStringType">
+		<annotation>
+			<documentation>Defines the type of filter: parent; scenarioTemplate (basic/workflowSpecific); configFileSelection; variableTransformation; extendLocation</documentation>
+		</annotation>
+		<restriction base="string">
+			<enumeration value="parent"/>
+			<enumeration value="basicScenarioTemplate"/>
+			<enumeration value="workflowSpecificScenarioTemplate"/>
+			<enumeration value="configFileSelection"/>
+			<enumeration value="variableTransformation"/>
+			<enumeration value="extendLocation"/>
+		</restriction>
+	</simpleType>
+	<complexType name="LocationSelectionSpecificationComplexType">
+		<sequence>
+			<element name="locationSetId" type="fews:idStringType">
+				<annotation>
+					<documentation>
+Identifier for locationSet of locations to select from.
+				</documentation>
+				</annotation>
+			</element>
+		</sequence>
+		<attribute name="name" type="fews:nameStringType" use="required"/>
+		<attribute name="description" type="string" use="optional"/>
+	</complexType>
+	<complexType name="AreaSelectionSpecificationComplexType">
+		<sequence>
+			<element name="hideImportButton" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>Does not show the import button for importing polygons from disk.</documentation>
+				</annotation>
+			</element>
+			<element name="gridLocationSetId" type="fews:idStringType">
+				<annotation>
+					<documentation>Identifier for grid locationSet for polygons to select from.
+				</documentation>
+				</annotation>
+			</element>
+		</sequence>
+		<attribute name="name" type="fews:nameStringType" use="required"/>
+		<attribute name="description" type="string" use="optional"/>
+	</complexType>
+</schema>

@@ -1,0 +1,7 @@
+<?xml version="1.0"?>
+<schema xmlns="http://www.w3.org/2001/XMLSchema"
+		targetNamespace="http://www.wldelft.nl/fews/topology" elementFormDefault="qualified"
+		attributeFormDefault="unqualified" version="1.0">
+	<include schemaLocation="topologyEditorDisplay.xsd"/>
+	<include schemaLocation="networkValidationRules.xsd"/>
+</schema>

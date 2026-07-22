@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schema xmlns:fews="http://www.wldelft.nl/fews" xmlns="http://www.w3.org/2001/XMLSchema" targetNamespace="http://www.wldelft.nl/fews" elementFormDefault="qualified" attributeFormDefault="unqualified"
+		version="1.0">
+	<include schemaLocation="sharedTypes.xsd"/>
+	<element name="baseBuildFileSet" type="fews:BaseBuildFileSetComplexType">
+		<annotation>
+			<documentation>List of a files a base build zip</documentation>
+		</annotation>
+	</element>
+	<complexType name="BaseBuildFileSetComplexType">
+		<sequence>
+			<element name="file" type="fews:BaseBuildFileComplexType" maxOccurs="unbounded"/>
+		</sequence>
+	</complexType>
+	<complexType name="BaseBuildFileComplexType">
+		<attribute name="relativePath" type="string" use="required">
+			<annotation>
+				<documentation>relative path in the zip</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="hash" type="string" use="required">
+			<annotation>
+				<documentation>sha1 hash of the file.</documentation>
+			</annotation>
+		</attribute>
+	</complexType>
+</schema>

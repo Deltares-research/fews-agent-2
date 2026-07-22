@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- edited with XMLSpy v2007 sp2 (http://www.altova.com) by WL | Delft Hydraulics (WL | Delft Hydraulics) -->
+<!-- edited with XMLSPY v2004 rel. 3 U (http://www.xmlspy.com) by tacoma (WL | Delft Hydraulics) -->
+<!--Delft FE WS (Copyright 2003 WL | Delft Hydraulics) -->
+<schema xmlns="http://www.w3.org/2001/XMLSchema" xmlns:fews="http://www.wldelft.nl/fews" targetNamespace="http://www.wldelft.nl/fews" elementFormDefault="qualified" attributeFormDefault="unqualified"
+		version="1.0">
+	<include schemaLocation="sharedTypes.xsd"/>
+	<element name="modifierMigrationTool" type="fews:LocationAttributeModifierMigrationToolComplexType"/>
+	<complexType name="LocationAttributeModifierMigrationToolComplexType">
+		<sequence>
+			<element name="locationAttributeMigration" type="fews:LocationAttributeModifierMigrationDefinitionComplexType" maxOccurs="unbounded"/>
+		</sequence>
+	</complexType>
+	<complexType name="LocationAttributeModifierMigrationDefinitionComplexType">
+		<sequence>
+			<choice>
+				<element name="locationId" type="fews:idStringType"/>
+				<element name="locationSetId" type="fews:idStringType"/>
+			</choice>
+			<element name="modifierId" type="fews:idStringType"/>
+			<element name="attribute" type="fews:idStringType"/>
+		</sequence>
+	</complexType>
+</schema>

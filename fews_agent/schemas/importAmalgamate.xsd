@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?><!--Delft FEWS (Copyright 2003 WL | Delft Hydraulics) -->
+<schema targetNamespace="http://www.wldelft.nl/fews" xmlns:fews="http://www.wldelft.nl/fews" xmlns="http://www.w3.org/2001/XMLSchema" elementFormDefault="qualified" attributeFormDefault="unqualified" version="1.0">
+	<include schemaLocation="sharedTypes.xsd"/>
+	<element name="importAmalgamate" type="fews:ImportAmalgamateComplexType"/>
+	<!--    -->
+	<complexType name="ImportAmalgamateComplexType">
+		<sequence>
+			<sequence minOccurs="0">
+				<group ref="fews:WorkflowIdGroup" maxOccurs="unbounded"/>
+				<element name="importRunMinimalAge" type="fews:TimeSpanComplexType">
+					<annotation>
+						<documentation>
+							Import runs younger than the specified age are skipped. After the amalgamate has runned it is no longer possible to create an archive with the exact original data available during the run.
+						</documentation>
+					</annotation>
+				</element>
+				<element name="afterAmalgamateImportRunMetaDataExpiryTime" type="fews:TimeSpanComplexType" minOccurs="0">
+					<annotation>
+						<documentation>By the default the amalgamated import run metadata is deleted from the database after running amalgamate. With this option the amalgamated import run metadata (not the  time series itself) can be made visible with time series lister context menu</documentation>
+					</annotation>
+				</element>
+			</sequence>
+			<element name="amalgamateClosedServiceSessions" type="boolean" minOccurs="0">
+				<annotation>
+					<documentation>
+						Amalgamates all the time series imported by logged out (or inactive for a day) PI/JDBC service sessions (all non OC sessions)
+					</documentation>
+				</annotation>
+			</element>
+			<element name="amalgamateOrphans" type="boolean" minOccurs="0">
+				<annotation>
+					<documentation>
+						Amalgamates all the time series that are no longer attached to a task run or session because they are expired.
+						This should only be executed once on a data store that not had an active amalgamate module running for al long time.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="removeIdsNoLongerInConfig" type="boolean" minOccurs="0">
+				<annotation>
+					<documentation>Since 2016.02. Remove time series with parameters, locations, qualifiers, module instance ids that er no longer in the configuration.  Default is false.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<group name="WorkflowIdGroup">
+		<choice>
+			<annotation>
+				<documentation>One or more work flow ids that import external historical time series over a short time span (scheduled frequently). These workflows will produce inefficient blobs that only span a few times. After the amalgamate is finished the original import runs with al its imported external data is scheduled for deletion Large grids, external forecasts and samples should be imported in a separate workflow.</documentation>
+			</annotation>
+			<element name="workflowId" type="fews:idStringType"/>
+			<element name="workflowIdPattern" type="fews:idStringType">
+				<annotation>
+					<documentation>Since 2014.02. FEWS-11561. * and ? can be used, eg *_process_Observed</documentation>
+				</annotation>
+			</element>
+		</choice>
+	</group>
+</schema>

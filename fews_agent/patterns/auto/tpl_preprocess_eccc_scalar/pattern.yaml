@@ -1,0 +1,179 @@
+name: tpl_preprocess_eccc_scalar
+description: 'Auto-derived pattern from tutorial instances: PreprocessECCCScalar.'
+variables:
+  template_name:
+    type: str
+    required: true
+outputs:
+- schema: TransformationModule
+  output: ModuleConfigFiles/Preprocess/ScalarData/{{ template_name }}.xml
+  data:
+    version: '1.0'
+    variable:
+    - variableId: TA_hourly_nonequi
+      timeSeriesSet:
+        moduleInstanceId: ImportECCCScalar
+        valueType: scalar
+        parameterId: TA.obs
+        locationSetId: $LOCATIONSET$
+        timeSeriesType: external historical
+        timeStep:
+          unit: nonequidistant
+        relativeViewPeriod:
+          unit: day
+          start: $STARTTIME$
+          end: $ENDTIME$
+        readWriteMode: add originals
+    - variableId: TA_max_daily_nonequi
+      timeSeriesSet:
+        moduleInstanceId: ImportECCCScalar
+        valueType: scalar
+        parameterId: TA.obs
+        qualifierId: max
+        locationSetId: $LOCATIONSET$
+        timeSeriesType: external historical
+        timeStep:
+          unit: nonequidistant
+        relativeViewPeriod:
+          unit: day
+          start: $STARTTIME$
+          end: $ENDTIME$
+        readWriteMode: add originals
+    - variableId: TA_min_daily_nonequi
+      timeSeriesSet:
+        moduleInstanceId: ImportECCCScalar
+        valueType: scalar
+        parameterId: TA.obs
+        qualifierId: min
+        locationSetId: $LOCATIONSET$
+        timeSeriesType: external historical
+        timeStep:
+          unit: nonequidistant
+        relativeViewPeriod:
+          unit: day
+          start: $STARTTIME$
+          end: $ENDTIME$
+        readWriteMode: add originals
+    - variableId: PC_daily_nonequi
+      timeSeriesSet:
+        moduleInstanceId: ImportECCCScalar
+        valueType: scalar
+        parameterId: PC.obs
+        locationSetId: $LOCATIONSET$
+        timeSeriesType: external historical
+        timeStep:
+          unit: nonequidistant
+        relativeViewPeriod:
+          unit: day
+          start: $STARTTIME$
+          end: $ENDTIME$
+        readWriteMode: add originals
+    - variableId: TA_hourly
+      timeSeriesSet:
+        moduleInstanceId: ImportECCCScalar
+        valueType: scalar
+        parameterId: TA.obs
+        locationSetId: $LOCATIONSET$
+        timeSeriesType: external historical
+        timeStep:
+          unit: hour
+          multiplier: 1
+        relativeViewPeriod:
+          unit: day
+          start: $STARTTIME$
+          end: $ENDTIME$
+        readWriteMode: add originals
+    - variableId: TA_max_daily
+      timeSeriesSet:
+        moduleInstanceId: ImportECCCScalar
+        valueType: scalar
+        parameterId: TA.obs
+        qualifierId: max
+        locationSetId: $LOCATIONSET$
+        timeSeriesType: external historical
+        timeStep:
+          id: $DAY_TIMESTEP$
+        relativeViewPeriod:
+          unit: day
+          start: $STARTTIME$
+          end: $ENDTIME$
+        readWriteMode: add originals
+    - variableId: TA_min_daily
+      timeSeriesSet:
+        moduleInstanceId: ImportECCCScalar
+        valueType: scalar
+        parameterId: TA.obs
+        qualifierId: min
+        locationSetId: $LOCATIONSET$
+        timeSeriesType: external historical
+        timeStep:
+          id: $DAY_TIMESTEP$
+        relativeViewPeriod:
+          unit: day
+          start: $STARTTIME$
+          end: $ENDTIME$
+        readWriteMode: add originals
+    - variableId: PC_daily
+      timeSeriesSet:
+        moduleInstanceId: ImportECCCScalar
+        valueType: scalar
+        parameterId: PC.obs
+        locationSetId: $LOCATIONSET$
+        timeSeriesType: external historical
+        timeStep:
+          id: $DAY_TIMESTEP$
+        relativeViewPeriod:
+          unit: day
+          start: $STARTTIME$
+          end: $ENDTIME$
+        readWriteMode: add originals
+    transformation:
+    - id: TA_hourly_sample
+      body:
+        sample:
+          nonEquidistant:
+            nonEquidistantInputVariable:
+              variableId: TA_hourly_nonequi
+            interpolationType: linearOrClosest
+            maxGapLength:
+              '@unit': hour
+              '@multiplier': '1'
+            outputVariable:
+              variableId: TA_hourly
+    - id: TA_max_daily_sample
+      body:
+        sample:
+          nonEquidistant:
+            nonEquidistantInputVariable:
+              variableId: TA_max_daily_nonequi
+            interpolationType: linearOrClosest
+            maxGapLength:
+              '@unit': day
+              '@multiplier': '1'
+            outputVariable:
+              variableId: TA_max_daily
+    - id: TA_min_daily_sample
+      body:
+        sample:
+          nonEquidistant:
+            nonEquidistantInputVariable:
+              variableId: TA_min_daily_nonequi
+            interpolationType: linearOrClosest
+            maxGapLength:
+              '@unit': day
+              '@multiplier': '1'
+            outputVariable:
+              variableId: TA_min_daily
+    - id: PC_daily_sample
+      body:
+        sample:
+          nonEquidistant:
+            nonEquidistantInputVariable:
+              variableId: PC_daily_nonequi
+            interpolationType: linearOrClosest
+            maxGapLength:
+              '@unit': day
+              '@multiplier': '1'
+            outputVariable:
+              variableId: PC_daily
+contributions: []

@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schema xmlns="http://www.w3.org/2001/XMLSchema" xmlns:fews="http://www.wldelft.nl/fews/archive"
+		targetNamespace="http://www.wldelft.nl/fews/archive" elementFormDefault="qualified"
+		attributeFormDefault="unqualified" version="1.0">
+	<include schemaLocation="archive_sharedTypes.xsd"/>
+	<element name="runInfo" type="fews:ArchiveRunInfoComplexType"/>
+	<complexType name="ArchiveRunInfoComplexType">
+		<sequence>
+			<element name="time0" type="fews:DateTimeComplexType"/>
+			<element name="taskRunId" type="fews:idStringType" minOccurs="0"/>
+			<element name="timeSeriesSource" type="fews:TimeSeriesSourceComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>This element contains the taskRun id, workflow id and the time zero fo the forecasts which produced the time series which are being exported</documentation>
+				</annotation>
+			</element>
+			<element name="fewsVersion" type="string" minOccurs="0"/>
+			<element name="buildNumber" type="long" minOccurs="0"/>
+			<element name="dispatchTime" type="fews:DateTimeComplexType"/>
+			<element name="workflowId" type="fews:idStringType"/>
+			<element name="whatIfScenario" type="fews:WhatIfScenarioComplexType" minOccurs="0" maxOccurs="unbounded"/>
+			<element name="description" type="string" minOccurs="0"/>
+			<element name="forecastLength" type="fews:TimeSpanComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Fixed Length of a forecast when set by the user.</documentation>
+				</annotation>
+			</element>
+			<element name="userId" type="fews:idStringType" minOccurs="0"/>
+			<element name="mcId" type="fews:idStringType" minOccurs="0"/>
+			<element name="fssId" type="fews:idStringType" minOccurs="0"/>
+			<element name="configRevisionId" type="fews:idStringType" minOccurs="0"/>
+			<element name="unexpectedColdStateUsed" type="fews:UnexpectedColdStateUsedComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Unexpected cold states that were used in the task run corresponding to this task run properties. Optional. If a warm state was selected but could not be found in the
+						specified search period, then a cold state is used and information about this unexpected cold state used is contained here.
+					</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="TimeSeriesSourceComplexType">
+		<sequence>
+			<element name="taskRunId" type="string"/>
+			<element name="workflowId" type="string"/>
+			<element name="timeZero" type="fews:DateTimeComplexType"/>
+		</sequence>
+	</complexType>
+	<complexType name="UnexpectedColdStateUsedComplexType">
+		<sequence>
+			<element name="moduleInstanceId" type="fews:idStringType" minOccurs="1" maxOccurs="1">
+				<annotation>
+					<documentation>Module instance id corresponding to the task run for which this unexpected cold state was used.</documentation>
+				</annotation>
+			</element>
+			<element name="stateSearchRelativePeriod" type="fews:RelativePeriodComplexType" minOccurs="1" maxOccurs="1">
+				<annotation>
+					<documentation>Time window that was used to search for a warm state. The time window is relative to the start time of the forecast period.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+
+	<complexType name="RelativePeriodComplexType">
+		<annotation>
+			<documentation>Defines a moving period in time. The start and end time are relative time to a certain time.</documentation>
+		</annotation>
+		<sequence>
+			<element name="description" type="string" minOccurs="0"/>
+		</sequence>
+		<attribute name="start" type="int" use="required"/>
+		<attribute name="end" type="int" use="required"/>
+		<attribute name="unit" type="fews:timeUnitEnumStringType" use="required"/>
+	</complexType>
+	<complexType name="WhatIfScenarioComplexType">
+		<sequence>
+			<element name="id" type="fews:idStringType"/>
+			<element name="name" type="fews:nameStringType"/>
+			<element name="description" type="fews:nameStringType"/>
+		</sequence>
+	</complexType>
+</schema>

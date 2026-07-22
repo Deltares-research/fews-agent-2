@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schema xmlns="http://www.w3.org/2001/XMLSchema" xmlns:fews="http://www.wldelft.nl/fews/archive"
+		targetNamespace="http://www.wldelft.nl/fews/archive" elementFormDefault="qualified"
+		attributeFormDefault="unqualified" version="1.0">
+	<include schemaLocation="archive_sharedTypes.xsd"/>
+	<element name="event" type="fews:SingleEventComplexType"/>
+	<complexType name="SingleEventComplexType">
+		<sequence>
+			<element name="event" type="fews:EventComplexType"/>
+		</sequence>
+	</complexType>
+	<complexType name="EventComplexType">
+		<sequence>
+			<element name="description" type="string">
+				<annotation>
+					<documentation>Description of the event</documentation>
+				</annotation>
+			</element>
+			<element name="creationDate" type="fews:DateTimeComplexType">
+				<annotation>
+					<documentation>Start time of the event</documentation>
+				</annotation>
+			</element>
+			<element name="startDate" type="fews:DateTimeComplexType">
+				<annotation>
+					<documentation>Start time of the event</documentation>
+				</annotation>
+			</element>
+			<element name="endDate" type="fews:DateTimeComplexType">
+				<annotation>
+					<documentation>End time of the event</documentation>
+				</annotation>
+			</element>
+			<element name="area" type="fews:AreaComplexType"/>
+			<element name="parameters" type="fews:ParameterComplexType" minOccurs="0"/>
+			<element name="locations" type="fews:LocationComplexType" minOccurs="0"/>
+			<element name="timeStep" type="fews:TimeStepComplexType" minOccurs="0"/>
+			<element name="eventTypeId" type="fews:idStringType"/>
+			<element name="active" type="boolean"/>
+			<element name="attachments" type="fews:AttachmentsComplexType" minOccurs="0"/>
+			<element name="changed" type="boolean" default="false" minOccurs="0"/>
+		</sequence>
+		<attribute name="id" type="fews:idStringType" use="required"/>
+		<attribute name="name" type="fews:nameStringType" use="optional"/>
+	</complexType>
+	<complexType name="AreaComplexType">
+		<attribute name="id" type="fews:idStringType" use="required"/>
+		<attribute name="name" type="string" use="optional"/>
+	</complexType>
+	<complexType name="LocationComplexType">
+		<sequence>
+			<element name="locationId" type="fews:idStringType" maxOccurs="unbounded"/>
+		</sequence>
+	</complexType>
+	<complexType name="ParameterComplexType">
+		<sequence>
+			<element name="parameterId" type="fews:idStringType" maxOccurs="unbounded"/>
+		</sequence>
+	</complexType>
+	<complexType name="AttachmentsComplexType">
+		<sequence>
+			<element name="attachment" type="fews:fileStringType" maxOccurs="unbounded"/>
+		</sequence>
+	</complexType>
+
+</schema>

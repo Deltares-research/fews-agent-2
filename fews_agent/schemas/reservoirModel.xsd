@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schema xmlns="http://www.w3.org/2001/XMLSchema" xmlns:fews="http://www.wldelft.nl/fews" targetNamespace="http://www.wldelft.nl/fews" elementFormDefault="qualified" attributeFormDefault="unqualified" version="1.0">
+	<include schemaLocation="commonAdapter.xsd"/>
+	<!-- -->
+	<element name="ReservoirModel" type="fews:ReservoirModelComplexType"/>
+	<!-- -->
+	<complexType name="ReservoirModelComplexType">
+		<sequence>
+			<element name="general" type="fews:CommonAdapterGeneralComplexType"/>
+			<element name="inflowFunctions" type="fews:ReservoirInflowComplexType"/>
+			<element name="outflowFunctions" type="fews:ReservoirOutflowComplexType" maxOccurs="unbounded"/>
+			<element name="reservoir" type="fews:ReservoirComplexType"/>
+		</sequence>
+	</complexType>
+	<!-- -->
+	<complexType name="ReservoirInflowComplexType">
+		<sequence>
+			<element name="inflowFunction" type="fews:reservoirInflowfunctionEnumStringType" minOccurs="0"/>
+			<element name="coefficient" type="fews:ReservoirCoefficientComplexType" minOccurs="0" maxOccurs="unbounded"/>
+		</sequence>
+	</complexType>
+	<simpleType name="reservoirInflowfunctionEnumStringType">
+		<restriction base="string">
+			<enumeration value="singleInflow"/>
+			<enumeration value="holbeamInflow"/>
+			<enumeration value="brutonInflow"/>
+		</restriction>
+	</simpleType>
+	<complexType name="ReservoirOutflowComplexType">
+		<sequence>
+			<element name="limitLower" type="float" minOccurs="0"/>
+			<element name="limitUpper" type="float" minOccurs="0"/>
+			<element name="outflow" type="fews:reservoirOutflowfunctionEnumStringType" minOccurs="0"/>
+			<element name="userDefinedFunction" type="string" minOccurs="0"/>
+			<element name="coefficient" type="fews:ReservoirCoefficientComplexType" minOccurs="0" maxOccurs="unbounded"/>
+		</sequence>
+	</complexType>
+	<simpleType name="reservoirOutflowfunctionEnumStringType">
+		<restriction base="string">
+			<enumeration value="spillway"/>
+			<enumeration value="gate"/>
+			<enumeration value="elevationDischargeTable"/>
+		</restriction>
+	</simpleType>
+	<complexType name="ReservoirComplexType">
+		<sequence>
+			<element name="functionType" type="fews:reservoirMethodEnumStringType"/>
+			<element name="elevationStorageTable" type="fews:ElevationStorageTableComplexType" minOccurs="0" maxOccurs="unbounded"/>
+			<element name="elevationInterval" type="float"/>
+		</sequence>
+	</complexType>
+	<simpleType name="reservoirMethodEnumStringType">
+		<restriction base="string">
+			<enumeration value="levelPoolMethod"/>
+			<enumeration value="modifiedPulsMethod"/>
+			<enumeration value="goodrichMethod"/>
+			<enumeration value="holbeamMethod"/>
+		</restriction>
+	</simpleType>
+	<complexType name="ReservoirCoefficientComplexType">
+		<attribute name="coefficientType" type="fews:reservoirCoefficientTypeEnumStringType" use="optional"/>
+		<attribute name="value" type="float" use="required"/>
+	</complexType>
+	<simpleType name="reservoirCoefficientTypeEnumStringType">
+		<annotation>
+			<documentation>enumeration type for the coefficients (extra information to be passed depends on type of function selected)</documentation>
+		</annotation>
+		<restriction base="string">
+			<enumeration value="inflowFactorBelowCwiThreshold"/>
+			<enumeration value="inflowFactorAboveOrEqualCwiThreshold"/>
+			<enumeration value="cwiThreshold"/>
+			<enumeration value="cwiMinValue"/>
+			<enumeration value="gateBlockage"/>
+			<enumeration value="gateCc"/>
+			<enumeration value="gateLevel"/>
+			<enumeration value="gateOpening"/>
+			<enumeration value="gateWidth"/>
+			<enumeration value="kSlow"/>
+			<enumeration value="kQuick"/>
+			<enumeration value="qThreshold"/>
+			<enumeration value="rainIntensity"/>
+			<enumeration value="spillwayCd"/>
+			<enumeration value="spillwayLevel"/>
+			<enumeration value="spillwaySideslope"/>
+			<enumeration value="spillwayWidth"/>
+		</restriction>
+	</simpleType>
+</schema>

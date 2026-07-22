@@ -1,0 +1,137 @@
+name: tpl_interpolate_ecmwf_grid_scalar
+description: >-
+  Regrid an imported NWP grid to the model grid and interpolate it to station
+  scalars (transformationModule, interpolationSpatial/closestDistance twice).
+  Farmed from the FEWS-Caribbean config
+  (Config/ModuleConfigFiles/Import/ProcessEcmwfTemplate.xml). Spatial
+  interpolation is used because the source and target grids may differ.
+variables:
+  name:
+    type: str
+    required: false
+    default: ProcessEcmwf
+  import_instance:
+    type: str
+    required: false
+    default: ImportEcmwfMeteo
+  parameter_id:
+    type: str
+    required: false
+    default: AirTemperature
+  grid_location_source:
+    type: str
+    required: false
+    default: Ecmwf2m
+  grid_location_target:
+    type: str
+    required: false
+    default: Ecmwf
+  scalar_locationset_id:
+    type: str
+    required: false
+    default: StationsEcmwfMeteo
+  time_step_hours:
+    type: int
+    required: false
+    default: 3
+  view_period_start_hours:
+    type: int
+    required: false
+    default: -48
+  view_period_end_hours:
+    type: int
+    required: false
+    default: 48
+  # closestDistance search radius (metres) for the grid->grid regrid.
+  search_radius:
+    type: int
+    required: false
+    default: 50000
+  distance_geo_datum:
+    type: str
+    required: false
+    default: UTM20N
+  expiry_grid_days:
+    type: int
+    required: false
+    default: 5
+  expiry_scalar_days:
+    type: int
+    required: false
+    default: 5
+outputs:
+- schema: TransformationModule
+  output: ModuleConfigFiles/Import/{{ name }}.xml
+  data:
+    version: '1.0'
+    variable:
+    - variableId: GridTemporary
+      timeSeriesSet:
+        moduleInstanceId: {{ import_instance }}
+        valueType: grid
+        parameterId: {{ parameter_id }}
+        locationId: {{ grid_location_source }}
+        timeSeriesType: temporary external forecasting
+        timeStep:
+          unit: hour
+          multiplier: {{ time_step_hours }}
+        readWriteMode: read complete forecast
+    - variableId: Grid
+      timeSeriesSet:
+        moduleInstanceId: {{ import_instance }}
+        valueType: grid
+        parameterId: {{ parameter_id }}
+        locationId: {{ grid_location_target }}
+        timeSeriesType: external forecasting
+        timeStep:
+          unit: hour
+          multiplier: {{ time_step_hours }}
+        relativeViewPeriod:
+          unit: hour
+          start: {{ view_period_start_hours }}
+          end: {{ view_period_end_hours }}
+          endOverrulable: false
+        readWriteMode: read complete forecast
+        expiryTime:
+          unit: day
+          multiplier: {{ expiry_grid_days }}
+    - variableId: Scalar
+      timeSeriesSet:
+        moduleInstanceId: $MODULE_INSTANCE_ID$
+        valueType: scalar
+        parameterId: {{ parameter_id }}
+        locationSetId: {{ scalar_locationset_id }}
+        timeSeriesType: external forecasting
+        timeStep:
+          unit: hour
+          multiplier: {{ time_step_hours }}
+        relativeViewPeriod:
+          unit: hour
+          start: {{ view_period_start_hours }}
+          end: {{ view_period_end_hours }}
+          endOverrulable: false
+        readWriteMode: add originals
+        expiryTime:
+          unit: day
+          multiplier: {{ expiry_scalar_days }}
+    transformation:
+    - id: Grid
+      body:
+        interpolationSpatial:
+          closestDistance:
+            inputVariable:
+              variableId: GridTemporary
+            searchRadius: {{ search_radius }}
+            distanceGeoDatum: {{ distance_geo_datum }}
+            outputVariable:
+              variableId: Grid
+    - id: Scalar
+      body:
+        interpolationSpatial:
+          closestDistance:
+            inputVariable:
+              variableId: Grid
+            distanceGeoDatum: {{ distance_geo_datum }}
+            outputVariable:
+              variableId: Scalar
+contributions: []

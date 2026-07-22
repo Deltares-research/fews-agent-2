@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- edited with XMLSPY v2004 rel. 3 U (http://www.xmlspy.com) by rooij_e (WL | Delft Hydraulics) -->
+<!--Delft FEWS (Copyright 2003 WL | Delft Hydraulics) -->
+<schema xmlns="http://www.w3.org/2001/XMLSchema" xmlns:fews="http://www.wldelft.nl/fews" targetNamespace="http://www.wldelft.nl/fews" elementFormDefault="qualified" attributeFormDefault="unqualified" version="1.0">
+	<!-- -->
+	<element name="LDAPLoginModule" type="fews:LDAPLoginModuleComplexType">
+		<annotation>
+			<documentation>Configuration for a LDAP based LoginModule.</documentation>
+		</annotation>
+	</element>
+	<!--  -->
+	<complexType name="LDAPLoginModuleComplexType">
+		<annotation>
+			<documentation>Configuration for a LDAP based LoginModule.</documentation>
+		</annotation>
+		<sequence>
+			<element name="connection" type="fews:LDAPConnectionComplexType" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Details on the connection to the LDAP server.</documentation>
+				</annotation>
+			</element>
+			<element name="userSearch" type="fews:LDAPSearchComplexType">
+				<annotation>
+					<documentation>LDAP search to verify that the user exists in the LDAP database at all (basic authentication).</documentation>
+				</annotation>
+			</element>
+			<element name="groupSearch" type="fews:LDAPSearchComplexType">
+				<annotation>
+					<documentation>LDAP search to verify that the user is entitled to use a particular service (application). This is done by checking if he is member of the corresponding group.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<!-- -->
+	<complexType name="LDAPConnectionComplexType">
+		<sequence>
+			<element name="hostName" type="string"/>
+			<element name="port" type="integer" minOccurs="0"/>
+			<element name="ldapVersion" type="fews:LDAPVersionSimpleType" minOccurs="0"/>
+			<element name="dn" type="string"/>
+			<element name="password" type="string"/>
+		</sequence>
+	</complexType>
+	<!-- -->
+	<simpleType name="LDAPVersionSimpleType">
+		<restriction base="string">
+			<enumeration value="LDAP_V3"/>
+		</restriction>
+	</simpleType>
+	<!-- -->
+	<complexType name="LDAPSearchComplexType">
+		<sequence>
+			<element name="searchBase" type="string">
+				<annotation>
+					<documentation>Base context to use for the LDAP search.</documentation>
+				</annotation>
+			</element>
+			<element name="searchScope" type="fews:SeachScopeSimpleType" minOccurs="0">
+				<annotation>
+					<documentation>Scope for the LDAP search.</documentation>
+				</annotation>
+			</element>
+			<element name="searchFilter" type="string" minOccurs="0">
+				<annotation>
+					<documentation>Filter to be applied to the LDAP search.</documentation>
+				</annotation>
+			</element>
+			<element name="attributeName" type="string">
+				<annotation>
+					<documentation>Name of the LDAP attribute that must be matched by the search.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<simpleType name="SeachScopeSimpleType">
+		<restriction base="string">
+			<enumeration value="SCOPE_BASE"/>
+			<enumeration value="SCOPE_ONE"/>
+			<enumeration value="SCOPE_SUB"/>
+		</restriction>
+	</simpleType>
+</schema>

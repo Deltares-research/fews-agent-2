@@ -1,0 +1,209 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schema xmlns="http://www.w3.org/2001/XMLSchema" xmlns:fews="http://www.wldelft.nl/fews/archive"
+		targetNamespace="http://www.wldelft.nl/fews/archive" elementFormDefault="qualified"
+		attributeFormDefault="unqualified" version="1.0">
+	<include schemaLocation="archive_sharedTypes.xsd"/>
+	<element name="archiveTasksSchedule" type="fews:ArchiveTasksScheduleComplexType"/>
+	<complexType name="ArchiveTasksScheduleComplexType">
+		<sequence>
+			<element name="scheduledArchiveTask" type="fews:ScheduledArchiveTaskComplexType" maxOccurs="unbounded">
+				<annotation>
+					<documentation>This element can be used to schedule archive tasks</documentation>
+				</annotation>
+			</element>
+			<element name="manualArchiveTask" type="fews:ManualArchiveTaskComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>This element can be used to add tasks which can only be started manually</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<group name="ArchiveTaskGroup">
+		<sequence>
+			<choice>
+				<element name="predefinedArchiveTask" type="fews:ArchiveTaskTypes">
+					<annotation>
+						<documentation>The archive task which should be scheduled</documentation>
+					</annotation>
+				</element>
+				<element name="customArchiveTask" type="fews:CustomArchiveTasksComplexType">
+					<annotation>
+						<documentation>custom task which can run executables like batch files created by the client</documentation>
+					</annotation>
+				</element>
+				<element name="externalNetcdfHarvestTask" type="fews:ExternalNetcdfStorageHarvestTaskComplexType">
+					<annotation>
+						<documentation>external netcdf harvester task. This task can be scheduled for a specific netcdf storage.</documentation>
+					</annotation>
+				</element>
+				<element name="incrementalHarvesterTask" type="fews:IncrementalHarvesterComplexType">
+					<annotation>
+						<documentation>Since 2024.01. Configurable incremental harvester task. This harvester will harvest only data for a configurable time span back in time. Only new data will be added, the task will not delete obsolete data.</documentation>
+					</annotation>
+				</element>
+				<element name="internalHarvesterTask" type="fews:InternalHarvesterComplexType">
+					<annotation>
+						<documentation>Since 2024.02. Configurable internal harvester task. The harvester will only harvest the configured sub folder of the main archive folder.</documentation>
+					</annotation>
+				</element>
+				<element name="immediateHarvesterTask" type="fews:ImmediateHarvesterComplexType">
+					<annotation>
+						<documentation>Since 2024.02. Configurable immediate harvester task. The harvester will only harvest the configured sub folder of the main archive folder.</documentation>
+					</annotation>
+				</element>
+				<element name="removeObsoleteDataFromCatalogue" type="fews:RemoveObsoleteDataFromCatalogue">
+					<annotation>
+						<documentation>Since 2024.02. Task which only removes data from the configured storage.</documentation>
+					</annotation>
+				</element>
+			</choice>
+		</sequence>
+	</group>
+	<complexType name="ScheduledArchiveTaskComplexType">
+		<sequence>
+			<group ref="fews:ArchiveTaskGroup"/>
+			<element name="description" type="string">
+				<annotation>
+					<documentation>description of this scheduled task</documentation>
+				</annotation>
+			</element>
+			<element name="startTime" type="fews:timeStringType">
+				<annotation>
+					<documentation>Time from which it is allowed to start the archive task</documentation>
+				</annotation>
+			</element>
+			<element name="endTime" type="fews:timeStringType">
+				<annotation>
+					<documentation>Time until it is allowed to schedule the archive task</documentation>
+				</annotation>
+			</element>
+			<choice>
+				<element name="runInterval" type="fews:positiveIntegerStringType">
+					<annotation>
+						<documentation>The element can be used to defined to time between sequential archive task runs in hours</documentation>
+					</annotation>
+				</element>
+				<element name="runIntervalInSeconds" type="fews:positiveIntegerStringType">
+					<annotation>
+						<documentation>Since 2017.02. This element can be used to defined to time between sequential archive task runs in seconds</documentation>
+					</annotation>
+				</element>
+			</choice>
+			<element name="active" type="fews:booleanStringType">
+				<annotation>
+					<documentation>This element defines if this scheduled task is active or not</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="RemoveObsoleteDataFromCatalogue">
+		<sequence>
+			<element name="storage" type="fews:nameStringType">
+				<annotation>
+					<documentation>The name of the sub directory for which this harvester is going to run.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+		<attribute name="id" type="fews:idStringType" use="required"/>
+	</complexType>
+	<complexType name="InternalHarvesterComplexType">
+		<sequence>
+			<element name="storage" type="fews:nameStringType">
+				<annotation>
+					<documentation>The name of the sub directory for which this harvester is going to run.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+		<attribute name="id" type="fews:idStringType" use="required"/>
+	</complexType>
+	<complexType name="ImmediateHarvesterComplexType">
+		<sequence>
+			<element name="storage" type="fews:nameStringType" minOccurs="0">
+				<annotation>
+					<documentation>The name of the sub directory for which this harvester is going to run.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+		<attribute name="id" type="fews:idStringType" use="required"/>
+	</complexType>
+	<complexType name="IncrementalHarvesterComplexType">
+		<sequence>
+			<element name="harvesterTimeSpan" type="fews:TimeSpanComplexType">
+				<annotation>
+					<documentation>The time span for which the harvester will run.</documentation>
+				</annotation>
+			</element>
+			<element name="storage" type="fews:nameStringType" minOccurs="0">
+				<annotation>
+					<documentation>The name of the sub directory for which this harvester is going to run.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+		<attribute name="id" type="fews:idStringType" use="required"/>
+	</complexType>
+	<complexType name="ExternalNetcdfStorageHarvestTaskComplexType">
+		<sequence>
+			<element name="netcdfStorageId" type="fews:idStringType" maxOccurs="unbounded">
+				<annotation>
+					<documentation>The id of the netcdf storage for which this harvest task is scheduled.</documentation>
+				</annotation>
+			</element>
+			<element name="deleteObsoleteRecords" type="boolean" default="true" minOccurs="0">
+				<annotation>
+					<documentation>After each harvest run, the harvester will check if the catalogue contains records for data which is already deleted. If this option is set to true this check will not be done.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+		<attribute name="id" type="fews:idStringType" use="required"/>
+	</complexType>
+	<complexType name="ManualArchiveTaskComplexType">
+		<sequence>
+			<group ref="fews:ArchiveTaskGroup"/>
+			<element name="description" type="string">
+				<annotation>
+					<documentation>description of this scheduled task</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="CustomArchiveTasksComplexType">
+		<sequence>
+			<element name="archiveTaskId" type="string">
+				<annotation>
+					<documentation>id of the custom archive task</documentation>
+				</annotation>
+			</element>
+			<element name="executableFile" type="fews:fileStringType">
+				<annotation>
+					<documentation>file location of the executable</documentation>
+				</annotation>
+			</element>
+			<element name="logFile" type="fews:fileStringType">
+				<annotation>
+					<documentation>file location of the log file of the script</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<simpleType name="ArchiveTaskTypes">
+		<restriction base="string">
+			<enumeration value="harvester internal catalogue"/>
+			<enumeration value="external netcdf storage harvester task"/>
+			<enumeration value="netCDF storage aggregate data task"/>
+			<enumeration value="incremental harvester internal catalogue"/>
+			<enumeration value="immediate harvester task"/>
+			<enumeration value="file sweeper"/>
+			<enumeration value="historical events exporter"/>
+			<enumeration value="system metrics calculator"/>
+			<enumeration value="amalgamate"/>
+			<enumeration value="metadata updater"/>
+			<enumeration value="clear internal catalogue"/>
+			<enumeration value="data management tool"/>
+			<enumeration value="remove data from archive"/>
+			<enumeration value="remove netcdf cache files"/>
+			<enumeration value="merge new data into archive"/>
+			<enumeration value="remove obsolete data from catalogue"/>
+			<enumeration value="aggregate attributes"/>
+		</restriction>
+	</simpleType>
+</schema>

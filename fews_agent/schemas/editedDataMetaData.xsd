@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schema xmlns="http://www.w3.org/2001/XMLSchema" xmlns:fews="http://www.wldelft.nl/fews/archive"
+		targetNamespace="http://www.wldelft.nl/fews/archive" elementFormDefault="qualified"
+		attributeFormDefault="unqualified" version="1.0">
+	<include schemaLocation="archive_sharedTypes.xsd"/>
+	<element name="editedMetaData" type="fews:EditedDataMetaDataComplexType"/>
+	<complexType name="EditedDataMetaDataComplexType">
+		<sequence>
+			<element name="userId" type="fews:idStringType">
+				<annotation>
+					<documentation>The user who made the edit to the original data</documentation>
+				</annotation>
+			</element>
+			<element name="areaId" type="fews:idStringType">
+				<annotation>
+					<documentation>The area of the edited data</documentation>
+				</annotation>
+			</element>
+			<element name="creationTime" type="fews:DateTimeComplexType"/>
+			<element name="startTime" type="fews:DateTimeComplexType"/>
+			<element name="endTime" type="fews:DateTimeComplexType"/>
+			<element name="editedFile" type="fews:nonEmptyStringType" minOccurs="0" maxOccurs="unbounded" />
+			<element name="piXmlFile" type="fews:nonEmptyStringType"/>
+		</sequence>
+	</complexType>
+</schema>

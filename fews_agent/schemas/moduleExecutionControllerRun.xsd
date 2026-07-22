@@ -1,0 +1,260 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- edited with XMLSpy v2007 sp2 (http://www.altova.com) by WL | Delft Hydraulics (WL | Delft Hydraulics) -->
+<schema xmlns="http://www.w3.org/2001/XMLSchema" xmlns:fews="http://www.wldelft.nl/fews" targetNamespace="http://www.wldelft.nl/fews" elementFormDefault="qualified" attributeFormDefault="unqualified" version="1.0">
+	<include schemaLocation="sharedTypes.xsd"/>
+	<include schemaLocation="taskProperties.xsd"/>
+	<include schemaLocation="generalAdapterRun.xsd"/>
+	<!--  ModuleExecutionControllerRun  -->
+	<element name="ModuleExecutionControllerRun" type="fews:ModuleExecutionControllerRunComplexType">
+		<annotation>
+			<documentation>Configuration for a single run of the Module Execution Controller. Exactly one such configuration is necessary for each MEC instance run.</documentation>
+		</annotation>
+	</element>
+	<!-- ModuleExecutionControllerRunComplexType -->
+	<complexType name="ModuleExecutionControllerRunComplexType">
+		<sequence>
+			<element name="mecGeneral" type="fews:MecGeneralComplexType" minOccurs="0">
+				<annotation>
+					<documentation>General - i.e. activity independent - settings for this MEC run. (Same as that passed to a General Adapter)</documentation>
+				</annotation>
+			</element>
+			<element name="module" type="fews:ExecuteActivityComplexType">
+				<annotation>
+					<documentation>Module to be executed within this MEC run.</documentation>
+				</annotation>
+			</element>
+			<element name="diagnosticDetails" type="fews:DiagnosticDetailsComplexType">
+				<annotation>
+					<documentation>Diagnostic details for the module run.</documentation>
+				</annotation>
+			</element>
+			<element name="jmsConnectionDetails" type="fews:MecJmsConnectionDetailsComplexType" minOccurs="0">
+				<annotation>
+					<documentation>JMS connection details to enable logging to the MC. If this section is undefined, only local logging shall occur.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<!-- MecGeneralComplexType -->
+	<complexType name="MecGeneralComplexType">
+		<sequence>
+			<element name="description" type="string" minOccurs="0">
+				<annotation>
+					<documentation>Optional description of the Module Execution Controller run.</documentation>
+				</annotation>
+			</element>
+			<element name="rootDir" type="fews:directoryStringType" minOccurs="0">
+				<annotation>
+					<documentation>Root directory for several activities. By default the root directory will be set to that passed as an argument to the MEC. However, if it is also specified here, this value will be used. </documentation>
+				</annotation>
+			</element>
+			<element name="workDir" type="fews:directoryStringType" minOccurs="0">
+				<annotation>
+					<documentation>Working directory for several activities. By default the root directory will be set to that passed as an argument to the MEC. However, if it is also specified here, this value will be used.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<!-- DiagnosticsDetailsComplexType -->
+	<complexType name="DiagnosticDetailsComplexType">
+		<sequence>
+			<element name="diagnosticModule" type="fews:ExecuteActivityComplexType">
+				<annotation>
+					<documentation>Diagnostics adapter to be used for the module run.</documentation>
+				</annotation>
+			</element>
+			<element name="interval" type="integer">
+				<annotation>
+					<documentation>Interval between running diagnostics (in milliseconds)</documentation>
+				</annotation>
+			</element>
+			<element name="piDiagnosticsScan" type="fews:PiDiagnosticsScanComplexType">
+				<annotation>
+					<documentation>Details for processing the diagnostics file produced by the diagnostics module.</documentation>
+				</annotation>
+			</element>
+			<element name="timeSeriesChecks" type="fews:TimeSeriesChecksComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Time series files to process.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<!-- PiDiagnosticsScanComplexType -->
+	<complexType name="PiDiagnosticsScanComplexType">
+		<sequence>
+			<element name="fileLocation" type="fews:directoryStringType">
+				<annotation>
+					<documentation>File Location.</documentation>
+				</annotation>
+			</element>
+			<element name="timeStepAlias" type="string">
+				<annotation>
+					<documentation>Indicator string for time step.</documentation>
+				</annotation>
+			</element>
+			<element name="searchStrings" type="fews:SearchStringsComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Strings to search for in diagnostics file.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<!-- searchStringsComplexType -->
+	<complexType name="SearchStringsComplexType">
+		<sequence>
+			<element name="searchCriteria" type="fews:SearchCriteriaComplexType" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Specifies string to search for and action to perform if found.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<!-- SearchCriteriaComplexType -->
+	<complexType name="SearchCriteriaComplexType">
+		<sequence>
+			<element name="searchString" type="string">
+				<annotation>
+					<documentation>String to search for.</documentation>
+				</annotation>
+			</element>
+			<element name="action" type="fews:SearchActionEnum">
+				<annotation>
+					<documentation>Action to perform if string is found.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<!-- SearchActionEnum -->
+	<simpleType name="SearchActionEnum">
+		<annotation>
+			<documentation>list of all possible actions </documentation>
+		</annotation>
+		<restriction base="string">
+			<enumeration value="Report"/>
+			<enumeration value="Report+Stop"/>
+		</restriction>
+	</simpleType>
+	<!-- TimeSeriesChecksComplexType -->
+	<complexType name="TimeSeriesChecksComplexType">
+		<sequence>
+			<element name="timeSeriesFile" type="fews:TimeSeriesFileComplexType" maxOccurs="unbounded">
+				<annotation>
+					<documentation>A time series file to process.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<!-- TimeSeriesFileComplexType -->
+	<complexType name="TimeSeriesFileComplexType">
+		<sequence>
+			<element name="fileLocation" type="fews:directoryStringType">
+				<annotation>
+					<documentation>File Location.</documentation>
+				</annotation>
+			</element>
+			<element name="name" type="string" minOccurs="0">
+				<annotation>
+					<documentation>Optional name/alias to identify this time series file.</documentation>
+				</annotation>
+			</element>
+			<element name="softThreshold" type="fews:TimeSeriesFileThresholdComplexType">
+				<annotation>
+					<documentation>Specifies soft threshold criteria for this time series. If a soft threshold is crossed the event will be logged.</documentation>
+				</annotation>
+			</element>
+			<element name="hardThreshold" type="fews:TimeSeriesFileThresholdComplexType">
+				<annotation>
+					<documentation>Specifies hard threshold criteria for this time series. If a hard threshold is crossed the event will be logged and the module will be stopped.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<!-- TimeSeriesFileThresholdComplexType -->
+	<complexType name="TimeSeriesFileThresholdComplexType">
+		<sequence>
+			<element name="upper" type="double">
+				<annotation>
+					<documentation>Upper threshold.</documentation>
+				</annotation>
+			</element>
+			<element name="lower" type="double">
+				<annotation>
+					<documentation>Lower threshold.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<!-- JmsConnectionDetails -->
+	<complexType name="MecJmsConnectionDetailsComplexType">
+		<sequence>
+			<element name="queueconnection" type="fews:MecQueueConnectionComplexType">
+				<annotation>
+					<documentation>The queue connection factory details.</documentation>
+				</annotation>
+			</element>
+			<element name="jndicontext" type="fews:MecJNDIContextComplexType">
+				<annotation>
+					<documentation>The JNDI context details.</documentation>
+				</annotation>
+			</element>
+			<element name="queue" type="fews:MecQueueComplexType">
+				<annotation>
+					<documentation>The queue details for the MEC</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<!-- QueueConnectionComplexType -->
+	<complexType name="MecQueueConnectionComplexType">
+		<sequence>
+			<element name="factory" type="fews:MecFactoryComplexType"/>
+		</sequence>
+	</complexType>
+	<!-- FactoryComplexType -->
+	<complexType name="MecFactoryComplexType">
+		<attribute name="jndi" type="string"/>
+	</complexType>
+	<!-- JNDIContextComplexType -->
+	<complexType name="MecJNDIContextComplexType">
+		<attribute name="factory" type="string"/>
+		<attribute name="provider" type="string"/>
+		<attribute name="prefixes" type="string"/>
+	</complexType>
+	<!-- QueueComplexType -->
+	<complexType name="MecQueueComplexType">
+		<sequence>
+			<element name="root" type="fews:MecRootComplexType">
+				<annotation>
+					<documentation>The queue root. This is a prefix for the queue(s).</documentation>
+				</annotation>
+			</element>
+			<element name="mectomc" type="fews:MECtoMCComplexType">
+				<annotation>
+					<documentation>The queue where the MEC should send logging messages.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<!-- RootComplexType -->
+	<complexType name="MecRootComplexType">
+		<attribute name="jndi" type="string">
+			<annotation>
+				<documentation>The JNDI name.</documentation>
+			</annotation>
+		</attribute>
+	</complexType>
+	<!-- MECtoMCComplexType -->
+	<complexType name="MECtoMCComplexType">
+		<attribute name="jndi" type="string">
+			<annotation>
+				<documentation>The JNDI name.</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="timeout" type="integer">
+			<annotation>
+				<documentation>The timeout for this queue.</documentation>
+			</annotation>
+		</attribute>
+	</complexType>
+</schema>

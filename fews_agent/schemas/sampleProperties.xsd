@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--Delft FEWS (Copyright 2003 WL | Delft Hydraulics) -->
+<schema targetNamespace="http://www.wldelft.nl/fews" xmlns:fews="http://www.wldelft.nl/fews"
+		xmlns="http://www.w3.org/2001/XMLSchema" elementFormDefault="qualified" attributeFormDefault="unqualified"
+		version="1.0">
+	<include schemaLocation="sharedTypes.xsd"/>
+	<element name="sampleProperties" type="fews:SamplePropertiesComplexType"/>
+	<complexType name="SamplePropertiesComplexType">
+		<sequence>
+			<element name="timeShiftMillis" type="int" minOccurs="0">
+				<annotation>
+					<documentation>The sample time is shifted to make the time/location unique for this sample. Add this amount to the external sample time gives the fews sample time. Only the external sample time is always at the second</documentation>
+				</annotation>
+			</element>
+			<element name="properties" type="fews:PropertiesComplexType">
+				<annotation>
+					<documentation>List of properties</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+</schema>
