@@ -53,13 +53,14 @@ class PatchResult:
     # write_input_file ops that passed validation: (filename, clean_rows).
     # patch_ops stays pure — llm_turn performs the disk write.
     input_writes: list = field(default_factory=list)
+    wants_undo: bool = False             # roll back to the previous turn
 
 
 # The op names the model may emit. Anything else is dropped loudly.
 OP_NAMES = (
     "add_import", "add_basin", "add_capability", "set_variables",
     "remove", "set_focus", "open_coordinates", "show_variables",
-    "preview_file", "write_input_file",
+    "preview_file", "write_input_file", "undo",
     "build", "assemble", "none",
 )
 
@@ -542,6 +543,8 @@ def apply_patch(state: dict, ops: list, catalog) -> PatchResult:
                     )
                 else:
                     res.input_writes.append((fname, clean, delete_ids))
+        elif name == "undo":
+            res.wants_undo = True
         elif name == "build":
             res.wants_build = True
             res.build_scope = (str(args["scope"]).strip()

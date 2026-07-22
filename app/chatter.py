@@ -498,6 +498,9 @@ class ChatSession:
                 self.state["last_build_summary"] = summary
                 if summary.get("ok"):
                     self.state["full_build_ok"] = True
+                    from fews_agent.agent.modules import list_modules
+                    for m in list_modules():
+                        self._stamp_module_fingerprint(m.key)
             blob_store.sync_session_up(self.session_dir, full=True)
             return summary, None
         except Exception as exc:  # noqa: BLE001
@@ -616,6 +619,11 @@ class ChatSession:
             built = self.state.setdefault("built_phases", [])
             if phase not in built:
                 built.append(phase)
+            for entry in phase_plan(self.state.get("patterns") or []):
+                if entry["phase"] == phase and entry.get("patterns"):
+                    self._stamp_module_fingerprint(
+                        module_for_pattern(entry["patterns"][0]["pattern"])
+                    )
             nxt = next_unbuilt_phase(self.state.get("patterns") or [], built)
             tail = (
                 f" Next phase: **{nxt}** — `/build {nxt}`, or `done` to assemble."
@@ -665,6 +673,7 @@ class ChatSession:
             key = f"{pattern}::{label}"
             if key not in built:
                 built.append(key)
+            self._stamp_module_fingerprint(module_for_pattern(pattern))
             msg = self._build_summary_line(summary, f"Module '{label}'") + (
                 " Build another with `/build <name>`, or `/phases` for the plan."
             )
@@ -792,6 +801,8 @@ class ChatSession:
                 (entry["phase"], entry["phase"] in built_phases)
             )
 
+        forced = bool(self.state.get("full_build_forced"))
+        stamps = self.state.get("module_fingerprints") or {}
         out: list[dict] = []
         for m in list_modules():
             short = m.label.split(" (")[0].strip() or m.key
@@ -800,11 +811,55 @@ class ChatSession:
                 built = bool(phases_here) and all(ok for _, ok in phases_here)
             else:
                 built = full_ok
+            status = "built" if built else "none"
+            if built:
+                if not m.phases and forced:
+                    # Assembly was /force-done'd through missing required
+                    # inputs — the derived files exist but are not healthy.
+                    status = "forced"
+                elif m.key in stamps and (
+                        stamps[m.key] != self._module_fingerprint(m.key)):
+                    # Built, but the project changed since — the rendered
+                    # XMLs no longer match what's configured.
+                    status = "stale"
             out.append({
                 "key": m.key, "label": short,
-                "built": built, "focused": m.key == focused,
+                "built": built, "status": status,
+                "focused": m.key == focused,
             })
         return out
+
+    def _module_fingerprint(self, key: str) -> str:
+        """Stable hash of what a module's build DEPENDS on right now.
+
+        Phase-owning modules (processing, display): their own resolved
+        pattern instances. Deriver/view modules (topology, filters, ...):
+        the WHOLE project — their files are derived from everything, so any
+        change staling them is correct, not oversensitive.
+        """
+        import hashlib
+
+        from fews_agent.agent.modules import get_module
+
+        m = get_module(key)
+        patterns = self.state.get("patterns") or []
+        if m is not None and m.phases:
+            content: object = [
+                p for p in patterns
+                if module_for_pattern(str(p.get("pattern", ""))) == key
+            ]
+        else:
+            content = {"patterns": patterns,
+                       "slots": self.state.get("slots") or {}}
+        blob = json.dumps(content, sort_keys=True, default=str)
+        return hashlib.sha1(blob.encode("utf-8")).hexdigest()[:12]
+
+    def _stamp_module_fingerprint(self, key: str) -> None:
+        """Record 'this module's XMLs match this content' at build success."""
+        self._resolve_patterns()
+        self.state.setdefault("module_fingerprints", {})[key] = (
+            self._module_fingerprint(key)
+        )
 
 
     def _change_diff_text(self, label: str) -> str:
@@ -1186,6 +1241,12 @@ class ChatSession:
             self._resolve_patterns()
             project_path = write_project(self.state, self.session_dir)
             msg_parts = [f"Wrote `{project_path}`."]
+            # A clean `done` clears the forced marker; /force-done through
+            # missing inputs sets it (the sidebar shows those greens as
+            # amber until a healthy assembly happens).
+            self.state["full_build_forced"] = bool(
+                force and (missing_csvs or warnings)
+            )
             if force and (missing_csvs or warnings):
                 forced = []
                 if missing_csvs:
@@ -1681,6 +1742,33 @@ class ChatSession:
             )
             if _d:
                 res.reply += "\n\n" + _d
+
+        # Prose "undo that" → the same snapshot machinery as /undo. This
+        # turn already pushed its own snapshot (before the LLM ran), so pop
+        # TWICE: first discards this turn's snapshot (also erasing anything
+        # the model's patch just applied), second restores the prior turn.
+        if res.wants_undo:
+            self._pop_undo_snapshot()
+            if self._pop_undo_snapshot():
+                slots = self.state.get("slots") or {}
+                filled = sum(1 for v in slots.values() if v)
+                confirmation = (
+                    f"Rolled back to the previous step — {filled} setting(s), "
+                    f"{len(self.state.get('patterns') or [])} module(s)."
+                )
+                reply = res.reply
+            else:
+                confirmation = ""
+                reply = "There's nothing to undo yet — no earlier step recorded."
+            entry = {"role": "agent", "message": reply}
+            if confirmation:
+                entry["confirmation"] = confirmation
+            self.history.append(entry)
+            self._append_md(turn, "agent", reply, note="undo (prose)")
+            self._save()
+            self._logger.info("undo_prose turn=%d", turn)
+            return TurnResult(agent_message=reply, kind="reply",
+                              confirmation=confirmation)
 
         # Signals → the existing deterministic machinery.
         if res.coordinates_for is not None:

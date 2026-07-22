@@ -59,3 +59,57 @@ def test_deriver_modules_green_only_after_full_build(session):
     st = _by_key(session.module_statuses())
     for key in ("locations", "filters", "topology", "root"):
         assert st[key]["built"]
+
+
+# --- stale / forced (amber) -------------------------------------------------
+
+def test_built_module_goes_stale_when_content_changes(session):
+    """PDF finding: edit after build kept the healthy green. Now the stamp
+    recorded at build time mismatches the changed content -> stale."""
+    session.state["slots"]["imports"] = ["GFS"]
+    session.state["intent"] = "build_data_import_only"
+    session.state["built_phases"] = ["imports"]
+    session._stamp_module_fingerprint("processing")
+    st = _by_key(session.module_statuses())
+    assert st["processing"]["status"] == "built"
+    # ...the user changes GFS's resolution after the build...
+    session.state["slots"].setdefault("import_overrides", {}).setdefault(
+        "GFS", {})["grid_resolution"] = "0p50"
+    st = _by_key(session.module_statuses())
+    assert st["processing"]["status"] == "stale"
+    assert st["processing"]["built"]              # files DO exist
+    # rebuilding re-stamps -> healthy green again
+    session._stamp_module_fingerprint("processing")
+    st = _by_key(session.module_statuses())
+    assert st["processing"]["status"] == "built"
+
+
+def test_forced_assembly_shows_amber_not_green(session):
+    """PDF finding: /force-done through missing CSVs lit every deriver
+    green. Forced assemblies now read as 'forced' until a clean done."""
+    session.state["slots"]["imports"] = ["GFS"]
+    session.state["full_build_ok"] = True
+    session.state["full_build_forced"] = True
+    st = _by_key(session.module_statuses())
+    for key in ("locations", "filters", "topology", "root"):
+        assert st[key]["status"] == "forced"
+        assert st[key]["built"]
+    session.state["full_build_forced"] = False
+    st = _by_key(session.module_statuses())
+    assert st["topology"]["status"] == "built"
+
+
+def test_deriver_modules_go_stale_on_any_project_change(session):
+    """Derived files (Topology, LocationSets, ...) depend on the WHOLE
+    project - any change after assembly stales them."""
+    session.state["slots"]["imports"] = ["GFS"]
+    session.state["intent"] = "build_data_import_only"
+    session.state["full_build_ok"] = True
+    for key in ("topology", "filters", "locations", "root"):
+        session._stamp_module_fingerprint(key)
+    st = _by_key(session.module_statuses())
+    assert st["topology"]["status"] == "built"
+    session.state["slots"]["imports"] = ["GFS", "HRDPS"]
+    session._resolve_patterns()
+    st = _by_key(session.module_statuses())
+    assert st["topology"]["status"] == "stale"

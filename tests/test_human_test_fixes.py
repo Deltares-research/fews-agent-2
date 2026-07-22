@@ -159,3 +159,46 @@ def test_focus_module_records_natural_language(tmp_path, monkeypatch):
     assert "/module" not in user_msgs[-1]
     assert s.state["current_module"] == "processing"
     assert res.kind == "reply" and res.agent_message
+
+
+# --- prose undo -------------------------------------------------------------
+
+def test_prose_undo_rolls_back_previous_turn(tmp_path, monkeypatch):
+    from app import chatter as C
+    monkeypatch.setattr(C, "check_ollama_for_model", lambda *a, **k: None)
+    payloads = [
+        {"reply": "Added GFS.", "patch": [{"op": "add_import", "name": "GFS"}]},
+        {"reply": "Added HRDPS.",
+         "patch": [{"op": "add_import", "name": "HRDPS"}]},
+        {"reply": "Undone - HRDPS is out again.", "patch": [{"op": "undo"}]},
+    ]
+
+    class _Prov:
+        def generate_json(self, system, user, schema):
+            return _Resp(payloads.pop(0))
+
+    monkeypatch.setattr(C, "get_provider", lambda *a, **k: _Prov())
+    s = C.ChatSession(project_name="undodemo", session_dir=tmp_path,
+                      username="t")
+    s.send("add GFS")
+    s.send("add HRDPS")
+    assert s.state["slots"]["imports"] == ["GFS", "HRDPS"]
+    res = s.send("hmm, undo that")
+    assert s.state["slots"]["imports"] == ["GFS"]      # HRDPS rolled back
+    assert "Undone" in res.agent_message
+    assert "Rolled back" in (res.confirmation or "")
+
+
+def test_prose_undo_with_empty_stack_is_honest(tmp_path, monkeypatch):
+    from app import chatter as C
+    monkeypatch.setattr(C, "check_ollama_for_model", lambda *a, **k: None)
+
+    class _Prov:
+        def generate_json(self, system, user, schema):
+            return _Resp({"reply": "Undone.", "patch": [{"op": "undo"}]})
+
+    monkeypatch.setattr(C, "get_provider", lambda *a, **k: _Prov())
+    s = C.ChatSession(project_name="undoempty", session_dir=tmp_path,
+                      username="t")
+    res = s.send("undo that please")
+    assert "nothing to undo" in res.agent_message.lower()

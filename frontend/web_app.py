@@ -369,8 +369,15 @@ with _inputs_slot.container():
 # yet. The focused module renders as the primary (highlighted) button.
 with _modules_slot.container():
     st.caption("**FEWS modules** — click to focus")
+    _STATUS_ICON = {"built": "🟢", "stale": "🟠", "forced": "🟠", "none": "⚪"}
+    _STATUS_HELP = {
+        "stale": "Built, but the project changed since — rebuild to refresh",
+        "forced": "Assembled with required inputs missing (/force-done) — "
+                  "add them and run done again",
+    }
     for _ms in chat.module_statuses():
-        _icon = "🟢" if _ms["built"] else "⚪"
+        _status = _ms.get("status") or ("built" if _ms["built"] else "none")
+        _icon = _STATUS_ICON.get(_status, "⚪")
         _dl = chat.module_zip(_ms["key"])
         _c_name, _c_dl = st.columns([5, 1])
         if _c_name.button(
@@ -378,6 +385,7 @@ with _modules_slot.container():
             key=f"_mod_{_ms['key']}",
             type="primary" if _ms["focused"] else "secondary",
             use_container_width=True,
+            help=_STATUS_HELP.get(_status),
         ):
             chat.focus_module(_ms["key"])
             st.rerun()

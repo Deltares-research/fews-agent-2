@@ -402,4 +402,5 @@ def run_llm_turn(
         wants_assemble=res.wants_assemble,
         coordinates_for=res.coordinates_for,
         input_files_written=written_inputs,
+        wants_undo=res.wants_undo,
     )
