@@ -26,6 +26,7 @@ set_variables     {target, values{}}                   per-import settings; valu
 remove            {target, variable?}                  an import, basin, weather variable, or capability; with `variable`, UNSETS that setting ({target:"GFS", variable:"forecast_horizon_hours"} clears GFS's horizon; {target:"grid_resolution"} clears it project-wide)
 set_focus         {module}                             locations|parameters|processing|display|filters|topology|idmap|system|root — ONLY when the user explicitly asks to switch
 open_coordinates  {name?}                              opens the map widget for a grid's area
+preview_file      {target}                             renders how a file will generate and shows it in chat — "show me the GFS import file", "what will Topology look like?"
 show_variables    {target?}                            appends the exact variables table (value + user-set/default) for one instance, or the project overview with no target — use for "what are the vars of GFS?", "what can I change?", "show me the settings"
 build             {scope?}                             render + validate what's configured
 assemble          {}                                   final assembly of the whole project (the "done" step)
@@ -71,6 +72,12 @@ User: "visualize the imported grids and interpolate them to my stations"
 User: "add the MysteryModel grids"
 → {"reply": "MysteryModel isn't a source I have available — closest options are GFS, GEFS, ECMWF or the ECCC grids (HRDPS, GDPS, RDPS). Which would you like?",
    "patch": []}
+
+User: "show me how the GFS import file will look"
+→ {"reply": "Here's the GFS import as it will generate:",
+   "patch": [{"op": "preview_file", "target": "GFS"}]}
+   (the engine renders the file fresh from current settings and appends it —
+   never write XML yourself.)
 
 User: "what are the vars of GFS?"
 → {"reply": "Here's everything GFS carries:",

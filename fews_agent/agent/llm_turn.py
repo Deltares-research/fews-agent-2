@@ -302,6 +302,18 @@ def run_llm_turn(
             state, catalog, res.vars_for or None,
         )
 
+    # preview_file: render the requested file(s) FRESH from state (pure
+    # in-memory expand, ~10 ms/file) and show them fenced in the chat. Files
+    # only the full pipeline produces fall back to the last build on disk.
+    if res.preview_for:
+        from fews_agent.agent.preview import format_previews, preview_files
+        out_root = (Path(inputs_dir).parent / "generated"
+                    if inputs_dir else None)
+        reply += "\n\n" + format_previews(
+            preview_files(state, res.preview_for, output_root=out_root),
+            res.preview_for,
+        )
+
     if res.dropped:
         reply += (
             "\n\n[!] Not applied (failed validation): "

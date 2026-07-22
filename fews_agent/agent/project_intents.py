@@ -3177,6 +3177,18 @@ COMMANDS: list[dict[str, str]] = [
     },
     # Build commands — build / edit the project one module at a time
     {
+        "name": "/show <target>",
+        "aliases": "present",
+        "group": "Build",
+        "description": (
+            "Preview how a file will generate, right in the chat — rendered "
+            "fresh from the current settings (e.g. `/show GFS`, "
+            "`/show Topology`). Also in prose: *'show me the GFS import "
+            "file'*. Files that only exist after assembly are shown from the "
+            "last build."
+        ),
+    },
+    {
         "name": "/vars [<name>]",
         "aliases": "vars, list, show",
         "group": "Build",

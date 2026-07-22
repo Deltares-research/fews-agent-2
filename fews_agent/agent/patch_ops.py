@@ -49,12 +49,14 @@ class PatchResult:
     wants_assemble: bool = False
     coordinates_for: str | None = None   # "" = all grids, name = one, None = no
     vars_for: str | None = None          # "" = overview, name = one instance
+    preview_for: str | None = None       # /show target — file preview
 
 
 # The op names the model may emit. Anything else is dropped loudly.
 OP_NAMES = (
     "add_import", "add_basin", "add_capability", "set_variables",
     "remove", "set_focus", "open_coordinates", "show_variables",
+    "preview_file",
     "build", "assemble", "none",
 )
 
@@ -413,6 +415,8 @@ def apply_patch(state: dict, ops: list, catalog) -> PatchResult:
             res.coordinates_for = str(args.get("name") or "")
         elif name == "show_variables":
             res.vars_for = str(args.get("target") or "")
+        elif name == "preview_file":
+            res.preview_for = str(args.get("target") or "")
         elif name == "build":
             res.wants_build = True
             res.build_scope = (str(args["scope"]).strip()

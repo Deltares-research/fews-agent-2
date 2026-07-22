@@ -1247,6 +1247,26 @@ class ChatSession:
             self._logger.info("phases turn=%d", turn)
             return TurnResult(agent_message=reply, kind="reply")
 
+        # /show <target> · /present <target> — render how a file WILL generate
+        # (fresh, in memory, from current state) and print it in the chat.
+        if cmd.startswith(("/show ", "/present ", "show ", "present "))                 or cmd in {"/show", "/present"}:
+            from fews_agent.agent.preview import format_previews, preview_files
+            _parts = message.strip().split(None, 1)
+            _target = _parts[1].strip() if len(_parts) > 1 else ""
+            if not _target:
+                reply = ("Tell me what to preview — an instance "
+                         "(**/show GFS**) or a filename (**/show Topology**).")
+            else:
+                reply = format_previews(
+                    preview_files(self.state, _target,
+                                  output_root=self.output_root),
+                    _target,
+                )
+            self.history.append({"role": "agent", "message": reply})
+            self._append_md(turn, "agent", reply, note="preview")
+            self._save()
+            return TurnResult(agent_message=reply, kind="reply")
+
         # /vars [name] — bare: what's in the project (the old /list); with a
         # name: that instance's tunable variables + which are still defaults.
         # list/show stay as aliases of the bare form.
