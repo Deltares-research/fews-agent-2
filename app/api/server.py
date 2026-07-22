@@ -520,6 +520,21 @@ def build_session(session_id: str, req: BuildRequest | None = None) -> BuildResp
             detail=f"Build failed ({type(exc).__name__}: {exc}).",
         ) from exc
 
+    # Persist build awareness into state — without this the next llm turn's
+    # build/gap digests were amnesiac about an HTTP build (and the app sidebar
+    # stayed grey when the session was resumed there).
+    if isinstance(summary, dict):
+        state["last_build_summary"] = summary
+        if summary.get("ok"):
+            if target_phases:
+                built = state.setdefault("built_phases", [])
+                for ph in target_phases:
+                    if ph not in built:
+                        built.append(ph)
+            else:
+                state["full_build_ok"] = True
+        _save(project_dir, state, history)
+
     return BuildResponse(
         ok=bool(summary.get("ok")),
         scope=scope,
