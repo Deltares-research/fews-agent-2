@@ -232,6 +232,21 @@ def build_digest(state: dict) -> str:
     ]
     if failed:
         lines.append("XSD failures: " + ", ".join(failed[:8]))
+    # Cross-file (semantic) reference outcome — only the full assembly
+    # runs this pass, so the fields are absent on scoped builds.
+    if "semantic_unresolved_count" in s:
+        n_unresolved = s.get("semantic_unresolved_count") or 0
+        if n_unresolved:
+            lines.append(
+                f"cross-file references: {s.get('semantic_refs', '?')} checked, "
+                f"{n_unresolved} unresolved (an unresolved reference means an "
+                f"ID is used but never declared — possible typo or missing "
+                f"file)"
+            )
+            for entry in (s.get("semantic_unresolved") or [])[:8]:
+                lines.append(f"  unresolved: {entry}")
+        else:
+            lines.append("cross-file references: all resolve")
     return "\n".join(lines)
 
 

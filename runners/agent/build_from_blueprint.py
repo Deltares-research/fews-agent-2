@@ -138,6 +138,7 @@ def _render_direct_singletons(
                     content=xml,
                     pattern="(direct)",
                     instance_label=spec_name,
+                    model=model,
                 )
             )
             n += 1
@@ -868,6 +869,7 @@ def _render_yaml_inputs(
                     content=xml,
                     pattern=f"({label})",
                     instance_label=spec_name,
+                    model=model,
                 )
             )
             already_produced.add(target_relpath)
@@ -1140,6 +1142,7 @@ def build_from_blueprint(
                         content=xml,
                         pattern="(csv)",
                         instance_label=spec_name,
+                        model=model,
                     )
                 )
             except Exception as exc:  # noqa: BLE001
@@ -1201,6 +1204,7 @@ def build_from_blueprint(
                         content=xml,
                         pattern="(filter-drafter)",
                         instance_label="filtersFile",
+                        model=model,
                     ))
                     console.print(
                         f"[dim]LLM-drafted filtersFile from "
@@ -1264,6 +1268,7 @@ def build_from_blueprint(
                         content=xml,
                         pattern="(auto-topology)",
                         instance_label="topology",
+                        model=model,
                     ))
                     n_groups = len(topo_data.get("nodes", []))
                     console.print(
@@ -1307,6 +1312,9 @@ def build_from_blueprint(
                 ok, msg = validate_xsd(merged_xml.encode("utf-8"))
                 if ok:
                     existing_locsets_rf.content = merged_xml
+                    # Content no longer matches the render-time model —
+                    # drop it so the semantic pass can't read stale state.
+                    existing_locsets_rf.model = None
                     console.print(
                         f"[dim]Merged {len(csvfile_locsets)} csvFile "
                         f"locationSet(s) into existing LocationSets.xml"
@@ -1342,6 +1350,7 @@ def build_from_blueprint(
                         content=xml,
                         pattern="(auto-locsets)",
                         instance_label="locationSetsFile",
+                        model=model,
                     ))
                     body = ls_data.get("body", [])
                     n_total = len(body)
@@ -1582,6 +1591,55 @@ def build_from_blueprint(
 
     console.print(table)
 
+    # Semantic pass — cross-file ID reference check over the typed
+    # Pydantic models kept from the render sites (``RenderedFile.model``).
+    # Generic-body files carry no typed model and are skipped (the
+    # validator reflects over NewType-annotated fields, which generic
+    # dict bodies don't have). Advisory and read-only: a crash here
+    # degrades to absent summary fields + a printed warning — it must
+    # never fail an otherwise-good build.
+    semantic_fields: dict = {}
+    try:
+        from fews_agent.validation import validate_semantic
+
+        # Keyed by normalized relpath, last write wins — mirrors
+        # write_output's overwrite order so the checked model matches
+        # the file that actually landed on disk.
+        models_by_relpath: dict[str, tuple[str, object]] = {}
+        for rf in result.rendered_files:
+            if rf.model is not None:
+                rel = rf.relpath.replace("\\", "/")
+                models_by_relpath[rel] = (rf.instance_label, rf.model)
+        if models_by_relpath:
+            sem = validate_semantic([
+                (label, model, Path(rel))
+                for rel, (label, model) in models_by_relpath.items()
+            ])
+
+            def _unresolved_line(ref) -> str:
+                # IdRef.source is "<relpath>:<dotted.field.path>" — keep
+                # just the file, forward-slashed; lowerCamel the NewType
+                # name ("IdMapId" → "idMapId") to match FEWS field style.
+                file_part = ref.source.split(":", 1)[0].replace("\\", "/")
+                camel = ref.id_type_name[0].lower() + ref.id_type_name[1:]
+                return f"{ref.value} ({camel}) referenced by {file_part}"
+
+            semantic_fields = {
+                "semantic_refs": len(sem.refs),
+                # Short human-readable strings, capped so a systemic
+                # miss (e.g. a whole missing file) can't flood the
+                # summary / chat digest.
+                "semantic_unresolved": [
+                    _unresolved_line(ref) for ref in sem.unresolved[:40]
+                ],
+                "semantic_unresolved_count": len(sem.unresolved),
+            }
+    except Exception as exc:  # noqa: BLE001
+        console.print(
+            f"[yellow]semantic reference pass failed (build unaffected): "
+            f"{type(exc).__name__}: {exc}[/yellow]"
+        )
+
     summary_lines = [
         f"[bold]Files generated:[/bold] {len(manifest['written'])}",
         f"[bold]XSD-valid:[/bold] {n_xsd_ok}/{len(manifest['written']) - n_non_xml}"
@@ -1589,6 +1647,12 @@ def build_from_blueprint(
         f"[bold]Pattern contributions:[/bold] "
         f"{len(manifest['contributions'])} merged into singletons",
     ]
+    if semantic_fields:
+        summary_lines.append(
+            f"[bold]Cross-file refs:[/bold] "
+            f"{semantic_fields['semantic_refs']} checked, "
+            f"{semantic_fields['semantic_unresolved_count']} unresolved"
+        )
     if diff_against is not None:
         summary_lines.append(
             f"[bold]Byte-equivalent vs tutorial:[/bold] {n_byte_eq}/{n_compared}"
@@ -1637,6 +1701,10 @@ def build_from_blueprint(
         "files": files_report,
         "contributions": manifest["contributions"],
     }
+    # semantic_refs / semantic_unresolved / semantic_unresolved_count —
+    # ABSENT (not None) when the pass crashed or found no typed models,
+    # so consumers (build_digest) can key off presence.
+    summary.update(semantic_fields)
     summary_path = output_root / "summary.json"
     summary_path.write_text(
         json.dumps(summary, indent=2, default=str), encoding="utf-8"

@@ -191,6 +191,11 @@ class RenderedFile:
     content: str
     pattern: str
     instance_label: str
+    # The Pydantic instance the content was rendered from, when the
+    # render site had one (generic-body copies / non-XML outputs leave
+    # it None). Kept so the full build can run the cross-file semantic
+    # pass without re-parsing the XML. Not part of the write manifest.
+    model: Any = None
 
 
 @dataclass
@@ -317,6 +322,7 @@ def expand(
                         content=xml,
                         pattern=pat_ref.pattern,
                         instance_label=label,
+                        model=model,
                     )
                 )
 
@@ -406,6 +412,7 @@ def merge_contributions(
                 content=xml,
                 pattern="(merger)",
                 instance_label=cls_name,
+                model=model,
             )
         )
     return rendered

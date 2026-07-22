@@ -124,6 +124,7 @@ def derive_descriptor_singletons(
                     content=xml,
                     pattern="(auto-descriptor)",
                     instance_label="ModuleInstanceDescriptors",
+                    model=model,
                 ))
             except Exception:
                 pass  # silently skip if Pydantic rejects (e.g. id format)
@@ -151,6 +152,7 @@ def derive_descriptor_singletons(
                     content=xml,
                     pattern="(auto-descriptor)",
                     instance_label="WorkflowDescriptors",
+                    model=model,
                 ))
             except Exception:
                 pass
