@@ -110,16 +110,32 @@ def commit_and_diff(session_dir: Path, label: str) -> list[tuple[str, str]]:
     if not ensure_repo(session_dir):
         return []
     try:
+        # Created / removed files are announced by NAME only (no content
+        # dump): new-file content is all-new by definition, and a removal's
+        # "diff" would be the whole file in minus lines.
+        # -uall lists untracked FILES (default collapses new dirs to "dir/")
+        status0 = _run(session_dir, "status", "--porcelain", "-uall")
+        created, removed = [], []
+        for ln in status0.stdout.splitlines():
+            code, _, path = ln[:2], ln[2], ln[3:].strip().strip('"')
+            path = path.replace("\\", "/")
+            if code == "??" and Path(path).name != ".gitignore":
+                created.append(path)
+            elif "D" in code:
+                removed.append(path)
+
         changed = _run(session_dir, "diff", "HEAD", "--name-only")
-        names = [n for n in changed.stdout.splitlines() if n.strip()]
+        names = [n for n in changed.stdout.splitlines()
+                 if n.strip() and n.replace("\\", "/") not in removed]
         diffs: list[tuple[str, str]] = []
         for name in names[:MAX_FILES]:
             d = _run(session_dir, "diff", "HEAD", "--unified=3", "--", name)
-            # The filename is shown as our own header — drop git's noisy
-            # preamble (diff --git / index / --- / +++), keep the @@ hunks.
+            # The filename is our own header, and the reader wants ONLY the
+            # changed lines (colored by the ```diff fence) — drop git's
+            # preamble, @@ hunk markers, and unchanged context lines.
             lines = [ln for ln in d.stdout.splitlines()
-                     if not ln.startswith(("diff --git", "index ",
-                                           "--- ", "+++ "))]
+                     if (ln.startswith("+") or ln.startswith("-"))
+                     and not ln.startswith(("+++", "---"))]
             if len(lines) > MAX_LINES:
                 lines = lines[:MAX_LINES] + [
                     f"… (truncated, {len(d.stdout.splitlines())} lines total)"
@@ -128,8 +144,17 @@ def commit_and_diff(session_dir: Path, label: str) -> list[tuple[str, str]]:
         if len(names) > MAX_FILES:
             diffs.append((f"(+{len(names) - MAX_FILES} more changed files)", ""))
 
-        status = _run(session_dir, "status", "--porcelain")
-        if status.stdout.strip():
+        def _name_line(verb: str, paths: list[str]) -> None:
+            if not paths:
+                return
+            shown = ", ".join(f"`{p}`" for p in paths[:8])
+            more = f" (+{len(paths) - 8} more)" if len(paths) > 8 else ""
+            diffs.append((f"{verb}: {shown}{more}", ""))
+
+        _name_line("New files", sorted(created))
+        _name_line("Removed", sorted(removed))
+
+        if status0.stdout.strip():
             _run(session_dir, "add", "-A")
             _run(session_dir, "commit", "-m", label)
         return diffs
@@ -143,7 +168,7 @@ def format_diffs(diffs: list[tuple[str, str]]) -> str:
     """Chat-ready markdown for the changed pre-existing files ('' if none)."""
     if not diffs:
         return ""
-    parts = ["**Changed since the last action** (new files not shown):"]
+    parts = ["**Changed since the last action:**"]
     for name, text in diffs:
         if not text:
             parts.append(f"_{name}_")

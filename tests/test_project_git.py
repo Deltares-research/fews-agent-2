@@ -53,15 +53,27 @@ def test_modified_preexisting_file_is_diffed(session):
     assert project_git.commit_and_diff(session, "noop") == []
 
 
-def test_new_files_are_never_shown_but_become_diffable(session):
+def test_new_files_announced_by_name_then_diffable(session):
+    """A new file is announced by NAME (no content dump); a removal too;
+    later modifications show real diffs."""
     project_git.commit_and_diff(session, "baseline")
     new = session / "generated" / "RegionConfigFiles" / "Topology.xml"
     new.write_text("<topology/>\n", encoding="utf-8")
-    assert project_git.commit_and_diff(session, "adds topology") == []
-    # ...but the NEXT modification of it shows a diff
+    diffs = project_git.commit_and_diff(session, "adds topology")
+    assert len(diffs) == 1
+    name, text = diffs[0]
+    assert name.startswith("New files:") and "Topology.xml" in name
+    assert text == ""                                  # name only, no content
+    # ...the NEXT modification of it shows a real diff
     new.write_text("<topology>\n  <node/>\n</topology>\n", encoding="utf-8")
     diffs = project_git.commit_and_diff(session, "changes topology")
     assert [d[0] for d in diffs] == ["generated/RegionConfigFiles/Topology.xml"]
+    # ...and deleting it is announced by name
+    new.unlink()
+    diffs = project_git.commit_and_diff(session, "removes topology")
+    assert len(diffs) == 1
+    assert diffs[0][0].startswith("Removed:")
+    assert "Topology.xml" in diffs[0][0] and diffs[0][1] == ""
 
 
 def test_chat_state_and_bulk_inputs_are_ignored_but_csvs_tracked(session):
@@ -74,7 +86,10 @@ def test_chat_state_and_bulk_inputs_are_ignored_but_csvs_tracked(session):
     (session / "inputs" / "basin.shp").write_bytes(b"\x00\x01")
     csv_file = session / "inputs" / "locations.csv"
     csv_file.write_text("id,lat,lon\nA,1.0,2.0\n", encoding="utf-8")
-    assert project_git.commit_and_diff(session, "upload") == []  # all new/ignored
+    up = project_git.commit_and_diff(session, "upload")
+    assert [d[0].startswith("New files:") for d in up] == [True]
+    assert "locations.csv" in up[0][0]
+    assert "basin.shp" not in up[0][0]                # bulk uploads ignored
     csv_file.write_text("id,lat,lon\nA,1.0,2.0\nB,3.0,4.0\n", encoding="utf-8")
     diffs = project_git.commit_and_diff(session, "agent adds B")
     assert [d[0] for d in diffs] == ["inputs/locations.csv"]
@@ -121,7 +136,7 @@ def test_format_diffs_renders_fenced_blocks():
     text = project_git.format_diffs(
         [("a/b.xml", "--- a\n+++ b\n+<x/>")])
     assert "```diff" in text
-    assert "new files not shown" in text
+    assert "Changed since the last action" in text
     assert project_git.format_diffs([]) == ""
 
 

@@ -236,7 +236,9 @@ def test_live_diffs_show_xml_change_on_edit_turn(tmp_path, monkeypatch):
     assert "gfs_0p50" in second.agent_message
 
 
-def test_live_diffs_off_by_default(tmp_path, monkeypatch):
+def test_live_diffs_on_by_default_and_optable_out(tmp_path, monkeypatch):
+    """Default is SHOW (user request): an edit renders immediately; setting
+    live_diffs=False (the sidebar radio) turns the per-step rendering off."""
     from app import chatter as C
     monkeypatch.setattr(C, "check_ollama_for_model", lambda *a, **k: None)
 
@@ -246,7 +248,38 @@ def test_live_diffs_off_by_default(tmp_path, monkeypatch):
                           "patch": [{"op": "add_import", "name": "GFS"}]})
 
     monkeypatch.setattr(C, "get_provider", lambda *a, **k: _Prov())
-    s = C.ChatSession(project_name="nolive", session_dir=tmp_path,
+    s = C.ChatSession(project_name="livedefault", session_dir=tmp_path,
                       username="t")
     s.send("add GFS")
-    assert not (tmp_path / "generated").exists()     # no silent rendering
+    assert (tmp_path / "generated").exists()         # rendered per step
+    s2_dir = tmp_path / "other"
+    s2 = C.ChatSession(project_name="optout", session_dir=s2_dir,
+                       username="t")
+    s2.state["live_diffs"] = False
+    monkeypatch.setattr(C, "get_provider", lambda *a, **k: _Prov())
+    s2.send("add GFS")
+    assert not (s2_dir / "generated").exists()       # radio off → no render
+
+
+def test_fresh_session_first_edit_announces_new_files(tmp_path, monkeypatch):
+    """The live-test miss: in a brand-new session the first render must show
+    'New files:' - the repo exists from session start, so the baseline can't
+    swallow the first action's files."""
+    from app import chatter as C
+    from app import project_git
+    if not project_git.available():
+        pytest.skip("git not on PATH")
+    monkeypatch.setattr(C, "check_ollama_for_model", lambda *a, **k: None)
+
+    class _Prov:
+        def generate_json(self, system, user, schema):
+            return _Resp({"reply": "Added GFS with precipitation.",
+                          "patch": [{"op": "add_import", "name": "GFS",
+                                     "data_types": ["precipitation"]}]})
+
+    monkeypatch.setattr(C, "get_provider", lambda *a, **k: _Prov())
+    s = C.ChatSession(project_name="freshgit", session_dir=tmp_path,
+                      username="t")
+    res = s.send("add gfs with precipitation")
+    assert "New files:" in res.agent_message
+    assert "ImportGFS" in res.agent_message

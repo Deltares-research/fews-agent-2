@@ -370,6 +370,10 @@ class ChatSession:
             "session_open project=%s dir=%s model=%s prior_turns=%d",
             self.project_name, self.session_dir, self.model, self._turn_count(),
         )
+        # Create the per-session git repo NOW, not lazily at the first diff:
+        # otherwise a fresh session's first render lands INSIDE the baseline
+        # commit and its files are never announced as "New files".
+        project_git.ensure_repo(self.session_dir)
 
     # ---- paths / persistence -------------------------------------------------
 
@@ -893,10 +897,23 @@ class ChatSession:
             )
             result = expand(bp, PATTERNS_ROOT)
             gen = self.session_dir / "generated"
+            current = set()
             for f in result.rendered_files:
-                target = gen / f.relpath
+                rel = str(f.relpath).replace("\\", "/")
+                current.add(rel)
+                target = gen / rel
                 target.parent.mkdir(parents=True, exist_ok=True)
                 target.write_text(f.content, encoding="utf-8")
+            # Sweep files WE rendered live before that this render no longer
+            # produces (an instance was removed) — only ever files from this
+            # channel, so build/deriver outputs are never touched.
+            previous = set(self.state.get("_live_rendered") or [])
+            for stale in previous - current:
+                try:
+                    (gen / stale).unlink(missing_ok=True)
+                except OSError:
+                    pass
+            self.state["_live_rendered"] = sorted(current)
             return self._change_diff_text("live re-render after edit")
         except Exception:  # noqa: BLE001 — live diffs must never break a turn
             self._logger.exception("live step render failed")
@@ -1791,7 +1808,7 @@ class ChatSession:
         # Live diffs: when enabled, an edit turn re-renders the pattern
         # files immediately so the user sees WHAT the edit changed in the
         # XML without waiting for the next build.
-        if res.kind == "edit" and self.state.get("live_diffs"):
+        if res.kind == "edit" and self.state.get("live_diffs", True):
             _d = self._step_render_diff()
             if _d:
                 res.reply += "\n\n" + _d

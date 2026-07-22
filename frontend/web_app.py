@@ -306,9 +306,9 @@ with _done_slot.container():
         else f"**Status: not ready** ({len(_done_reasons)} item(s))"
     )
     done_clicked = st.button(
-        "Write project.yaml  ( /done )"
+        "Done — assemble the project"
         if _ready_for_done
-        else "/done — locked until ready",
+        else "Done — locked until ready",
         type="primary",
         use_container_width=True,
         disabled=not _ready_for_done,
@@ -371,13 +371,13 @@ with _modules_slot.container():
     _live = st.radio(
         "File diffs per change",
         ["Show", "Hide"],
-        index=0 if chat.state.get("live_diffs") else 1,
+        index=0 if chat.state.get("live_diffs", True) else 1,
         horizontal=True,
         help="Show: every edit re-renders the affected XMLs immediately and "
              "shows what changed. Hide: diffs appear only after builds.",
     )
     _want_live = _live == "Show"
-    if bool(chat.state.get("live_diffs")) != _want_live:
+    if bool(chat.state.get("live_diffs", True)) != _want_live:
         chat.state["live_diffs"] = _want_live
         chat._save()
 
