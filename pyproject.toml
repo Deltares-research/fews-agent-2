@@ -34,10 +34,14 @@ dependencies = [
     # HTTP/REST API (third driver shell — see app/api/server.py)
     "fastapi>=0.115.0",
     "uvicorn>=0.30.0",
+
+    # MCP server (fourth driver shell — see app/mcp_server.py)
+    "mcp[cli]>=1.0.0",
 ]
 
 [project.scripts]
 fews-agent = "fews_agent.chatter.tui:main"
+fews-mcp = "app.mcp_server:main"
 
 [tool.poetry.group.dev.dependencies]
 pytest = ">=8.3.0"
