@@ -387,5 +387,40 @@ CONFIG_FOLDERS: tuple[str, ...] = (
     "RootConfigFiles",
     "SystemConfigFiles",
     "UnitConversionsFiles",
-    "WorkflowFiles",
+    "Workflows",
 )
+
+
+def fews_bundle_path(relpath: str) -> str:
+    """Where a generated file belongs inside a DELIVERED FEWS region bundle.
+
+    Two remaps, both found by loading the agent's output into a real
+    Delft-FEWS 2026.01 (the FEWS-load oracle, 2026-06-30) — XSD and the
+    semantic walker both passed the wrong layout:
+
+    * workflows resolve under ``Config/Workflows/``, not the generation
+      tree's ``WorkflowFiles/`` ("workflow … does not exist" otherwise);
+    * a Stand-Alone reads ``sa_global.properties`` (lowercase) from the
+      REGION ROOT — one level above ``Config/`` — or every ``$…$``
+      placeholder is an "Unresolved property key".
+
+    The generation tree itself keeps the tutorial's layout (the
+    byte-equivalence oracle depends on it); the remap happens only at
+    delivery time, here.
+    """
+    rel = str(relpath).replace("\\", "/")
+    if rel.lower() == "rootconfigfiles/sa_global.properties":
+        return "sa_global.properties"
+    if rel.startswith("WorkflowFiles/"):
+        return "Config/Workflows/" + rel[len("WorkflowFiles/"):]
+    return f"Config/{rel}"
+
+
+def fews_module_relpath(relpath: str) -> str:
+    """The Config-relative variant for per-module zips (dropped into an
+    EXISTING config): workflows remap the same way; ``sa_global`` stays in
+    ``RootConfigFiles/`` because a module zip has no region root to target."""
+    rel = str(relpath).replace("\\", "/")
+    if rel.startswith("WorkflowFiles/"):
+        return "Workflows/" + rel[len("WorkflowFiles/"):]
+    return rel

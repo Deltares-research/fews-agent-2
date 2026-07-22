@@ -49,7 +49,10 @@ def test_module_zip_scopes_to_the_registry_folders(session):
     names = _names(data)
     assert n == 2
     assert "ModuleConfigFiles/Import/ImportGFS.xml" in names
-    assert "WorkflowFiles/ImportGFS.xml" in names
+    # FEWS resolves workflows under Workflows/ (real-FEWS load finding) —
+    # the generation tree's WorkflowFiles/ is remapped at delivery.
+    assert "Workflows/ImportGFS.xml" in names
+    assert not any(x.startswith("WorkflowFiles/") for x in names)
     assert not any("RegionConfigFiles" in x for x in names)
 
 
@@ -75,7 +78,21 @@ def test_config_zip_wraps_in_config_with_full_skeleton(session):
         assert f"Config/{folder}/" in names, folder
     # rendered files land inside Config/
     assert "Config/ModuleConfigFiles/Import/ImportGFS.xml" in names
-    assert "Config/RootConfigFiles/sa_global.Properties" in names
+
+
+def test_config_zip_is_fews_loadable(session):
+    """The two real-FEWS 2026.01 load findings, applied at delivery:
+    workflows under Config/Workflows/, sa_global.properties (lowercase) at
+    the REGION ROOT (one level above Config/)."""
+    data, _ = session.config_zip()
+    names = set(_names(data))
+    assert "Config/Workflows/ImportGFS.xml" in names
+    assert not any(n.startswith("Config/WorkflowFiles/") and n.endswith(".xml")
+                   for n in names)
+    assert "sa_global.properties" in names          # region root, lowercase
+    assert "Config/RootConfigFiles/sa_global.Properties" not in names
+    zf = zipfile.ZipFile(io.BytesIO(data))
+    assert zf.read("sa_global.properties").decode() == "REGION=X"
 
 
 def test_config_zip_none_before_any_build(tmp_path, monkeypatch):

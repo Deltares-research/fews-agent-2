@@ -859,10 +859,11 @@ class ChatSession:
         ]
         if not picked:
             return None
+        from fews_agent.agent.modules import fews_module_relpath
         buf = io.BytesIO()
         with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
             for p, rel in picked:
-                zf.write(p, rel)
+                zf.write(p, fews_module_relpath(rel))
         return buf.getvalue(), len(picked)
 
     def config_zip(self) -> tuple[bytes, int] | None:
@@ -873,7 +874,7 @@ class ChatSession:
         import io
         import zipfile
 
-        from fews_agent.agent.modules import CONFIG_FOLDERS
+        from fews_agent.agent.modules import CONFIG_FOLDERS, fews_bundle_path
 
         files = self._generated_files()
         if not files:
@@ -883,7 +884,9 @@ class ChatSession:
             for folder in CONFIG_FOLDERS:
                 zf.writestr(zipfile.ZipInfo(f"Config/{folder}/"), b"")
             for p, rel in files:
-                zf.write(p, f"Config/{rel}")
+                # FEWS-load remaps: WorkflowFiles/ -> Config/Workflows/,
+                # sa_global.properties (lowercase) to the region root.
+                zf.write(p, fews_bundle_path(rel))
         return buf.getvalue(), len(files)
 
     # ---- grid coordinates subwindow -----------------------------------------
