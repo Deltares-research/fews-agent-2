@@ -359,3 +359,19 @@ def test_add_capability_redirects_import_owned_patterns(state, catalog):
     ], catalog)
     assert res.dropped == []
     assert "HRDPS" in state["slots"]["imports"]
+
+
+def test_show_variables_signal(state, catalog):
+    res = apply_patch(state, [{"op": "show_variables", "target": "GFS"}],
+                      catalog)
+    assert res.vars_for == "GFS"
+    res2 = apply_patch(state, [{"op": "show_variables"}], catalog)
+    assert res2.vars_for == ""
+
+
+def test_set_focus_note_speaks_the_fews_label(state, catalog):
+    """LIVE BUG (PDF): the grey note said 'Focused the filters module.' —
+    internal key. It must speak the FEWS folder label."""
+    res = apply_patch(state, [{"op": "set_focus", "module": "filters"}],
+                      catalog)
+    assert res.notes == ["Focused on RegionConfigFiles · Filters."]

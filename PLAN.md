@@ -87,12 +87,28 @@ _history_text, apply_extracted_fields...), `extractor.py`,
 ```
 add_import       {name, data_types?[], grid_resolution?, forecast_horizon_hours?}
 add_basin        {basin_name, model_adapter}   adapter ∈ raven|wflow|hbv96, NEVER guessed
-add_capability   {pattern}                     catalog name/path; errors list required vars
+add_capability   {pattern}                     catalog name/path; errors list required vars;
+                                               REDIRECTS flag-owned patterns
+                                               (spatial_display_grid→wants_visualization,
+                                               wf_interpolate_*→wants_interpolation) and
+                                               import-owned ones (nwp_grid_eccc_HRDPS→
+                                               add_import HRDPS) so any route works
 set_variables    {target, values{}}            per-import scalars; grid_geometry dict;
-                                               data_types keys are intercepted → additive list
-remove           {target}                      import | basin | data type | capability
-set_focus        {module}                      advisory focus only
+                                               data_types keys intercepted → additive list;
+                                               project-wide (target ""): geoDatum, region
+                                               (sync the Locations singleton),
+                                               wants_visualization / wants_interpolation
+remove           {target, variable?}           import | basin | data type | capability;
+                                               with `variable` it UNSETS that setting, and
+                                               `variable` is AUTHORITATIVE — handled fully
+                                               or dropped, NEVER ignored (ignoring it once
+                                               turned "drop temperature" into deleting the
+                                               whole GFS import); a variable-named target
+                                               unsets project-wide + sweeps overrides
+set_focus        {module}                      ONLY on explicit user request — never silent
 open_coordinates {name?}                       UI signal
+show_variables   {target?}                     appends the deterministic /vars table to the
+                                               reply ("what are the vars of GFS?")
 build {scope?} · assemble {} · none {}         signals / no-op
 ```
 Both sides = `patch_ops.py` AND the op table + examples in
@@ -105,10 +121,42 @@ fallback reply (nothing applied).
 
 ### Prompt rules that MUST survive edits (each fixed a real failure)
 1. Never invent domain objects (catalog is the only source of names).
-2. Never guess a missing required value — ask, leave the op out (Rhine rule).
-3. Correctness beats brevity — never claim "ready/nothing left" against the gap digest.
-4. No internal vocabulary in replies (slot, pattern, resolver, runner, ...).
-5. No slash commands in replies (except pointing at /help when asked).
+2. Never guess a missing required value — ask, leave the op out (Rhine rule);
+   BUT values given earlier in the conversation count as given — combine them.
+3. Never claim an action without its op in the patch — the model said "Got it,
+   I'll use WGS 1984" with an EMPTY patch; the engine applies only the patch.
+4. Correctness beats brevity — never claim "ready/nothing left" against the gap digest.
+5. No internal vocabulary in replies (slot, pattern, resolver, runner, ...).
+6. No slash commands in replies (except pointing at /help when asked).
+7. The user owns their view: set_focus ONLY on explicit request. An edit that
+   belongs elsewhere still applies (state is project-wide) — say which FEWS
+   folder it lives in and OFFER to switch. A question never changes focus.
+8. Speak FEWS folder names (RootConfigFiles, RegionConfigFiles · Filters, ...)
+   never internal keys (root, filters) — keys exist only as set_focus values.
+
+### The model's "consciousness" (what it actually knows, per turn)
+Everything arrives in the user prompt, rebuilt each turn: the FEWS MODULES map
+(`modules_digest` — every folder, key, what it holds), the catalog digest
+(every pattern with a `[lives in <module>]` tag + the IMPORT SOURCES line
+derived from `_IMPORT_PATTERN_MAP`), the state digest (advisory focus with a
+never-switch instruction, slots, overrides, built phases), gap/inputs/build
+digests, and ~8 history turns. If the model seems ignorant of something, the
+fix is a DIGEST (give it the fact) — never a heuristic that guesses for it.
+
+### Hardening history (live-found bug classes — don't reintroduce)
+- Round 1 (simple scenarios, 10/12→12/12): earlier-turn values not combined;
+  no add_capability few-shot.
+- Round 2 (hard scenarios, 11/16→16/16): remove ignored its `variable` arg and
+  deleted a whole import (the destructive-mis-apply class — worst possible);
+  phantom claims with empty patches; no route for geoDatum/region/flags; wrong
+  route for flag-/import-owned patterns; import names invisible to the model.
+- Round 3 (PDF review): set_focus emitted on a mere question (sidebar jumped);
+  replies spoke internal keys; /vars glued the assembly-module paragraph to
+  its tail (hint now content-modules-only); sticky coordinates modal (web_app
+  clears `_coords_request` on each new prompt).
+Every class is pinned in test_patch_ops.py / test_llm_turn.py. The method to
+copy: drive the LIVE model over the API, diff behaviour against intent, fix in
+ops (deterministic) or prompt (behavioural), pin with a test.
 
 ## 5. How to verify (run after EVERY change)
 

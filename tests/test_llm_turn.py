@@ -74,7 +74,9 @@ def test_state_digest_reports_focus_slots_and_builds(catalog):
                     "import_overrides": {"GFS": {"grid_resolution": "0p50"}}},
           "current_module": "processing", "built_phases": ["imports"]}
     text = state_digest(st)
-    assert "processing" in text and "advisory" in text
+    # Focus is spoken as the FEWS folder label, never the internal key.
+    assert "ModuleConfigFiles + WorkflowFiles" in text and "advisory" in text
+    assert "NEVER change their view" in text
     assert '"GFS"' in text
     assert "0p50" in text
     assert "imports" in text  # built phases
@@ -209,3 +211,30 @@ def test_history_reaches_the_prompt(state, catalog):
     run_llm_turn(state, "and temperature?", catalog, provider=prov,
                  history=history)
     assert "Added GFS." in prov.calls[0]["user"]
+
+
+def test_show_variables_appends_the_deterministic_table(state, catalog):
+    from fews_agent.agent.patch_ops import apply_patch
+    apply_patch(state, [{"op": "add_import", "name": "GFS"}], catalog)
+    prov = _Scripted({"reply": "Here's everything GFS carries:",
+                      "patch": [{"op": "show_variables", "target": "GFS"}]})
+    res = run_llm_turn(state, "what are the vars of GFS?", catalog,
+                       provider=prov)
+    # The model's intro + the EXACT deterministic table (same as /vars GFS).
+    assert "Here's everything GFS carries:" in res.reply
+    assert "`nwp_name`" in res.reply
+    assert "`grid_resolution`" in res.reply
+    assert "you set this" in res.reply
+
+
+def test_prompt_carries_modules_map_and_pattern_module_tags(state, catalog):
+    prov = _Scripted({"reply": "ok", "patch": []})
+    run_llm_turn(state, "hello", catalog, provider=prov)
+    user = prov.calls[0]["user"]
+    # The modules map (folder names + keys) and per-pattern module tags — the
+    # model's "what goes where" awareness.
+    assert "FEWS MODULES" in user
+    assert "RootConfigFiles (key: root)" in user
+    assert "[lives in ModuleConfigFiles + WorkflowFiles]" in user
+    # The no-silent-focus instruction rides the state digest too.
+    assert "NEVER change their view" in user

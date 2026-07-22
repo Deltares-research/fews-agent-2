@@ -48,12 +48,14 @@ class PatchResult:
     build_scope: str | None = None
     wants_assemble: bool = False
     coordinates_for: str | None = None   # "" = all grids, name = one, None = no
+    vars_for: str | None = None          # "" = overview, name = one instance
 
 
 # The op names the model may emit. Anything else is dropped loudly.
 OP_NAMES = (
     "add_import", "add_basin", "add_capability", "set_variables",
-    "remove", "set_focus", "open_coordinates", "build", "assemble", "none",
+    "remove", "set_focus", "open_coordinates", "show_variables",
+    "build", "assemble", "none",
 )
 
 
@@ -374,8 +376,10 @@ def _op_set_focus(state: dict, args: dict, catalog, res: PatchResult) -> None:
     if key is None:
         res.dropped.append(f"set_focus: unknown module {args.get('module')!r}")
         return
-    module_focus.set_focus(state, key)
-    res.notes.append(f"Focused the {key} module.")
+    module, _card = module_focus.set_focus(state, key)
+    # Speak the FEWS folder label, never the internal key ("filters").
+    short = (module.label.split(" (")[0].strip() if module else key)
+    res.notes.append(f"Focused on {short}.")
 
 
 def apply_patch(state: dict, ops: list, catalog) -> PatchResult:
@@ -407,6 +411,8 @@ def apply_patch(state: dict, ops: list, catalog) -> PatchResult:
             _op_set_focus(state, args, catalog, res)
         elif name == "open_coordinates":
             res.coordinates_for = str(args.get("name") or "")
+        elif name == "show_variables":
+            res.vars_for = str(args.get("target") or "")
         elif name == "build":
             res.wants_build = True
             res.build_scope = (str(args["scope"]).strip()

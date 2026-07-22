@@ -74,6 +74,7 @@ def catalog_digest(catalog) -> str:
     ``add_capability <pattern>`` because only pattern names were visible.
     Derived from ``_IMPORT_PATTERN_MAP``, never hand-listed.
     """
+    from fews_agent.agent.modules import module_for_pattern
     from fews_agent.agent.project_intents import _IMPORT_PATTERN_MAP
 
     lines: list[str] = [
@@ -81,6 +82,10 @@ def catalog_digest(catalog) -> str:
         + ", ".join(sorted(_IMPORT_PATTERN_MAP)),
         "",
     ]
+    mod_label = {m.key: m.label.split(" (")[0].strip()
+                 for m in _all_modules()}
+    def _module_tag(path: str) -> str:
+        return mod_label.get(module_for_pattern(path), "")
     for e in catalog or []:
         req = [n for n, s in (e.variables or {}).items()
                if isinstance(s, dict) and s.get("required")]
@@ -92,7 +97,10 @@ def catalog_digest(catalog) -> str:
         produces = ", ".join(
             Path(o).name for o in (e.outputs or [])[:3]
         ) + ("…" if len(e.outputs or []) > 3 else "")
-        bits = [f"- {e.name} ({e.path}): {_first_sentence(e.description)}"]
+        tag = _module_tag(e.path)
+        bits = [f"- {e.name} ({e.path})"
+                + (f" [lives in {tag}]" if tag else "")
+                + f": {_first_sentence(e.description)}"]
         if req:
             bits.append(f"  requires: {', '.join(req)}")
         if opts:
@@ -103,15 +111,38 @@ def catalog_digest(catalog) -> str:
     return "\n".join(lines)
 
 
+def _all_modules():
+    from fews_agent.agent.modules import list_modules
+    return list_modules()
+
+
+def modules_digest() -> str:
+    """The FEWS module map — what each folder is and holds.
+
+    Without this the model had no idea what the modules ARE (it said "the
+    filters module" and "the imports module" — internal keys — and couldn't
+    answer "where does X live"). Labels are the FEWS folder names; the keys in
+    parentheses are ONLY for the set_focus op, never for replies.
+    """
+    lines = ["The FEWS modules (sidebar). Speak the folder NAMES to the user; "
+             "the (key) is only the set_focus value:"]
+    for m in _all_modules():
+        short = m.label.split(" (")[0].strip()
+        lines.append(f"- {short} (key: {m.key}) — {_first_sentence(m.description, 110)}")
+    return "\n".join(lines)
+
+
 def state_digest(state: dict) -> str:
     """Compact project state: focus (advisory), slots, build progress."""
     slots = state.get("slots") or {}
     lines: list[str] = []
     focus = module_focus.get_focus(state)
     if focus is not None:
+        short = focus.label.split(" (")[0].strip()
         lines.append(
-            f"User is currently viewing the {focus.key} module "
-            f"({focus.label}) — advisory context, not a restriction."
+            f"User is currently viewing: {short} — advisory context, not a "
+            f"restriction. NEVER change their view (set_focus) unless they "
+            f"explicitly ask to switch."
         )
     interesting = {
         k: v for k, v in slots.items()
@@ -224,6 +255,7 @@ def run_llm_turn(
     system = prompts.load("llm_turn.system")
     user = prompts.load(
         "llm_turn.user",
+        modules_digest=modules_digest(),
         catalog_digest=catalog_digest(catalog),
         state_digest=state_digest(state),
         instances_view=module_vars_text(state, catalog, None),
@@ -261,6 +293,14 @@ def run_llm_turn(
                                 "failed", kind="reply")
 
     res = apply_patch(state, ops, catalog)
+
+    # show_variables: append the deterministic /vars table (same output as
+    # the slash command) so "what are the vars of GFS?" answers with the real
+    # variable/value/source view, never the model's paraphrase of it.
+    if res.vars_for is not None:
+        reply += "\n\n" + module_vars_text(
+            state, catalog, res.vars_for or None,
+        )
 
     if res.dropped:
         reply += (

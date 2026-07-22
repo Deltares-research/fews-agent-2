@@ -1033,9 +1033,18 @@ def module_vars_reply(state: dict, catalog, target: str | None = None) -> str:
     ONE command for both questions: bare ``/vars`` answers "what's in my
     project?" (the old ``/list``), ``/vars GFS`` answers "what can I change on
     GFS?". ``list``/``show`` are aliases of the bare form, so there is no second
-    overlapping concept to learn."""
+    overlapping concept to learn.
+
+    The next-step hint is appended only when the focused module is a CONTENT
+    module — with an assembly-generated module in focus (Filters, Root...),
+    its whole "generated at final assembly" paragraph got glued under the
+    variables table, which is entry text, not a next step."""
     text = module_vars_text(state, catalog, target)
-    hint = _next_step_hint(state, module_focus.get_focus(state))
+    focus = module_focus.get_focus(state)
+    is_content = focus is not None and (
+        getattr(focus, "phases", ()) or focus.supports("set")
+    )
+    hint = _next_step_hint(state, focus) if is_content else ""
     return text + (f"\n\n{hint}" if hint else "")
 
 

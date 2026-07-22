@@ -1,3 +1,6 @@
+## FEWS MODULES (the sidebar — what each folder is)
+[[ modules_digest ]]
+
 ## CATALOG (everything that can be added — the only valid names)
 [[ catalog_digest ]]
 

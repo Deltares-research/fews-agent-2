@@ -396,6 +396,11 @@ prompt = st.chat_input(
 if done_clicked and not prompt:
     prompt = "/done"
 if prompt:
+    # A new message closes any open coordinates subwindow — the stash was
+    # only cleared on Apply/Cancel, so ignoring the modal and chatting on
+    # made it reopen on every following turn. The turn's own result re-opens
+    # it below when the agent asks for it again.
+    st.session_state.pop("_coords_request", None)
     with st.chat_message("user"):
         st.markdown(prompt)
     with st.chat_message("assistant"):
