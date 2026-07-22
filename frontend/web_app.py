@@ -333,6 +333,8 @@ with _inputs_slot.container():
             for f in uploaded:
                 (inputs_dir / f.name).write_bytes(f.getbuffer())
             st.caption(f"Saved {len(uploaded)} file(s) to `inputs/`.")
+            from app import blob_store as _blob
+            _blob.sync_session_up(chat.session_dir, full=True)
 
         existing_inputs = sorted(
             p.name for p in inputs_dir.iterdir() if p.is_file()

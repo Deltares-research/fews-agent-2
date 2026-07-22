@@ -20,6 +20,9 @@ dependencies = [
     "jinja2>=3.1.0",
     "lxml>=5.3.0",
 
+    # PHASE=prod session store (Azure Blob) — lazy-imported, dev needs nothing
+    "azure-storage-blob>=12.19.0",
+
     # Typed parameter contracts for generators
     "pydantic>=2.9.0",
 

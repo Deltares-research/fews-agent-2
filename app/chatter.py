@@ -67,6 +67,7 @@ from fews_agent.agent.turn_engine import (
     run_turn_pipeline,
 )
 from fews_agent.agent import module_focus
+from app import blob_store
 from fews_agent.agent.llm_turn import run_llm_turn
 from fews_agent.agent.modules import module_for_pattern
 from fews_agent.agent.project_chat import set_grid_geometry
@@ -157,21 +158,34 @@ def list_projects(root: Path = OUTPUT_ROOT) -> list[str]:
         ]
         if instances:
             entries.append((max(i.stat().st_mtime for i in instances), d.name))
-    return [name for _, name in sorted(entries, reverse=True)]
+    local = [name for _, name in sorted(entries, reverse=True)]
+    # PHASE=prod: projects that only exist in blob (fresh container disk)
+    # appear too — picking one pulls it down in latest_project_session_dir.
+    for name in blob_store.list_remote_projects():
+        if name not in local:
+            local.append(name)
+    return local
 
 
 def latest_project_session_dir(
     name: str, root: Path = OUTPUT_ROOT,
 ) -> Path | None:
-    """The newest chat-session instance for a project, or None if it has none."""
+    """The newest chat-session instance for a project, or None if it has none.
+
+    PHASE=prod: when the project isn't on local disk (fresh container after a
+    restart/redeploy) the newest session is RESTORED from blob into projects/
+    first, then returned — resuming feels identical to dev."""
     parent = root / name
-    if not parent.is_dir():
-        return None
     instances = sorted(
         i for i in parent.iterdir()
         if i.is_dir() and i.name.startswith(f"{name}_")
-    )
-    return instances[-1] if instances else None
+    ) if parent.is_dir() else []
+    if instances:
+        return instances[-1]
+    remote_id = blob_store.latest_remote_session_id(name)
+    if remote_id:
+        return blob_store.pull_session(name, remote_id, root)
+    return None
 
 
 def new_project_session_dir(name: str, root: Path = OUTPUT_ROOT) -> Path:
@@ -393,6 +407,9 @@ class ChatSession:
         self._history_path().write_text(
             json.dumps(self.history, indent=2, default=str), encoding="utf-8"
         )
+        # PHASE=prod: mirror the per-turn core files to blob (no-op in dev;
+        # failures are logged by the store and never break a turn).
+        blob_store.sync_session_up(self.session_dir)
 
     def _make_logger(self) -> logging.Logger:
         # Unique logger per session_dir so re-opening doesn't double-handle.
@@ -480,6 +497,7 @@ class ChatSession:
                 self.state["last_build_summary"] = summary
                 if summary.get("ok"):
                     self.state["full_build_ok"] = True
+            blob_store.sync_session_up(self.session_dir, full=True)
             return summary, None
         except Exception as exc:  # noqa: BLE001
             self._logger.exception("build_from_blueprint crashed: %s", exc)

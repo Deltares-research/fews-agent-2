@@ -68,6 +68,7 @@ from runners.agent.build_from_blueprint import build_from_blueprint, build_phase
 # ``app.api.server.check_ollama_for_model`` (mirrors how the chatter tests
 # patch ``chatter.check_ollama_for_model``) and run offline.
 from app.chatter import check_ollama_for_model
+from app import blob_store
 
 from app.api.models import (
     BuildFileResult,
@@ -142,6 +143,13 @@ def _resolve_session_dir(session_id: str) -> Path:
     for cand in OUTPUT_ROOT.glob(f"*/{session_id}"):
         if cand.is_dir() and _state_path(cand).is_file():
             return cand
+    # PHASE=prod: a session created before a container restart lives only in
+    # blob — restore it into projects/ and carry on as local.
+    if "_" in session_id:
+        project = session_id.rsplit("_", 2)[0]
+        pulled = blob_store.pull_session(project, session_id, OUTPUT_ROOT)
+        if pulled is not None and _state_path(pulled).is_file():
+            return pulled
     raise HTTPException(
         status_code=404, detail=f"No session {session_id!r}.",
     )
@@ -164,6 +172,8 @@ def _save(project_dir: Path, state: dict, history: list) -> None:
     _history_path(project_dir).write_text(
         json.dumps(history, indent=2, default=str), encoding="utf-8"
     )
+    # PHASE=prod: mirror to blob (no-op in dev; failures logged, never raised).
+    blob_store.sync_session_up(project_dir)
 
 
 def _catalog():
@@ -534,6 +544,7 @@ def build_session(session_id: str, req: BuildRequest | None = None) -> BuildResp
             else:
                 state["full_build_ok"] = True
         _save(project_dir, state, history)
+        blob_store.sync_session_up(project_dir, full=True)
 
     return BuildResponse(
         ok=bool(summary.get("ok")),
