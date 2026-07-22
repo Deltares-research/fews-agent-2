@@ -67,8 +67,20 @@ def _first_sentence(text: str, cap: int = 160) -> str:
 
 
 def catalog_digest(catalog) -> str:
-    """One line per pattern: what it is, what it needs, what it produces."""
-    lines: list[str] = []
+    """One line per pattern: what it is, what it needs, what it produces.
+
+    Leads with the IMPORT SOURCES line — the canonical names ``add_import``
+    accepts. Without it the model routed known sources (HRDPS) through
+    ``add_capability <pattern>`` because only pattern names were visible.
+    Derived from ``_IMPORT_PATTERN_MAP``, never hand-listed.
+    """
+    from fews_agent.agent.project_intents import _IMPORT_PATTERN_MAP
+
+    lines: list[str] = [
+        "IMPORT SOURCES — add these with add_import {name}: "
+        + ", ".join(sorted(_IMPORT_PATTERN_MAP)),
+        "",
+    ]
     for e in catalog or []:
         req = [n for n, s in (e.variables or {}).items()
                if isinstance(s, dict) and s.get("required")]

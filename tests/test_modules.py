@@ -80,7 +80,7 @@ def test_set_focus_records_current_module():
     module, card = F.set_focus(state, "imports")
     assert module is not None and module.key == "processing"
     assert state["current_module"] == "processing"
-    assert "Processing" in card
+    assert "ModuleConfigFiles" in card
 
 
 def test_set_focus_unknown_module_does_not_change_state():
@@ -123,9 +123,10 @@ def test_focus_card_is_a_discrete_grey_status_line():
     state: dict = {"slots": {"geoDatum": "WGS 1984", "region": "Caribbean"}}
     proc = M.get_module("processing")
     card = F.focus_card(state, proc)
-    # ONE quiet "Building the <module> module." line — the short name drops the
-    # parenthetical ("Processing (imports, ...)" -> "Processing").
-    assert card == "Building the Processing module."
+    # ONE quiet "Focused on <FEWS folder>." line — labels anchor to the real
+    # FEWS folder names (the constant every configurator knows), and the short
+    # form drops the parenthetical.
+    assert card == "Focused on ModuleConfigFiles + WorkflowFiles."
     # Explicitly NOT the pile the configurator kept rejecting.
     assert "You're now on" not in card
     assert "Carrying over" not in card
@@ -143,6 +144,25 @@ def test_module_welcome_is_just_the_focused_question():
     assert "?" in welcome
     assert "You're now on" not in welcome
     assert "Carrying over" not in welcome
+
+
+def test_assembly_generated_modules_never_claim_ready():
+    """Regression for the screenshot bug: '/module root' on an EMPTY project
+    replied 'This module is ready — want me to build it?' — a template lie
+    (RootConfigFiles is generated at final assembly and is not built on its
+    own). Entry must say where the files come from, honestly."""
+    from fews_agent.agent import turn_engine as TE
+    for key in ("root", "filters", "topology", "idmap", "system"):
+        mod = M.get_module(key)
+        welcome = TE.module_welcome({"slots": {}}, mod)
+        low = welcome.lower()
+        assert "module is ready" not in low, (key, welcome)
+        assert "want me to build" not in low, (key, welcome)
+        assert "final assembly" in low, (key, welcome)
+    # After a successful assembly the message reflects that instead.
+    built = TE.module_welcome({"slots": {}, "full_build_ok": True},
+                              M.get_module("root"))
+    assert "last assembly" in built.lower()
 
 
 def test_modules_overview_lists_all():

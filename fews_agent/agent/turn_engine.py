@@ -782,8 +782,20 @@ def _next_step_hint(state: dict, focus) -> str:
             return f"What should {var} be?"
         return "That's everything this module needs — want me to build it?"
 
-    # View-only module (filters, topology, ...) — nothing to add/set here.
-    return "This module is ready — want me to build it?"
+    # Assembly-generated module (Filters, Topology, IdMapFiles, System, Root):
+    # nothing is configured here by hand and it is NOT built on its own — the
+    # old "this module is ready — want me to build it?" was a template lie on
+    # an empty project. Say what the folder is and where its files come from.
+    short = (getattr(focus, "label", "") or "").split(" (")[0].strip() or \
+        getattr(focus, "key", "this")
+    what = getattr(focus, "description", "") or ""
+    if state.get("full_build_ok"):
+        return (f"{short} was generated at the last assembly and refreshes "
+                f"automatically whenever you assemble again. {what}")
+    return (f"{short} is generated automatically at final assembly — "
+            f"there's nothing to configure here by hand. {what} Keep working "
+            f"in the content modules and tell me when you're ready to "
+            f"assemble the project.")
 
 
 def module_edit_reply(note: str, state: dict) -> str:
@@ -1005,14 +1017,13 @@ def compose_module_reply(
 
 def module_welcome(state: dict, module) -> str:
     """The main reply for a freshly-entered module: just the ONE focused
-    question ("What would you like to import?"). The discrete grey status line
-    ("Building the <module> module.") is carried SEPARATELY as the muted
-    confirmation (``module_focus.focus_card``) by every entry path — cold entry,
-    the ``select_module`` switch, and each shell's ``/module`` handler — so the
-    verbose "You're now on …/Carrying over …" pile is gone for good."""
-    return _next_step_hint(state, module) or (
-        f"The {module.label.split(' (')[0]} module is ready — /build when you are."
-    )
+    question ("What would you like to import?"), or — for the
+    assembly-generated folders — an honest statement of where their files come
+    from. The discrete grey status line ("Focused on <FEWS folder>.") is
+    carried SEPARATELY as the muted confirmation (``module_focus.focus_card``)
+    by every entry path — cold entry, the ``select_module`` switch, and each
+    shell's ``/module`` handler."""
+    return _next_step_hint(state, module)
 
 
 def module_vars_reply(state: dict, catalog, target: str | None = None) -> str:

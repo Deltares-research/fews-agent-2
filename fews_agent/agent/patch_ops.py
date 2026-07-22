@@ -128,6 +128,16 @@ def _resolve_capability_path(token: str, catalog) -> str | None:
     return None
 
 
+# Patterns owned by a resolver FLAG, not by extra_patterns: the resolvers emit
+# one instance per eligible import (with the right parameters/timeStep), so
+# adding them directly would either fail (required vars) or bypass that logic.
+# Redirect the op to the flag — any route the model picks then works.
+_FLAG_OWNED_PATTERNS = {
+    "auto/spatial_display_grid": "wants_visualization",
+    "auto/wf_interpolate_nwp_to_stations": "wants_interpolation",
+}
+
+
 def _op_add_capability(state: dict, args: dict, catalog, res: PatchResult) -> None:
     path = _resolve_capability_path(args.get("pattern"), catalog)
     if path is None:
@@ -136,6 +146,19 @@ def _op_add_capability(state: dict, args: dict, catalog, res: PatchResult) -> No
             f"library"
         )
         return
+    flag = _FLAG_OWNED_PATTERNS.get(path)
+    if flag:
+        note, _ = _apply_fields(state, {flag: True}, catalog)
+        res.notes.append(note)
+        return
+    # An IMPORT-owned pattern (the model picked the pattern route for a known
+    # source, e.g. add_capability nwp_grid_eccc_HRDPS): redirect to add_import
+    # so the import route fills nwp_name/companions — any route works.
+    from fews_agent.agent.project_intents import _IMPORT_PATTERN_MAP
+    for imp_name, (imp_path, _var) in _IMPORT_PATTERN_MAP.items():
+        if imp_path == path:
+            _op_add_import(state, {"name": imp_name, **args}, catalog, res)
+            return
     required = capability_required_variables(path, catalog)
     if required:
         res.dropped.append(
@@ -163,6 +186,35 @@ def _op_set_variables(state: dict, args: dict, catalog, res: PatchResult) -> Non
         return
     for raw_var, raw_val in values.items():
         var_key = str(raw_var).strip().lower()
+        # Project-wide geo context: datum + named region. Applied through
+        # _apply_fields so the geo → Locations-singleton sync fires (the build
+        # reads region/geoDatum off the singleton seed).
+        if var_key in ("geodatum", "geo_datum", "datum"):
+            note, _ = _apply_fields(
+                state, {"geoDatum": str(raw_val)}, catalog, action="set",
+            )
+            res.notes.append(note)
+            continue
+        if var_key == "region":
+            note, _ = _apply_fields(
+                state, {"region": str(raw_val)}, catalog, action="set",
+            )
+            res.notes.append(note)
+            continue
+        # Project-wide feature flags: "visualize the grids" / "interpolate to
+        # my stations". These ride the slots the resolvers already understand
+        # (spatial_display_grid / wf_interpolate_nwp_to_stations per import).
+        if var_key in ("wants_visualization", "visualization", "visualize",
+                       "wants_interpolation", "interpolation", "interpolate"):
+            flag = ("wants_visualization" if "vis" in var_key
+                    else "wants_interpolation")
+            if raw_val in (True, "true", "True", "yes", 1):
+                note, _ = _apply_fields(state, {flag: True}, catalog)
+                res.notes.append(note)
+            else:
+                from fews_agent.agent.turn_engine import apply_field_removals
+                res.notes.extend(apply_field_removals(state, {flag: None}))
+            continue
         # Weather variables are DATA TYPES (additive list, catalog-checked),
         # not a per-import scalar — routing them through set_variable stored
         # parameter-row dicts into the data_types slot and broke the resolver.
@@ -209,13 +261,77 @@ def _op_set_variables(state: dict, args: dict, catalog, res: PatchResult) -> Non
 
 
 def _op_remove(state: dict, args: dict, catalog, res: PatchResult) -> None:
-    from fews_agent.agent.turn_engine import apply_removal, resolve_patterns
+    from fews_agent.agent.turn_engine import (
+        _SET_VAR_CANON,
+        apply_field_removals,
+        apply_removal,
+        resolve_patterns,
+    )
 
     token = str(args.get("target") or "").strip()
     if not token:
         res.dropped.append("remove: target is required")
         return
     slots = state.get("slots") or {}
+
+    # Unset a VARIABLE ("remove the forecast horizon"): either scoped to one
+    # import ({target: "GFS", variable: "horizon"}) or project-wide when the
+    # target itself names a variable. Clearing an import's override falls back
+    # to the project default; clearing project-wide also sweeps overrides.
+    var_token = str(args.get("variable") or "").strip().lower()
+
+    # When `variable` is present it is AUTHORITATIVE: handle it fully or drop
+    # the op. Falling through with the variable silently ignored turned
+    # `remove {target:"GFS", variable:"temperature"}` into deleting the whole
+    # GFS import — a destructive mis-apply found in live testing.
+    if var_token:
+        if var_token in _DATA_TYPE_TO_PARAMETER:
+            note, _ = apply_removal(
+                state, ExtractedOperation(
+                    action="remove", fields={"data_types": [var_token]},
+                ), catalog,
+            )
+            res.notes.append(note)
+            return
+        canon = _SET_VAR_CANON.get(var_token) or (
+            "geoDatum" if var_token in ("geodatum", "geo_datum", "datum")
+            else var_token if var_token in
+            ("grid_resolution", "forecast_horizon_hours", "region",
+             "wants_visualization", "wants_interpolation") else None
+        )
+        if canon is None:
+            res.dropped.append(f"remove: unknown variable {var_token!r}")
+            return
+        overrides = slots.get("import_overrides") or {}
+        imp = _canonical_import(token)
+        if imp and imp in overrides and canon in overrides[imp]:
+            overrides[imp].pop(canon, None)
+            resolve_patterns(state, catalog)
+            res.notes.append(f"Cleared {canon} for {imp} (back to default).")
+        else:
+            res.dropped.append(
+                f"remove: {token!r} has no {canon} override to clear"
+            )
+        return
+
+    # No `variable`: the target itself may name a project-wide variable to
+    # unset ("remove the grid_resolution").
+    canon = _SET_VAR_CANON.get(token.lower().replace(" ", "_")) or (
+        token.lower() if token.lower() in
+        ("grid_resolution", "forecast_horizon_hours", "region", "geodatum",
+         "wants_visualization", "wants_interpolation") else None
+    )
+    if canon and canon != "data_types":   # data types remove as list items below
+        canon = "geoDatum" if canon == "geodatum" else canon
+        cleared = list(apply_field_removals(state, {canon: None}))
+        for name, ov in (slots.get("import_overrides") or {}).items():
+            if canon in ov:
+                ov.pop(canon, None)
+                cleared.append(f"Cleared {canon} for {name}.")
+        if cleared:
+            resolve_patterns(state, catalog)
+            res.notes.extend(cleared)
+            return
 
     imp = _canonical_import(token)
     if imp and imp in (slots.get("imports") or []):

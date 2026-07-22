@@ -267,12 +267,12 @@ def focus_card(state: dict, module: Module) -> str:
 
     Configurator feedback (repeatedly, emphatically): NO "You're now on the …
     module", NO "Carrying over from this session …" pile. Just a quiet
-    "Building the <module> module." line above the model's question. The short
-    name drops the parenthetical (``Processing (imports, transforms, model
-    runs)`` → ``Processing``).
+    "Focused on <FEWS folder>." line above the reply — neutral wording,
+    because the assembly-generated folders (RootConfigFiles, Filters, ...)
+    are never "built" by hand. The short name drops the parenthetical.
     """
     short = module.label.split(" (")[0].strip() or module.key
-    return f"Building the {short} module."
+    return f"Focused on {short}."
 
 
 def _unknown_module_text(token: str) -> str:

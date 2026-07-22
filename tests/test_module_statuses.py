@@ -23,8 +23,10 @@ def test_fresh_session_all_grey_none_focused(session):
                        "filters", "topology", "idmap", "system", "root"}
     assert not any(s["built"] for s in st.values())
     assert not any(s["focused"] for s in st.values())
-    # Labels are the short form (no parenthetical).
-    assert st["processing"]["label"] == "Processing"
+    # Labels are the short form (no parenthetical), anchored to the real
+    # FEWS folder names.
+    assert st["processing"]["label"] == "ModuleConfigFiles + WorkflowFiles"
+    assert st["root"]["label"] == "RootConfigFiles"
 
 
 def test_focus_follows_module_command(session):

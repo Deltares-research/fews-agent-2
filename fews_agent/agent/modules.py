@@ -121,7 +121,7 @@ MODULES: dict[str, Module] = {
     # --- reference data (RegionConfigFiles, split) ------------------------
     "locations": Module(
         key="locations",
-        label="Locations",
+        label="RegionConfigFiles · Locations",
         description="Station / point locations and the location sets that "
                     "group them.",
         folders=("RegionConfigFiles/Locations.xml",
@@ -140,7 +140,7 @@ MODULES: dict[str, Module] = {
     ),
     "parameters": Module(
         key="parameters",
-        label="Parameters",
+        label="RegionConfigFiles · Parameters",
         description="Parameter definitions (PC, TA, Q, ...) and their groups.",
         folders=("RegionConfigFiles/Parameters.xml",),
         source_kind="csv_ingest",
@@ -155,7 +155,7 @@ MODULES: dict[str, Module] = {
     # --- the welded processing module (ModuleConfig + Workflow + ModulePar) -
     "processing": Module(
         key="processing",
-        label="Processing (imports, transforms, model runs)",
+        label="ModuleConfigFiles + WorkflowFiles (imports, transforms, model runs)",
         description="The module configs and their workflows: data imports, "
                     "preprocessing / interpolation transforms, and model "
                     "runs. One capability = its config + workflow + id-map "
@@ -182,7 +182,7 @@ MODULES: dict[str, Module] = {
     # --- id maps ----------------------------------------------------------
     "idmap": Module(
         key="idmap",
-        label="ID maps",
+        label="IdMapFiles",
         description="Internal↔external id maps. Mostly bundled standards; "
                     "each processing capability contributes its own row.",
         folders=("IdMapFiles/",),
@@ -197,7 +197,7 @@ MODULES: dict[str, Module] = {
     # --- filters (RegionConfigFiles, split) -------------------------------
     "filters": Module(
         key="filters",
-        label="Filters",
+        label="RegionConfigFiles · Filters",
         description="The Data Viewer filter tree grouping the project's "
                     "series. LLM-drafted from the project's IDs.",
         folders=("RegionConfigFiles/Filters.xml",),
@@ -211,7 +211,7 @@ MODULES: dict[str, Module] = {
     # --- display ----------------------------------------------------------
     "display": Module(
         key="display",
-        label="Display (Spatial Display, grid plots)",
+        label="DisplayConfigFiles (Spatial Display, grid plots)",
         description="Spatial Display / grid display configs for viewing "
                     "imported grids and station series.",
         folders=("DisplayConfigFiles/",),
@@ -230,7 +230,7 @@ MODULES: dict[str, Module] = {
     # --- topology (RegionConfigFiles, split) ------------------------------
     "topology": Module(
         key="topology",
-        label="Topology",
+        label="RegionConfigFiles · Topology",
         description="The Topology tree grouping workflows for the Forecast "
                     "panel. Derived from the project's workflows.",
         folders=("RegionConfigFiles/Topology.xml",),
@@ -244,7 +244,7 @@ MODULES: dict[str, Module] = {
     # --- system standards -------------------------------------------------
     "system": Module(
         key="system",
-        label="System (time steps, unit conversions)",
+        label="SystemConfigFiles (time steps, unit conversions)",
         description="Near-universal system config: time steps and unit "
                     "conversions. Bundled standards, project-trimmed.",
         folders=("SystemConfigFiles/", "UnitConversionsFiles/"),
@@ -258,7 +258,7 @@ MODULES: dict[str, Module] = {
     # --- root -------------------------------------------------------------
     "root": Module(
         key="root",
-        label="Root (global properties)",
+        label="RootConfigFiles (sa_global.Properties)",
         description="RootConfigFiles/sa_global.Properties — the placeholder "
                     "value map FEWS resolves at startup. Derived from the "
                     "project's basins + region.",

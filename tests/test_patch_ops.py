@@ -226,3 +226,136 @@ def test_compound_swap_in_one_patch(state, catalog):
     ], catalog)
     assert res.dropped == []
     assert state["slots"]["imports"] == ["ECMWF"]
+
+
+# --- variable unset + feature flags (hard-scenario support) ---------------
+
+def test_remove_scoped_variable_clears_the_override(state, catalog):
+    apply_patch(state, [{"op": "add_import", "name": "GFS",
+                         "grid_resolution": "0p50",
+                         "forecast_horizon_hours": 168}], catalog)
+    res = apply_patch(state, [
+        {"op": "remove", "target": "GFS", "variable": "forecast_horizon_hours"},
+    ], catalog)
+    assert res.dropped == []
+    ov = state["slots"]["import_overrides"]["GFS"]
+    assert "forecast_horizon_hours" not in ov
+    assert ov["grid_resolution"] == "0p50"          # untouched
+
+
+def test_remove_projectwide_variable_sweeps_overrides(state, catalog):
+    apply_patch(state, [
+        {"op": "add_import", "name": "GFS", "grid_resolution": "0p50"},
+        {"op": "add_import", "name": "HRDPS"},
+    ], catalog)
+    state["slots"]["grid_resolution"] = "0p25"      # project default too
+    res = apply_patch(state, [{"op": "remove", "target": "grid_resolution"}],
+                      catalog)
+    assert res.dropped == []
+    assert "grid_resolution" not in state["slots"]
+    assert "grid_resolution" not in state["slots"]["import_overrides"]["GFS"]
+
+
+def test_remove_variable_with_nothing_set_is_reported(state, catalog):
+    apply_patch(state, [{"op": "add_import", "name": "GFS"}], catalog)
+    res = apply_patch(state, [
+        {"op": "remove", "target": "GFS", "variable": "horizon"},
+    ], catalog)
+    assert any("no forecast_horizon_hours" in d for d in res.dropped)
+
+
+def test_visualization_flag_resolves_display_pattern(state, catalog):
+    apply_patch(state, [
+        {"op": "add_import", "name": "GFS"},
+        {"op": "set_variables", "target": "",
+         "values": {"wants_visualization": True}},
+    ], catalog)
+    assert state["slots"].get("wants_visualization") is True
+    assert "auto/spatial_display_grid" in {
+        p["pattern"] for p in state["patterns"]
+    }
+
+
+def test_interpolation_flag_resolves_interpolate_pattern(state, catalog):
+    # The resolver's contract: interpolation needs BOTH the flag AND selected
+    # weather variables (it intersects them per import) — so the flag alone
+    # resolves nothing, which is correct, not a gap.
+    apply_patch(state, [
+        {"op": "add_import", "name": "GFS", "data_types": ["precipitation"]},
+        {"op": "set_variables", "target": "",
+         "values": {"wants_interpolation": True}},
+    ], catalog)
+    assert "auto/wf_interpolate_nwp_to_stations" in {
+        p["pattern"] for p in state["patterns"]
+    }
+
+
+# --- live-found bugs (hard-scenario round) --------------------------------
+
+def test_remove_with_datatype_variable_never_deletes_the_import(state, catalog):
+    """LIVE BUG: remove {target:"GFS", variable:"temperature"} ignored the
+    variable and deleted the whole GFS import. `variable` is authoritative:
+    handle it fully or drop the op — never fall through."""
+    apply_patch(state, [{"op": "add_import", "name": "GFS",
+                         "data_types": ["precipitation", "temperature"]}],
+                catalog)
+    res = apply_patch(state, [
+        {"op": "remove", "target": "GFS", "variable": "temperature"},
+    ], catalog)
+    assert state["slots"]["imports"] == ["GFS"]          # import SURVIVES
+    assert state["slots"]["data_types"] == ["precipitation"]
+    assert res.dropped == []
+
+
+def test_remove_with_unknown_variable_drops_not_falls_through(state, catalog):
+    apply_patch(state, [{"op": "add_import", "name": "GFS"}], catalog)
+    res = apply_patch(state, [
+        {"op": "remove", "target": "GFS", "variable": "frobnication"},
+    ], catalog)
+    assert state["slots"]["imports"] == ["GFS"]          # import SURVIVES
+    assert any("frobnication" in d for d in res.dropped)
+
+
+def test_set_variables_geodatum_and_region_sync_singleton(state, catalog):
+    res = apply_patch(state, [
+        {"op": "set_variables", "target": "",
+         "values": {"geoDatum": "WGS 1984", "region": "Gulf of Guinea"}},
+    ], catalog)
+    assert res.dropped == []
+    assert state["slots"]["geoDatum"] == "WGS 1984"
+    assert state["slots"]["region"] == "Gulf of Guinea"
+    seed = state["singleton_seeds"]["Locations"]
+    assert seed["geoDatum"] == "WGS 1984"
+    assert seed["region"] == "Gulf of Guinea"
+
+
+def test_add_capability_redirects_flag_owned_patterns(state, catalog):
+    """spatial_display_grid / wf_interpolate are emitted by the resolvers per
+    eligible import — adding them directly used to be refused (required
+    vars). Any route the model picks must now work."""
+    apply_patch(state, [{"op": "add_import", "name": "GFS",
+                         "data_types": ["precipitation"]}], catalog)
+    res = apply_patch(state, [
+        {"op": "add_capability", "pattern": "spatial_display_grid"},
+        {"op": "add_capability", "pattern": "wf_interpolate_nwp_to_stations"},
+    ], catalog)
+    assert res.dropped == []
+    assert state["slots"].get("wants_visualization") is True
+    assert state["slots"].get("wants_interpolation") is True
+    got = {p["pattern"] for p in state["patterns"]}
+    assert "auto/spatial_display_grid" in got
+    assert "auto/wf_interpolate_nwp_to_stations" in got
+    assert "auto/spatial_display_grid" not in (
+        state["slots"].get("extra_patterns") or []
+    )
+
+
+def test_add_capability_redirects_import_owned_patterns(state, catalog):
+    """LIVE BUG: 'add GFS and HRDPS' routed HRDPS through
+    add_capability nwp_grid_eccc_HRDPS, which refused (needs nwp_name).
+    Import-owned patterns redirect to add_import so any route works."""
+    res = apply_patch(state, [
+        {"op": "add_capability", "pattern": "nwp_grid_eccc_HRDPS"},
+    ], catalog)
+    assert res.dropped == []
+    assert "HRDPS" in state["slots"]["imports"]
