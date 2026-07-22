@@ -68,6 +68,7 @@ from fews_agent.agent.turn_engine import (
 )
 from fews_agent.agent import module_focus
 from app import blob_store
+from app import project_git
 from fews_agent.agent.llm_turn import run_llm_turn
 from fews_agent.agent.modules import module_for_pattern
 from fews_agent.agent.project_chat import set_grid_geometry
@@ -621,6 +622,9 @@ class ChatSession:
                 if nxt else " All phases done — type `done` to assemble."
             )
             msg = self._build_summary_line(summary, f"Phase '{phase}'") + tail
+            _d = self._change_diff_text(f"build phase {phase}")
+            if _d:
+                msg += "\n\n" + _d
         else:
             msg = self._build_summary_line(summary, f"Phase '{phase}'", error)
         self.history.append({"role": "agent", "message": msg})
@@ -664,6 +668,9 @@ class ChatSession:
             msg = self._build_summary_line(summary, f"Module '{label}'") + (
                 " Build another with `/build <name>`, or `/phases` for the plan."
             )
+            _d = self._change_diff_text(f"build module {label}")
+            if _d:
+                msg += "\n\n" + _d
         else:
             msg = self._build_summary_line(summary, f"Module '{label}'", error)
         self.history.append({"role": "agent", "message": msg})
@@ -798,6 +805,19 @@ class ChatSession:
                 "built": built, "focused": m.key == focused,
             })
         return out
+
+
+    def _change_diff_text(self, label: str) -> str:
+        """Commit this action into the per-session git and return the chat
+        section showing diffs of PRE-EXISTING files it changed ('' if none —
+        first-time files are committed silently, diffable from next time)."""
+        try:
+            return project_git.format_diffs(
+                project_git.commit_and_diff(self.session_dir, label)
+            )
+        except Exception:  # noqa: BLE001 — tracking must never break a build
+            self._logger.exception("project git tracking failed")
+            return ""
 
     # ---- download bundles (sidebar) ------------------------------------------
 
@@ -1169,6 +1189,9 @@ class ChatSession:
                         f"Build: {n_total} files generated, "
                         f"{n_xsd}/{n_xml} XSD-valid, 0 Pydantic errors."
                     )
+                    _d = self._change_diff_text("full assembly")
+                    if _d:
+                        msg_parts.append("\n\n" + _d)
                 else:
                     msg_parts.append(
                         f"Build completed with issues — "

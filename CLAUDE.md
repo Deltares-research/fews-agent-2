@@ -1836,6 +1836,18 @@ history, feeds the model's context); ⚪ = not built, 🟢 = XMLs built
 deterministic pipeline — deliberate trade, per the Rhine-transcript evidence
 that the old scaffolding suppressed strong models.
 
+**File preview (`/show` · `/present` · prose).** The agent shows how a file
+WILL generate, in the chat: `/show GFS` / `/show Topology` (deterministic, no
+LLM) or prose ("show me the GFS import file") via the `preview_file` patch op.
+Rendering is a pure function of state — `blueprint.expand` in memory, ~10 ms
+per file measured — so previews are computed fresh per request: no cache, no
+background regeneration, structurally never stale. Pattern files render live;
+assembly-only files (derived Topology, sa_global.Properties, CSV-ingested
+Locations) are shown from the last build, labelled as such. One shared
+formatter (`fews_agent/agent/preview.py`) renders header + XSD badge + fenced
+XML identically for slash and prose. The prompt forbids the model writing XML
+itself — what appears in chat is always the deterministic render.
+
 Prompts: `prompts/llm_turn.{system,user}.txt` — the system prompt IS the
 elicitation program (priority-ordered rules, op schema, few-shot examples incl.
 the never-guess-an-adapter Rhine case). Prompt regressions are caught by the

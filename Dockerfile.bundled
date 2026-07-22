@@ -39,6 +39,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         curl \
         ca-certificates \
         zstd \
+        git \
     && rm -rf /var/lib/apt/lists/*
 
 # Install the Ollama binary + its bundled GPU runtime libraries.

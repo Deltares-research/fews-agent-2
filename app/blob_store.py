@@ -103,7 +103,8 @@ def sync_session_up(session_dir: Path, full: bool = False) -> int:
     try:
         container = _container()
         if full:
-            paths = [p for p in session_dir.rglob("*") if p.is_file()]
+            paths = [p for p in session_dir.rglob("*") if p.is_file()
+                     and ".git" not in p.relative_to(session_dir).parts]
         else:
             paths = [session_dir / f for f in CORE_FILES
                      if (session_dir / f).is_file()]

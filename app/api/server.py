@@ -69,6 +69,7 @@ from runners.agent.build_from_blueprint import build_from_blueprint, build_phase
 # patch ``chatter.check_ollama_for_model``) and run offline.
 from app.chatter import check_ollama_for_model
 from app import blob_store
+from app import project_git
 
 from app.api.models import (
     BuildFileResult,
@@ -544,6 +545,7 @@ def build_session(session_id: str, req: BuildRequest | None = None) -> BuildResp
             else:
                 state["full_build_ok"] = True
         _save(project_dir, state, history)
+        project_git.commit_and_diff(project_dir, f"api build {scope}")
         blob_store.sync_session_up(project_dir, full=True)
 
     return BuildResponse(
