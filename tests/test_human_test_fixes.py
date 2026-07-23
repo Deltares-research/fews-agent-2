@@ -237,8 +237,8 @@ def test_live_diffs_show_xml_change_on_edit_turn(tmp_path, monkeypatch):
 
 
 def test_live_diffs_on_by_default_and_optable_out(tmp_path, monkeypatch):
-    """Default is SHOW (user request): an edit renders immediately; setting
-    live_diffs=False (the sidebar radio) turns the per-step rendering off."""
+    """Auto-build renders + validates on EVERY edit regardless of the radio;
+    the radio only hides the diff display."""
     from app import chatter as C
     monkeypatch.setattr(C, "check_ollama_for_model", lambda *a, **k: None)
 
@@ -257,8 +257,10 @@ def test_live_diffs_on_by_default_and_optable_out(tmp_path, monkeypatch):
                        username="t")
     s2.state["live_diffs"] = False
     monkeypatch.setattr(C, "get_provider", lambda *a, **k: _Prov())
-    s2.send("add GFS")
-    assert not (s2_dir / "generated").exists()       # radio off → no render
+    res2 = s2.send("add GFS")
+    assert (s2_dir / "generated").exists()           # still builds+validates
+    assert "XSD-valid" in res2.agent_message         # validation line shows
+    assert "```diff" not in res2.agent_message       # only diffs are hidden
 
 
 def test_fresh_session_first_edit_announces_new_files(tmp_path, monkeypatch):
@@ -283,3 +285,40 @@ def test_fresh_session_first_edit_announces_new_files(tmp_path, monkeypatch):
     res = s.send("add gfs with precipitation")
     assert "New files:" in res.agent_message
     assert "ImportGFS" in res.agent_message
+
+
+# --- auto-build on every change + data-type equivalence ---------------------
+
+def test_remove_air_temperature_clears_temperature(catalog):
+    """'delete air temperature' vs a slot holding 'temperature' - removal
+    must match by the PARAMETER both map to, not the literal token."""
+    st = {"slots": {"imports": ["GFS"], "data_types": ["temperature",
+                                                       "precipitation"]},
+          "intent": "build_data_import_only"}
+    TE.resolve_patterns(st, catalog)
+    res = apply_patch(st, [{"op": "remove", "target": "GFS",
+                            "variable": "air temperature"}], catalog)
+    assert res.dropped == []
+    assert st["slots"]["data_types"] == ["precipitation"]
+
+
+def test_every_edit_auto_builds_and_validates(tmp_path, monkeypatch):
+    """No /build needed: an edit renders, validates, marks progress, and
+    reports 'N/N XSD-valid' in the reply; the sidebar goes green."""
+    from app import chatter as C
+    monkeypatch.setattr(C, "check_ollama_for_model", lambda *a, **k: None)
+
+    class _Prov:
+        def generate_json(self, system, user, schema):
+            return _Resp({"reply": "Added GFS.",
+                          "patch": [{"op": "add_import", "name": "GFS"}]})
+
+    monkeypatch.setattr(C, "get_provider", lambda *a, **k: _Prov())
+    s = C.ChatSession(project_name="autobuild", session_dir=tmp_path,
+                      username="t")
+    res = s.send("add GFS")
+    assert "XSD-valid" in res.agent_message
+    assert s.state["last_build_summary"]["ok"] is True
+    assert "imports" in s.state["built_phases"]
+    statuses = {m["key"]: m for m in s.module_statuses()}
+    assert statuses["processing"]["status"] == "built"

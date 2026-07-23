@@ -238,3 +238,14 @@ def test_prompt_carries_modules_map_and_pattern_module_tags(state, catalog):
     assert "[lives in ModuleConfigFiles + WorkflowFiles]" in user
     # The no-silent-focus instruction rides the state digest too.
     assert "NEVER change their view" in user
+
+
+def test_gap_digest_flags_unchosen_import_variables(catalog, tmp_path):
+    """An import running on silent defaults is a GAP to elicit - without
+    this line the model saw nothing left to ask and pushed 'build?'."""
+    st = {"slots": {"imports": ["GFS"]}, "intent": "build_data_import_only"}
+    text = gap_digest(st, tmp_path)
+    assert "weather variables not yet chosen for GFS" in text
+    assert "BEFORE suggesting a build" in text
+    st["slots"]["data_types"] = ["precipitation"]
+    assert "not yet chosen" not in gap_digest(st, tmp_path)

@@ -110,6 +110,18 @@ def _scenarios():
         return (["refused a scoped build over missing CSVs"]
                 if any(b in reply for b in bad) else [])
 
+    def elicit_first(state, transcript):
+        """After a bare 'add GFS' the follow-up must elicit its variables,
+        not push a build (live report: 'keeps pushing to build')."""
+        reply = transcript[-1][1].lower()
+        problems = []
+        if not any(w in reply for w in ("variable", "precipitation",
+                                        "temperature", "carry")):
+            problems.append("didn't ask about the import's weather variables")
+        if "build" in reply.split("?")[0][:80]:
+            problems.append(f"led with a build push: {reply[:90]}")
+        return problems
+
     return [
         ("rhine-basin", [
             "add GFS", "i need it for the rhine basin",
@@ -131,6 +143,7 @@ def _scenarios():
             'add a station: location name "A", coordinates x=1, y=1',
         ], station_write),
         ("scoped-build-not-refused", ["add GFS", "build it"], scoped_build),
+        ("elicit-before-build", ["add GFS"], elicit_first),
     ]
 
 

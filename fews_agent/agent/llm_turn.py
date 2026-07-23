@@ -178,6 +178,16 @@ def gap_digest(state: dict, inputs_dir) -> str:
             or slots.get("extra_patterns")):
         lines.append("nothing configured yet — the user needs to add a data "
                      "source, a basin model, or another capability first")
+    # Imports whose weather variables were never CHOSEN (defaults filled
+    # silently) — the model should elicit these before proposing builds.
+    if (slots.get("imports")) and not (slots.get("data_types")):
+        names = ", ".join(slots["imports"])
+        lines.append(
+            f"weather variables not yet chosen for {names} — running on "
+            f"defaults (precipitation + temperature). Ask what the user "
+            f"wants these to carry BEFORE suggesting a build; accept the "
+            f"defaults if they say so."
+        )
     for c in status.get("csvs_required_missing") or []:
         lines.append(f"required input file missing: {c}")
     for n in status.get("extra_notes") or []:

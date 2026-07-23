@@ -174,3 +174,20 @@ def test_picker_pulls_from_blob_when_local_missing(prod, tmp_path, monkeypatch):
     got = C.latest_project_session_dir("demo", root=fresh_root)
     assert got is not None
     assert (got / ".chat_state.json").is_file()
+
+
+def test_scoped_build_full_syncs_generated(tmp_path, monkeypatch):
+    """/build (scoped) must mirror generated/ like full assembly does -
+    found in prod: scoped builds left the bucket without any XMLs."""
+    from app import blob_store, chatter as C
+    monkeypatch.setattr(C, "check_ollama_for_model", lambda *a, **k: None)
+    calls = []
+    monkeypatch.setattr(blob_store, "sync_session_up",
+                        lambda d, full=False: calls.append(full) or 0)
+    s = C.ChatSession(project_name="syncscope", session_dir=tmp_path,
+                      username="t")
+    s.send("/module processing")
+    s.send("/add GFS")
+    calls.clear()
+    s.send("/build")
+    assert True in calls, "scoped build must trigger a FULL sync"

@@ -539,6 +539,10 @@ class ChatSession:
             # so "why did that file fail?" gets an answered, not a guess.
             if isinstance(summary, dict):
                 self.state["last_build_summary"] = summary
+            # Scoped builds write generated/ too — mirror them like the full
+            # build does, so a container restart doesn't lose the only copy
+            # (found in prod testing: /build alone left the bucket empty).
+            blob_store.sync_session_up(self.session_dir, full=True)
             return summary, None
         except Exception as exc:  # noqa: BLE001
             self._logger.exception("partial build crashed: %s", exc)
@@ -903,12 +907,20 @@ class ChatSession:
             result = expand(bp, PATTERNS_ROOT)
             gen = self.session_dir / "generated"
             current = set()
+            files_meta, n_xml, n_ok = [], 0, 0
+            from fews_agent.validation.xsd import validate_xsd
             for f in result.rendered_files:
                 rel = str(f.relpath).replace("\\", "/")
                 current.add(rel)
                 target = gen / rel
                 target.parent.mkdir(parents=True, exist_ok=True)
                 target.write_text(f.content, encoding="utf-8")
+                ok = None
+                if rel.lower().endswith(".xml"):
+                    n_xml += 1
+                    ok = bool(validate_xsd(f.content.encode("utf-8"))[0])
+                    n_ok += ok
+                files_meta.append({"path": rel, "xsd_ok": ok})
             # Sweep files WE rendered live before that this render no longer
             # produces (an instance was removed) — only ever files from this
             # channel, so build/deriver outputs are never touched.
@@ -919,7 +931,35 @@ class ChatSession:
                 except OSError:
                     pass
             self.state["_live_rendered"] = sorted(current)
-            return self._change_diff_text("live re-render after edit")
+
+            # This IS the build now: record the summary (grounds the next
+            # llm turn), mark the phases/fingerprints (sidebar goes green),
+            # and mirror to blob — the user never types /build.
+            self.state["last_build_summary"] = {
+                "scope": "auto", "ok": n_ok == n_xml,
+                "files_total": len(files_meta), "files_xml": n_xml,
+                "files_xsd_ok": n_ok, "files": files_meta,
+            }
+            built = self.state.setdefault("built_phases", [])
+            for entry in phase_plan(self.state.get("patterns") or []):
+                if entry.get("patterns"):
+                    if entry["phase"] not in built:
+                        built.append(entry["phase"])
+                    self._stamp_module_fingerprint(
+                        module_for_pattern(entry["patterns"][0]["pattern"])
+                    )
+            blob_store.sync_session_up(self.session_dir, full=True)
+
+            valid = (f"Rendered {len(files_meta)} file(s) — "
+                     f"{n_ok}/{n_xml} XSD-valid.")
+            if n_ok < n_xml:
+                bad = ", ".join(m["path"] for m in files_meta
+                                if m["xsd_ok"] is False)
+                valid += f" FAILING: {bad}"
+            diffs = self._change_diff_text("auto build after edit")
+            if diffs and self.state.get("live_diffs", True):
+                return valid + chr(10) + chr(10) + diffs
+            return valid
         except Exception:  # noqa: BLE001 — live diffs must never break a turn
             self._logger.exception("live step render failed")
             return ""
@@ -1810,10 +1850,10 @@ class ChatSession:
             if _d:
                 res.reply += "\n\n" + _d
 
-        # Live diffs: when enabled, an edit turn re-renders the pattern
-        # files immediately so the user sees WHAT the edit changed in the
-        # XML without waiting for the next build.
-        if res.kind == "edit" and self.state.get("live_diffs", True):
+        # Auto-build: EVERY edit turn renders + XSD-validates the pattern
+        # files immediately — the user never types /build. The sidebar
+        # radio only controls whether diffs are DISPLAYED.
+        if res.kind == "edit":
             _d = self._step_render_diff()
             if _d:
                 res.reply += "\n\n" + _d

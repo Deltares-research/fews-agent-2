@@ -3259,16 +3259,9 @@ COMMANDS: list[dict[str, str]] = [
             "scope the change to that import; no name = project-wide."
         ),
     },
-    {
-        "name": "/build <phase|name>",
-        "aliases": "",
-        "group": "Build",
-        "description": (
-            "Render + XSD-validate ONE phase (`/build imports`) or ONE "
-            "module (`/build GFS`) now, without a full /done. Bare "
-            "`/build` builds the next unbuilt phase."
-        ),
-    },
+    # /build was removed from the listing (the handler remains for
+    # compatibility): building + XSD validation now run AUTOMATICALLY on
+    # every change, so there is nothing for the user to trigger.
     # Inspect commands — read-only views of agent + project state
     {
         "name": "/help",

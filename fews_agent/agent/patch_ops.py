@@ -347,6 +347,19 @@ def _op_set_variables(state: dict, args: dict, catalog, res: PatchResult) -> Non
     resolve_patterns(state, catalog)
 
 
+def _dt_removal_tokens(token: str, slots: dict) -> list[str]:
+    """All data-type slot entries equivalent to ``token`` (same parameterId).
+
+    "air temperature" and "temperature" both map to TA — a removal phrased
+    one way must clear the slot however the ADD was phrased. Falls back to
+    the token itself when nothing in the slot matches."""
+    param = _DATA_TYPE_TO_PARAMETER.get(token)
+    have = [str(x).lower() for x in (slots.get("data_types") or [])]
+    same = [k for k, v in _DATA_TYPE_TO_PARAMETER.items()
+            if v == param and k in have]
+    return same or [token]
+
+
 def _op_remove(state: dict, args: dict, catalog, res: PatchResult) -> None:
     from fews_agent.agent.turn_engine import (
         _SET_VAR_CANON,
@@ -375,7 +388,8 @@ def _op_remove(state: dict, args: dict, catalog, res: PatchResult) -> None:
         if var_token in _DATA_TYPE_TO_PARAMETER:
             note, _ = apply_removal(
                 state, ExtractedOperation(
-                    action="remove", fields={"data_types": [var_token]},
+                    action="remove",
+                    fields={"data_types": _dt_removal_tokens(var_token, slots)},
                 ), catalog,
             )
             res.notes.append(note)
@@ -457,9 +471,11 @@ def _op_remove(state: dict, args: dict, catalog, res: PatchResult) -> None:
             return
     if token.lower() in _DATA_TYPE_TO_PARAMETER:
         note, _ = apply_removal(
-            state, ExtractedOperation(action="remove",
-                                      fields={"data_types": [token.lower()]}),
-            catalog,
+            state, ExtractedOperation(
+                action="remove",
+                fields={"data_types":
+                        _dt_removal_tokens(token.lower(), slots)},
+            ), catalog,
         )
         res.notes.append(note)
         return
