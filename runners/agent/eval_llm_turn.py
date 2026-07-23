@@ -122,6 +122,13 @@ def _scenarios():
             problems.append(f"led with a build push: {reply[:90]}")
         return problems
 
+    def switch_on_yes(state, transcript):
+        """Confirming a view switch must actually move the focus (live
+        report: 'confirming, the module isnt activated')."""
+        if state.get("current_module") != "display":
+            return [f"focus is {state.get('current_module')!r}, not display"]
+        return []
+
     return [
         ("rhine-basin", [
             "add GFS", "i need it for the rhine basin",
@@ -144,6 +151,11 @@ def _scenarios():
         ], station_write),
         ("scoped-build-not-refused", ["add GFS", "build it"], scoped_build),
         ("elicit-before-build", ["add GFS"], elicit_first),
+        ("switch-view-on-confirmation", [
+            "add GFS with precipitation",
+            "set up the grid displays for it",
+            "yes, switch my view there",
+        ], switch_on_yes),
     ]
 
 

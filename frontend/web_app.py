@@ -489,6 +489,7 @@ if prompt:
         # always wins.
         _stream_ph = st.empty()
         _stream_acc: list[str] = []
+        _focus_before = chat.state.get("current_module")
 
         def _on_delta(text: str) -> None:
             _stream_acc.append(text)
@@ -497,6 +498,12 @@ if prompt:
         with st.spinner("Thinking…"):
             result = chat.send(prompt, on_reply_delta=_on_delta)
         _stream_ph.empty()
+        # The sidebar was rendered BEFORE this turn ran — if the turn moved
+        # the module focus (set_focus op / a switch confirmation), rerun so
+        # the highlight updates NOW, not on the next interaction. History
+        # already holds the reply, so the rerun replays it faithfully.
+        if chat.state.get("current_module") != _focus_before:
+            st.rerun()
         if result.confirmation:
             st.caption(result.confirmation)
         st.markdown(result.agent_message)
