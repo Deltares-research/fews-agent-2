@@ -35,6 +35,12 @@ FROM python:3.11-slim AS builder
 
 # build-essential + libxml2/libxslt headers for lxml when no wheel
 # matches the runner's arch (notably linux/arm64 on Apple Silicon).
+# Corporate networks intermittently kill plain-HTTP downloads from the
+# Debian CDN (observed: Fastly 151.101.x.x:80 timeouts mid-fetch) — use
+# HTTPS + retries for apt.
+RUN sed -i 's|http://deb.debian.org|https://deb.debian.org|g' \
+        /etc/apt/sources.list.d/debian.sources \
+    && printf 'Acquire::Retries "5";\n' > /etc/apt/apt.conf.d/80-retries
 RUN apt-get update && apt-get install -y --no-install-recommends \
         build-essential \
         libxml2-dev \
@@ -63,11 +69,17 @@ RUN pip install --no-cache-dir . pyyaml
 # ---------------------------------------------------------------------
 FROM python:3.11-slim
 
-# Runtime shared libs for lxml. No compilers in the final image.
+# Runtime shared libs for lxml + nginx (single-port front for API+UI).
+# No compilers in the final image. Same HTTPS+retries apt fix as the
+# builder stage (corporate networks kill plain-HTTP CDN fetches).
+RUN sed -i 's|http://deb.debian.org|https://deb.debian.org|g' \
+        /etc/apt/sources.list.d/debian.sources \
+    && printf 'Acquire::Retries "5";\n' > /etc/apt/apt.conf.d/80-retries
 RUN apt-get update && apt-get install -y --no-install-recommends \
         libxml2 \
         libxslt1.1 \
         git \
+        nginx \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /opt/venv /opt/venv
@@ -81,6 +93,9 @@ COPY app/        ./app/
 COPY frontend/   ./frontend/
 COPY fews_agent/ ./fews_agent/
 COPY runners/    ./runners/
+COPY docker/     ./docker/
+COPY docker-entrypoint-web.sh ./
+RUN chmod +x docker-entrypoint-web.sh
 COPY CLAUDE.md   ./
 
 # These live outside the image — bind-mount at run time so chat
@@ -115,4 +130,7 @@ ENV OLLAMA_HOST=http://host.docker.internal:11434
 
 EXPOSE 8501
 
-CMD ["streamlit", "run", "frontend/web_app.py"]
+# One container, three processes, ONE exposed port: nginx on 8501 routes
+# /api/* to FastAPI (uvicorn) and everything else to Streamlit. Both shells
+# share the same projects/ store, so HTTP-created sessions appear in the UI.
+CMD ["./docker-entrypoint-web.sh"]
