@@ -80,7 +80,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         libxslt1.1 \
         git \
         nginx \
-    && rm -rf /var/lib/apt/lists/*
+        openssh-server \
+    && rm -rf /var/lib/apt/lists/* \
+    && echo "root:Docker!" | chpasswd \
+    && mkdir -p /run/sshd
 
 COPY --from=builder /opt/venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
@@ -128,7 +131,9 @@ ENV FEWS_AGENT_PROVIDER=ollama
 # compose / remote setups.
 ENV OLLAMA_HOST=http://host.docker.internal:11434
 
-EXPOSE 8501
+COPY docker/sshd_config /etc/ssh/sshd_config
+
+EXPOSE 8501 2222
 
 # One container, three processes, ONE exposed port: nginx on 8501 routes
 # /api/* to FastAPI (uvicorn) and everything else to Streamlit. Both shells
