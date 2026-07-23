@@ -374,6 +374,11 @@ class ChatSession:
         # otherwise a fresh session's first render lands INSIDE the baseline
         # commit and its files are never announced as "New files".
         project_git.ensure_repo(self.session_dir)
+        # Persist (and in prod, blob-sync) the session the moment it OPENS —
+        # not after the first turn. Creating a project should make it appear
+        # in the store immediately; waiting on turn 1 meant a failed first
+        # turn left nothing in the bucket at all.
+        self._save()
 
     # ---- paths / persistence -------------------------------------------------
 

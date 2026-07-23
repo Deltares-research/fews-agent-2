@@ -60,3 +60,18 @@ def test_new_project_lists_and_resumes_roundtrip(tmp_path):
     (sd / ".chat_state.json").write_text("{}")
     assert "demo" in chatter.list_projects(root=tmp_path)
     assert chatter.latest_project_session_dir("demo", root=tmp_path) == sd
+
+
+def test_session_persists_at_open_not_first_turn(tmp_path, monkeypatch):
+    """Creating/opening a session writes state (and fires the blob sync)
+    IMMEDIATELY - a project must exist in the store before any turn runs."""
+    from app import chatter as C
+    from app import blob_store
+    synced = []
+    monkeypatch.setattr(C, "check_ollama_for_model", lambda *a, **k: None)
+    monkeypatch.setattr(blob_store, "sync_session_up",
+                        lambda d, full=False: synced.append(str(d)) or 0)
+    s = C.ChatSession(project_name="instant", session_dir=tmp_path,
+                      username="t")
+    assert (tmp_path / ".chat_state.json").is_file()   # no turn taken yet
+    assert synced, "blob sync must fire at session open"
