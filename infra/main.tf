@@ -74,6 +74,12 @@ variable "azure_storage_container" {
   default     = "fews-projects"
 }
 
+variable "azure_storage_prefix" {
+  description = "Optional subpath inside the container for session blobs (e.g. \"projects\"). PERMANENT once chosen - changing it hides all sessions stored under the old prefix."
+  type        = string
+  default     = ""
+}
+
 # -----------------------------------------------------------------------------
 # Random suffix for globally unique names
 # -----------------------------------------------------------------------------
@@ -150,6 +156,7 @@ resource "azurerm_linux_web_app" "main" {
     PHASE                           = var.phase
     AZURE_STORAGE_CONNECTION_STRING = var.azure_storage_connection_string
     AZURE_STORAGE_CONTAINER         = var.azure_storage_container
+    AZURE_STORAGE_PREFIX            = var.azure_storage_prefix
 
     # Pull the latest image from ACR on restart.
     DOCKER_ENABLE_CI = "true"

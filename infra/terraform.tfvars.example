@@ -25,3 +25,7 @@ azure_storage_connection_string = "DefaultEndpointsProtocol=https;AccountName=..
 
 # Blob container for sessions (auto-created on first use)
 azure_storage_container = "fews-projects"
+
+# Optional subpath inside the container. PERMANENT once chosen - changing it
+# later hides every session stored under the old prefix.
+azure_storage_prefix = "projects"
