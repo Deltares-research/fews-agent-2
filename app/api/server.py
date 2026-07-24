@@ -34,11 +34,26 @@ from __future__ import annotations
 import io
 import json
 import os
+import sys
 from datetime import datetime
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
 from rich.console import Console
+
+# Load .env before anything reads os.environ (LLM provider/model, blob creds).
+# The other two shells (Streamlit, eval) already do this; the API didn't, so
+# `uvicorn app.api.server:app` came up with no backend configured. Real
+# process env wins (override=False) so Azure App Settings are never clobbered.
+# NOT under pytest: loading .env at import would leak PHASE/creds into the
+# whole test session (tests must control their own env).
+if "PYTEST_CURRENT_TEST" not in os.environ and "pytest" not in sys.modules:
+    try:
+        from dotenv import load_dotenv
+        load_dotenv(Path(__file__).resolve().parents[2] / ".env",
+                    override=False)
+    except ImportError:  # python-dotenv absent → rely on real env
+        pass
 
 # --- reuse the existing agent machinery; do not reinvent it ---------------
 from fews_agent.agent.project_chat import (

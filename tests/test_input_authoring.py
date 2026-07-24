@@ -264,11 +264,13 @@ def test_chatter_shows_diff_for_agent_csv_edit(tmp_path, monkeypatch):
 
 
 def test_gap_clears_after_the_write(state, catalog, tmp_path):
-    """Writing locations.csv actually closes the build gap it was blocking."""
-    from fews_agent.agent.llm_turn import gap_digest
-    before = gap_digest(state, tmp_path)
+    """Writing locations.csv actually closes the route gap it was blocking."""
+    from fews_agent.agent.project_route import route_digest
+    state["slots"]["wants_interpolation"] = True     # needs locations.csv
+    TE.resolve_patterns(state, catalog)
+    before = route_digest(state, tmp_path)
     assert "locations.csv" in before
     write_input_file(tmp_path, "locations.csv",
                      [{"id": "A", "y": 1.0, "x": 1.0}])
-    after = gap_digest(state, tmp_path)
-    assert "required input file missing: locations.csv" not in after
+    after = route_digest(state, tmp_path)
+    assert "locations.csv" not in after

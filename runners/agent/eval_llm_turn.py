@@ -73,13 +73,20 @@ def _scenarios():
         ]
 
     def nag(state, transcript):
-        """PDF 2: 'you still need locations.csv...' re-appended after every
-        turn, including two straight declines. One mention is fine; the same
-        reminder after BOTH "no"s is the nag."""
-        declines = [r.lower() for m, r in transcript if m == "no"]
-        if len(declines) >= 2 and all("locations.csv" in r for r in declines):
-            return ["repeated the locations.csv reminder after every decline"]
-        return []
+        """PDF 2: 'you still need locations.csv...' re-appended after the user
+        CLOSED the topic ("cool, thanks"). Under the GPS, moving to the next
+        route step on a decline is fine — the nag is re-listing gaps after the
+        user signals they're done. The reply to "cool, thanks" must be a short
+        acknowledgement, not another gap dump."""
+        last_msg, last_reply = transcript[-1]
+        r = last_reply.lower()
+        problems = []
+        if "locations.csv" in r or "parameters.csv" in r:
+            problems.append("re-listed missing files after the user closed "
+                            f"the topic: {last_reply[:100]}")
+        if len(last_reply) > 240:
+            problems.append("verbose reply to a topic-closing 'thanks'")
+        return problems
 
     def eccc_fixed(state, transcript):
         """PDF 1: claimed HRDPS's resolution is changeable — it's fixed."""
@@ -122,6 +129,79 @@ def _scenarios():
             problems.append(f"led with a build push: {reply[:90]}")
         return problems
 
+    def no_premature_assembly(state, transcript):
+        """Route says NOT ready to assemble (no input CSVs) — the agent must
+        not steer toward done/assembly. GPS behaviour: guide the open steps."""
+        reply = transcript[-1][1].lower()
+        bad = ("say done", "type done", "ready to assemble", "assemble the",
+               "shall i assemble", "want me to build", "should i build")
+        hits = [b for b in bad if b in reply]
+        return [f"steered to assembly/build early: {hits}"] if hits else []
+
+    def routes_in_order(state, transcript):
+        """After variables are chosen, 'what's next' points at the NEXT route
+        step (map area / input files), not a build or a status dump."""
+        reply = transcript[-1][1].lower()
+        if any(w in reply for w in ("map area", "region", "locations.csv",
+                                    "parameters.csv", "input file", "station")):
+            return []
+        return [f"didn't name the next route step: {reply[:100]}"]
+
+    def reroute_follows_driver(state, transcript):
+        """GPS re-routes: mid-flow the driver changes direction (adds a basin
+        instead of answering the variables question). The agent follows —
+        both the source and the basin end up configured, not stuck on GFS."""
+        s = state["slots"]
+        problems = []
+        if s.get("imports") != ["GFS"]:
+            problems.append(f"lost GFS: {s.get('imports')}")
+        if s.get("basins") != [{"basin_name": "Rhine",
+                                "model_adapter": "wflow"}]:
+            problems.append(f"basin not added on reroute: {s.get('basins')}")
+        return problems
+
+    def eccc_no_variables_question(state, transcript):
+        """Adding an ECCC source must NOT ask 'which weather variables?' —
+        their set is fixed (found driving the API: HRDPS was asked). It should
+        move to the map area instead."""
+        reply = transcript[-1][1].lower()
+        problems = []
+        if "which" in reply and ("variable" in reply or "carry" in reply):
+            problems.append(f"asked to choose ECCC variables: {reply[:90]}")
+        return problems
+
+    def basin_one_message(state, transcript):
+        """'a wflow model for the rhine basin' names BOTH pieces in one
+        message — add now, don't ask to confirm the name (found testing the
+        GPS myself: this phrasing hesitated and silently dropped the basin)."""
+        b = state["slots"].get("basins") or []
+        return ([] if b == [{"basin_name": "Rhine", "model_adapter": "wflow"}]
+                else [f"basin not added from one-message add: {b}"])
+
+    def adapter_first(state, transcript):
+        """Adapter given in turn 1, basin named in turn 2 — must combine, not
+        re-ask (live tester: 'wflow' forgotten after 'rhine basin')."""
+        b = state["slots"].get("basins") or []
+        return ([] if b == [{"basin_name": "Rhine", "model_adapter": "wflow"}]
+                else [f"basins wrong or re-asked: {b}"])
+
+    def horizon_days(state, transcript):
+        """A bare '14 forecast horizon' means 14 DAYS (336h), not 14 hours."""
+        ov = (state["slots"].get("import_overrides") or {}).get("GFS") or {}
+        h = ov.get("forecast_horizon_hours")
+        return [] if h == 336 else [f"horizon={h}, expected 336 (14 days)"]
+
+    def delete_defaulted_var(state, transcript):
+        """Delete a weather variable from a DEFAULTED import — params must
+        drop it (live tester: 'delete air temperature' no-op'd)."""
+        inst = [i for p in (state.get("patterns") or [])
+                if p["pattern"] == "auto/nwp_grid_noaa"
+                for i in p["instances"] if i.get("nwp_name") == "GFS"]
+        ids = [x.get("id")
+               for x in (inst[0].get("parameters", []) if inst else [])]
+        return [] if ids == ["PC.nwp"] else [
+            f"GFS params={ids}, expected [PC.nwp]"]
+
     return [
         ("rhine-basin", [
             "add GFS", "i need it for the rhine basin",
@@ -134,7 +214,9 @@ def _scenarios():
         ("gap-report", [
             "add GFS with precipitation", "whats left to build?",
         ], gap),
-        ("nag-throttle", ["add GFS", "no", "no"], nag),
+        ("nag-throttle", [
+            "add GFS", "no, leave the variables", "cool, thanks",
+        ], nag),
         ("eccc-fixed-resolution", [
             "add HRDPS", "can i change the resolution of HRDPS?",
         ], eccc_fixed),
@@ -144,6 +226,27 @@ def _scenarios():
         ], station_write),
         ("scoped-build-not-refused", ["add GFS", "build it"], scoped_build),
         ("elicit-before-build", ["add GFS"], elicit_first),
+        ("adapter-given-first", [
+            "I want a forecasting system using wflow", "rhine basin",
+        ], adapter_first),
+        ("horizon-bare-number-is-days", [
+            "create a noaa gfs import", "14 forecast horizon",
+        ], horizon_days),
+        ("delete-defaulted-variable", [
+            "import gfs", "I don't need air temperature, delete it",
+        ], delete_defaulted_var),
+        ("no-premature-assembly", ["import gfs"], no_premature_assembly),
+        ("routes-in-order", [
+            "import gfs", "precipitation and temperature", "what's next?",
+        ], routes_in_order),
+        ("reroute-follows-driver", [
+            "import gfs", "actually, add a wflow model for the rhine basin",
+        ], reroute_follows_driver),
+        ("basin-both-in-one-message", [
+            "let's also add a wflow model for the rhine basin",
+        ], basin_one_message),
+        ("eccc-no-variables-question", ["add HRDPS"],
+         eccc_no_variables_question),
     ]
 
 

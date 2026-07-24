@@ -360,6 +360,84 @@ def _dt_removal_tokens(token: str, slots: dict) -> list[str]:
     return same or [token]
 
 
+def _resolve_parameter_id(token: str) -> str | None:
+    """A removal token → the FEWS parameterId it names, in ANY form.
+
+    Accepts a prose data type ("air temperature"), or the parameterId itself
+    ("TA.nwp") — the model often canonicalizes prose to the id, which the
+    old prose-only path rejected as an unknown variable (live tester bug)."""
+    tok = str(token or "").strip().lower()
+    if not tok:
+        return None
+    spec = _DATA_TYPE_TO_PARAMETER.get(tok)
+    if spec:
+        return spec.get("id")
+    for spec in _DATA_TYPE_TO_PARAMETER.values():
+        if str(spec.get("id", "")).lower() == tok:
+            return spec.get("id")
+    return None
+
+
+def _remove_import_data_type(state, imp, token, catalog, res) -> bool:
+    """Drop one weather variable from an import, whichever way its variables
+    were set. Two paths, one correct outcome:
+
+    - variables chosen EXPLICITLY (``data_types`` slot non-empty) → remove
+      from that slot, the way they were added (keeps the representation
+      consistent, and honours the user's exact chosen set);
+    - variables on the pattern DEFAULT (empty slot) → a per-import
+      ``parameters`` override filtering the default, since there is no slot
+      entry to drop (the empty-slot case the old path silently no-op'd —
+      the live tester bug).
+
+    Recognises the token in any form (prose or the parameterId). Returns
+    True if it owned the removal."""
+    from fews_agent.agent.turn_engine import apply_removal, resolve_patterns
+
+    pid = _resolve_parameter_id(token)
+    if pid is None:
+        return False
+    slots = state.setdefault("slots", {})
+
+    chosen = [str(x).lower() for x in (slots.get("data_types") or [])]
+    if chosen:
+        drop = [k for k, v in _DATA_TYPE_TO_PARAMETER.items()
+                if str(v.get("id", "")).lower() == pid.lower() and k in chosen]
+        if drop:
+            note, _ = apply_removal(
+                state, ExtractedOperation(action="remove",
+                                          fields={"data_types": drop}),
+                catalog,
+            )
+            res.notes.append(note)
+        else:
+            res.dropped.append(
+                f"remove: {imp} doesn't carry {token!r} ({pid}) to remove"
+            )
+        return True
+
+    _, declared = _declared_variables(imp, catalog)
+    if "parameters" not in declared:
+        return False           # this import isn't parameter-configurable
+    overrides = slots.setdefault("import_overrides", {})
+    current = overrides.get(imp, {}).get("parameters")
+    if current is None:
+        current = declared["parameters"].get("default") or []
+    kept = [p for p in current
+            if str((p or {}).get("id", "")).lower() != pid.lower()]
+    if len(kept) == len(current):
+        res.dropped.append(
+            f"remove: {imp} doesn't carry {token!r} ({pid}) to remove"
+        )
+        return True
+    ov = overrides.setdefault(imp, {})
+    ov["parameters"] = kept
+    ov["contribute_parameters"] = True     # non-default set must be declared
+    resolve_patterns(state, catalog)
+    res.notes.append(f"Removed {token} ({pid}) from {imp}.")
+    return True
+
+
 def _op_remove(state: dict, args: dict, catalog, res: PatchResult) -> None:
     from fews_agent.agent.turn_engine import (
         _SET_VAR_CANON,
@@ -385,6 +463,14 @@ def _op_remove(state: dict, args: dict, catalog, res: PatchResult) -> None:
     # `remove {target:"GFS", variable:"temperature"}` into deleting the whole
     # GFS import — a destructive mis-apply found in live testing.
     if var_token:
+        # A weather variable named on a specific import ("delete air
+        # temperature from GFS") — drop it via the per-import parameters
+        # override, which works even when the import is on default variables
+        # and even when the model sent the parameterId form (ta.nwp).
+        imp0 = _canonical_import(token)
+        if imp0 and _resolve_parameter_id(var_token) is not None:
+            if _remove_import_data_type(state, imp0, var_token, catalog, res):
+                return
         if var_token in _DATA_TYPE_TO_PARAMETER:
             note, _ = apply_removal(
                 state, ExtractedOperation(
@@ -469,6 +555,18 @@ def _op_remove(state: dict, args: dict, catalog, res: PatchResult) -> None:
             )
             res.notes.append(note)
             return
+    # A bare weather-variable removal ("remove air temperature") with no
+    # import named: if exactly one import carries it, scope the removal there
+    # via the per-import override (handles the defaulted-variables case).
+    if _resolve_parameter_id(token) is not None:
+        carriers = [
+            imp_name for imp_name in (slots.get("imports") or [])
+            if "parameters" in _declared_variables(imp_name, catalog)[1]
+        ]
+        if len(carriers) == 1:
+            if _remove_import_data_type(state, carriers[0], token, catalog,
+                                        res):
+                return
     if token.lower() in _DATA_TYPE_TO_PARAMETER:
         note, _ = apply_removal(
             state, ExtractedOperation(

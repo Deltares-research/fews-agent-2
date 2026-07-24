@@ -10,8 +10,8 @@
 ## CONFIGURED INSTANCES
 [[ instances_view ]]
 
-## GAP TO A BUILDABLE PROJECT (prioritize your guidance from this)
-[[ gap_digest ]]
+## ROUTE (your GPS — where the project is, and the NEXT STEP to guide toward)
+[[ route_digest ]]
 
 ## INPUT FILES PROVIDED
 [[ inputs_digest ]]

@@ -295,7 +295,10 @@ def test_interpolation_flag_resolves_interpolate_pattern(state, catalog):
 def test_remove_with_datatype_variable_never_deletes_the_import(state, catalog):
     """LIVE BUG: remove {target:"GFS", variable:"temperature"} ignored the
     variable and deleted the whole GFS import. `variable` is authoritative:
-    handle it fully or drop the op — never fall through."""
+    handle it fully or drop the op — never fall through. The OUTCOME that
+    matters is the import survives and drops just that weather variable (the
+    mechanism is now a per-import parameters override, so the import's
+    rendered parameters lose TA.nwp)."""
     apply_patch(state, [{"op": "add_import", "name": "GFS",
                          "data_types": ["precipitation", "temperature"]}],
                 catalog)
@@ -303,7 +306,11 @@ def test_remove_with_datatype_variable_never_deletes_the_import(state, catalog):
         {"op": "remove", "target": "GFS", "variable": "temperature"},
     ], catalog)
     assert state["slots"]["imports"] == ["GFS"]          # import SURVIVES
-    assert state["slots"]["data_types"] == ["precipitation"]
+    inst = next(i for p in state["patterns"]
+                if p["pattern"] == "auto/nwp_grid_noaa"
+                for i in p["instances"] if i.get("nwp_name") == "GFS")
+    ids = [x.get("id") for x in inst.get("parameters", [])]
+    assert "TA.nwp" not in ids and "PC.nwp" in ids       # temp gone, precip stays
     assert res.dropped == []
 
 

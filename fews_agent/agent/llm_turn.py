@@ -33,6 +33,7 @@ from fews_agent.agent.project_intents import (
     compute_input_status,
     scan_inputs,
 )
+from fews_agent.agent.project_route import route_digest
 from fews_agent.agent.turn_engine import (
     ModuleTurnResult,
     _history_text,
@@ -167,34 +168,10 @@ def state_digest(state: dict) -> str:
     return "\n".join(lines)
 
 
-def gap_digest(state: dict, inputs_dir) -> str:
-    """The computed gap to a buildable project — the model prioritizes this
-    conversationally instead of reciting one scripted next step."""
-    slots = state.get("slots") or {}
-    scan = scan_inputs(inputs_dir)
-    status = compute_input_status(state.get("intent"), scan, slots)
-    lines: list[str] = []
-    if not (slots.get("imports") or slots.get("basins")
-            or slots.get("extra_patterns")):
-        lines.append("nothing configured yet — the user needs to add a data "
-                     "source, a basin model, or another capability first")
-    # Imports whose weather variables were never CHOSEN (defaults filled
-    # silently) — the model should elicit these before proposing builds.
-    if (slots.get("imports")) and not (slots.get("data_types")):
-        names = ", ".join(slots["imports"])
-        lines.append(
-            f"weather variables not yet chosen for {names} — running on "
-            f"defaults (precipitation + temperature). Ask what the user "
-            f"wants these to carry BEFORE suggesting a build; accept the "
-            f"defaults if they say so."
-        )
-    for c in status.get("csvs_required_missing") or []:
-        lines.append(f"required input file missing: {c}")
-    for n in status.get("extra_notes") or []:
-        lines.append(n)
-    if not lines:
-        lines.append("(no known gaps — the project can be built/assembled)")
-    return "\n".join(lines)
+# NOTE: gap_digest was retired in Phase 2 — the ROUTE section
+# (project_route.route_digest) subsumes it, presenting the same gaps as an
+# ordered, position-aware journey the model navigates rather than a flat
+# list. compute_input_status (which it wrapped) is still reused by the route.
 
 
 def inputs_digest(inputs_dir) -> str:
@@ -384,7 +361,7 @@ def run_llm_turn(
         catalog_digest=catalog_digest(catalog),
         state_digest=state_digest(state),
         instances_view=module_vars_text(state, catalog, None),
-        gap_digest=gap_digest(state, inputs_dir),
+        route_digest=route_digest(state, inputs_dir),
         inputs_digest=inputs_digest(inputs_dir),
         build_digest=build_digest(state),
         history_text=_history_text(history, limit=8),
