@@ -52,7 +52,7 @@ import os
 import sys
 from datetime import datetime
 from pathlib import Path
-
+import hashlib
 # Ensure the repo root is on sys.path so imports resolve when run as a script.
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(_REPO_ROOT) not in sys.path:
@@ -75,17 +75,27 @@ from rich.console import Console
 from fews_agent.agent.project_chat import (
     build_pattern_catalog,
     initial_state,
+    load_blueprint_into_state,
     write_project,
 )
-from fews_agent.agent.llm_turn import run_llm_turn
+from fews_agent.agent.llm_turn import catalog_digest
 from fews_agent.agent.modules import list_modules as _list_modules
-from fews_agent.agent.project_intents import _IMPORT_PATTERN_MAP
-from fews_agent.agent.providers.factory import get_provider_or_ollama
+from fews_agent.agent.patch_ops import apply_patch
+from fews_agent.agent.project_intents import (
+    _IMPORT_PATTERN_MAP,
+    heuristic_intent_from_slots,
+)
 from fews_agent.agent.turn_engine import resolve_patterns
+from fews_agent.validation import validate_xsd
 from runners.agent.build_from_blueprint import (
     build_from_blueprint,
     build_phase as _build_phase,
 )
+
+try:  # disk-native cross-reference walker (semantic-by-parsing)
+    from scripts.check_references import analyze as _analyze_refs
+except ImportError:  # pragma: no cover - scripts/ always present in repo
+    _analyze_refs = None
 
 # ---------------------------------------------------------------------------
 # Paths & constants
@@ -298,12 +308,192 @@ def _catalog():
     return build_pattern_catalog(PATTERNS_ROOT)
 
 
-def _model_for(state: dict) -> str:
-    return state.get("model") or DEFAULT_MODEL
-
-
 def _generated_dir(project_dir: Path) -> Path:
     return project_dir / "generated"
+
+
+# ---------------------------------------------------------------------------
+# Blueprint-first helpers (reverse-sync, typed edits, validate, drift)
+# ---------------------------------------------------------------------------
+
+
+def _maybe_sync_blueprint(project_dir: Path, state: dict) -> list[str]:
+    """If project.yaml was hand-edited more recently than the saved state,
+    reverse-sync it into ``state`` so the typed tools + status stay coherent.
+
+    Returns notes (empty when no sync happened). Does NOT persist — the caller
+    saves after using the refreshed state.
+    """
+    project_path = project_dir / "project.yaml"
+    if not project_path.is_file():
+        return []
+    state_file = _state_path(project_dir)
+    try:
+        yaml_mtime = project_path.stat().st_mtime
+        state_mtime = state_file.stat().st_mtime if state_file.is_file() else 0.0
+    except OSError:
+        return []
+    # Small epsilon so a build's own write_project (which touches both) doesn't
+    # look like a hand edit.
+    if yaml_mtime <= state_mtime + 1.0:
+        return []
+    return load_blueprint_into_state(state, project_dir)
+
+
+def _ensure_intent_and_resolve(state: dict, catalog) -> None:
+    """Re-derive the resolver intent from the current slots, then resolve.
+
+    Intent is only a resolver *selector* here (imports-only vs forecasting),
+    so it is re-derived from slots on every edit — mirroring the turn engine's
+    ``_sync_module_intent``. Deriving it only when missing would let a stale
+    ``build_data_import_only`` drop a basin added later.
+    """
+    state["intent"] = heuristic_intent_from_slots(state.get("slots") or {})
+    resolve_patterns(state, catalog)
+
+
+def _apply_ops(project_dir: Path, ops: list[dict]) -> dict:
+    """Load → (auto-sync) → apply typed ops → resolve → write project.yaml.
+
+    The single shared path for every typed edit tool. Returns a JSON-ready
+    dict with applied notes, LOUDLY-dropped invalid ops, the resolved pattern
+    list, and the blueprint path.
+    """
+    try:
+        state, history = _load(project_dir)
+    except Exception as e:  # noqa: BLE001
+        return {"error": f"Failed to load session: {e}"}
+
+    catalog = _catalog()
+    synced = _maybe_sync_blueprint(project_dir, state)
+
+    result = apply_patch(state, ops, catalog)
+    _ensure_intent_and_resolve(state, catalog)
+
+    try:
+        project_path = write_project(state, project_dir)
+    except Exception as e:  # noqa: BLE001
+        return {"error": f"Failed to write project.yaml: {e}"}
+    _save(project_dir, state, history)
+
+    return {
+        "ok": not result.dropped,
+        "applied": list(result.notes),
+        "dropped": list(result.dropped),
+        "synced_from_blueprint": synced or [],
+        "imports": (state.get("slots") or {}).get("imports") or [],
+        "basins": [
+            b.get("basin_name")
+            for b in ((state.get("slots") or {}).get("basins") or [])
+        ],
+        "patterns": [p.get("pattern") for p in (state.get("patterns") or [])],
+        "project_yaml": str(Path(project_path).resolve()),
+        "project_dir": str(project_dir.resolve()),
+    }
+
+
+def _manifest_path(project_dir: Path) -> Path:
+    return project_dir / ".generated_manifest.json"
+
+
+def _hash_generated_tree(generated_dir: Path) -> dict[str, str]:
+    """Map relpath → sha256 for every file under the generated tree."""
+    out: dict[str, str] = {}
+    if not generated_dir.is_dir():
+        return out
+    for p in sorted(generated_dir.rglob("*")):
+        if not p.is_file() or p.name == "_README_DERIVED.txt":
+            continue
+        rel = str(p.relative_to(generated_dir)).replace("\\", "/")
+        out[rel] = hashlib.sha256(p.read_bytes()).hexdigest()
+    return out
+
+
+def _write_generated_manifest(project_dir: Path) -> None:
+    """Snapshot the just-built tree so later hand-edits are detectable."""
+    generated = _generated_dir(project_dir)
+    manifest = _hash_generated_tree(generated)
+    _manifest_path(project_dir).write_text(
+        json.dumps(manifest, indent=2), encoding="utf-8"
+    )
+    marker = generated / "_README_DERIVED.txt"
+    if generated.is_dir():
+        marker.write_text(
+            "This folder is DERIVED output, regenerated on every build.\n"
+            "Do NOT hand-edit these files — your changes will be overwritten.\n"
+            "Edit project.yaml (or inputs/) and rebuild instead.\n",
+            encoding="utf-8",
+        )
+
+
+def _detect_drift(project_dir: Path) -> dict:
+    """Compare the current generated tree to the last build manifest."""
+    manifest_file = _manifest_path(project_dir)
+    if not manifest_file.is_file():
+        return {"has_manifest": False, "changed": [], "added": [], "removed": []}
+    try:
+        prev = json.loads(manifest_file.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        prev = {}
+    now = _hash_generated_tree(_generated_dir(project_dir))
+    changed = sorted(k for k in now.keys() & prev.keys() if now[k] != prev[k])
+    added = sorted(now.keys() - prev.keys())
+    removed = sorted(prev.keys() - now.keys())
+    return {
+        "has_manifest": True,
+        "changed": changed,
+        "added": added,
+        "removed": removed,
+        "drifted": bool(changed or added or removed),
+    }
+
+
+def _validate_generated(generated_dir: Path) -> dict:
+    """XSD-validate every rendered XML + run the cross-reference check.
+
+    Validates whatever is ON DISK — so it also covers files a user or Copilot
+    hand-edited, not just a fresh build.
+    """
+    if not generated_dir.is_dir():
+        return {"error": f"No generated tree at {generated_dir}. Build first."}
+
+    xsd_files: list[dict] = []
+    xsd_ok = 0
+    xml_paths = sorted(generated_dir.rglob("*.xml"))
+    for p in xml_paths:
+        rel = str(p.relative_to(generated_dir)).replace("\\", "/")
+        try:
+            ok, msg = validate_xsd(p.read_bytes())
+        except Exception as e:  # noqa: BLE001
+            ok, msg = False, f"validation raised: {e}"
+        if ok:
+            xsd_ok += 1
+        else:
+            xsd_files.append({"file": rel, "message": msg})
+
+    references: dict = {}
+    unresolved_total = 0
+    if _analyze_refs is not None:
+        try:
+            raw = _analyze_refs(generated_dir)
+            for kind, buckets in raw.items():
+                unresolved = sorted(buckets.get("unresolved", set()))
+                references[kind] = {
+                    "resolved": len(buckets.get("resolved", set())),
+                    "unresolved": unresolved,
+                }
+                unresolved_total += len(unresolved)
+        except Exception as e:  # noqa: BLE001
+            references = {"error": f"reference check raised: {e}"}
+
+    return {
+        "ok": not xsd_files and unresolved_total == 0,
+        "xml_total": len(xml_paths),
+        "xsd_ok": xsd_ok,
+        "xsd_failures": xsd_files,
+        "references": references,
+        "unresolved_total": unresolved_total,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -313,21 +503,29 @@ def _generated_dir(project_dir: Path) -> Path:
 mcp = FastMCP(
     "fews-agent",
     instructions=(
-        "FEWS config-generation agent. Use these tools to create Delft-FEWS "
-        "XML configuration files through a conversational interface.\n\n"
+        "FEWS config-generation agent. Generate Delft-FEWS XML configuration "
+        "through a BLUEPRINT-FIRST workflow: the blueprint (project.yaml) plus "
+        "the inputs/ folder are the ONLY things you edit. The generated XML "
+        "tree is derived output — never hand-edit it; rebuild instead.\n\n"
+        "You (the calling model) are the reasoning engine. Use the typed, "
+        "deterministic edit tools — each validates against "
+        "the pattern catalog and drops invalid requests loudly.\n\n"
         "Typical workflow:\n"
-        "1. create_project — start a new project. ALWAYS pass workspace_dir "
-        "set to the user's open VS Code / IDE workspace folder (absolute "
-        "path) so session state and generated XML land in "
-        "<workspace>/fews-projects/ where the user can open them. Omit "
-        "workspace_dir only when the user is working inside the agent repo.\n"
-        "2. chat — add imports (GFS, HRDPS...), basin models (Raven, Wflow...), "
-        "set parameters\n"
-        "3. build — generate the XML files; tell the user the absolute "
-        "output_root path so they can browse the files\n\n"
-        "Use list_imports to see valid NWP sources. Use get_status to check "
-        "current state. Pass the same workspace_dir to list_projects / "
-        "get_status / build when helpful."
+        "1. create_project — start a project. ALWAYS pass workspace_dir set to "
+        "the user's open IDE workspace folder (absolute path) so files land in "
+        "<workspace>/fews-projects/. Omit only inside the agent repo.\n"
+        "2. list_capabilities / list_imports — discover what can be added and "
+        "each capability's required variables.\n"
+        "3. add_import / add_basin / add_capability / set_variables / "
+        "remove_item — edit the blueprint deterministically.\n"
+        "4. get_blueprint — read the current project.yaml + a digest. If the "
+        "user hand-edits project.yaml, call reload_blueprint (or it auto-syncs "
+        "on the next tool).\n"
+        "5. build — regenerate the whole config; validate gates every file.\n"
+        "6. validate — XSD + cross-reference check over the generated tree "
+        "(catches issues in hand-edited files too).\n"
+        "7. check_drift — detect whether the generated tree was hand-edited "
+        "since the last build."
     ),
 )
 
@@ -406,78 +604,6 @@ def create_project(
             )
         ),
     })
-
-
-@mcp.tool()
-def chat(
-    session_id: str,
-    message: str,
-    workspace_dir: str | None = None,
-) -> str:
-    """Send a message to the FEWS agent and get a response.
-
-    This is the main conversational interface. Use it to:
-    - Add NWP imports: "add a GFS import with precipitation and temperature"
-    - Add basin models: "add a Raven model for the Liard basin"
-    - Set parameters: "set the forecast horizon to 7 days"
-    - Ask questions: "what imports are configured?"
-
-    Args:
-        session_id: The session_id from create_project.
-        message: Your message to the agent.
-        workspace_dir: Optional. Same workspace path passed to create_project;
-            helps locate the session if the index is missing.
-
-    Returns:
-        JSON with the agent's reply, any confirmation of changes made,
-        new patterns added, and whether a build was requested.
-    """
-    project_dir = _resolve_session_dir(session_id, workspace_dir)
-    if project_dir is None:
-        return json.dumps({
-            "error": f"Session '{session_id}' not found. Use create_project first.",
-            "hint": "If the project was created with workspace_dir, pass the "
-                    "same workspace_dir here.",
-        })
-
-    try:
-        state, history = _load(project_dir)
-    except Exception as e:
-        return json.dumps({"error": f"Failed to load session: {e}"})
-
-    catalog = _catalog()
-    model = _model_for(state)
-    history.append({"role": "user", "message": message})
-
-    try:
-        provider = get_provider_or_ollama(model)
-        result = run_llm_turn(
-            state, message, catalog, provider=provider,
-            history=history, inputs_dir=project_dir / "inputs",
-        )
-    except Exception as e:
-        return json.dumps({
-            "error": f"LLM call failed: {e}. Check that the LLM backend is running.",
-            "hint": "Set FEWS_AGENT_PROVIDER and related env vars if using Azure/Anthropic.",
-        })
-
-    history.append({"role": "agent", "message": result.reply})
-    _save(project_dir, state, history)
-
-    response = {
-        "reply": result.reply,
-        "confirmation": result.confirmation or None,
-        "new_patterns": result.new_patterns or [],
-        "wants_build": result.wants_build or result.wants_assemble,
-        "project_dir": str(project_dir.resolve()),
-    }
-    if result.wants_build or result.wants_assemble:
-        response["hint"] = (
-            "Use the build tool to generate XML files. "
-            f"They will appear under {_generated_dir(project_dir)}."
-        )
-
-    return json.dumps(response)
 
 
 @mcp.tool()
@@ -625,7 +751,7 @@ def build(
     resolve_patterns(state, catalog)
     if not state.get("patterns"):
         return json.dumps({
-            "error": "No patterns resolved yet. Use chat to add imports or models first.",
+            "error": "No patterns resolved yet. Add an import or basin first.",
         })
 
     # Check warnings unless forced
@@ -664,6 +790,12 @@ def build(
         if summary.get("ok"):
             state["full_build_ok"] = True
         _save(project_dir, state, history)
+
+    # Snapshot the derived tree so later hand-edits are detectable (drift).
+    try:
+        _write_generated_manifest(project_dir)
+    except OSError:
+        pass
 
     output_root = summary.get("output_root") or str(_generated_dir(project_dir))
     return json.dumps({
@@ -725,7 +857,7 @@ def build_phase(
 
     if not state.get("patterns"):
         return json.dumps({
-            "error": "No patterns resolved yet. Use chat to add imports or models first.",
+            "error": "No patterns resolved yet. Add an import or basin first.",
         })
 
     # Write project.yaml
@@ -780,8 +912,8 @@ def build_phase(
 def list_imports() -> str:
     """List available NWP import sources.
 
-    These are the valid source names you can add with the chat tool,
-    e.g., "add a GFS import" or "add HRDPS with precipitation".
+    These are the valid source names you can add with the add_import tool,
+    e.g., add_import(name="GFS") or add_import(name="HRDPS").
 
     Returns:
         JSON with list of import source names and their pattern paths.
@@ -796,7 +928,7 @@ def list_imports() -> str:
     return json.dumps({
         "imports": imports,
         "count": len(imports),
-        "usage": "Use 'add a <name> import' in the chat tool, e.g., 'add a GFS import'.",
+        "usage": "Pass a name to add_import, e.g. add_import(name='GFS').",
     })
 
 
@@ -823,6 +955,372 @@ def list_modules() -> str:
         "modules": modules,
         "count": len(modules),
     })
+
+
+# ---------------------------------------------------------------------------
+# Blueprint-first tools: read surface
+# ---------------------------------------------------------------------------
+
+
+@mcp.tool()
+def list_capabilities() -> str:
+    """List every capability that can be added to a blueprint.
+
+    Returns the pattern catalog digest: the canonical import-source names
+    (for add_import), plus each capability's required and optional variables
+    and the files it produces. Use this before add_capability / add_import so
+    you name things that actually exist — anything else is dropped loudly.
+
+    Returns:
+        JSON with a human-readable ``catalog`` digest and a structured
+        ``import_sources`` list.
+    """
+    catalog = _catalog()
+    return json.dumps({
+        "catalog": catalog_digest(catalog),
+        "import_sources": sorted(_IMPORT_PATTERN_MAP),
+        "count": len(catalog),
+    })
+
+
+@mcp.tool()
+def get_blueprint(
+    session_id: str,
+    workspace_dir: str | None = None,
+) -> str:
+    """Read the project's blueprint (project.yaml) and a structured digest.
+
+    The blueprint is the single editing surface: patterns + singleton seeds.
+    If it was hand-edited since the last tool call, it is auto-synced back
+    into the session first. If it doesn't exist yet, it is written from the
+    current state.
+
+    Args:
+        session_id: The session_id from create_project.
+        workspace_dir: Optional. Same workspace path passed to create_project.
+
+    Returns:
+        JSON with the raw project.yaml text, resolved patterns, imports,
+        basins, singleton seeds, the inputs/ file list, and build status.
+    """
+    project_dir = _resolve_session_dir(session_id, workspace_dir)
+    if project_dir is None:
+        return json.dumps({"error": f"Session '{session_id}' not found."})
+
+    try:
+        state, history = _load(project_dir)
+    except Exception as e:  # noqa: BLE001
+        return json.dumps({"error": f"Failed to load session: {e}"})
+
+    synced = _maybe_sync_blueprint(project_dir, state)
+    project_path = project_dir / "project.yaml"
+    if synced:
+        _save(project_dir, state, history)
+    elif not project_path.is_file():
+        catalog = _catalog()
+        _ensure_intent_and_resolve(state, catalog)
+        try:
+            write_project(state, project_dir)
+        except Exception as e:  # noqa: BLE001
+            return json.dumps({"error": f"Failed to write project.yaml: {e}"})
+        _save(project_dir, state, history)
+
+    yaml_text = (
+        project_path.read_text(encoding="utf-8")
+        if project_path.is_file() else ""
+    )
+    inputs_dir = project_dir / "inputs"
+    inputs = (
+        sorted(p.name for p in inputs_dir.iterdir() if p.is_file())
+        if inputs_dir.is_dir() else []
+    )
+    slots = state.get("slots") or {}
+    summary = state.get("last_build_summary") or {}
+    return json.dumps({
+        "project_name": state.get("name"),
+        "project_yaml": yaml_text,
+        "project_yaml_path": str(project_path.resolve()),
+        "patterns": [p.get("pattern") for p in (state.get("patterns") or [])],
+        "imports": slots.get("imports") or [],
+        "basins": [b.get("basin_name") for b in (slots.get("basins") or [])],
+        "singleton_seeds": state.get("singleton_seeds") or {},
+        "inputs": inputs,
+        "synced_from_blueprint": synced or [],
+        "generated_exists": _generated_dir(project_dir).is_dir(),
+        "last_build_ok": bool(summary.get("ok")) if summary else None,
+        "project_dir": str(project_dir.resolve()),
+    })
+
+
+@mcp.tool()
+def reload_blueprint(
+    session_id: str,
+    workspace_dir: str | None = None,
+) -> str:
+    """Force a reverse-sync of a hand-edited project.yaml into the session.
+
+    Normally the edit tools auto-sync when project.yaml is newer than the
+    saved state. Call this explicitly after editing project.yaml by hand to
+    make the change visible to get_blueprint / the typed tools immediately.
+
+    Args:
+        session_id: The session_id from create_project.
+        workspace_dir: Optional. Same workspace path passed to create_project.
+
+    Returns:
+        JSON with the reconstructed imports/basins/patterns and sync notes.
+    """
+    project_dir = _resolve_session_dir(session_id, workspace_dir)
+    if project_dir is None:
+        return json.dumps({"error": f"Session '{session_id}' not found."})
+    if not (project_dir / "project.yaml").is_file():
+        return json.dumps({"error": "No project.yaml to reload. Build or add first."})
+
+    try:
+        state, history = _load(project_dir)
+    except Exception as e:  # noqa: BLE001
+        return json.dumps({"error": f"Failed to load session: {e}"})
+
+    notes = load_blueprint_into_state(state, project_dir)
+    _save(project_dir, state, history)
+    slots = state.get("slots") or {}
+    return json.dumps({
+        "notes": notes,
+        "imports": slots.get("imports") or [],
+        "basins": [b.get("basin_name") for b in (slots.get("basins") or [])],
+        "patterns": [p.get("pattern") for p in (state.get("patterns") or [])],
+        "project_dir": str(project_dir.resolve()),
+    })
+
+
+# ---------------------------------------------------------------------------
+# Blueprint-first tools: typed deterministic edits (patch_ops surface)
+# ---------------------------------------------------------------------------
+
+
+@mcp.tool()
+def add_import(
+    session_id: str,
+    name: str,
+    data_types: list[str] | None = None,
+    grid_resolution: str | None = None,
+    forecast_horizon_hours: int | None = None,
+    workspace_dir: str | None = None,
+) -> str:
+    """Add an NWP/data import to the blueprint (deterministic).
+
+    Args:
+        session_id: The session_id from create_project.
+        name: Import source name (see list_capabilities / list_imports), e.g.
+            GFS, HRDPS, ERA5. Unknown names are dropped loudly.
+        data_types: Optional weather variables, e.g. ["precipitation",
+            "temperature"]. Unrecognised ones are dropped loudly.
+        grid_resolution: Optional NOAA slug (0p25 / 0p50 / 1p00).
+        forecast_horizon_hours: Optional per-import display window in hours.
+        workspace_dir: Optional. Same workspace path passed to create_project.
+
+    Returns:
+        JSON with applied notes, any dropped (invalid) fields, and the
+        refreshed blueprint summary.
+    """
+    project_dir = _resolve_session_dir(session_id, workspace_dir)
+    if project_dir is None:
+        return json.dumps({"error": f"Session '{session_id}' not found."})
+    op: dict = {"op": "add_import", "name": name}
+    if data_types:
+        op["data_types"] = list(data_types)
+    if grid_resolution is not None:
+        op["grid_resolution"] = grid_resolution
+    if forecast_horizon_hours is not None:
+        op["forecast_horizon_hours"] = forecast_horizon_hours
+    return json.dumps(_apply_ops(project_dir, [op]))
+
+
+@mcp.tool()
+def add_basin(
+    session_id: str,
+    basin_name: str,
+    model_adapter: str,
+    workspace_dir: str | None = None,
+) -> str:
+    """Add a basin model run to the blueprint (deterministic).
+
+    Args:
+        session_id: The session_id from create_project.
+        basin_name: The basin's name, e.g. Liard.
+        model_adapter: The model adapter — one of raven, wflow, hbv96. An
+            unknown adapter is dropped loudly (never guessed).
+        workspace_dir: Optional. Same workspace path passed to create_project.
+
+    Returns:
+        JSON with applied notes, any dropped ops, and the blueprint summary.
+    """
+    project_dir = _resolve_session_dir(session_id, workspace_dir)
+    if project_dir is None:
+        return json.dumps({"error": f"Session '{session_id}' not found."})
+    op = {
+        "op": "add_basin",
+        "basin_name": basin_name,
+        "model_adapter": model_adapter,
+    }
+    return json.dumps(_apply_ops(project_dir, [op]))
+
+
+@mcp.tool()
+def add_capability(
+    session_id: str,
+    name: str,
+    workspace_dir: str | None = None,
+) -> str:
+    """Add a non-import capability/pattern to the blueprint (deterministic).
+
+    Use for things like spatial display, interpolation, or any pattern from
+    list_capabilities that isn't an import or basin. A capability with unmet
+    required variables, or one not in the library, is dropped loudly.
+
+    Args:
+        session_id: The session_id from create_project.
+        name: A pattern name or path from list_capabilities.
+        workspace_dir: Optional. Same workspace path passed to create_project.
+
+    Returns:
+        JSON with applied notes, any dropped ops, and the blueprint summary.
+    """
+    project_dir = _resolve_session_dir(session_id, workspace_dir)
+    if project_dir is None:
+        return json.dumps({"error": f"Session '{session_id}' not found."})
+    return json.dumps(_apply_ops(project_dir, [{"op": "add_capability", "pattern": name}]))
+
+
+@mcp.tool()
+def set_variables(
+    session_id: str,
+    target: str,
+    values: dict,
+    workspace_dir: str | None = None,
+) -> str:
+    """Set variables on the blueprint (deterministic).
+
+    Args:
+        session_id: The session_id from create_project.
+        target: The import/basin the variables apply to (e.g. "GFS"), or ""
+            for project-wide settings (geoDatum, region, feature flags).
+        values: A mapping of variable → value, e.g.
+            {"grid_resolution": "0p50"} or {"forecast_horizon_hours": 168}
+            or {"region": "Gulf of Guinea"}. Unknown variables are dropped
+            loudly.
+        workspace_dir: Optional. Same workspace path passed to create_project.
+
+    Returns:
+        JSON with applied notes, any dropped variables, and the blueprint
+        summary.
+    """
+    project_dir = _resolve_session_dir(session_id, workspace_dir)
+    if project_dir is None:
+        return json.dumps({"error": f"Session '{session_id}' not found."})
+    if not isinstance(values, dict) or not values:
+        return json.dumps({"error": "values must be a non-empty object."})
+    op = {"op": "set_variables", "target": target, "values": values}
+    return json.dumps(_apply_ops(project_dir, [op]))
+
+
+@mcp.tool()
+def remove_item(
+    session_id: str,
+    target: str,
+    variable: str | None = None,
+    workspace_dir: str | None = None,
+) -> str:
+    """Remove an import/basin/capability, or clear one variable (deterministic).
+
+    Args:
+        session_id: The session_id from create_project.
+        target: What to remove — an import name (GFS), a basin name (Liard),
+            a data type (precipitation), or a capability. With ``variable``
+            set, ``target`` scopes which import the variable is cleared on.
+        variable: Optional. When set, clear just this variable instead of
+            removing the whole item (e.g. target="GFS", variable="horizon").
+        workspace_dir: Optional. Same workspace path passed to create_project.
+
+    Returns:
+        JSON with applied notes, anything not matched (dropped loudly), and
+        the blueprint summary.
+    """
+    project_dir = _resolve_session_dir(session_id, workspace_dir)
+    if project_dir is None:
+        return json.dumps({"error": f"Session '{session_id}' not found."})
+    op: dict = {"op": "remove", "target": target}
+    if variable is not None:
+        op["variable"] = variable
+    return json.dumps(_apply_ops(project_dir, [op]))
+
+
+# ---------------------------------------------------------------------------
+# Blueprint-first tools: standalone validate + drift
+# ---------------------------------------------------------------------------
+
+
+@mcp.tool()
+def validate(
+    session_id: str,
+    workspace_dir: str | None = None,
+) -> str:
+    """Validate the generated config tree on disk (XSD + cross-references).
+
+    Runs WITHOUT rebuilding — it checks whatever XML is currently on disk, so
+    it also catches problems introduced by hand-editing generated files.
+    Reports per-file XSD failures and unresolved cross-file ID references
+    (parameterId, locationSetId, locationId, idMapId, moduleInstanceId),
+    excluding FEWS runtime placeholders.
+
+    Args:
+        session_id: The session_id from create_project.
+        workspace_dir: Optional. Same workspace path passed to create_project.
+
+    Returns:
+        JSON with ok, xml_total, xsd_ok, xsd_failures, and references by kind.
+    """
+    project_dir = _resolve_session_dir(session_id, workspace_dir)
+    if project_dir is None:
+        return json.dumps({"error": f"Session '{session_id}' not found."})
+    report = _validate_generated(_generated_dir(project_dir))
+    report["project_dir"] = str(project_dir.resolve())
+    return json.dumps(report)
+
+
+@mcp.tool()
+def check_drift(
+    session_id: str,
+    workspace_dir: str | None = None,
+) -> str:
+    """Detect whether the generated tree was hand-edited since the last build.
+
+    The blueprint is the source of truth; the generated tree is derived. If
+    files there changed since the last build, a rebuild will overwrite them —
+    the fix belongs in project.yaml (or inputs/), not the generated XML.
+
+    Args:
+        session_id: The session_id from create_project.
+        workspace_dir: Optional. Same workspace path passed to create_project.
+
+    Returns:
+        JSON with drifted (bool) and the changed/added/removed file lists.
+    """
+    project_dir = _resolve_session_dir(session_id, workspace_dir)
+    if project_dir is None:
+        return json.dumps({"error": f"Session '{session_id}' not found."})
+    drift = _detect_drift(project_dir)
+    if not drift.get("has_manifest"):
+        drift["message"] = "No build manifest yet — run build first."
+    elif drift.get("drifted"):
+        drift["message"] = (
+            "Generated files were hand-edited since the last build. Rebuild "
+            "will overwrite them — edit project.yaml or inputs/ instead."
+        )
+    else:
+        drift["message"] = "No drift — generated tree matches the last build."
+    drift["project_dir"] = str(project_dir.resolve())
+    return json.dumps(drift)
 
 
 # ---------------------------------------------------------------------------

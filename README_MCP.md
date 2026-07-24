@@ -22,11 +22,19 @@ poetry install
 > it as `<path-to-fews-agent-2>` — substitute your own absolute path (e.g.
 > `C:\Users\you\fews-agent-2`). It does **not** have to match anyone else's.
 
-### 2. Configure credentials (`.env`)
+### 2. Configure credentials (`.env`) — optional
 
-The MCP server reads its LLM provider config from a `.env` file in the repo
-root — the **same file** the web app uses, and it is **gitignored**, so your
-keys never get committed. Copy `.env.example` to `.env` and fill it in:
+> **The MCP server no longer runs its own LLM.** Editing is done with typed,
+> deterministic tools (`add_import`, `add_basin`, …) — *your* MCP client's
+> model (VS Code Copilot, Claude Desktop) is the reasoning engine. An LLM is
+> only used by the `build` step to draft `Filters.xml`, and that call
+> **falls back to a bundled standard** if no provider is reachable. So a
+> `.env` is optional; without one, editing and building still work.
+
+If you *do* want the filter drafter to use a model, the server reads its LLM
+provider config from a `.env` file in the repo root — the **same file** the
+web app uses, and it is **gitignored**, so your keys never get committed. Copy
+`.env.example` to `.env` and fill it in:
 
 ```properties
 FEWS_AGENT_PROVIDER=litellm
@@ -128,33 +136,50 @@ Fully quit and restart Claude Desktop. You should see the FEWS agent tools avail
 
 ## Available Tools
 
-### Project Management
+The server is **blueprint-first**: the blueprint (`project.yaml`) plus the
+`inputs/` folder are the only things you edit. The generated XML tree is
+derived output — never hand-edit it; rebuild instead. Editing is done with
+typed, deterministic tools that validate every request against the pattern
+catalog and **drop invalid input loudly** (unknown import, unknown model
+adapter, bad variable). Your MCP client's model decides *what* to call; the
+tools guarantee *what gets written* is valid.
+
+### Project management
 
 | Tool | Description |
 |------|-------------|
 | `create_project` | Create a new FEWS configuration project. Pass **`workspace_dir`** (absolute path to the user's open IDE folder) so files land in their workspace — see [Workspace output](#workspace-output) |
 | `list_projects` | List existing projects (optionally scoped with `workspace_dir`) |
-| `get_status` | Get current project state (imports, basins, patterns, absolute paths, etc.) |
+| `get_status` | Get current project state (imports, basins, patterns, absolute paths, build status) |
 
-### Conversation
-
-| Tool | Description |
-|------|-------------|
-| `chat` | Send a message to the agent — the main interface for adding imports, models, setting parameters |
-
-### Build
+### Discover capabilities
 
 | Tool | Description |
 |------|-------------|
-| `build` | Run the full build pipeline (generate all XML files); returns absolute `output_root` |
+| `list_capabilities` | Every capability that can be added: catalog digest (each pattern's required/optional variables + files produced) plus the canonical import-source names |
+| `list_imports` | Available NWP import sources (GFS, HRDPS, ERA5, …) and their pattern paths |
+| `list_modules` | FEWS modules and their folder structure |
+
+### Edit the blueprint (typed, deterministic)
+
+| Tool | Description |
+|------|-------------|
+| `add_import` | Add an NWP/data import: `name` (+ optional `data_types`, `grid_resolution`, `forecast_horizon_hours`). Unknown names/variables dropped loudly |
+| `add_basin` | Add a basin model run: `basin_name` + `model_adapter` (`raven`/`wflow`/`hbv96`). An unknown adapter is dropped, never guessed |
+| `add_capability` | Add any other pattern from `list_capabilities` (e.g. spatial display, interpolation) |
+| `set_variables` | Set variables on an import/basin (`target`) or project-wide (`target=""`): `values` mapping, e.g. `{"grid_resolution": "0p50"}` |
+| `remove_item` | Remove an import/basin/capability, or clear one variable (`variable`) |
+| `get_blueprint` | Read the current `project.yaml` text + a structured digest (patterns, imports, basins, seeds, inputs, build status). Auto-syncs a hand-edited blueprint back into the session |
+| `reload_blueprint` | Force a reverse-sync of a hand-edited `project.yaml` into the session (normally automatic on the next edit tool) |
+
+### Build & validate
+
+| Tool | Description |
+|------|-------------|
+| `build` | Run the full build pipeline (generate all XML); returns absolute `output_root`, file counts, XSD status. Also snapshots the tree for drift detection |
 | `build_phase` | Build a single phase: `imports`, `process`, `model`, or `visualize` |
-
-### Reference
-
-| Tool | Description |
-|------|-------------|
-| `list_imports` | List available NWP import sources (GFS, HRDPS, etc.) |
-| `list_modules` | List FEWS modules and their folder structure |
+| `validate` | XSD + cross-reference check over the generated tree **on disk** — catches issues in hand-edited files too, without rebuilding |
+| `check_drift` | Detect whether the generated tree was hand-edited since the last build (a rebuild would overwrite those edits) |
 
 ## Workspace output
 
@@ -170,7 +195,7 @@ Generated FEWS XML does **not** have to — pass the user's open folder as
 **VS Code Copilot:** when the user is working in another folder, ask the host
 to pass that workspace's absolute path as `workspace_dir` on `create_project`
 (and optionally on `list_projects` / `get_status` / `build`). The server also
-indexes the session under the agent repo so later `chat` / `build` calls can
+indexes the session under the agent repo so later edit / `build` calls can
 find it by `session_id` alone.
 
 After `build`, tools return absolute `output_root` / `project_dir` — tell the
@@ -188,30 +213,39 @@ create_project(
 
 ## Example Conversation
 
-In Claude Desktop / VS Code Copilot (Agent mode):
+In Claude Desktop / VS Code Copilot (Agent mode) your client's model reads
+your intent and calls the typed tools directly — there is no second agent LLM.
 
 > **You:** Create a FEWS project called "rhine-forecast" in my current workspace
 
-The client should call `create_project` with `project_name="rhine-forecast"`
-and `workspace_dir` set to the open workspace folder, then return the session ID.
+The client calls `create_project` with `project_name="rhine-forecast"` and
+`workspace_dir` set to the open workspace folder, then returns the session ID.
 
 > **You:** Add a GFS import with precipitation and temperature, and an HRDPS import
 
-Claude will use `chat` with that message. The agent adds the imports and resolves the patterns.
+The client calls `add_import(name="GFS", data_types=["precipitation", "temperature"])`
+and `add_import(name="HRDPS")`. Each returns the applied notes, anything
+dropped, and the refreshed blueprint. (Unsure of the exact name? Call
+`list_capabilities` first.)
 
 > **You:** What's configured so far?
 
-Claude will use `get_status` to show you the current state (including absolute paths).
+The client calls `get_blueprint` (or `get_status`) to show the current
+`project.yaml` and resolved patterns, including absolute paths.
 
 > **You:** Build the project
 
-Claude will use `build` to generate all XML files and report validation results
-plus the absolute `output_root` to open in the explorer.
+The client calls `build`, then reports the validation results and the absolute
+`output_root` to open in the explorer. Follow up with `validate` to re-check
+the tree, or `check_drift` to see whether generated files were hand-edited.
 
 ## Environment Variables
 
-The MCP server uses the same provider configuration as the web app, loaded
-from the gitignored `.env` in the repo root (see `.env.example`):
+The MCP server's editing tools are deterministic and need **no** LLM. A
+provider is only consulted by the `build` step's filter drafter, which falls
+back to a bundled standard if none is configured. When you do configure one,
+it uses the same provider config as the web app, loaded from the gitignored
+`.env` in the repo root (see `.env.example`):
 
 | Variable | Description | Default |
 |----------|-------------|---------|
@@ -267,11 +301,16 @@ under the agent repo's `projects/.mcp_session_index.json`).
 path of the user's open VS Code folder as `workspace_dir`. Restart the MCP server after pulling
 this change so Copilot picks up the updated tool schemas.
 
-### "LLM call failed"
+### "Build reported a filter-drafter warning"
 
-The LLM backend isn't reachable. Check:
+The optional LLM used to draft `Filters.xml` wasn't reachable, so the build
+fell back to the bundled standard filter file. The build still succeeds and is
+XSD-valid. If you want model-drafted filters, check:
 1. For Ollama: is `ollama serve` running?
-2. For Azure/Anthropic: are the env vars set correctly in the MCP config?
+2. For Azure/Anthropic: are the env vars set correctly in `.env`?
+
+The editing tools (`add_import`, `add_basin`, …) never call an LLM, so they
+work regardless.
 
 ### Logs
 
@@ -295,22 +334,24 @@ mcp dev app/mcp_server.py
 
 ## Architecture
 
-The MCP server is the **fourth driver shell** (after CLI, Streamlit, HTTP API) over the same agent engine:
+The MCP server is the **fourth driver shell** (after CLI, Streamlit, HTTP API) over the same agent engine. It is **blueprint-first**: typed tools mutate the blueprint deterministically; no second LLM runs per turn.
 
 ```
-Claude Desktop / VS Code
-        ↓ (MCP/STDIO)
+Claude Desktop / VS Code  (the reasoning model lives here)
+        ↓ (MCP/STDIO, typed tool calls)
    app/mcp_server.py
         ↓ (direct call)
-   fews_agent/agent/llm_turn.py
+   fews_agent/agent/patch_ops.py     ← validate against catalog, drop loudly
         ↓
-   fews_agent/agent/patch_ops.py
+   project.yaml  (the blueprint — the single editing surface)
         ↓
    runners/agent/build_from_blueprint.py
-        ↓
+        ↓  (XSD + cross-reference validation gates every file)
    Generated XML in:
      • <workspace>/fews-projects/.../generated/  (when workspace_dir is set)
      • projects/<name>/.../generated/            (default / agent-repo)
 ```
 
 No HTTP hop — the MCP server imports and calls the engine functions directly.
+A hand edit to `project.yaml` is reverse-synced back into the session
+(`load_blueprint_into_state`) so the typed tools and status stay coherent.

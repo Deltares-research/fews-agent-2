@@ -309,6 +309,126 @@ def write_project(
     return project_path
 
 
+# Feature-flag / basin-adapter reverse maps for load_blueprint_into_state.
+# Kept local (not imported from patch_ops) to avoid a load-time import cycle.
+_FLAG_PATH_TO_SLOT = {
+    "auto/spatial_display_grid": "wants_visualization",
+    "auto/wf_interpolate_nwp_to_stations": "wants_interpolation",
+}
+_BASIN_PATH_TO_ADAPTER = {
+    "auto/raven_basin": "raven",
+    "auto/wflow_basin": "wflow",
+}
+
+
+def load_blueprint_into_state(
+    state: dict[str, Any],
+    project_dir: Path,
+) -> list[str]:
+    """Inverse of :func:`write_project` — parse project.yaml back into state.
+
+    The blueprint (project.yaml) is the canonical build input; the build
+    runner reads it directly. This reverse-sync exists so the typed edit
+    tools and status stay coherent after a *manual* edit to project.yaml.
+
+    It loads ``name`` + ``singleton_seeds`` + the resolved ``patterns`` list
+    faithfully (status/blueprint then reflect a hand edit exactly), and
+    reconstructs the high-level slots the edit tools operate on — imports,
+    basins, feature flags, per-import overrides, and extra capabilities — on
+    a best-effort basis. Reconstruction covers everything the tools emit; a
+    hand-authored pattern the reverse map doesn't recognise is preserved via
+    ``extra_patterns`` so a later tool edit + rebuild keeps it. Returns notes.
+    """
+    from fews_agent.agent.project_intents import (
+        _IMPORT_PATTERN_MAP,
+        heuristic_intent_from_slots,
+    )
+
+    project_path = project_dir / "project.yaml"
+    if not project_path.is_file():
+        return []
+    try:
+        data = yaml.safe_load(project_path.read_text(encoding="utf-8")) or {}
+    except yaml.YAMLError as exc:
+        return [f"project.yaml is not valid YAML: {exc}"]
+    if not isinstance(data, dict):
+        return ["project.yaml did not parse to a mapping; ignored."]
+
+    if data.get("name"):
+        state["name"] = data["name"]
+    state["singleton_seeds"] = data.get("singleton_seeds") or {}
+    patterns = data.get("patterns") or []
+    state["patterns"] = patterns
+
+    import_path_to_names: dict[str, list[str]] = {}
+    for imp_name, (path, _var) in _IMPORT_PATTERN_MAP.items():
+        import_path_to_names.setdefault(path, []).append(imp_name)
+
+    imports: list[str] = []
+    basins: list[dict[str, Any]] = []
+    overrides: dict[str, dict[str, Any]] = {}
+    extra: list[str] = []
+    flags: dict[str, bool] = {}
+
+    for entry in patterns:
+        if not isinstance(entry, dict):
+            continue
+        path = entry.get("pattern") or ""
+        instances = entry.get("instances") or [{}]
+        if path in import_path_to_names:
+            names = import_path_to_names[path]
+            for inst in instances:
+                inst = inst if isinstance(inst, dict) else {}
+                # Pick the import name matching the instance's label value,
+                # else the first candidate (1:1 for most sources).
+                label_vals = {str(v).lower() for v in inst.values()}
+                chosen = next(
+                    (n for n in names if n.lower() in label_vals), names[0]
+                )
+                if chosen not in imports:
+                    imports.append(chosen)
+                ov = {
+                    k: inst[k] for k in
+                    ("grid_resolution", "forecast_horizon_hours")
+                    if inst.get(k) is not None
+                }
+                if ov:
+                    overrides[chosen] = ov
+        elif path in _BASIN_PATH_TO_ADAPTER:
+            adapter = _BASIN_PATH_TO_ADAPTER[path]
+            for inst in instances:
+                inst = inst if isinstance(inst, dict) else {}
+                bn = inst.get("basin_name")
+                if bn:
+                    basins.append(
+                        {"basin_name": bn, "model_adapter": adapter}
+                    )
+        elif path in _FLAG_PATH_TO_SLOT:
+            flags[_FLAG_PATH_TO_SLOT[path]] = True
+        elif path:
+            extra.append(path)
+
+    slots: dict[str, Any] = {}
+    if imports:
+        slots["imports"] = imports
+    if basins:
+        slots["basins"] = basins
+    if overrides:
+        slots["import_overrides"] = overrides
+    if extra:
+        slots["extra_patterns"] = extra
+    slots.update(flags)
+    state["slots"] = slots
+    state["intent"] = heuristic_intent_from_slots(slots)
+
+    return [
+        f"Loaded blueprint: {len(patterns)} pattern group(s); "
+        f"imports={imports or []}, "
+        f"basins={[b['basin_name'] for b in basins] or []}"
+        + (f", extra={extra}" if extra else "")
+    ]
+
+
 # ---------------------------------------------------------------------------
 # Slot-filling architecture (Issue 1 fix)
 # ---------------------------------------------------------------------------
