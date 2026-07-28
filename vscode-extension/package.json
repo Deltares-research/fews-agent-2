@@ -1,0 +1,124 @@
+{
+  "name": "fews-config-agent",
+  "displayName": "FEWS Config Agent",
+  "description": "Chat with this repo's own FEWS-config agent from Copilot Chat, and browse the generated FEWS XML files as the container builds them.",
+  "version": "0.1.0",
+  "publisher": "deltares-fews-agent",
+  "private": true,
+  "engines": {
+    "vscode": "^1.95.0"
+  },
+  "categories": [
+    "Chat",
+    "Other"
+  ],
+  "activationEvents": [],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "chatParticipants": [
+      {
+        "id": "fews-agent.chat",
+        "name": "fews",
+        "fullName": "FEWS Config Agent",
+        "description": "Configure a FEWS forecasting project. Uses this repo's own Azure/LiteLLM agent, not Copilot's model.",
+        "isSticky": true,
+        "commands": [
+          {
+            "name": "build",
+            "description": "Build the current project (full assembly)"
+          },
+          {
+            "name": "status",
+            "description": "Show the route position and module build statuses"
+          },
+          {
+            "name": "new",
+            "description": "Start a fresh session"
+          }
+        ]
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "fewsAgent",
+          "title": "FEWS Agent",
+          "icon": "media/fews-icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "fewsAgent": [
+        {
+          "id": "fewsAgent.files",
+          "name": "Generated Files"
+        },
+        {
+          "id": "fewsAgent.route",
+          "name": "Project Route"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "fewsAgent.newSession",
+        "title": "FEWS Agent: New Session"
+      },
+      {
+        "command": "fewsAgent.refreshFiles",
+        "title": "FEWS Agent: Refresh Generated Files",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "fewsAgent.showDiffSinceLastBuild",
+        "title": "FEWS Agent: Show Diff Since Last Build",
+        "icon": "$(diff)"
+      },
+      {
+        "command": "fewsAgent.build",
+        "title": "FEWS Agent: Build"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "fewsAgent.refreshFiles",
+          "when": "view == fewsAgent.files",
+          "group": "navigation"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "fewsAgent.showDiffSinceLastBuild",
+          "when": "view == fewsAgent.files && viewItem == fewsFile",
+          "group": "inline"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "FEWS Config Agent",
+      "properties": {
+        "fewsAgent.apiBaseUrl": {
+          "type": "string",
+          "default": "http://localhost:8000",
+          "description": "Base URL of the FEWS agent API (app/api/server.py). Local dev default assumes `uvicorn app.api.server:app --port 8000`. If tunnelled into the deployed container (see DEPLOY.md, `az ssh vm ... -L 8501:localhost:8501`), set this to `http://localhost:8501/api` (nginx strips the /api prefix)."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc --noEmit -p . && node esbuild.js",
+    "watch": "node esbuild.js --watch",
+    "vscode:prepublish": "npm run compile",
+    "package": "vsce package"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "@types/vscode": "^1.95.0",
+    "esbuild": "^0.23.0",
+    "typescript": "^5.5.0"
+  },
+  "allowScripts": {
+    "esbuild@0.23.1": true
+  }
+}

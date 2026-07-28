@@ -244,6 +244,17 @@ __marimo__/
 # them, breaking the prompt loader on a fresh clone. Keep them tracked.
 !fews_agent/agent/prompts/*.txt
 
+# vscode-extension/ is an npm package — package.json/tsconfig.json/the
+# lockfile and its VS Code debug config are essential, not data. The
+# blanket *.json ignore above silently dropped them from the first commit
+# (same class of bug as the *.yaml pattern-library fix above — a file
+# existing on disk and looking committed via `git status` clean is not
+# proof it's tracked). Keep them tracked.
+!vscode-extension/package.json
+!vscode-extension/package-lock.json
+!vscode-extension/tsconfig.json
+!vscode-extension/.vscode/*.json
+
 secrets/*
 !secrets/.env.example
 
