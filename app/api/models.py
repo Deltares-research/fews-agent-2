@@ -172,6 +172,95 @@ class BuildResponse(BaseModel):
 
 
 # --------------------------------------------------------------------------
+# Generated files (read-only browsing/diffing — e.g. for an IDE extension)
+# --------------------------------------------------------------------------
+
+class FilesResponse(BaseModel):
+    """The generated-file manifest — everything on disk under ``generated/``
+    right now, freshly XSD-validated per file (not a cached build summary,
+    so it stays correct across any mix of full/scoped builds)."""
+
+    built: bool = Field(
+        description="False when no build has run yet for this session — "
+        "`files` is empty in that case.",
+    )
+    files: list[BuildFileResult] = Field(default_factory=list)
+
+
+class FileContentResponse(BaseModel):
+    relpath: str
+    content: str
+    source: str = Field(
+        description="'generated' for the current on-disk content, or "
+        "'rev:<rev>' when a historical revision was requested via `?rev=`.",
+    )
+
+
+# --------------------------------------------------------------------------
+# Route (the "GPS" journey stepper)
+# --------------------------------------------------------------------------
+
+class LegModel(BaseModel):
+    id: str
+    title: str
+    kind: str = Field(description="'blocking' or 'advisory'.")
+    active: bool
+    done: bool
+    guidance: str = ""
+    detail: str = ""
+
+
+class RouteResponse(BaseModel):
+    """Mirrors ``project_route.route_position`` — where the project stands
+    in the add-source → variables → map-area → basin-adapter → inputs →
+    assemble journey."""
+
+    legs: list[LegModel] = Field(default_factory=list)
+    current: str | None = Field(
+        default=None, description="Id of the current leg, if any.",
+    )
+    blocking_open: list[str] = Field(default_factory=list)
+    advisory_open: list[str] = Field(default_factory=list)
+    ready_to_assemble: bool = False
+    assembled: bool = False
+
+
+# --------------------------------------------------------------------------
+# Module status (the green/amber/grey sidebar signal)
+# --------------------------------------------------------------------------
+
+class ModuleStatusModel(BaseModel):
+    key: str
+    label: str
+    built: bool
+    status: str = Field(description="'built' | 'none' | 'forced' | 'stale'.")
+    focused: bool
+
+
+class ModulesResponse(BaseModel):
+    modules: list[ModuleStatusModel] = Field(default_factory=list)
+
+
+# --------------------------------------------------------------------------
+# Preview (live, pre-build render of one pattern instance's files)
+# --------------------------------------------------------------------------
+
+class PreviewFileModel(BaseModel):
+    relpath: str
+    content: str
+    xsd_ok: bool | None = Field(
+        description="None for non-XML output (nothing to validate).",
+    )
+    source: str = Field(description="'live render' or 'last build'.")
+    label: str
+
+
+class PreviewResponse(BaseModel):
+    target: str
+    files: list[PreviewFileModel] = Field(default_factory=list)
+
+
+# --------------------------------------------------------------------------
 # Health
 # --------------------------------------------------------------------------
 

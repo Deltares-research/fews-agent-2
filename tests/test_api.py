@@ -330,6 +330,159 @@ def test_phase_and_module_mutually_exclusive(client):
     assert "mutually exclusive" in resp.json()["detail"]
 
 
+# --------------------------------------------------------------------------
+# generated files — manifest + content + diff baseline (IDE-extension surface)
+# --------------------------------------------------------------------------
+
+def test_files_before_build_reports_not_built(client):
+    sid = _resolve_gfs_project(client, "filesempty")
+    body = client.get(f"/sessions/{sid}/files").json()
+    assert body == {"built": False, "files": []}
+
+
+def test_files_after_scoped_build_reflects_disk_not_last_build_only(client):
+    """A scoped phase build's summary only covers ITS files — /files must
+    still show everything on disk, not just the most recent build's delta."""
+    sid = _resolve_gfs_project(client, "filesbuilt")
+    resp = client.post(f"/sessions/{sid}/build", json={"phase": "imports"})
+    assert resp.status_code == 200, resp.text
+
+    body = client.get(f"/sessions/{sid}/files").json()
+    assert body["built"] is True
+    paths = {f["path"].replace("\\", "/") for f in body["files"]}
+    assert any("Import/NOAA/ImportGFS.xml" in p for p in paths)
+    assert all(f["xsd_ok"] for f in body["files"] if f["path"].endswith(".xml"))
+
+
+def test_file_content_matches_disk_and_404s_on_unknown_path(client):
+    sid = _resolve_gfs_project(client, "filecontent")
+    client.post(f"/sessions/{sid}/build", json={"phase": "imports"})
+    manifest = client.get(f"/sessions/{sid}/files").json()["files"]
+    rel = next(f["path"] for f in manifest if "ImportGFS.xml" in f["path"])
+
+    resp = client.get(f"/sessions/{sid}/files/{rel}")
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["relpath"] == rel
+    assert body["source"] == "generated"
+    assert "<" in body["content"]
+
+    assert client.get(f"/sessions/{sid}/files/NoSuchFile.xml").status_code == 404
+    assert client.get(
+        f"/sessions/{sid}/files/{rel}?rev=not-a-rev",
+    ).status_code == 400
+
+
+def test_file_content_rev_prev_recovers_pre_rebuild_content(client, monkeypatch):
+    script = _PatchProvider(
+        {"reply": "Added GFS.", "patch": [{"op": "add_import", "name": "GFS"}]},
+        {"reply": "Half-degree now.",
+         "patch": [{"op": "set_variables", "target": "GFS",
+                    "values": {"grid_resolution": "0p50"}}]},
+    )
+    monkeypatch.setattr(server, "get_provider_or_ollama", lambda model: script)
+    sid = _new_session(client, name="revprev")
+    client.post(f"/sessions/{sid}/turn",
+                json={"message": "Import NOAA GFS grids, no basin model."})
+    client.post(f"/sessions/{sid}/build", json={"phase": "imports"})
+    manifest = client.get(f"/sessions/{sid}/files").json()["files"]
+    rel = next(f["path"] for f in manifest if "ImportGFS.xml" in f["path"])
+    v1 = client.get(f"/sessions/{sid}/files/{rel}").json()["content"]
+    assert "gfs_0p50" not in v1
+
+    client.post(f"/sessions/{sid}/turn", json={"message": "make it half-degree"})
+    client.post(f"/sessions/{sid}/build", json={"phase": "imports"})
+    v2 = client.get(f"/sessions/{sid}/files/{rel}").json()["content"]
+    assert "gfs_0p50" in v2
+
+    prev = client.get(f"/sessions/{sid}/files/{rel}?rev=prev")
+    assert prev.status_code == 200, prev.text
+    assert prev.json()["content"] == v1
+    assert prev.json()["source"] == "rev:HEAD~1"
+
+
+# --------------------------------------------------------------------------
+# route (the "GPS" journey stepper)
+# --------------------------------------------------------------------------
+
+def test_route_empty_project_is_add_a_source(client):
+    sid = _new_session(client, name="routeempty")
+    body = client.get(f"/sessions/{sid}/route").json()
+    assert body["current"] == "capability"
+    assert body["ready_to_assemble"] is False
+    assert body["assembled"] is False
+
+
+def test_route_advances_after_resolving_a_source(client):
+    sid = _resolve_gfs_project(client, "routeadv")
+    body = client.get(f"/sessions/{sid}/route").json()
+    # GFS resolved without picking variables → variables leg is next.
+    assert body["current"] == "source_variables"
+    ids = {lg["id"] for lg in body["legs"]}
+    assert "source_variables" in ids and "required_inputs" in ids
+    # required_inputs (blocking) is still open — no CSVs uploaded.
+    assert "required_inputs" in body["blocking_open"]
+    assert body["ready_to_assemble"] is False
+
+
+# --------------------------------------------------------------------------
+# modules (the green/amber/grey sidebar signal)
+# --------------------------------------------------------------------------
+
+def test_modules_reflects_build_and_focus(client):
+    sid = _resolve_gfs_project(client, "modstat")
+    before = client.get(f"/sessions/{sid}/modules").json()["modules"]
+    processing_before = next(m for m in before if m["key"] == "processing")
+    assert processing_before["built"] is False
+    assert processing_before["status"] == "none"
+
+    resp = client.post(f"/sessions/{sid}/build", json={"phase": "imports"})
+    assert resp.status_code == 200, resp.text
+    after = client.get(f"/sessions/{sid}/modules").json()["modules"]
+    processing_after = next(m for m in after if m["key"] == "processing")
+    assert processing_after["built"] is True
+    assert processing_after["status"] == "built"
+
+
+def test_modules_goes_stale_when_project_changes_after_build(client, monkeypatch):
+    script = _PatchProvider(
+        {"reply": "Added GFS.", "patch": [{"op": "add_import", "name": "GFS"}]},
+        {"reply": "Added HRDPS too.",
+         "patch": [{"op": "add_import", "name": "HRDPS"}]},
+    )
+    monkeypatch.setattr(server, "get_provider_or_ollama", lambda model: script)
+    sid = _new_session(client, name="modstale")
+    client.post(f"/sessions/{sid}/turn",
+                json={"message": "Import NOAA GFS grids, no basin model."})
+    client.post(f"/sessions/{sid}/build", json={"phase": "imports"})
+    fresh = client.get(f"/sessions/{sid}/modules").json()["modules"]
+    assert next(m for m in fresh if m["key"] == "processing")["status"] == "built"
+
+    client.post(f"/sessions/{sid}/turn", json={"message": "also add an HRDPS import"})
+    stale = client.get(f"/sessions/{sid}/modules").json()["modules"]
+    assert next(m for m in stale if m["key"] == "processing")["status"] == "stale"
+
+
+# --------------------------------------------------------------------------
+# preview (live, pre-build render — distinct from /files)
+# --------------------------------------------------------------------------
+
+def test_preview_renders_live_without_a_build(client):
+    sid = _resolve_gfs_project(client, "previewlive")
+    body = client.get(f"/sessions/{sid}/preview", params={"target": "GFS"}).json()
+    assert body["target"] == "GFS"
+    assert body["files"]
+    assert all(f["source"] == "live render" for f in body["files"])
+    # Nothing was ever built — the disk manifest stays empty regardless.
+    assert client.get(f"/sessions/{sid}/files").json()["built"] is False
+
+
+def test_preview_unknown_target_is_empty(client):
+    sid = _resolve_gfs_project(client, "previewnone")
+    body = client.get(f"/sessions/{sid}/preview", params={"target": "Narnia"}).json()
+    assert body["files"] == []
+
+
 def test_build_produces_xsd_valid_files(client):
     sid = _new_session(client, name="buildtest")
     # Resolve a tiny GFS-only import project via one stubbed turn.

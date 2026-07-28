@@ -145,6 +145,29 @@ def test_git_missing_is_a_graceful_noop(session, monkeypatch):
     assert project_git.commit_and_diff(session, "x") == []
 
 
+def test_read_blob_recovers_a_prior_revision(session):
+    f = session / "generated" / "RegionConfigFiles" / "Locations.xml"
+    project_git.commit_and_diff(session, "first build")   # baselines v1
+    v1 = f.read_text(encoding="utf-8")
+    f.write_text("<locations>\n  <a/>\n  <b/>\n</locations>\n", encoding="utf-8")
+    project_git.commit_and_diff(session, "rebuild")        # commits v2
+
+    assert project_git.read_blob(
+        session, "generated/RegionConfigFiles/Locations.xml", "HEAD~1") == v1
+    assert project_git.read_blob(
+        session, "generated/RegionConfigFiles/Locations.xml", "HEAD") == f.read_text(
+        encoding="utf-8")
+    # unknown path at a valid rev, and a nonsense rev, both fail softly
+    assert project_git.read_blob(session, "generated/no_such_file.xml") is None
+    assert project_git.read_blob(
+        session, "generated/RegionConfigFiles/Locations.xml", "not-a-rev") is None
+
+
+def test_read_blob_without_git_is_none(session, monkeypatch):
+    monkeypatch.setattr(project_git, "available", lambda: False)
+    assert project_git.read_blob(session, "generated/x.xml") is None
+
+
 def test_chatter_build_reply_includes_diff(tmp_path, monkeypatch):
     """Integration: build → change resolution → rebuild shows a ```diff."""
     from app import chatter as C

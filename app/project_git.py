@@ -164,6 +164,28 @@ def commit_and_diff(session_dir: Path, label: str) -> list[tuple[str, str]]:
         return []
 
 
+def read_blob(session_dir: Path, relpath: str, rev: str = "HEAD~1") -> str | None:
+    """Content of ``relpath`` at ``rev`` in the session repo, or ``None``.
+
+    ``None`` covers every failure mode alike (git unavailable, no repo yet,
+    unknown rev, path didn't exist at that rev) — same failure policy as
+    :func:`commit_and_diff`: log and return an empty/absent result, never
+    raise. Used to fetch a pre-build baseline for a diff view without
+    exposing git plumbing to callers.
+    """
+    session_dir = Path(session_dir)
+    if not ensure_repo(session_dir):
+        return None
+    rel = relpath.replace("\\", "/")
+    try:
+        res = _run(session_dir, "show", f"{rev}:{rel}")
+        return res.stdout if res.returncode == 0 else None
+    except Exception as exc:  # noqa: BLE001
+        _logger.warning("project git read_blob failed for %s %s@%s: %s: %s",
+                        session_dir.name, rel, rev, type(exc).__name__, exc)
+        return None
+
+
 def format_diffs(diffs: list[tuple[str, str]]) -> str:
     """Chat-ready markdown for the changed pre-existing files ('' if none)."""
     if not diffs:

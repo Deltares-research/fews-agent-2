@@ -67,6 +67,7 @@ from fews_agent.agent.turn_engine import (
     run_turn_pipeline,
 )
 from fews_agent.agent import module_focus
+from fews_agent.agent import module_status
 from app import blob_store
 from app import project_git
 from fews_agent.agent.llm_turn import run_llm_turn
@@ -786,93 +787,19 @@ class ChatSession:
     def module_statuses(self) -> list[dict]:
         """Per-FEWS-module status for the sidebar navigator, in registry order.
 
-        Each entry: ``{"key", "label", "built", "focused"}``. ``built`` (the
-        green light) means the module's XMLs actually exist: for modules that
-        own capability phases (processing, display) — every phase of theirs
-        with resolved content is in ``built_phases`` (and there IS content);
-        for the deriver/view modules (locations, filters, topology, ...) —
-        their files only exist after final assembly, so green requires
-        ``full_build_ok``. Grey = not worked/built yet.
+        Delegates to :func:`fews_agent.agent.module_status.module_statuses`
+        so the HTTP API shell can expose the same signal without
+        duplicating this logic.
         """
-        from fews_agent.agent.modules import list_modules
-
-        self._resolve_patterns()
-        plan = phase_plan(self.state.get("patterns") or [])
-        built_phases = set(self.state.get("built_phases") or [])
-        full_ok = bool(self.state.get("full_build_ok"))
-        focused = self.state.get("current_module")
-
-        # phase → has resolved content, per the same mapping the scoped
-        # build uses (module_for_pattern on the phase's patterns).
-        module_phases: dict[str, list[tuple[str, bool]]] = {}
-        for entry in plan:
-            pats = entry.get("patterns") or []
-            if not pats:
-                continue
-            mod_key = module_for_pattern(pats[0]["pattern"])
-            module_phases.setdefault(mod_key, []).append(
-                (entry["phase"], entry["phase"] in built_phases)
-            )
-
-        forced = bool(self.state.get("full_build_forced"))
-        stamps = self.state.get("module_fingerprints") or {}
-        out: list[dict] = []
-        for m in list_modules():
-            short = m.label.split(" (")[0].strip() or m.key
-            if m.phases:
-                phases_here = module_phases.get(m.key) or []
-                built = bool(phases_here) and all(ok for _, ok in phases_here)
-            else:
-                built = full_ok
-            status = "built" if built else "none"
-            if built:
-                if not m.phases and forced:
-                    # Assembly was /force-done'd through missing required
-                    # inputs — the derived files exist but are not healthy.
-                    status = "forced"
-                elif m.key in stamps and (
-                        stamps[m.key] != self._module_fingerprint(m.key)):
-                    # Built, but the project changed since — the rendered
-                    # XMLs no longer match what's configured.
-                    status = "stale"
-            out.append({
-                "key": m.key, "label": short,
-                "built": built, "status": status,
-                "focused": m.key == focused,
-            })
-        return out
+        return module_status.module_statuses(self.state, self.catalog)
 
     def _module_fingerprint(self, key: str) -> str:
-        """Stable hash of what a module's build DEPENDS on right now.
-
-        Phase-owning modules (processing, display): their own resolved
-        pattern instances. Deriver/view modules (topology, filters, ...):
-        the WHOLE project — their files are derived from everything, so any
-        change staling them is correct, not oversensitive.
-        """
-        import hashlib
-
-        from fews_agent.agent.modules import get_module
-
-        m = get_module(key)
-        patterns = self.state.get("patterns") or []
-        if m is not None and m.phases:
-            content: object = [
-                p for p in patterns
-                if module_for_pattern(str(p.get("pattern", ""))) == key
-            ]
-        else:
-            content = {"patterns": patterns,
-                       "slots": self.state.get("slots") or {}}
-        blob = json.dumps(content, sort_keys=True, default=str)
-        return hashlib.sha1(blob.encode("utf-8")).hexdigest()[:12]
+        """Stable hash of what a module's build DEPENDS on right now."""
+        return module_status.module_fingerprint(self.state, key)
 
     def _stamp_module_fingerprint(self, key: str) -> None:
         """Record 'this module's XMLs match this content' at build success."""
-        self._resolve_patterns()
-        self.state.setdefault("module_fingerprints", {})[key] = (
-            self._module_fingerprint(key)
-        )
+        module_status.stamp_module_fingerprint(self.state, self.catalog, key)
 
 
     def _step_render_diff(self) -> str:

@@ -34,6 +34,7 @@ from __future__ import annotations
 import io
 import json
 import os
+import re
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -61,11 +62,19 @@ from fews_agent.agent.project_chat import (
     initial_state,
     write_project,
 )
-from fews_agent.agent import module_focus
+from fews_agent.agent import module_focus, module_status
 from fews_agent.agent.llm_turn import run_llm_turn
-from fews_agent.agent.modules import get_module, module_for_pattern, normalize_module
+from fews_agent.agent.modules import (
+    get_module,
+    list_modules,
+    module_for_pattern,
+    normalize_module,
+)
 from fews_agent.agent.phases import normalize_phase, phase_plan
+from fews_agent.agent.preview import preview_files
+from fews_agent.agent.project_route import route_position
 from fews_agent.agent.providers.factory import get_provider_or_ollama
+from fews_agent.validation.xsd import validate_xsd
 from fews_agent.agent.turn_engine import (
     _module_list_text,
     apply_disambiguation_answer,
@@ -92,7 +101,15 @@ from app.api.models import (
     BuildResponse,
     CreateSessionRequest,
     CreateSessionResponse,
+    FileContentResponse,
+    FilesResponse,
     HealthResponse,
+    LegModel,
+    ModulesResponse,
+    ModuleStatusModel,
+    PreviewFileModel,
+    PreviewResponse,
+    RouteResponse,
     SessionStateResponse,
     TurnRequest,
     TurnResponse,
@@ -557,8 +574,20 @@ def build_session(session_id: str, req: BuildRequest | None = None) -> BuildResp
                 for ph in target_phases:
                     if ph not in built:
                         built.append(ph)
+                # Fingerprint stamping parity with the Streamlit shell (see
+                # chatter.py's scoped-build call sites) — without this, an
+                # API-driven build never marks module_fingerprints and
+                # GET /modules' "stale" detection never fires for it.
+                for entry in phase_plan(state.get("patterns") or []):
+                    if entry["phase"] in target_phases and entry.get("patterns"):
+                        module_status.stamp_module_fingerprint(
+                            state, catalog,
+                            module_for_pattern(entry["patterns"][0]["pattern"]),
+                        )
             else:
                 state["full_build_ok"] = True
+                for m in list_modules():
+                    module_status.stamp_module_fingerprint(state, catalog, m.key)
         _save(project_dir, state, history)
         project_git.commit_and_diff(project_dir, f"api build {scope}")
         blob_store.sync_session_up(project_dir, full=True)
@@ -579,4 +608,182 @@ def build_session(session_id: str, req: BuildRequest | None = None) -> BuildResp
             summary.get("unbacked_interpolation_sets") or []
         ),
         files=_files_from_summary(summary),
+    )
+
+
+# --------------------------------------------------------------------------
+# Generated files — read-only browsing/diffing (e.g. for an IDE extension).
+#
+# Container-authoritative by design: a client never assumes it shares a
+# filesystem with the running agent (local uvicorn, or the Azure VM behind
+# an SSH tunnel — see DEPLOY.md). The per-session git repo in project_git.py
+# stays entirely server-side; these endpoints expose just enough of it
+# (current content + a named historical revision) for a client to render a
+# file tree and a native diff view without ever touching git themselves.
+# --------------------------------------------------------------------------
+
+_REV_PATTERN = re.compile(r"HEAD(~\d+)?|[0-9a-f]{7,40}")
+
+
+@app.get("/sessions/{session_id}/files", response_model=FilesResponse)
+def list_files(session_id: str) -> FilesResponse:
+    """The generated-file manifest — everything actually on disk under
+    ``generated/`` right now, freshly XSD-validated per file.
+
+    Deliberately NOT sourced from ``generated/summary.json`` (only written
+    by full-project assembly) or ``state["last_build_summary"]`` (only the
+    MOST RECENT build's file set — a scoped phase/module build would make
+    an earlier phase's files vanish from that view even though they're
+    still on disk). Walking disk + validating live is the same "computed
+    fresh, never stale" convention ``preview.py`` already uses, and it's
+    the only source that stays correct across any mix of full/scoped
+    builds. ``built=False`` (empty ``files``) before the first build.
+    """
+    project_dir = _resolve_session_dir(session_id)
+    generated = project_dir / "generated"
+    if not generated.is_dir():
+        return FilesResponse(built=False, files=[])
+    files: list[BuildFileResult] = []
+    for p in sorted(generated.rglob("*")):
+        if not p.is_file() or p.name == "summary.json":
+            continue
+        rel = p.relative_to(generated).as_posix()
+        if rel.lower().endswith(".xml"):
+            xsd_ok, xsd_msg = validate_xsd(p.read_bytes())
+        else:
+            # Non-XML outputs (sa_global.Properties, ...) — XSD doesn't
+            # apply. Same convention as build_from_blueprint's file table.
+            xsd_ok, xsd_msg = True, "(not XML)"
+        files.append(BuildFileResult(path=rel, xsd_ok=bool(xsd_ok), xsd_msg=xsd_msg))
+    return FilesResponse(built=bool(files), files=files)
+
+
+@app.get(
+    "/sessions/{session_id}/files/{file_path:path}",
+    response_model=FileContentResponse,
+)
+def get_file(
+    session_id: str, file_path: str, rev: str | None = None,
+) -> FileContentResponse:
+    """One generated file's content — current, or (via ``?rev=``) a prior
+    revision from the session's own git history.
+
+    ``rev`` accepts ``prev`` (alias for the revision before the most recent
+    build — i.e. "before the last build", the natural diff baseline),
+    ``HEAD``/``HEAD~<n>``, or an explicit commit sha. Anything else is a 400,
+    not a silent empty diff.
+    """
+    project_dir = _resolve_session_dir(session_id)
+    generated = (project_dir / "generated").resolve()
+    target = (generated / file_path).resolve()
+    if not target.is_relative_to(generated):
+        raise HTTPException(status_code=400, detail="Invalid path.")
+
+    if rev is None:
+        if not target.is_file():
+            raise HTTPException(
+                status_code=404,
+                detail=f"No such generated file: {file_path!r}.",
+            )
+        content = target.read_text(encoding="utf-8", errors="replace")
+        return FileContentResponse(
+            relpath=file_path, content=content, source="generated",
+        )
+
+    resolved_rev = "HEAD~1" if rev == "prev" else rev
+    if not _REV_PATTERN.fullmatch(resolved_rev):
+        raise HTTPException(
+            status_code=400, detail=f"Unrecognised rev {rev!r}.",
+        )
+    blob = project_git.read_blob(
+        project_dir, f"generated/{file_path}", resolved_rev,
+    )
+    if blob is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No revision {rev!r} of {file_path!r}.",
+        )
+    return FileContentResponse(
+        relpath=file_path, content=blob, source=f"rev:{resolved_rev}",
+    )
+
+
+# --------------------------------------------------------------------------
+# Route (the "GPS" journey stepper) + module status (green/amber/grey)
+# --------------------------------------------------------------------------
+
+@app.get("/sessions/{session_id}/route", response_model=RouteResponse)
+def get_route(session_id: str) -> RouteResponse:
+    """Where the project stands on the route to a complete config.
+
+    Pure, state-only (no LLM) — mirrors ``project_route.route_position``,
+    the same model the elicitation prompt's ROUTE section is built from.
+    """
+    project_dir = _resolve_session_dir(session_id)
+    state, _ = _load(project_dir)
+    pos = route_position(state, project_dir / "inputs")
+    legs = [
+        LegModel(
+            id=lg.id, title=lg.title, kind=lg.kind, active=lg.active,
+            done=lg.done, guidance=lg.guidance, detail=lg.detail,
+        )
+        for lg in pos.legs
+    ]
+    return RouteResponse(
+        legs=legs,
+        current=(pos.current.id if pos.current else None),
+        blocking_open=[lg.id for lg in pos.blocking_open],
+        advisory_open=[lg.id for lg in pos.advisory_open],
+        ready_to_assemble=pos.ready_to_assemble,
+        assembled=pos.assembled,
+    )
+
+
+@app.get("/sessions/{session_id}/modules", response_model=ModulesResponse)
+def get_modules(session_id: str) -> ModulesResponse:
+    """Per-FEWS-module build status — the green/amber/grey sidebar signal.
+
+    Mirrors the Streamlit sidebar navigator (``ChatSession.module_statuses``,
+    now shared via ``fews_agent.agent.module_status``). Resolves patterns
+    from current slots as a side effect (same as the Streamlit call site),
+    so the result is persisted back to state.
+    """
+    project_dir = _resolve_session_dir(session_id)
+    state, history = _load(project_dir)
+    catalog = _catalog()
+    statuses = module_status.module_statuses(state, catalog)
+    _save(project_dir, state, history)
+    return ModulesResponse(
+        modules=[ModuleStatusModel(**s) for s in statuses],
+    )
+
+
+# --------------------------------------------------------------------------
+# Preview — live, pre-build render of one pattern instance's files
+# --------------------------------------------------------------------------
+
+@app.get("/sessions/{session_id}/preview", response_model=PreviewResponse)
+def get_preview(session_id: str, target: str) -> PreviewResponse:
+    """Live-render the files matching ``target`` (an instance label like
+    "GFS", or a filename fragment like "ImportGFS"/"Topology.xml").
+
+    Distinct from ``/files``: this is a transient, explicitly-labeled render
+    ("live render" vs "last build", per ``PreviewFile.source``) for files a
+    pattern instance produces NOW from current slots — not what's actually
+    on disk in the container. Never mixed into the ``/files`` manifest.
+    """
+    project_dir = _resolve_session_dir(session_id)
+    state, _ = _load(project_dir)
+    previews = preview_files(
+        state, target, output_root=project_dir / "generated",
+    )
+    return PreviewResponse(
+        target=target,
+        files=[
+            PreviewFileModel(
+                relpath=p.relpath, content=p.content, xsd_ok=p.xsd_ok,
+                source=p.source, label=p.label,
+            )
+            for p in previews
+        ],
     )
