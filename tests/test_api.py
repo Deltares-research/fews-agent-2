@@ -88,6 +88,9 @@ def test_health_ok(client):
 
 
 def test_health_reports_unreachable(client, monkeypatch):
+    # This test exercises the OLLAMA-down path; pin the provider so it's
+    # hermetic regardless of ambient .env (the API loads .env at import).
+    monkeypatch.setenv("FEWS_AGENT_PROVIDER", "ollama")
     monkeypatch.setattr(
         server, "check_ollama_for_model", lambda *a, **k: "Ollama down.",
     )
@@ -170,6 +173,7 @@ def test_turn_vague_prose_is_model_handled_not_gated(client, monkeypatch):
 
 def test_turn_503_when_llm_unreachable(client, monkeypatch):
     sid = _new_session(client)
+    monkeypatch.setenv("FEWS_AGENT_PROVIDER", "ollama")   # test the ollama path
     monkeypatch.setattr(
         server, "check_ollama_for_model", lambda *a, **k: "Ollama down.",
     )

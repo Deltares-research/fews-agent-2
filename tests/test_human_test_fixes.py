@@ -290,16 +290,23 @@ def test_fresh_session_first_edit_announces_new_files(tmp_path, monkeypatch):
 # --- auto-build on every change + data-type equivalence ---------------------
 
 def test_remove_air_temperature_clears_temperature(catalog):
-    """'delete air temperature' vs a slot holding 'temperature' - removal
-    must match by the PARAMETER both map to, not the literal token."""
-    st = {"slots": {"imports": ["GFS"], "data_types": ["temperature",
-                                                       "precipitation"]},
+    """'delete air temperature' resolves to TA.nwp in any form (prose or the
+    parameterId) and drops it from the import — even when variables are on
+    the pattern DEFAULT (the empty-data_types case that used to no-op)."""
+    st = {"slots": {"imports": ["GFS"]},          # DEFAULTED variables
           "intent": "build_data_import_only"}
     TE.resolve_patterns(st, catalog)
-    res = apply_patch(st, [{"op": "remove", "target": "GFS",
-                            "variable": "air temperature"}], catalog)
-    assert res.dropped == []
-    assert st["slots"]["data_types"] == ["precipitation"]
+    for phrasing in ("air temperature", "ta.nwp"):
+        s = {"slots": {"imports": ["GFS"]}, "intent": "build_data_import_only"}
+        TE.resolve_patterns(s, catalog)
+        res = apply_patch(s, [{"op": "remove", "target": "GFS",
+                               "variable": phrasing}], catalog)
+        assert res.dropped == [], phrasing
+        inst = next(i for p in s["patterns"]
+                    if p["pattern"] == "auto/nwp_grid_noaa"
+                    for i in p["instances"] if i.get("nwp_name") == "GFS")
+        ids = [x.get("id") for x in inst.get("parameters", [])]
+        assert ids == ["PC.nwp"], (phrasing, ids)
 
 
 def test_every_edit_auto_builds_and_validates(tmp_path, monkeypatch):

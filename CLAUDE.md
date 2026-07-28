@@ -1848,6 +1848,30 @@ formatter (`fews_agent/agent/preview.py`) renders header + XSD badge + fenced
 XML identically for slash and prose. The prompt forbids the model writing XML
 itself — what appears in chat is always the deterministic render.
 
+**The advisor / route model (`fews_agent/agent/project_route.py`) — the GPS.**
+The agent used to take orders: after a source was added it pushed "build?"
+while variables were still on silent defaults, and forgot unfinished steps
+(tester histories). The route model fixes this as *navigation*, NOT domain
+judgment (the agent never second-guesses the user's meteorological choices —
+"human drives, GPS routes"). It's a PURE, deterministic model of the legs to
+a complete config: add a source/model → choose each source's weather
+variables (advisory — defaults are OK) → set a map area (advisory) → basin
+adapter (blocking) → required input CSVs (blocking, reuses
+`compute_input_status`) → assemble. `route_position(state, inputs)` reports
+where you are (completed legs, the `current` step in journey ORDER,
+`blocking_open`, `advisory_open`, `ready_to_assemble`, `assembled`);
+`route_digest` renders it as the prompt's **ROUTE** section (replaced the
+retired `gap_digest`). Prompt rules 4a/4b/4e make the model navigate: lead
+with the NEXT STEP, never steer to `done` until `ready_to_assemble`, and on
+a topic-closer ("thanks") give a brief ack — never re-recite the always-on
+ROUTE (the #1 nag). The live eval (`runners/agent/eval_llm_turn.py`, 15
+scenarios) is the behavioral spec — `no-premature-assembly`, `routes-in-order`,
+`reroute-follows-driver`, plus the mechanical-bug pins (delete-defaulted-var,
+adapter-given-first, horizon-bare-number-is-days) all born from real tester
+failures. Follow-up not yet done: fold `turn_engine._next_step_hint` (the
+CLI/module-mode deterministic next-step, still with the old build-push
+phrasing) onto the route so there's ONE guidance source.
+
 **Per-project git change tracking (`app/project_git.py`).** Every session dir
 carries its own local git repo (no remotes) over what the agent generates
 (`generated/` + `project.yaml`; chat state/logs/inputs excluded via the

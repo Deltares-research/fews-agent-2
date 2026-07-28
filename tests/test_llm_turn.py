@@ -14,7 +14,6 @@ import pytest
 from fews_agent.agent.llm_turn import (
     build_digest,
     catalog_digest,
-    gap_digest,
     inputs_digest,
     run_llm_turn,
     state_digest,
@@ -82,13 +81,6 @@ def test_state_digest_reports_focus_slots_and_builds(catalog):
     assert "imports" in text  # built phases
 
 
-def test_gap_digest_names_missing_csvs(state, tmp_path):
-    state["slots"]["imports"] = ["GFS"]
-    state["slots"]["wants_interpolation"] = True
-    text = gap_digest(state, tmp_path)  # empty inputs dir
-    assert "locations.csv" in text
-
-
 def test_inputs_digest_reads_headers_and_row_counts(tmp_path):
     (tmp_path / "locations.csv").write_text(
         "id,name,lat,lon\nA,Alpha,1,2\nB,Beta,3,4\n", encoding="utf-8",
@@ -121,7 +113,7 @@ def test_valid_patch_applies_and_reports_grey(state, catalog):
     assert "Added GFS" in res.reply
     # The prompt carried the full grounding context.
     user_prompt = prov.calls[0]["user"]
-    for section in ("CATALOG", "PROJECT STATE", "GAP", "INPUT FILES",
+    for section in ("CATALOG", "PROJECT STATE", "ROUTE", "INPUT FILES",
                     "LAST BUILD", "RECENT CONVERSATION"):
         assert section in user_prompt
 
@@ -240,12 +232,5 @@ def test_prompt_carries_modules_map_and_pattern_module_tags(state, catalog):
     assert "NEVER change their view" in user
 
 
-def test_gap_digest_flags_unchosen_import_variables(catalog, tmp_path):
-    """An import running on silent defaults is a GAP to elicit - without
-    this line the model saw nothing left to ask and pushed 'build?'."""
-    st = {"slots": {"imports": ["GFS"]}, "intent": "build_data_import_only"}
-    text = gap_digest(st, tmp_path)
-    assert "weather variables not yet chosen for GFS" in text
-    assert "BEFORE suggesting a build" in text
-    st["slots"]["data_types"] = ["precipitation"]
-    assert "not yet chosen" not in gap_digest(st, tmp_path)
+# (gap_digest retired in Phase 2 — its 'unchosen variables' and missing-CSV
+# behaviour now lives in the ROUTE model; see tests/test_project_route.py.)
