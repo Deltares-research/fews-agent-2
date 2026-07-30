@@ -224,6 +224,7 @@ __marimo__/
 !README.md
 !DEPLOY.md
 !PLAN.md
+!README_MCP.md
 
 # Bundled standard inputs are a hard dependency of the build path
 # (timeSteps, idMaps, grids, displayGroups, unit conversions). The
