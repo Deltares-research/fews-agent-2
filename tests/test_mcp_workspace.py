@@ -137,3 +137,42 @@ def test_list_projects_default_includes_indexed_workspace(
 def test_rejects_unsafe_session_id(agent_projects: Path):
     assert mcp._resolve_session_dir("../etc") is None
     assert mcp._resolve_session_dir("a/b") is None
+
+
+def test_patterns_root_points_at_package_library():
+    """Patterns live under fews_agent/patterns/ (relocated from repo root)."""
+    assert mcp.PATTERNS_ROOT == mcp.REPO_ROOT / "fews_agent" / "patterns"
+    assert (mcp.PATTERNS_ROOT / "auto").is_dir()
+    catalog = mcp._catalog()
+    assert len(catalog) > 0
+
+
+def test_slash_module_command_bypasses_llm(agent_projects: Path):
+    created = json.loads(mcp.create_project("slash-demo"))
+    sid = created["session_id"]
+    raw = mcp.chat(sid, "/modules")
+    data = json.loads(raw)
+    assert "error" not in data
+    assert data.get("slash_command") is True
+    assert data.get("wants_build") is False
+    assert "processing" in data["reply"].lower() or "module" in data["reply"].lower()
+
+
+def test_get_status_includes_route(agent_projects: Path):
+    created = json.loads(mcp.create_project("status-demo"))
+    sid = created["session_id"]
+    data = json.loads(mcp.get_status(sid))
+    assert "error" not in data
+    assert "route" in data
+    assert "ready_to_assemble" in data["route"]
+    assert "inputs" in data["route"]
+
+
+def test_undo_stack_helpers():
+    state = {"name": "x", "slots": {"imports": ["GFS"]}, "model": "m1"}
+    mcp._push_undo_snapshot(state)
+    state["slots"] = {"imports": ["GFS", "HRDPS"]}
+    assert mcp._pop_undo_snapshot(state, keep_model="m1")
+    assert state["slots"] == {"imports": ["GFS"]}
+    assert state["model"] == "m1"
+    assert not mcp._pop_undo_snapshot(state)

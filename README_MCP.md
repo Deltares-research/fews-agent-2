@@ -134,13 +134,13 @@ Fully quit and restart Claude Desktop. You should see the FEWS agent tools avail
 |------|-------------|
 | `create_project` | Create a new FEWS configuration project. Pass **`workspace_dir`** (absolute path to the user's open IDE folder) so files land in their workspace — see [Workspace output](#workspace-output) |
 | `list_projects` | List existing projects (optionally scoped with `workspace_dir`) |
-| `get_status` | Get current project state (imports, basins, patterns, absolute paths, etc.) |
+| `get_status` | Get current project state (imports, basins, patterns, route next-step, input readiness, absolute paths) |
 
 ### Conversation
 
 | Tool | Description |
 |------|-------------|
-| `chat` | Send a message to the agent — the main interface for adding imports, models, setting parameters |
+| `chat` | Send a message to the agent — the main interface for adding imports, models, setting parameters. Returns `wants_build` / `wants_assemble` / `build_scope` so the host knows whether to call `build` or `build_phase`. Slash commands (`/vars`, `/module`, `/list`, `/undo`) bypass the LLM. |
 
 ### Build
 
@@ -313,4 +313,11 @@ Claude Desktop / VS Code
      • projects/<name>/.../generated/            (default / agent-repo)
 ```
 
-No HTTP hop — the MCP server imports and calls the engine functions directly.
+Patterns and XSDs live under `fews_agent/patterns/` and `fews_agent/schemas/`
+(same paths the Streamlit app and HTTP API use). No HTTP hop — the MCP server
+imports and calls the engine functions directly.
+
+**Build signals from `chat`:** when the model asks to assemble, the response
+sets `wants_assemble=true` → call `build`. When it asks for a scoped build,
+`wants_build=true` and `build_scope` is a phase name (`imports` / `process` /
+`model` / `visualize`) → call `build_phase`.

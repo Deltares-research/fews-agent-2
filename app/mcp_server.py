@@ -72,6 +72,7 @@ from mcp.server.fastmcp import FastMCP
 from rich.console import Console
 
 # --- reuse the existing agent machinery; do not reinvent it ---------------
+from fews_agent.agent import module_focus
 from fews_agent.agent.project_chat import (
     build_pattern_catalog,
     initial_state,
@@ -79,20 +80,31 @@ from fews_agent.agent.project_chat import (
 )
 from fews_agent.agent.llm_turn import run_llm_turn
 from fews_agent.agent.modules import list_modules as _list_modules
-from fews_agent.agent.project_intents import _IMPORT_PATTERN_MAP
+from fews_agent.agent.project_intents import (
+    _IMPORT_PATTERN_MAP,
+    compute_input_status,
+    scan_inputs,
+)
+from fews_agent.agent.project_route import route_position
 from fews_agent.agent.providers.factory import get_provider_or_ollama
-from fews_agent.agent.turn_engine import resolve_patterns
+from fews_agent.agent.turn_engine import (
+    module_vars_reply,
+    module_welcome,
+    resolve_patterns,
+)
 from runners.agent.build_from_blueprint import (
     build_from_blueprint,
     build_phase as _build_phase,
 )
+from app import project_git
 
 # ---------------------------------------------------------------------------
 # Paths & constants
 # ---------------------------------------------------------------------------
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-PATTERNS_ROOT = REPO_ROOT / "patterns"
+# Patterns relocated into the package (same path as Streamlit / HTTP API).
+PATTERNS_ROOT = REPO_ROOT / "fews_agent" / "patterns"
 # Default project store when no workspace_dir is passed (agent-repo local).
 OUTPUT_ROOT = REPO_ROOT / "projects"
 # Under a client workspace, sessions land in <workspace>/fews-projects/.
@@ -101,6 +113,7 @@ WORKSPACE_PROJECTS_SUBDIR = "fews-projects"
 # sessions without re-passing workspace_dir every turn.
 _SESSION_INDEX_PATH = OUTPUT_ROOT / ".mcp_session_index.json"
 DEFAULT_MODEL = "qwen2.5:7b-instruct"
+_UNDO_DEPTH = 10
 
 # ---------------------------------------------------------------------------
 # Session persistence — identical layout to app/api/server.py
@@ -306,6 +319,117 @@ def _generated_dir(project_dir: Path) -> Path:
     return project_dir / "generated"
 
 
+def _push_undo_snapshot(state: dict) -> None:
+    """Snapshot state before a mutating turn (same contract as Streamlit)."""
+    snap = json.loads(json.dumps(state, default=str))
+    snap.pop("_undo_stack", None)
+    stack = state.setdefault("_undo_stack", [])
+    stack.append(snap)
+    if len(stack) > _UNDO_DEPTH:
+        del stack[0]
+
+
+def _pop_undo_snapshot(state: dict, *, keep_model: str | None = None) -> bool:
+    """Restore the latest undo snapshot in-place. False if stack empty."""
+    stack = state.get("_undo_stack") or []
+    if not stack:
+        return False
+    snap = stack.pop()
+    new_stack = list(stack)
+    model = keep_model if keep_model is not None else state.get("model")
+    state.clear()
+    state.update(snap)
+    state["_undo_stack"] = new_stack
+    if model:
+        state["model"] = model
+    return True
+
+
+def _module_command(state: dict, message: str, catalog) -> str | None:
+    """Deterministic slash commands (no LLM) — mirrors the HTTP API shell."""
+    cmd = message.lower().strip()
+    if cmd in {"/modules", "modules"}:
+        reply = module_focus.modules_overview()
+        cur = state.get("current_module")
+        return reply + (f"\n\nIn focus now: {cur}." if cur else "")
+    if cmd == "/module" or cmd.startswith("/module "):
+        if cmd == "/module":
+            cur = module_focus.get_focus(state)
+            return (
+                module_welcome(state, cur) if cur
+                else "No module in focus. Pick one with  /module <name>  "
+                     "(see  /modules  for the list)."
+            )
+        token = message.strip().split(None, 1)[1].strip()
+        _module, reply = module_focus.set_focus(state, token)
+        return module_welcome(state, _module) if _module is not None else reply
+    if cmd in {"/vars", "vars"} or cmd.startswith(("/vars ", "vars ")) \
+            or cmd in {"/list", "list", "/show", "show"}:
+        parts = message.strip().split(None, 1)
+        target = parts[1].strip() if len(parts) > 1 else None
+        return module_vars_reply(state, catalog, target)
+    if cmd in {"/undo", "undo"}:
+        if not _pop_undo_snapshot(state):
+            return "Nothing to undo — no prior state snapshot recorded."
+        slots = state.get("slots") or {}
+        filled = sum(1 for v in slots.values() if v)
+        depth = len(state.get("_undo_stack") or [])
+        return (
+            f"Rolled back — {filled} setting(s), "
+            f"{len(state.get('patterns') or [])} module(s). "
+            f"{depth} more snapshot(s) available."
+        )
+    return None
+
+
+def _change_diff_text(project_dir: Path, label: str) -> str:
+    """Appendable markdown for files changed by the last agent action."""
+    return project_git.format_diffs(
+        project_git.commit_and_diff(project_dir, label)
+    )
+
+
+def _status_route_block(state: dict, project_dir: Path) -> dict:
+    """Compact route + input readiness for get_status (host-LLM grounding)."""
+    inputs_dir = project_dir / "inputs"
+    pos = route_position(state, inputs_dir if inputs_dir.is_dir() else None)
+    scan = scan_inputs(inputs_dir if inputs_dir.is_dir() else None)
+    input_status = compute_input_status(
+        state.get("intent"), scan, state.get("slots") or {},
+    )
+    current = None
+    if pos.current is not None:
+        current = {
+            "id": pos.current.id,
+            "title": pos.current.title,
+            "kind": pos.current.kind,
+            "guidance": pos.current.guidance,
+        }
+    return {
+        "current_step": current,
+        "ready_to_assemble": pos.ready_to_assemble,
+        "assembled": pos.assembled,
+        "blocking_open": [
+            {"id": lg.id, "title": lg.title, "guidance": lg.guidance}
+            for lg in pos.blocking_open
+        ],
+        "advisory_open": [
+            {"id": lg.id, "title": lg.title, "guidance": lg.guidance}
+            for lg in pos.advisory_open
+        ],
+        "inputs": {
+            "csvs_present": input_status.get("csvs_present") or [],
+            "csvs_required_missing": (
+                input_status.get("csvs_required_missing") or []
+            ),
+            "csvs_recommended_missing": (
+                input_status.get("csvs_recommended_missing") or []
+            ),
+            "extra_notes": input_status.get("extra_notes") or [],
+        },
+    }
+
+
 # ---------------------------------------------------------------------------
 # MCP Server
 # ---------------------------------------------------------------------------
@@ -322,12 +446,16 @@ mcp = FastMCP(
         "<workspace>/fews-projects/ where the user can open them. Omit "
         "workspace_dir only when the user is working inside the agent repo.\n"
         "2. chat — add imports (GFS, HRDPS...), basin models (Raven, Wflow...), "
-        "set parameters\n"
-        "3. build — generate the XML files; tell the user the absolute "
-        "output_root path so they can browse the files\n\n"
+        "set parameters. Slash commands (/vars, /module, /list, /undo) work "
+        "without an LLM round-trip.\n"
+        "3. When chat returns wants_assemble=true, call build. When "
+        "wants_build=true with build_scope set to a phase name (imports/"
+        "process/model/visualize), call build_phase with that phase; "
+        "otherwise call build for full assembly.\n"
+        "4. Tell the user the absolute output_root so they can browse files.\n\n"
         "Use list_imports to see valid NWP sources. Use get_status to check "
-        "current state. Pass the same workspace_dir to list_projects / "
-        "get_status / build when helpful."
+        "current state and the next route step. Pass the same workspace_dir "
+        "to list_projects / get_status / build when helpful."
     ),
 )
 
@@ -384,6 +512,7 @@ def create_project(
         state["workspace_dir"] = workspace_abs
     state["project_dir"] = str(project_dir.resolve())
     _save(project_dir, state, [])
+    project_git.ensure_repo(project_dir)
     _index_session(
         project_dir.name, project_dir, workspace_dir=workspace_abs,
     )
@@ -421,6 +550,7 @@ def chat(
     - Add basin models: "add a Raven model for the Liard basin"
     - Set parameters: "set the forecast horizon to 7 days"
     - Ask questions: "what imports are configured?"
+    - Slash commands (no LLM): /vars, /module <name>, /modules, /list, /undo
 
     Args:
         session_id: The session_id from create_project.
@@ -429,8 +559,9 @@ def chat(
             helps locate the session if the index is missing.
 
     Returns:
-        JSON with the agent's reply, any confirmation of changes made,
-        new patterns added, and whether a build was requested.
+        JSON with the agent's reply, applied-change confirmation, new
+        patterns, build signals (wants_build / wants_assemble / build_scope),
+        and any input files written.
     """
     project_dir = _resolve_session_dir(session_id, workspace_dir)
     if project_dir is None:
@@ -449,6 +580,48 @@ def chat(
     model = _model_for(state)
     history.append({"role": "user", "message": message})
 
+    # /undo must run BEFORE the snapshot push (otherwise we'd snapshot
+    # current state and immediately pop that same snapshot).
+    cmd_lower = message.lower().strip()
+    if cmd_lower in {"/undo", "undo"}:
+        reply = _module_command(state, message, catalog) or (
+            "Nothing to undo — no prior state snapshot recorded."
+        )
+        history.append({"role": "agent", "message": reply})
+        _save(project_dir, state, history)
+        return json.dumps({
+            "reply": reply,
+            "confirmation": None,
+            "new_patterns": [],
+            "wants_build": False,
+            "wants_assemble": False,
+            "build_scope": None,
+            "input_files_written": [],
+            "slash_command": True,
+            "undone": True,
+            "project_dir": str(project_dir.resolve()),
+        })
+
+    # Snapshot before any other handler mutates state.
+    _push_undo_snapshot(state)
+
+    # Deterministic slash commands bypass the LLM (same as HTTP API).
+    cmd_reply = _module_command(state, message, catalog)
+    if cmd_reply is not None:
+        history.append({"role": "agent", "message": cmd_reply})
+        _save(project_dir, state, history)
+        return json.dumps({
+            "reply": cmd_reply,
+            "confirmation": None,
+            "new_patterns": [],
+            "wants_build": False,
+            "wants_assemble": False,
+            "build_scope": None,
+            "input_files_written": [],
+            "slash_command": True,
+            "project_dir": str(project_dir.resolve()),
+        })
+
     try:
         provider = get_provider_or_ollama(model)
         result = run_llm_turn(
@@ -461,21 +634,82 @@ def chat(
             "hint": "Set FEWS_AGENT_PROVIDER and related env vars if using Azure/Anthropic.",
         })
 
-    history.append({"role": "agent", "message": result.reply})
+    reply = result.reply
+    confirmation = result.confirmation or None
+
+    # Prose "undo that" → pop this turn's snapshot, then the prior turn.
+    if result.wants_undo:
+        _pop_undo_snapshot(state, keep_model=model)
+        if _pop_undo_snapshot(state, keep_model=model):
+            slots = state.get("slots") or {}
+            filled = sum(1 for v in slots.values() if v)
+            confirmation = (
+                f"Rolled back to the previous step — {filled} setting(s), "
+                f"{len(state.get('patterns') or [])} module(s)."
+            )
+        else:
+            confirmation = None
+            reply = "There's nothing to undo yet — no earlier step recorded."
+        history.append({"role": "agent", "message": reply})
+        if confirmation:
+            history[-1]["confirmation"] = confirmation
+        _save(project_dir, state, history)
+        return json.dumps({
+            "reply": reply,
+            "confirmation": confirmation,
+            "new_patterns": [],
+            "wants_build": False,
+            "wants_assemble": False,
+            "build_scope": None,
+            "input_files_written": [],
+            "undone": True,
+            "project_dir": str(project_dir.resolve()),
+        })
+
+    if result.input_files_written:
+        diff_text = _change_diff_text(
+            project_dir,
+            "update inputs: " + ", ".join(result.input_files_written),
+        )
+        if diff_text:
+            reply += "\n\n" + diff_text
+
+    history.append({"role": "agent", "message": reply})
+    if confirmation:
+        history[-1]["confirmation"] = confirmation
     _save(project_dir, state, history)
 
+    wants_build = bool(result.wants_build)
+    wants_assemble = bool(result.wants_assemble)
     response = {
-        "reply": result.reply,
-        "confirmation": result.confirmation or None,
+        "reply": reply,
+        "confirmation": confirmation,
         "new_patterns": result.new_patterns or [],
-        "wants_build": result.wants_build or result.wants_assemble,
+        "wants_build": wants_build or wants_assemble,
+        "wants_assemble": wants_assemble,
+        "build_scope": result.build_scope,
+        "input_files_written": list(result.input_files_written or []),
         "project_dir": str(project_dir.resolve()),
     }
-    if result.wants_build or result.wants_assemble:
+    if wants_assemble:
         response["hint"] = (
-            "Use the build tool to generate XML files. "
-            f"They will appear under {_generated_dir(project_dir)}."
+            "Call the build tool (full assembly). "
+            f"XML will appear under {_generated_dir(project_dir)}."
         )
+    elif wants_build:
+        scope = result.build_scope
+        if scope and scope.lower().strip() in (
+            "imports", "process", "model", "visualize",
+        ):
+            response["hint"] = (
+                f"Call build_phase with phase={scope!r} for a scoped build. "
+                f"Files land under {_generated_dir(project_dir)}."
+            )
+        else:
+            response["hint"] = (
+                "Call build or build_phase to generate XML. "
+                f"Files land under {_generated_dir(project_dir)}."
+            )
 
     return json.dumps(response)
 
@@ -487,7 +721,8 @@ def get_status(
 ) -> str:
     """Get the current status of a project.
 
-    Returns the configured imports, basins, patterns, warnings, and build progress.
+    Returns the configured imports, basins, patterns, warnings, build
+    progress, and the route next-step / input readiness.
 
     Args:
         session_id: The session_id from create_project.
@@ -495,7 +730,7 @@ def get_status(
 
     Returns:
         JSON with current project state including slots, patterns, build
-        status, and absolute project_dir / generated_dir paths.
+        status, route, inputs, and absolute project_dir / generated_dir paths.
     """
     project_dir = _resolve_session_dir(session_id, workspace_dir)
     if project_dir is None:
@@ -508,8 +743,10 @@ def get_status(
 
     slots = state.get("slots") or {}
     generated = _generated_dir(project_dir)
-    return json.dumps({
+    last = state.get("last_build_summary") or {}
+    payload = {
         "project_name": state.get("name"),
+        "intent": state.get("intent"),
         "imports": slots.get("imports") or [],
         "basins": slots.get("basins") or [],
         "patterns": [p.get("pattern") for p in (state.get("patterns") or [])],
@@ -521,7 +758,21 @@ def get_status(
         "project_dir": str(project_dir.resolve()),
         "generated_dir": str(generated.resolve()),
         "generated_exists": generated.is_dir(),
-    })
+        "last_build": {
+            "ok": last.get("ok"),
+            "files_xsd_ok": last.get("files_xsd_ok"),
+            "files_xml": last.get("files_xml"),
+            "semantic_unresolved_count": last.get("semantic_unresolved_count"),
+            "unbacked_interpolation_sets": last.get(
+                "unbacked_interpolation_sets"
+            ),
+        } if last else None,
+    }
+    try:
+        payload["route"] = _status_route_block(state, project_dir)
+    except Exception as e:  # noqa: BLE001 — status must still return
+        payload["route"] = {"error": f"route unavailable: {e}"}
+    return json.dumps(payload)
 
 
 @mcp.tool()
@@ -665,13 +916,21 @@ def build(
             state["full_build_ok"] = True
         _save(project_dir, state, history)
 
+    diff_text = _change_diff_text(project_dir, "mcp build full")
+
     output_root = summary.get("output_root") or str(_generated_dir(project_dir))
-    return json.dumps({
+    result = {
         "ok": bool(summary.get("ok")),
         "files_total": summary.get("files_total", 0),
         "files_xml": summary.get("files_xml", 0),
         "files_xsd_ok": summary.get("files_xsd_ok", 0),
         "errors": list(summary.get("errors") or []),
+        "semantic_refs": summary.get("semantic_refs"),
+        "semantic_unresolved_count": summary.get("semantic_unresolved_count"),
+        "semantic_unresolved": list(summary.get("semantic_unresolved") or [])[:10],
+        "unbacked_interpolation_sets": list(
+            summary.get("unbacked_interpolation_sets") or []
+        ),
         "output_root": output_root,
         "project_dir": str(project_dir.resolve()),
         "workspace_dir": state.get("workspace_dir"),
@@ -682,7 +941,10 @@ def build(
             if summary.get("ok")
             else f"Build completed with errors: {len(summary.get('errors') or [])} error(s)."
         ),
-    })
+    }
+    if diff_text:
+        result["diff"] = diff_text
+    return json.dumps(result)
 
 
 @mcp.tool()
@@ -757,8 +1019,10 @@ def build_phase(
         state["last_build_summary"] = summary
         _save(project_dir, state, history)
 
+    diff_text = _change_diff_text(project_dir, f"mcp build phase:{phase_lower}")
+
     output_root = summary.get("output_root") or str(_generated_dir(project_dir))
-    return json.dumps({
+    result = {
         "ok": bool(summary.get("ok")),
         "phase": phase_lower,
         "files_total": summary.get("files_total", 0),
@@ -773,7 +1037,10 @@ def build_phase(
             if summary.get("ok")
             else f"Phase '{phase_lower}' completed with errors."
         ),
-    })
+    }
+    if diff_text:
+        result["diff"] = diff_text
+    return json.dumps(result)
 
 
 @mcp.tool()
