@@ -1,4 +1,4 @@
-name: nwp_grid_noaa
+name: gfs_deterministic
 description: 'Auto-derived pattern from tutorial instances: GFS.'
 variables:
   nwp_name:
@@ -49,6 +49,29 @@ variables:
     type: bool
     required: false
     default: false
+# Free-text phrase -> FEWS parameter row, consumed by the resolver when the
+# configurator's data_types slot names one of these phrases (e.g. "pressure")
+# -- it overwrites this instance's `parameters` above with the matched
+# row(s). Declared here, on the pattern itself, so the vocabulary a
+# configurator can ask for and the pattern that has to honour it can never
+# drift apart. A value is a single {id, unit, ...} dict, or a list of such
+# dicts when one phrase means multiple parameters at once.
+data_type_vocabulary:
+  precipitation: {id: PC.nwp, unit: mm, cumulativeSum: true, startTimeShiftHours: -3}
+  precip: {id: PC.nwp, unit: mm, cumulativeSum: true, startTimeShiftHours: -3}
+  temperature: {id: TA.nwp, unit: K}
+  air temperature: {id: TA.nwp, unit: K}
+  temp: {id: TA.nwp, unit: K}
+  wind speed: {id: WS10.nwp, unit: m/s}
+  wind direction: {id: WD10.nwp, unit: degree}
+  mean sea level pressure: {id: PA.nwp, unit: hPa}
+  mslp: {id: PA.nwp, unit: hPa}
+  pressure: {id: PA.nwp, unit: hPa}
+  relative humidity: {id: RH.nwp, unit: '%'}
+  humidity: {id: RH.nwp, unit: '%'}
+  dewpoint temperature: {id: TD.nwp, unit: K}
+  dew point: {id: TD.nwp, unit: K}
+  dewpoint: {id: TD.nwp, unit: K}
 outputs:
 - schema: TimeSeriesImportRun
   output: ModuleConfigFiles/Import/NOAA/Import{{ nwp_name }}.xml

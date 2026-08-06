@@ -69,12 +69,14 @@ def _parameterizable_imports(imports: list[str]) -> list[str]:
     ECCC grids carry a fixed parameter set, so they have no 'variables' leg."""
     from fews_agent.agent.project_intents import (
         _IMPORT_PATTERN_MAP,
-        _PARAMETERIZED_NWP_PATTERNS,
+        _default_catalog,
+        _is_parameterized_pattern,
     )
+    cat = _default_catalog()
     out = []
     for name in imports:
         entry = _IMPORT_PATTERN_MAP.get(name)
-        if entry and entry[0] in _PARAMETERIZED_NWP_PATTERNS:
+        if entry and _is_parameterized_pattern(entry[0], cat):
             out.append(name)
     return out
 
@@ -110,7 +112,7 @@ def _fixed_variable_imports(slots: dict) -> list[str]:
     out = []
     for name in imports:
         entry = _IMPORT_PATTERN_MAP.get(name)
-        if (entry and entry[0].startswith("auto/nwp_grid_")
+        if (entry and entry[0].startswith(("auto/nwp_grid_", "auto/gfs/"))
                 and name not in selectable):
             out.append(name)
     return out
@@ -127,7 +129,7 @@ def _nwp_imports_without_map_area(slots: dict) -> list[str]:
     out = []
     for name in (slots.get("imports") or []):
         entry = _IMPORT_PATTERN_MAP.get(str(name))
-        if entry and entry[0].startswith("auto/nwp_grid_"):
+        if entry and entry[0].startswith(("auto/nwp_grid_", "auto/gfs/")):
             if "grid_geometry" not in (overrides.get(name) or {}):
                 out.append(str(name))
     return out

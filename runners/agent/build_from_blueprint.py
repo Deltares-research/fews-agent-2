@@ -466,6 +466,7 @@ def _filter_spatial_display_content(
 
 _NWP_PATTERN_PREFIXES: tuple[str, ...] = (
     "auto/nwp_grid_",
+    "auto/gfs/",
 )
 
 
@@ -2015,7 +2016,7 @@ def main(argv: list[str] | None = None) -> int:
         "--module",
         default=None,
         help=(
-            "Build only one pattern (e.g. auto/nwp_grid_noaa) instead of the "
+            "Build only one pattern (e.g. auto/gfs/deterministic) instead of the "
             "whole project — finer than --phase. Optionally narrow to a "
             "single instance with --instance-match 'nwp_name=GFS'."
         ),

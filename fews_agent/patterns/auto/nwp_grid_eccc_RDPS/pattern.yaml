@@ -4,6 +4,17 @@ variables:
   nwp_name:
     type: str
     required: true
+# Fixed parameter set (no `parameters` variable -- this import is never
+# reconfigured), declared here purely so the interpolation-eligibility
+# check (wf_interpolate_nwp_to_stations, via _INTERPOLATABLE_IMPORTS) can
+# translate "precipitation"/"temperature" prose to this pattern's own ids
+# without depending on a shared cross-pattern table.
+data_type_vocabulary:
+  precipitation: {id: PC.nwp, unit: kg m-2}
+  precip: {id: PC.nwp, unit: kg m-2}
+  temperature: {id: TA.nwp, unit: K}
+  temp: {id: TA.nwp, unit: K}
+  air temperature: {id: TA.nwp, unit: K}
 outputs:
 - schema: TimeSeriesImportRun
   output: ModuleConfigFiles/Import/ECCCGrids/Import{{ nwp_name }}.xml

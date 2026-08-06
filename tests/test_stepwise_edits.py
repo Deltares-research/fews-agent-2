@@ -51,7 +51,7 @@ def test_add_module_resolves_to_pattern(catalog):
     note = add_module(state, "GFS", "import")
     assert "GFS" in note
     chat_step._resolve_patterns(state, catalog)
-    assert "auto/nwp_grid_noaa" in _import_paths(state)
+    assert "auto/gfs/gribfilter" in _import_paths(state)
     assert state["slots"]["imports"] == ["GFS"]
 
 
@@ -68,14 +68,14 @@ def test_remove_survives_reresolve(catalog):
     add_module(state, "GFS", "import")
     add_module(state, "HRDPS", "import")
     chat_step._resolve_patterns(state, catalog)
-    assert "auto/nwp_grid_noaa" in _import_paths(state)
+    assert "auto/gfs/gribfilter" in _import_paths(state)
 
     note = remove_module(state, "GFS", "import")
     assert "Removed import GFS" in note
     chat_step._resolve_patterns(state, catalog)
     # A SECOND resolve (simulating a later turn) must not bring GFS back.
     chat_step._resolve_patterns(state, catalog)
-    assert "auto/nwp_grid_noaa" not in _import_paths(state)
+    assert "auto/gfs/gribfilter" not in _import_paths(state)
     assert "auto/nwp_grid_eccc_HRDPS" in _import_paths(state)
 
 
@@ -96,7 +96,7 @@ def test_set_grid_resolution_scoped_to_named_import(catalog):
     assert "grid_resolution" not in state["slots"]  # NOT project-wide
     chat_step._resolve_patterns(state, catalog)
     noaa = [
-        p for p in state["patterns"] if p["pattern"] == "auto/nwp_grid_noaa"
+        p for p in state["patterns"] if p["pattern"] == "auto/gfs/gribfilter"
     ][0]
     assert noaa["instances"][0].get("grid_resolution") == "0p50"
 
@@ -111,7 +111,7 @@ def test_set_grid_resolution_no_target_is_project_wide(catalog):
     assert "import_overrides" not in state["slots"]
     chat_step._resolve_patterns(state, catalog)
     noaa = [
-        p for p in state["patterns"] if p["pattern"] == "auto/nwp_grid_noaa"
+        p for p in state["patterns"] if p["pattern"] == "auto/gfs/gribfilter"
     ][0]
     assert noaa["instances"][0].get("grid_resolution") == "0p50"
 
@@ -124,7 +124,7 @@ def test_per_import_override_beats_project_default(catalog):
     set_variable(state, "GFS", "grid_resolution", "0p25")    # GFS override
     chat_step._resolve_patterns(state, catalog)
     noaa = [
-        p for p in state["patterns"] if p["pattern"] == "auto/nwp_grid_noaa"
+        p for p in state["patterns"] if p["pattern"] == "auto/gfs/gribfilter"
     ][0]
     assert noaa["instances"][0].get("grid_resolution") == "0p25"
 
@@ -193,14 +193,14 @@ def test_apply_edit_action_add_then_remove(catalog):
         state, {"op": "add", "target": "GFS", "target_kind": "import"}, catalog
     )
     assert "Added import GFS" in note
-    assert "auto/nwp_grid_noaa" in _import_paths(state)
+    assert "auto/gfs/gribfilter" in _import_paths(state)
 
     note = chat_step.apply_edit_action(
         state, {"op": "remove", "target": "GFS", "target_kind": "import"},
         catalog,
     )
     assert "Removed import GFS" in note
-    assert "auto/nwp_grid_noaa" not in _import_paths(state)
+    assert "auto/gfs/gribfilter" not in _import_paths(state)
 
 
 def test_apply_edit_action_infers_intent_when_missing(catalog):
@@ -209,7 +209,7 @@ def test_apply_edit_action_infers_intent_when_missing(catalog):
         state, {"op": "add", "target": "GFS", "target_kind": "import"}, catalog
     )
     assert state["intent"] is not None
-    assert "auto/nwp_grid_noaa" in _import_paths(state)
+    assert "auto/gfs/gribfilter" in _import_paths(state)
 
 
 def test_apply_edit_action_set_normalises_value(catalog):
@@ -245,7 +245,7 @@ def test_build_module_single_instance_xsd_ok(noaa_blueprint):
     summary = build_module(
         blueprint_path=noaa_blueprint,
         pattern_root=PATTERNS_ROOT,
-        pattern="auto/nwp_grid_noaa",
+        pattern="auto/gfs/deterministic",
         instance_match={"nwp_name": "GFS"},
     )
     assert summary["ok"], summary
@@ -257,7 +257,7 @@ def test_build_module_unknown_instance_fails(noaa_blueprint):
     summary = build_module(
         blueprint_path=noaa_blueprint,
         pattern_root=PATTERNS_ROOT,
-        pattern="auto/nwp_grid_noaa",
+        pattern="auto/gfs/deterministic",
         instance_match={"nwp_name": "NOPE"},
     )
     assert not summary["ok"]
@@ -352,7 +352,7 @@ def test_nl_remove_survives_readd_suppression(catalog):
     _apply_nl_edit(state, "please drop RDPS", catalog)
     assert state["slots"]["imports"] == ["GFS"]
     assert "auto/nwp_grid_eccc_RDPS" not in _import_paths(state)
-    assert "auto/nwp_grid_noaa" in _import_paths(state)
+    assert "auto/gfs/gribfilter" in _import_paths(state)
 
 
 # --------------------------------------------------------------------------
@@ -397,6 +397,6 @@ def test_nl_set_overrides_existing_value(catalog):
     _apply_nl_edit(state, "actually make GFS half-degree", catalog)
     assert state["slots"]["import_overrides"]["GFS"]["grid_resolution"] == "0p50"
     noaa = [
-        p for p in state["patterns"] if p["pattern"] == "auto/nwp_grid_noaa"
+        p for p in state["patterns"] if p["pattern"] == "auto/gfs/gribfilter"
     ][0]
     assert noaa["instances"][0].get("grid_resolution") == "0p50"

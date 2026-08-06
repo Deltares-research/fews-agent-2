@@ -34,7 +34,7 @@ def test_add_import_applies_and_resolves(state, catalog):
     assert res.dropped == []
     assert "GFS" in state["slots"]["imports"]
     assert any("GFS" in n for n in res.notes)
-    assert "auto/nwp_grid_noaa" in {p["pattern"] for p in state["patterns"]}
+    assert "auto/gfs/gribfilter" in {p["pattern"] for p in state["patterns"]}
 
 
 def test_add_import_accepts_aliases_case_insensitively(state, catalog):
@@ -276,6 +276,64 @@ def test_visualization_flag_resolves_display_pattern(state, catalog):
     }
 
 
+def test_ambiguous_data_types_skipped_when_two_imports_parameterized(
+    catalog, monkeypatch, capsys,
+):
+    # Today only auto/gfs/gribfilter is both parameterized (declares
+    # `parameters`) and has a vocabulary, so the project-wide `data_types`
+    # slot can never be ambiguous in practice. Simulate the day a second
+    # pattern (here: HRDPS) also becomes parameterized, to pin the tripwire
+    # BEFORE it's ever needed for real: neither import should get the
+    # ambiguous flat-slot rows injected -- each keeps its own safe default.
+    import dataclasses
+
+    from fews_agent.agent import project_intents, turn_engine as TE
+
+    synthetic = [
+        dataclasses.replace(
+            p, variables={**p.variables, "parameters": {"type": "list"}},
+        ) if p.path == "auto/nwp_grid_eccc_HRDPS" else p
+        for p in catalog
+    ]
+    # _resolve_import_patterns reads the process-cached _default_catalog(),
+    # not the `catalog` argument threaded through the Intent.resolver chain
+    # (see its own docstring) -- patch the cache directly, matching how the
+    # function actually looks up a pattern's own vocabulary.
+    monkeypatch.setattr(
+        project_intents._default_catalog, "_cache", synthetic, raising=False,
+    )
+
+    st = {"slots": {"imports": ["GFS", "HRDPS"], "data_types": ["temperature"]},
+          "intent": "build_data_import_only"}
+    TE.resolve_patterns(st, synthetic)
+    gfs = next(p for p in st["patterns"] if p["pattern"] == "auto/gfs/gribfilter")
+    hrdps = next(p for p in st["patterns"]
+                 if p["pattern"] == "auto/nwp_grid_eccc_HRDPS")
+    assert "parameters" not in gfs["instances"][0]
+    assert "parameters" not in hrdps["instances"][0]
+    assert "not applied" in capsys.readouterr().err
+
+
+def test_visualization_uses_each_sources_own_parameter_id(state, catalog):
+    # GFS's "temperature" -> T.forecast; HRDPS's -> TA.nwp. The visualize
+    # injection used to pull from one merged/collapsed vocabulary shared by
+    # every import, so both sources' display panels got whichever pattern's
+    # id happened to win the merge -- silently pointing one source's gridPlot
+    # at a parameterId its own import never emits. Each source's panel must
+    # carry ITS OWN import's id.
+    apply_patch(state, [
+        {"op": "add_import", "name": "GFS", "data_types": ["temperature"]},
+        {"op": "add_import", "name": "HRDPS"},
+        {"op": "set_variables", "target": "",
+         "values": {"wants_visualization": True}},
+    ], catalog)
+    viz = next(p for p in state["patterns"]
+               if p["pattern"] == "auto/spatial_display_grid")
+    by_source = {i["source_name"]: i for i in viz["instances"]}
+    assert {r["id"] for r in by_source["GFS"]["parameters"]} == {"T.forecast"}
+    assert {r["id"] for r in by_source["HRDPS"]["parameters"]} == {"TA.nwp"}
+
+
 def test_interpolation_flag_resolves_interpolate_pattern(state, catalog):
     # The resolver's contract: interpolation needs BOTH the flag AND selected
     # weather variables (it intersects them per import) — so the flag alone
@@ -298,7 +356,7 @@ def test_remove_with_datatype_variable_never_deletes_the_import(state, catalog):
     handle it fully or drop the op — never fall through. The OUTCOME that
     matters is the import survives and drops just that weather variable (the
     mechanism is now a per-import parameters override, so the import's
-    rendered parameters lose TA.nwp)."""
+    rendered parameters lose T.forecast)."""
     apply_patch(state, [{"op": "add_import", "name": "GFS",
                          "data_types": ["precipitation", "temperature"]}],
                 catalog)
@@ -307,10 +365,10 @@ def test_remove_with_datatype_variable_never_deletes_the_import(state, catalog):
     ], catalog)
     assert state["slots"]["imports"] == ["GFS"]          # import SURVIVES
     inst = next(i for p in state["patterns"]
-                if p["pattern"] == "auto/nwp_grid_noaa"
+                if p["pattern"] == "auto/gfs/gribfilter"
                 for i in p["instances"] if i.get("nwp_name") == "GFS")
     ids = [x.get("id") for x in inst.get("parameters", [])]
-    assert "TA.nwp" not in ids and "PC.nwp" in ids       # temp gone, precip stays
+    assert "T.forecast" not in ids and "P.forecast" in ids  # temp gone, precip stays
     assert res.dropped == []
 
 

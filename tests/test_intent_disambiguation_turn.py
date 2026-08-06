@@ -107,7 +107,7 @@ def test_answer_a_commits_data_import_only_and_resolves(run_turn):
     assert state.get("intent_disambiguated") is True
     assert state.get("awaiting_intent_disambiguation") is False
     # Patterns now resolve from the GFS slot under the chosen intent.
-    assert "auto/nwp_grid_noaa" in _pattern_paths(state)
+    assert "auto/gfs/gribfilter" in _pattern_paths(state)
 
 
 def test_answer_b_commits_forecasting_and_resolves(run_turn):
@@ -129,7 +129,7 @@ def test_answer_imports_only_phrasing_commits_data_import(run_turn):
     run_turn("Import NOAA GFS grids for precipitation and temperature.")
     state = run_turn("imports only")
     assert state["intent"] == "build_data_import_only"
-    assert "auto/nwp_grid_noaa" in _pattern_paths(state)
+    assert "auto/gfs/gribfilter" in _pattern_paths(state)
 
 
 # --------------------------------------------------------------------------
@@ -142,7 +142,7 @@ def test_explicit_narrowing_phrase_skips_the_gate(run_turn):
     state = run_turn("Import NOAA GFS grids, no basin model.")
     assert not state.get("awaiting_intent_disambiguation")
     assert state["intent"] == "build_data_import_only"
-    assert "auto/nwp_grid_noaa" in _pattern_paths(state)
+    assert "auto/gfs/gribfilter" in _pattern_paths(state)
 
 
 def test_explicit_forecasting_phrase_skips_the_gate(run_turn):

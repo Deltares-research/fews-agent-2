@@ -30,6 +30,19 @@ from typing import Any, Callable
 from .providers.ollama_provider import OllamaProvider
 
 
+def _default_catalog():
+    """Lazily-built, process-cached pattern catalog for resolver functions
+    that need a specific pattern's own declared data-type vocabulary but
+    only receive ``catalog_paths: set[str]`` from the ``Intent.resolver``
+    chain (PATTERN_ROOT is a fixed constant, so building it here needs no
+    signature change to the 6 sibling resolvers that don't need it)."""
+    if not hasattr(_default_catalog, "_cache"):
+        from .preview import PATTERN_ROOT
+        from .project_chat import build_pattern_catalog
+        _default_catalog._cache = build_pattern_catalog(PATTERN_ROOT)
+    return _default_catalog._cache
+
+
 # ---------------------------------------------------------------------------
 # Skill 1: model adapter detection
 # ---------------------------------------------------------------------------
@@ -1123,7 +1136,7 @@ _IMPORT_PATTERN_MAP: dict[str, tuple[str, str]] = {
     "HRDPA": ("auto/nwp_grid_eccc_HRDPA", "nwp_name"),
     "RDPA":  ("auto/nwp_grid_eccc_RDPA", "nwp_name"),
     # NOAA
-    "GFS":  ("auto/nwp_grid_noaa", "nwp_name"),
+    "GFS":  ("auto/gfs/gribfilter", "nwp_name"),
     # NAM/SREF: the patterns emit ``{{ template_name }}.xml`` literally,
     # so the variable value IS the filename root. Override the default
     # (which would set it to the import name) via _IMPORT_VALUE_OVERRIDES.
@@ -1154,7 +1167,7 @@ _IMPORT_PATTERN_MAP: dict[str, tuple[str, str]] = {
     # _IMPORT_VALUE_OVERRIDES). ERA5 additionally pulls its download companion
     # (see _resolve_import_patterns).
     "ERA5":  ("auto/import_era5", "source_name"),
-    "GEFS":  ("auto/nwp_grid_noaa_gefs", "source_name"),
+    "GEFS":  ("auto/gfs/ensemble", "source_name"),
     "IMERG": ("auto/import_imerg", "source_name"),
 }
 
@@ -1172,37 +1185,6 @@ _ADAPTER_PATTERN_MAP = {
 
 
 # Free-text data_type slot → canonical FEWS parameter row consumed by
-# the NWP pattern's `parameters` variable. Keys are lower-cased; the
-# resolver matches by `.lower()` substring/exact comparison.
-#
-# `startTimeShiftHours` is only set on accumulated quantities (precip):
-# FEWS' TimeSeriesImportRun supports a single startTimeShift block per
-# <import>, so the pattern picks the first parameter that declares one.
-_DATA_TYPE_TO_PARAMETER: dict[str, dict[str, Any]] = {
-    "precipitation": {
-        "id": "PC.nwp", "unit": "mm",
-        "cumulativeSum": True, "startTimeShiftHours": -3,
-    },
-    "precip": {
-        "id": "PC.nwp", "unit": "mm",
-        "cumulativeSum": True, "startTimeShiftHours": -3,
-    },
-    "temperature": {"id": "TA.nwp", "unit": "K"},
-    "air temperature": {"id": "TA.nwp", "unit": "K"},
-    "temp": {"id": "TA.nwp", "unit": "K"},
-    "wind speed": {"id": "WS10.nwp", "unit": "m/s"},
-    "wind direction": {"id": "WD10.nwp", "unit": "degree"},
-    "mean sea level pressure": {"id": "PA.nwp", "unit": "hPa"},
-    "mslp": {"id": "PA.nwp", "unit": "hPa"},
-    "pressure": {"id": "PA.nwp", "unit": "hPa"},
-    "relative humidity": {"id": "RH.nwp", "unit": "%"},
-    "humidity": {"id": "RH.nwp", "unit": "%"},
-    "dewpoint temperature": {"id": "TD.nwp", "unit": "K"},
-    "dew point": {"id": "TD.nwp", "unit": "K"},
-    "dewpoint": {"id": "TD.nwp", "unit": "K"},
-}
-
-
 def unrecognised_data_types(data_types: list[str] | None) -> list[str]:
     """Return data_type phrases the parameter mapper can't translate.
 
@@ -1212,21 +1194,66 @@ def unrecognised_data_types(data_types: list[str] | None) -> list[str]:
     """
     if not data_types:
         return []
+    vocab = _merged_data_type_vocabulary(_default_catalog())
     out: list[str] = []
     for raw in data_types:
         key = (raw or "").strip().lower()
-        if key and key not in _DATA_TYPE_TO_PARAMETER:
+        if key and key not in vocab:
             out.append(raw)
     return out
 
 
-# Patterns whose template accepts a `parameters` variable. When the
-# chat agent has filled the `data_types` slot, the resolver injects the
-# translated parameter list into instances of these patterns. Other
-# patterns keep their hardcoded behaviour.
-_PARAMETERIZED_NWP_PATTERNS: frozenset[str] = frozenset({
-    "auto/nwp_grid_noaa",
-})
+# --------------------------------------------------------------------------
+# Catalog-derived data-type vocabulary — replaces the old hand-maintained
+# _DATA_TYPE_TO_PARAMETER dict and _PARAMETERIZED_NWP_PATTERNS frozenset.
+# _PARAMETERIZED_NWP_PATTERNS. Each pattern declares its own
+# ``data_type_vocabulary`` (see PatternSummary), so the phrases a
+# configurator can ask for and the pattern that has to honour them can
+# never drift apart (that drift is exactly how PA.nwp/WS10.nwp/WD10.nwp
+# ended up advertised for GFS with no idMap backing).
+# --------------------------------------------------------------------------
+
+def _pattern_vocabularies(catalog) -> dict[str, dict[str, Any]]:
+    """``{pattern_path: data_type_vocabulary}`` for every catalog pattern
+    that declares a non-empty vocabulary."""
+    return {
+        p.path: p.data_type_vocabulary
+        for p in (catalog or [])
+        if getattr(p, "data_type_vocabulary", None)
+    }
+
+
+def _merged_data_type_vocabulary(catalog) -> dict[str, Any]:
+    """Union of every parameterized pattern's vocabulary, phrase -> row(s).
+
+    For call sites that are genuinely pattern-agnostic (a project-wide
+    removal, or an early coarse validity check before the target pattern is
+    known) rather than a compromise for sites that could be precise but
+    aren't — those look up a specific pattern's vocabulary via
+    ``_pattern_vocabularies`` instead.
+    """
+    merged: dict[str, Any] = {}
+    for vocab in _pattern_vocabularies(catalog).values():
+        merged.update(vocab)
+    return merged
+
+
+def _is_parameterized_pattern(path: str, catalog) -> bool:
+    """True when ``path``'s pattern accepts a resolver-injected
+    ``parameters`` override — i.e. it declares BOTH a data-type vocabulary
+    AND a ``parameters`` variable to inject the translated rows into.
+
+    Vocabulary alone isn't enough: fixed-set patterns (HRDPS/GDPS/RDPS)
+    declare a small vocabulary too, purely so interpolation eligibility can
+    translate "precipitation"/"temperature" prose to their own ids — they
+    have no ``parameters`` variable, so they must never be injection
+    targets (injecting into them would just be a silently-ignored extra
+    key, which is harmless but wrong to call "parameterized").
+    """
+    if not _pattern_vocabularies(catalog).get(path):
+        return False
+    summary = next((p for p in (catalog or []) if p.path == path), None)
+    return bool(summary and "parameters" in (summary.variables or {}))
 
 
 # NWP imports eligible for grid->station interpolation, with the facts
@@ -1258,26 +1285,33 @@ _INTERPOLATABLE_IMPORTS: dict[str, dict[str, Any]] = {
 
 def _data_types_to_parameter_rows(
     data_types: list[str] | None,
+    vocab: dict[str, Any],
 ) -> tuple[list[dict[str, Any]], list[str]]:
-    """Translate the free-text data_types slot into FEWS parameter rows.
+    """Translate the free-text data_types slot into FEWS parameter rows,
+    using ``vocab`` (a specific pattern's own ``data_type_vocabulary``, or
+    the merged union — see call sites).
 
     Returns (rows, unrecognised). Empty `rows` means the resolver
     should NOT inject ``parameters`` — patterns then fall back to
-    their own default.
+    their own default. A ``vocab`` entry may be a single row dict, or a
+    list of row dicts when one phrase means several parameters at once
+    (e.g. a future "wind" -> u + v components).
     """
     rows: list[dict[str, Any]] = []
     seen_ids: set[str] = set()
     unrecognised: list[str] = []
     for raw in data_types or []:
         key = (raw or "").strip().lower()
-        row = _DATA_TYPE_TO_PARAMETER.get(key)
-        if not row:
+        entry = vocab.get(key)
+        if not entry:
             unrecognised.append(raw)
             continue
-        if row["id"] in seen_ids:
-            continue
-        seen_ids.add(row["id"])
-        rows.append(dict(row))
+        candidates = entry if isinstance(entry, list) else [entry]
+        for row in candidates:
+            if row["id"] in seen_ids:
+                continue
+            seen_ids.add(row["id"])
+            rows.append(dict(row))
     return rows, unrecognised
 
 
@@ -1295,6 +1329,20 @@ def _override_for(
             None,
         )
     return ov or {}
+
+
+def _import_parameter_rows(
+    imp: str, data_types: list[str] | None, catalog,
+) -> tuple[list[dict[str, Any]], list[str]]:
+    """(rows, unrecognised) for one import name, using its OWN pattern's
+    declared ``data_type_vocabulary`` — not a shared/global table, so two
+    imports whose patterns give the same phrase a different meaning (or
+    don't recognise it at all) each get the right answer."""
+    entry = _IMPORT_PATTERN_MAP.get(imp)
+    if not entry:
+        return [], []
+    vocab = _pattern_vocabularies(catalog).get(entry[0], {})
+    return _data_types_to_parameter_rows(data_types, vocab)
 
 
 def _resolve_import_patterns(
@@ -1320,13 +1368,52 @@ def _resolve_import_patterns(
     emits one self-contained ``wf_interpolate_nwp_to_stations`` instance
     per eligible NWP import (see ``_INTERPOLATABLE_IMPORTS``) so the
     gridded data lands as point time series."""
-    param_rows, unrecognised = _data_types_to_parameter_rows(data_types)
+    cat = _default_catalog()
+    # Aggregate across every parameterized pattern — used only for the
+    # coarse, import-agnostic warning below and the visualization block
+    # further down (a display panel's parameter list, not what actually
+    # gets imported). The real per-import injection and interpolation
+    # logic below looks up each import's OWN pattern's vocabulary instead.
+    all_rows, unrecognised = _data_types_to_parameter_rows(
+        data_types, _merged_data_type_vocabulary(cat),
+    )
     if unrecognised:
         # Surface to stderr so the configurator notices; the chat agent
         # picks this up via its turn log. Not raising — graceful
         # degradation is better than refusing the whole resolve.
         print(
             f"warning: unrecognised data_types skipped: {unrecognised}",
+            file=sys.stderr,
+        )
+
+    # `data_types` is a single project-wide slot, not scoped to any one
+    # import. It's safe today because exactly one pattern is both
+    # parameterized (declares `parameters`) AND has a vocabulary
+    # (auto/gfs/gribfilter) — there's only one thing a phrase could mean.
+    # If a second pattern ever gains its own vocabulary, the SAME phrase
+    # would silently apply to BOTH imports at once, each translated through
+    # its own vocabulary — e.g. "temperature" landing as T.forecast on one
+    # import and TA.nwp on another with no way to say "only for GFS". Rather
+    # than silently misapplying it, skip the flat-slot injection entirely
+    # when it's ambiguous (each import keeps its safe pattern default) and
+    # warn loudly. An explicit per-import override (import_overrides[name]
+    # ["parameters"]) is unaffected — it's applied later, unconditionally,
+    # and always wins.
+    _parameterized_imports = [
+        imp for imp in (imports or [])
+        if (entry := _IMPORT_PATTERN_MAP.get(imp))
+        and _is_parameterized_pattern(entry[0], cat)
+    ]
+    _ambiguous_data_types = bool(data_types) and len(_parameterized_imports) > 1
+    if _ambiguous_data_types:
+        print(
+            f"warning: data_types {list(data_types)!r} not applied — "
+            f"{len(_parameterized_imports)} imports are independently "
+            f"parameterizable ({', '.join(_parameterized_imports)}) and the "
+            f"data_types slot isn't scoped to one of them. Each keeps its "
+            f"pattern default; set variables per import instead (e.g. via "
+            f"an import_overrides entry) to avoid misapplying one import's "
+            f"variables to another.",
             file=sys.stderr,
         )
 
@@ -1343,8 +1430,12 @@ def _resolve_import_patterns(
         # itself. Apply override map when present.
         value = _IMPORT_VALUE_OVERRIDES.get(imp, imp)
         instance: dict[str, Any] = {label_var: value}
-        if param_rows and path in _PARAMETERIZED_NWP_PATTERNS:
-            instance["parameters"] = list(param_rows)
+        these_rows, _ = _import_parameter_rows(imp, data_types, cat)
+        if (
+            these_rows and _is_parameterized_pattern(path, cat)
+            and not _ambiguous_data_types
+        ):
+            instance["parameters"] = list(these_rows)
             # Tell the pattern to also contribute these parameter rows
             # to Parameters.xml — without this the new IDs would be
             # referenced in timeSeriesSet but not declared anywhere.
@@ -1355,14 +1446,22 @@ def _resolve_import_patterns(
         _res = _ov.get("grid_resolution") or grid_resolution
         _hor = _ov.get("forecast_horizon_hours") or forecast_horizon_hours
         # NOAA GFS publishes at 0p25/0p50/1p00; plumb the configurator's
-        # choice into the pattern instance so the DODS URL points at the
-        # right dataset.
-        if _res and path == "auto/nwp_grid_noaa":
+        # choice into the pattern instance so the import URL points at the
+        # right dataset (both GFS patterns declare this variable identically
+        # — nwp_grid_noaa's DODS path slug, nwp_grid_noaa_gribfilter's
+        # grib-filter CGI script name).
+        if _res and path in (
+            "auto/gfs/deterministic", "auto/gfs/gribfilter",
+        ):
             instance["grid_resolution"] = _res
-        # Forecast horizon (hours) — when set, the NOAA pattern emits a
-        # relativeViewPeriod on the SpatialDisplay timeSeriesSet so the
-        # plot shows just that window instead of the full forecast.
-        if _hor and path == "auto/nwp_grid_noaa":
+        # Forecast horizon (hours) — nwp_grid_noaa emits a relativeViewPeriod
+        # on the SpatialDisplay timeSeriesSet so the plot shows just that
+        # window; nwp_grid_noaa_gribfilter uses it as the %COUNTER% upper
+        # bound in the import URL itself. Both patterns declare the same
+        # variable name.
+        if _hor and path in (
+            "auto/gfs/deterministic", "auto/gfs/gribfilter",
+        ):
             instance["forecast_horizon_hours"] = _hor
         # Explicit grid geometry (firstCellCenter + rows/columns). Rides on
         # the instance for ANY nwp_grid_* import (NOAA and ECCC) — the pattern
@@ -1370,7 +1469,7 @@ def _resolve_import_patterns(
         # project.yaml where the build's geometry rewriter reads it back and
         # stamps it onto the matching gridsFile entry.
         _geom = _ov.get("grid_geometry")
-        if _geom and path.startswith("auto/nwp_grid_"):
+        if _geom and path.startswith(("auto/nwp_grid_", "auto/gfs/")):
             instance["grid_geometry"] = _geom
         # Any OTHER per-import override is a pattern variable set by name
         # (catalog-validated in patch_ops against the pattern's declared
@@ -1428,7 +1527,7 @@ def _resolve_import_patterns(
     # none of the requested params is skipped — the Slice D build guard
     # then flags the unbacked set if that leaves interpolation inert.
     if (
-        wants_interpolation and param_rows
+        wants_interpolation and all_rows
         and "auto/wf_interpolate_nwp_to_stations" in catalog_paths
     ):
         interp_instances: list[dict[str, Any]] = []
@@ -1436,10 +1535,19 @@ def _resolve_import_patterns(
             spec = _INTERPOLATABLE_IMPORTS.get(imp)
             if spec is None:
                 continue
+            # Translate with THIS import's own pattern vocabulary — fixed-
+            # set imports (HRDPS/GDPS/RDPS) declare a small one too (no
+            # `parameters` variable, so _is_parameterized_pattern is still
+            # False for them — see its docstring), purely so this
+            # translation stays correct even when a DIFFERENT pattern (e.g.
+            # nwp_grid_noaa_gribfilter) gives the same phrase a different
+            # id. Using the merged vocabulary here would silently pick
+            # whichever pattern's definition happened to be inserted last.
+            these_rows, _ = _import_parameter_rows(imp, data_types, cat)
             importable = spec["parameters"]
             rows = (
-                list(param_rows) if importable is None
-                else [r for r in param_rows if r.get("id") in importable]
+                list(these_rows) if importable is None
+                else [r for r in these_rows if r.get("id") in importable]
             )
             if not rows:
                 # Import carries none of the requested params (e.g. HRDPS
@@ -1470,13 +1578,19 @@ def _resolve_import_patterns(
             if not entry:
                 continue
             path, _ = entry
-            if not path.startswith("auto/nwp_grid_"):
+            if not path.startswith(("auto/nwp_grid_", "auto/gfs/")):
                 continue
             inst: dict[str, Any] = {"source_name": imp}
-            if param_rows:
+            # This import's OWN pattern's rows -- NOT the coarse `all_rows`
+            # above. Two imports can give the same phrase a different id
+            # (GFS's "temperature" -> T.forecast vs HRDPS's -> TA.nwp); using
+            # the merged rows here would point a source's display panel at a
+            # parameterId that source's own import never actually emits.
+            these_rows, _ = _import_parameter_rows(imp, data_types, cat)
+            if these_rows:
                 # Pass the selected parameter rows through; the visualize
                 # pattern reads only `id` from each (extra keys ignored).
-                inst["parameters"] = [{"id": r["id"]} for r in param_rows]
+                inst["parameters"] = [{"id": r["id"]} for r in these_rows]
             # Per-import horizon override (Slice 4) → each grid's display
             # window can differ; fall back to the project-level horizon.
             _viz_hor = (

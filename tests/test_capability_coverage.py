@@ -113,7 +113,7 @@ def test_capability_survives_the_resolve_rebuild(catalog):
     TE.resolve_patterns(state, catalog)   # rebuild — must not lose it
     paths = {p["pattern"] for p in state["patterns"]}
     assert "auto/coastal_sfincs" in paths
-    assert "auto/nwp_grid_noaa" in paths
+    assert "auto/gfs/gribfilter" in paths
 
 
 def test_capability_detector_does_not_fire_on_plain_imports(catalog):

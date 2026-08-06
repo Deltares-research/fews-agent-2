@@ -51,7 +51,7 @@ def test_normalize_module_synonyms():
 
 
 def test_module_for_pattern_folds_capabilities():
-    assert M.module_for_pattern("auto/nwp_grid_noaa") == "processing"
+    assert M.module_for_pattern("auto/gfs/deterministic") == "processing"
     assert M.module_for_pattern("auto/raven_basin") == "processing"
     assert M.module_for_pattern("auto/wf_interpolate_nwp_to_stations") == "processing"
     assert M.module_for_pattern("auto/spatial_display_grid") == "display"
@@ -60,7 +60,7 @@ def test_module_for_pattern_folds_capabilities():
 def test_modules_present_orders_by_registry():
     pats = [
         {"pattern": "auto/spatial_display_grid"},
-        {"pattern": "auto/nwp_grid_noaa"},
+        {"pattern": "auto/gfs/deterministic"},
     ]
     # processing precedes display in MODULE_ORDER regardless of input order.
     assert M.modules_present(pats) == ["processing", "display"]

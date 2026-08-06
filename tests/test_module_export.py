@@ -292,7 +292,7 @@ def test_integration_gfs_closure_against_real_build():
         proj.mkdir(parents=True)
         bp = {
             "name": "exp", "output_root": "out",
-            "patterns": [{"pattern": "auto/nwp_grid_noaa", "instances": [
+            "patterns": [{"pattern": "auto/gfs/deterministic", "instances": [
                 {"nwp_name": "GFS", "parameters": [
                     {"id": "PC.nwp", "unit": "mm", "cumulativeSum": True,
                      "startTimeShiftHours": -3}], "contribute_parameters": True}]}],
@@ -304,7 +304,7 @@ def test_integration_gfs_closure_against_real_build():
         out = Path(full["output_root"])
         mod = build_module(
             blueprint_path=proj / "project.yaml", pattern_root=patterns,
-            pattern="auto/nwp_grid_noaa", instance_match={"nwp_name": "GFS"},
+            pattern="auto/gfs/deterministic", instance_match={"nwp_name": "GFS"},
             console=Console(quiet=True))
         seeds = [f["path"].replace("\\", "/") for f in mod["files"]]
 

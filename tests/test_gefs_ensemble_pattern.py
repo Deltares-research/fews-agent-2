@@ -16,7 +16,7 @@ from fews_agent.validation.xsd import validate_xsd
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 PATTERNS_ROOT = REPO_ROOT / "fews_agent" / "patterns"
-PATTERN = "auto/nwp_grid_noaa_gefs"
+PATTERN = "auto/gfs/ensemble"
 
 
 def _render(inst=None):

@@ -158,7 +158,7 @@ def test_apply_add_merges_and_resolves():
     state = {"slots": {}, "patterns": []}
     note, new = apply_extracted_fields(state, _Op("add", {"imports": ["GFS"]}), _CATALOG)
     assert state["slots"]["imports"] == ["GFS"]
-    assert any("nwp_grid_noaa" in p for p in new)
+    assert any("auto/gfs/" in p for p in new)
     # No basin + imports → the heuristic infers the data-import intent.
     assert state["intent"] == "build_data_import_only"
 

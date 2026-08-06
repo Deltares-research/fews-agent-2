@@ -45,7 +45,8 @@ def _pattern_paths(state: dict) -> set[str]:
 
 
 def _noaa_instance(state: dict) -> dict:
-    noaa = [p for p in state["patterns"] if p["pattern"] == "auto/nwp_grid_noaa"]
+    noaa = [p for p in state["patterns"]
+            if p["pattern"] == "auto/gfs/gribfilter"]
     return noaa[0]["instances"][0] if noaa else {}
 
 
@@ -71,7 +72,7 @@ def test_stepwise_commands_are_documented_in_help():
 def test_slash_add_resolves_import(session):
     res = session.send("/add GFS")
     assert res.kind == "edit"
-    assert "auto/nwp_grid_noaa" in _pattern_paths(session.state)
+    assert "auto/gfs/gribfilter" in _pattern_paths(session.state)
     assert "GFS" in session.state["slots"].get("imports", [])
     # The reply echoes the module list so the user sees current state.
     assert "GFS" in res.agent_message
@@ -80,11 +81,11 @@ def test_slash_add_resolves_import(session):
 def test_slash_remove_survives_reresolve(session):
     session.send("/add GFS")
     session.send("/add HRDPS")
-    assert "auto/nwp_grid_noaa" in _pattern_paths(session.state)
+    assert "auto/gfs/gribfilter" in _pattern_paths(session.state)
     session.send("/remove GFS")
     # A later /list re-resolves; GFS must not come back.
     session.send("/list")
-    assert "auto/nwp_grid_noaa" not in _pattern_paths(session.state)
+    assert "auto/gfs/gribfilter" not in _pattern_paths(session.state)
     assert "auto/nwp_grid_eccc_HRDPS" in _pattern_paths(session.state)
 
 
@@ -196,7 +197,7 @@ def test_slash_build_module_returns_validation_summary(session):
     assert res.kind == "build"
     assert res.validation_summary is not None
     assert res.validation_summary.get("ok") is True
-    assert "auto/nwp_grid_noaa::GFS" in session.state.get("built_modules", [])
+    assert "auto/gfs/gribfilter::GFS" in session.state.get("built_modules", [])
 
 
 def test_build_unknown_module_is_a_plain_note(session):

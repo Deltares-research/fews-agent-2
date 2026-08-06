@@ -1,0 +1,241 @@
+name: gfs_gribfilter
+description: >-
+  NOAA GFS import via the NOMADS grib-filter CGI server
+  (importType: NomadsGribFilterServer) -- the currently-working access
+  mechanism after NOAA's early-2026 retirement of the older DODS/OPeNDAP
+  service (which auto/gfs/deterministic still uses -- frozen, do not touch, the
+  tutorial regression oracle depends on its exact byte output). Farmed from
+  a real "extended gfs" FEWS project export. Carries 9 real GFS variables
+  (vs. auto/gfs/deterministic's Precip+Temp pair): Pressure.msl, Wind.u,
+  Wind.v, T.forecast, Tdew.forecast, Cloudiness.forecast, P.forecast,
+  Rs.forecast, Rnl.forecast. Wind.speed/Wind.dir are intentionally NOT
+  derived here -- the transform that would compute them from Wind.u/Wind.v
+  (Template_Transform_UV_Meteo_Wave.xml) isn't in the export or anywhere
+  else on disk; Wind.u/Wind.v are farmed as raw components only. Distinct
+  from auto/gfs/ensemble (GEFS, not deterministic GFS).
+keywords: [gfs, noaa, nwp, grib-filter, weather, forecast, grid]
+variables:
+  nwp_name:
+    type: str
+    required: true
+  # NOAA's grib-filter CGI is per-resolution (filter_gfs_0p25.pl,
+  # filter_gfs_0p50.pl, filter_gfs_1p00.pl) -- same slug values as
+  # nwp_grid_noaa's grid_resolution.
+  grid_resolution:
+    type: str
+    required: false
+    default: 0p25
+  # Forecast-hour upper bound for %COUNTER(<start>-<end>-3)%. The reference
+  # project uses 120 (5 days); the instantaneous block starts at f000, the
+  # accumulated block (below) starts at f003 since APCP/DSWRF/DLWRF are
+  # accumulations and need the first window's end, not its start.
+  forecast_horizon_hours:
+    type: int
+    required: false
+    default: 120
+  # Imported parameters. Each row: id (FEWS parameterId), unit (externUnit
+  # wire unit), cumulativeSum (bool, optional -- routes the row into the
+  # accumulated <import> block instead of the instantaneous one), gribVar +
+  # gribLevel (the NOMADS grib-filter var_/lev_ query codes), external (the
+  # idMap external name, grib2_parameter_name convention -- verified
+  # verbatim against the reference project's real IdImport_GFS.xml).
+  parameters:
+    type: list
+    required: false
+    default:
+      - id: Pressure.msl
+        unit: Pa
+        cumulativeSum: false
+        gribVar: PRMSL
+        gribLevel: mean_sea_level
+        external: Pressure_reduced_to_MSL_msl
+      - id: Wind.u
+        unit: m/s
+        cumulativeSum: false
+        gribVar: UGRD
+        gribLevel: 10_m_above_ground
+        external: u-component_of_wind_height_above_ground
+      - id: Wind.v
+        unit: m/s
+        cumulativeSum: false
+        gribVar: VGRD
+        gribLevel: 10_m_above_ground
+        external: v-component_of_wind_height_above_ground
+      - id: T.forecast
+        unit: K
+        cumulativeSum: false
+        gribVar: TMP
+        gribLevel: 2_m_above_ground
+        external: Temperature_height_above_ground
+      - id: Tdew.forecast
+        unit: K
+        cumulativeSum: false
+        gribVar: DPT
+        gribLevel: 2_m_above_ground
+        external: Dewpoint_temperature_height_above_ground
+      - id: Cloudiness.forecast
+        unit: '%'
+        cumulativeSum: false
+        gribVar: TCDC
+        gribLevel: entire_atmosphere
+        external: Total_cloud_cover_entire_atmosphere
+      - id: P.forecast
+        unit: mm
+        cumulativeSum: true
+        gribVar: APCP
+        gribLevel: surface
+        external: 'Total precipitation'
+      - id: Rs.forecast
+        unit: W/m2
+        cumulativeSum: true
+        gribVar: DSWRF
+        gribLevel: surface
+        external: 'Downward Short-Wave Radiation Flux'
+      - id: Rnl.forecast
+        unit: W/m2
+        cumulativeSum: true
+        gribVar: DLWRF
+        gribLevel: surface
+        external: 'Downward Long-Wave Rad. Flux'
+# Free-text phrase -> parameter row(s), read directly by the resolver (no
+# separate Python table -- see fews_agent/agent/project_intents.py's
+# catalog-derived vocabulary helpers). A row here has the SAME shape as a
+# `parameters` entry above, so a matched row can be injected verbatim.
+# "wind"/"wind components" map to BOTH components at once (real GFS has no
+# direct wind-speed/direction field -- see the pattern description).
+data_type_vocabulary:
+  precipitation: {id: P.forecast, unit: mm, cumulativeSum: true, gribVar: APCP, gribLevel: surface, external: 'Total precipitation'}
+  precip: {id: P.forecast, unit: mm, cumulativeSum: true, gribVar: APCP, gribLevel: surface, external: 'Total precipitation'}
+  temperature: {id: T.forecast, unit: K, cumulativeSum: false, gribVar: TMP, gribLevel: 2_m_above_ground, external: Temperature_height_above_ground}
+  air temperature: {id: T.forecast, unit: K, cumulativeSum: false, gribVar: TMP, gribLevel: 2_m_above_ground, external: Temperature_height_above_ground}
+  temp: {id: T.forecast, unit: K, cumulativeSum: false, gribVar: TMP, gribLevel: 2_m_above_ground, external: Temperature_height_above_ground}
+  dewpoint temperature: {id: Tdew.forecast, unit: K, cumulativeSum: false, gribVar: DPT, gribLevel: 2_m_above_ground, external: Dewpoint_temperature_height_above_ground}
+  dew point: {id: Tdew.forecast, unit: K, cumulativeSum: false, gribVar: DPT, gribLevel: 2_m_above_ground, external: Dewpoint_temperature_height_above_ground}
+  dewpoint: {id: Tdew.forecast, unit: K, cumulativeSum: false, gribVar: DPT, gribLevel: 2_m_above_ground, external: Dewpoint_temperature_height_above_ground}
+  mean sea level pressure: {id: Pressure.msl, unit: Pa, cumulativeSum: false, gribVar: PRMSL, gribLevel: mean_sea_level, external: Pressure_reduced_to_MSL_msl}
+  mslp: {id: Pressure.msl, unit: Pa, cumulativeSum: false, gribVar: PRMSL, gribLevel: mean_sea_level, external: Pressure_reduced_to_MSL_msl}
+  pressure: {id: Pressure.msl, unit: Pa, cumulativeSum: false, gribVar: PRMSL, gribLevel: mean_sea_level, external: Pressure_reduced_to_MSL_msl}
+  cloudiness: {id: Cloudiness.forecast, unit: '%', cumulativeSum: false, gribVar: TCDC, gribLevel: entire_atmosphere, external: Total_cloud_cover_entire_atmosphere}
+  cloud cover: {id: Cloudiness.forecast, unit: '%', cumulativeSum: false, gribVar: TCDC, gribLevel: entire_atmosphere, external: Total_cloud_cover_entire_atmosphere}
+  shortwave radiation: {id: Rs.forecast, unit: W/m2, cumulativeSum: true, gribVar: DSWRF, gribLevel: surface, external: 'Downward Short-Wave Radiation Flux'}
+  solar radiation: {id: Rs.forecast, unit: W/m2, cumulativeSum: true, gribVar: DSWRF, gribLevel: surface, external: 'Downward Short-Wave Radiation Flux'}
+  longwave radiation: {id: Rnl.forecast, unit: W/m2, cumulativeSum: true, gribVar: DLWRF, gribLevel: surface, external: 'Downward Long-Wave Rad. Flux'}
+  wind:
+    - {id: Wind.u, unit: m/s, cumulativeSum: false, gribVar: UGRD, gribLevel: 10_m_above_ground, external: u-component_of_wind_height_above_ground}
+    - {id: Wind.v, unit: m/s, cumulativeSum: false, gribVar: VGRD, gribLevel: 10_m_above_ground, external: v-component_of_wind_height_above_ground}
+  wind components:
+    - {id: Wind.u, unit: m/s, cumulativeSum: false, gribVar: UGRD, gribLevel: 10_m_above_ground, external: u-component_of_wind_height_above_ground}
+    - {id: Wind.v, unit: m/s, cumulativeSum: false, gribVar: VGRD, gribLevel: 10_m_above_ground, external: v-component_of_wind_height_above_ground}
+  wind u component: {id: Wind.u, unit: m/s, cumulativeSum: false, gribVar: UGRD, gribLevel: 10_m_above_ground, external: u-component_of_wind_height_above_ground}
+  wind v component: {id: Wind.v, unit: m/s, cumulativeSum: false, gribVar: VGRD, gribLevel: 10_m_above_ground, external: v-component_of_wind_height_above_ground}
+outputs:
+- schema: TimeSeriesImportRun
+  output: ModuleConfigFiles/Import/NOAA/Import{{ nwp_name }}.xml
+  data:
+    import:
+{% set instantaneous = (parameters | rejectattr('cumulativeSum') | list) %}
+{% set accumulated = (parameters | selectattr('cumulativeSum') | list) %}
+{% set inst_query = [] %}
+{% for p in instantaneous %}{% if inst_query.append('&var_' ~ p.gribVar ~ '=on&lev_' ~ p.gribLevel ~ '=on') %}{% endif %}{% endfor %}
+{% set acc_query = [] %}
+{% for p in accumulated %}{% if acc_query.append('&var_' ~ p.gribVar ~ '=on&lev_' ~ p.gribLevel ~ '=on') %}{% endif %}{% endfor %}
+{% if instantaneous %}
+    # Block 1 -- instantaneous fields, %COUNTER(000-<horizon>-3)%
+    - general:
+        importType: NomadsGribFilterServer
+        serverUrl: 'https://nomads.ncep.noaa.gov/cgi-bin/filter_gfs_{{ grid_resolution }}.pl?dir=%2Fgfs.%TIME_ZERO(yyyyMMdd)%%2F%TIME_ZERO(HH)%%2Fatmos&file=gfs.t%TIME_ZERO(HH)%z.pgrb2.{{ grid_resolution }}.f%COUNTER(000-{{ forecast_horizon_hours }}-3)%{{ inst_query | join("") }}&subregion=&toplat=%TOP_LAT%&leftlon=%LEFT_LON%&rightlon=%RIGHT_LON%&bottomlat=%BOTTOM_LAT%'
+        idMapId: IdImportGFSExtended
+        unitConversionsId: ImportUnitConversions
+        missingValue: 9.999E20
+        importTimeZone:
+          timeZoneName: GMT
+        dataFeedId: GFS.Import
+        expiryTime:
+          unit: day
+          multiplier: 7
+      timeSeriesSet:
+{% for p in instantaneous %}
+      - moduleInstanceId: Import{{ nwp_name }}
+        valueType: grid
+        parameterId: {{ p.id }}
+        locationId: {{ nwp_name }}
+        timeSeriesType: external forecasting
+        timeStep:
+          unit: hour
+          multiplier: 3
+        readWriteMode: add originals
+        synchLevel: 6
+{% endfor %}
+      externUnit:
+{% for p in instantaneous %}
+      - parameterId: {{ p.id }}
+        unit: '{{ p.unit }}'
+{% endfor %}
+{% endif %}
+{% if accumulated %}
+    # Block 2 -- accumulated fields, %COUNTER(003-<horizon>-3)%, f003 start
+    - general:
+        importType: NomadsGribFilterServer
+        serverUrl: 'https://nomads.ncep.noaa.gov/cgi-bin/filter_gfs_{{ grid_resolution }}.pl?dir=%2Fgfs.%TIME_ZERO(yyyyMMdd)%%2F%TIME_ZERO(HH)%%2Fatmos&file=gfs.t%TIME_ZERO(HH)%z.pgrb2.{{ grid_resolution }}.f%COUNTER(003-{{ forecast_horizon_hours }}-3)%{{ acc_query | join("") }}&subregion=&toplat=%TOP_LAT%&leftlon=%LEFT_LON%&rightlon=%RIGHT_LON%&bottomlat=%BOTTOM_LAT%'
+        idMapId: IdImportGFSExtended
+        unitConversionsId: ImportUnitConversions
+        missingValue: 9.999E20
+        importTimeZone:
+          timeZoneName: GMT
+        dataFeedId: GFS.Import
+        expiryTime:
+          unit: day
+          multiplier: 7
+      properties:
+        string:
+          - key: variable_identification_method
+            value: grib2_parameter_name
+      timeSeriesSet:
+{% for p in accumulated %}
+      - moduleInstanceId: Import{{ nwp_name }}
+        valueType: grid
+        parameterId: {{ p.id }}
+        locationId: {{ nwp_name }}
+        timeSeriesType: external forecasting
+        timeStep:
+          unit: hour
+          multiplier: 3
+        readWriteMode: add originals
+        synchLevel: 6
+{% endfor %}
+      externUnit:
+{% for p in accumulated %}
+      - parameterId: {{ p.id }}
+        unit: '{{ p.unit }}'
+        cumulativeSum: true
+{% endfor %}
+{% endif %}
+- schema: Workflow
+  output: WorkflowFiles/Import/NOAA/Import{{ nwp_name }}Grids.xml
+  data:
+    version: '1.1'
+    activity:
+    - runIndependent: true
+      moduleInstanceId: Import{{ nwp_name }}
+- schema: IdMap
+  output: IdMapFiles/Import/NOAA/IdImportGFSExtended.xml
+  data:
+    version: '1.1'
+    parameter:
+{% for p in parameters %}
+    - internal: {{ p.id }}
+      external: '{{ p.external }}'
+{% endfor %}
+    enableOneToOneMapping: true
+contributions:
+  - target: Parameters
+    field: parameterGroup
+    items:
+{% for p in parameters %}
+      - id: nwp_{{ p.id }}
+        parameterType: instantaneous
+        unit: '{{ p.unit }}'
+        parameter:
+          - id: {{ p.id }}
+            shortName: {{ p.id }}
+{% endfor %}

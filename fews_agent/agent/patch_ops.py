@@ -32,7 +32,9 @@ from fews_agent.agent.extractor import (
 from fews_agent.agent.modules import normalize_module
 from fews_agent.agent.project_chat import set_grid_geometry
 from fews_agent.agent.project_intents import (
-    _DATA_TYPE_TO_PARAMETER,
+    _IMPORT_PATTERN_MAP,
+    _merged_data_type_vocabulary,
+    _pattern_vocabularies,
     capability_required_variables,
 )
 
@@ -81,7 +83,11 @@ def _op_add_import(state: dict, args: dict, catalog, res: PatchResult) -> None:
     fields: dict[str, Any] = {"imports": [name]}
     raw_dts = args.get("data_types") or []
     if raw_dts:
-        clean, dts_dropped = validate_fields({"data_types": list(raw_dts)})
+        entry = _IMPORT_PATTERN_MAP.get(name)
+        clean, dts_dropped = validate_fields(
+            {"data_types": list(raw_dts)}, catalog=catalog,
+            pattern_path=entry[0] if entry else None,
+        )
         fields.update(clean)
         res.dropped.extend(f"add_import: {d}" for d in dts_dropped)
     note, new = _apply_fields(state, fields, catalog)
@@ -347,35 +353,72 @@ def _op_set_variables(state: dict, args: dict, catalog, res: PatchResult) -> Non
     resolve_patterns(state, catalog)
 
 
-def _dt_removal_tokens(token: str, slots: dict) -> list[str]:
+def _vocab_rows(value) -> list[dict]:
+    """Normalize one data_type_vocabulary value to a list of row dicts — a
+    single row becomes a 1-item list; a multi-row phrase (e.g. "wind" ->
+    [Wind.u row, Wind.v row]) is already a list. Empty/missing -> []."""
+    if isinstance(value, list):
+        return value
+    return [value] if value else []
+
+
+def _dt_removal_tokens(token: str, slots: dict, vocab: dict) -> list[str]:
     """All data-type slot entries equivalent to ``token`` (same parameterId).
 
     "air temperature" and "temperature" both map to TA — a removal phrased
     one way must clear the slot however the ADD was phrased. Falls back to
-    the token itself when nothing in the slot matches."""
-    param = _DATA_TYPE_TO_PARAMETER.get(token)
+    the token itself when nothing in the slot matches. ``vocab`` is the
+    data-type vocabulary to search — the specific pattern's own when the
+    caller knows which import is being edited, or the merged union of every
+    parameterized pattern's vocabulary for a genuinely import-agnostic
+    removal (see call sites)."""
+    param = vocab.get(token)
     have = [str(x).lower() for x in (slots.get("data_types") or [])]
-    same = [k for k, v in _DATA_TYPE_TO_PARAMETER.items()
-            if v == param and k in have]
+    same = [k for k, v in vocab.items() if v == param and k in have]
     return same or [token]
 
 
-def _resolve_parameter_id(token: str) -> str | None:
+def _resolve_parameter_id(token: str, vocab: dict) -> str | None:
     """A removal token → the FEWS parameterId it names, in ANY form.
 
     Accepts a prose data type ("air temperature"), or the parameterId itself
     ("TA.nwp") — the model often canonicalizes prose to the id, which the
-    old prose-only path rejected as an unknown variable (live tester bug)."""
+    old prose-only path rejected as an unknown variable (live tester bug).
+    ``vocab`` — see ``_dt_removal_tokens``. A phrase that means SEVERAL
+    parameters at once (e.g. "wind" -> Wind.u + Wind.v) has no single id to
+    remove — this single-parameter path returns None for it; the
+    individual-component phrases ("wind u component") or the parameterId
+    itself still work."""
     tok = str(token or "").strip().lower()
     if not tok:
         return None
-    spec = _DATA_TYPE_TO_PARAMETER.get(tok)
-    if spec:
-        return spec.get("id")
-    for spec in _DATA_TYPE_TO_PARAMETER.values():
-        if str(spec.get("id", "")).lower() == tok:
-            return spec.get("id")
+    rows = _vocab_rows(vocab.get(tok))
+    if len(rows) == 1:
+        return rows[0].get("id")
+    if len(rows) > 1:
+        return None
+    for entry in vocab.values():
+        for row in _vocab_rows(entry):
+            if str(row.get("id", "")).lower() == tok:
+                return row.get("id")
     return None
+
+
+def _token_resolves_in_any_vocab(token: str, catalog) -> bool:
+    """Whether ``token`` (a phrase or a parameterId) names a real weather
+    variable in AT LEAST ONE parameterized pattern's own vocabulary.
+
+    Different patterns can legitimately declare the SAME phrase for
+    DIFFERENT ids (e.g. GFS's "temperature" -> T.forecast vs HRDPS's
+    "temperature" -> TA.nwp) — collapsing every pattern's vocabulary into
+    one merged dict before checking loses whichever id the merge overwrote,
+    and which one survives becomes an accident of catalog sort order. This
+    checks each pattern's vocabulary independently instead, so it can never
+    lose a valid id to another pattern's same-named phrase."""
+    for vocab in _pattern_vocabularies(catalog).values():
+        if _resolve_parameter_id(token, vocab) is not None:
+            return True
+    return False
 
 
 def _remove_import_data_type(state, imp, token, catalog, res) -> bool:
@@ -394,15 +437,21 @@ def _remove_import_data_type(state, imp, token, catalog, res) -> bool:
     True if it owned the removal."""
     from fews_agent.agent.turn_engine import apply_removal, resolve_patterns
 
-    pid = _resolve_parameter_id(token)
+    entry = _IMPORT_PATTERN_MAP.get(imp)
+    vocab = _pattern_vocabularies(catalog).get(entry[0], {}) if entry else {}
+    pid = _resolve_parameter_id(token, vocab)
     if pid is None:
         return False
     slots = state.setdefault("slots", {})
 
     chosen = [str(x).lower() for x in (slots.get("data_types") or [])]
     if chosen:
-        drop = [k for k, v in _DATA_TYPE_TO_PARAMETER.items()
-                if str(v.get("id", "")).lower() == pid.lower() and k in chosen]
+        drop = [
+            k for k, v in vocab.items()
+            if any(str(r.get("id", "")).lower() == pid.lower()
+                   for r in _vocab_rows(v))
+            and k in chosen
+        ]
         if drop:
             note, _ = apply_removal(
                 state, ExtractedOperation(action="remove",
@@ -451,6 +500,10 @@ def _op_remove(state: dict, args: dict, catalog, res: PatchResult) -> None:
         res.dropped.append("remove: target is required")
         return
     slots = state.get("slots") or {}
+    # Coarse, import-agnostic vocabulary — correct here because these calls
+    # happen before (or without) a specific import being identified; the
+    # precise per-import lookup happens inside _remove_import_data_type.
+    vocab = _merged_data_type_vocabulary(catalog)
 
     # Unset a VARIABLE ("remove the forecast horizon"): either scoped to one
     # import ({target: "GFS", variable: "horizon"}) or project-wide when the
@@ -468,14 +521,14 @@ def _op_remove(state: dict, args: dict, catalog, res: PatchResult) -> None:
         # override, which works even when the import is on default variables
         # and even when the model sent the parameterId form (ta.nwp).
         imp0 = _canonical_import(token)
-        if imp0 and _resolve_parameter_id(var_token) is not None:
+        if imp0 and _token_resolves_in_any_vocab(var_token, catalog):
             if _remove_import_data_type(state, imp0, var_token, catalog, res):
                 return
-        if var_token in _DATA_TYPE_TO_PARAMETER:
+        if var_token in vocab:
             note, _ = apply_removal(
                 state, ExtractedOperation(
                     action="remove",
-                    fields={"data_types": _dt_removal_tokens(var_token, slots)},
+                    fields={"data_types": _dt_removal_tokens(var_token, slots, vocab)},
                 ), catalog,
             )
             res.notes.append(note)
@@ -558,7 +611,7 @@ def _op_remove(state: dict, args: dict, catalog, res: PatchResult) -> None:
     # A bare weather-variable removal ("remove air temperature") with no
     # import named: if exactly one import carries it, scope the removal there
     # via the per-import override (handles the defaulted-variables case).
-    if _resolve_parameter_id(token) is not None:
+    if _token_resolves_in_any_vocab(token, catalog):
         carriers = [
             imp_name for imp_name in (slots.get("imports") or [])
             if "parameters" in _declared_variables(imp_name, catalog)[1]
@@ -567,12 +620,12 @@ def _op_remove(state: dict, args: dict, catalog, res: PatchResult) -> None:
             if _remove_import_data_type(state, carriers[0], token, catalog,
                                         res):
                 return
-    if token.lower() in _DATA_TYPE_TO_PARAMETER:
+    if token.lower() in vocab:
         note, _ = apply_removal(
             state, ExtractedOperation(
                 action="remove",
                 fields={"data_types":
-                        _dt_removal_tokens(token.lower(), slots)},
+                        _dt_removal_tokens(token.lower(), slots, vocab)},
             ), catalog,
         )
         res.notes.append(note)

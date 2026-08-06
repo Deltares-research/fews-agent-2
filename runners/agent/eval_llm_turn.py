@@ -195,7 +195,7 @@ def _scenarios():
         """Delete a weather variable from a DEFAULTED import — params must
         drop it (live tester: 'delete air temperature' no-op'd)."""
         inst = [i for p in (state.get("patterns") or [])
-                if p["pattern"] == "auto/nwp_grid_noaa"
+                if p["pattern"] == "auto/gfs/deterministic"
                 for i in p["instances"] if i.get("nwp_name") == "GFS"]
         ids = [x.get("id")
                for x in (inst[0].get("parameters", []) if inst else [])]

@@ -42,6 +42,13 @@ class PatternSummary:
     # Declared output file paths (Jinja placeholders left literal) — lets the
     # agent tell the user concretely what adding this pattern will generate.
     outputs: list[str] = dataclasses_field(default_factory=list)
+    # Free-text phrase -> FEWS parameter row(s), declared by the pattern
+    # itself (not a separate table elsewhere) so a pattern's prose-selectable
+    # variables and their meaning always travel with the pattern that defines
+    # them. Empty for patterns that don't support prose-driven parameter
+    # selection. A row value is either a single {id, unit, ...} dict, or a
+    # list of such dicts when one phrase means multiple parameters at once.
+    data_type_vocabulary: dict[str, Any] = dataclasses_field(default_factory=dict)
 
 
 def build_pattern_catalog(patterns_root: Path) -> list[PatternSummary]:
@@ -81,6 +88,7 @@ def build_pattern_catalog(patterns_root: Path) -> list[PatternSummary]:
             keywords=data.get("keywords", []),
             variables=data.get("variables", {}),
             outputs=outputs,
+            data_type_vocabulary=data.get("data_type_vocabulary", {}),
         ))
     return out
 

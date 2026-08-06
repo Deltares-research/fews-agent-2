@@ -69,7 +69,7 @@ def test_bbox_crop_collects_multiple_eccc_sources():
     bp = _bp(
         ("auto/nwp_grid_eccc_GDPS", [{"nwp_name": "GDPS"}]),
         ("auto/nwp_grid_eccc_RDPS", [{"nwp_name": "RDPS"}]),
-        ("auto/nwp_grid_noaa", [{"nwp_name": "GFS"}]),
+        ("auto/gfs/deterministic", [{"nwp_name": "GFS"}]),
     )
     assert _nwp_location_ids_from_blueprint(bp) == {"GDPS", "RDPS", "GFS"}
 
@@ -77,7 +77,7 @@ def test_bbox_crop_collects_multiple_eccc_sources():
 # --- resolution override is NOAA-shaped (slug-gated), correctly ------------
 
 def test_resolution_override_applies_to_slugged_noaa_instance():
-    bp = _bp(("auto/nwp_grid_noaa", [{"nwp_name": "GFS", "grid_resolution": "0p50"}]))
+    bp = _bp(("auto/gfs/deterministic", [{"nwp_name": "GFS", "grid_resolution": "0p50"}]))
     res = _nwp_resolutions_from_blueprint(bp)
     assert res == {"GFS": 0.5}
 
@@ -99,7 +99,7 @@ def test_resolution_override_noops_on_eccc_without_slug():
 
 
 def test_resolution_override_ignores_unknown_slug():
-    bp = _bp(("auto/nwp_grid_noaa", [{"nwp_name": "GFS", "grid_resolution": "9p99"}]))
+    bp = _bp(("auto/gfs/deterministic", [{"nwp_name": "GFS", "grid_resolution": "9p99"}]))
     assert _nwp_resolutions_from_blueprint(bp) == {}
 
 
@@ -156,7 +156,7 @@ def test_grid_geometry_skips_projected_and_foreign_grids():
 
 
 def test_grid_geometry_extractor_ignores_malformed():
-    bp = _bp(("auto/nwp_grid_noaa",
+    bp = _bp(("auto/gfs/deterministic",
               [{"nwp_name": "GFS", "grid_geometry": {"first_x": 1}}]))  # incomplete
     assert _nwp_geometries_from_blueprint(bp) == {}
 

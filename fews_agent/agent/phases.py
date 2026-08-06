@@ -34,7 +34,7 @@ PHASE_LABELS: dict[str, str] = {
 
 
 def classify_phase(pattern_path: str) -> str:
-    """Map a pattern path (e.g. ``auto/nwp_grid_noaa``) to a phase.
+    """Map a pattern path (e.g. ``auto/gfs/deterministic``) to a phase.
 
     Name-based and deterministic. The order of checks matters:
     visualize / model / process are matched before the import catch-all

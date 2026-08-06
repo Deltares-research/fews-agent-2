@@ -46,7 +46,7 @@ def _build(tmp_path, *, with_locations=True, station_set="GuineaStations"):
         "name": "interp-e2e",
         "output_root": "out",
         "patterns": [
-            {"pattern": "auto/nwp_grid_noaa", "instances": [
+            {"pattern": "auto/gfs/deterministic", "instances": [
                 {"nwp_name": "GFS", "parameters": _NOAA_PARAMS,
                  "contribute_parameters": True}]},
             {"pattern": "auto/wf_interpolate_nwp_to_stations", "instances": [

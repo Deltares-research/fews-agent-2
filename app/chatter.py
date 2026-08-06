@@ -1061,7 +1061,7 @@ class ChatSession:
         out: list[dict] = []
         seen: set[str] = set()
         for p in self.state.get("patterns") or []:
-            if not str(p.get("pattern", "")).startswith("auto/nwp_grid_"):
+            if not str(p.get("pattern", "")).startswith(("auto/nwp_grid_", "auto/gfs/")):
                 continue
             for inst in p.get("instances") or []:
                 name = inst.get("nwp_name") or inst.get("source_name")
