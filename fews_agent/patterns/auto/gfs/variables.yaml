@@ -1,0 +1,19 @@
+# Variable declarations shared by every pattern in this family folder
+# (deterministic/, gribfilter/, ensemble/). Merged UNDER each pattern's own
+# `variables:` block (see fews_agent/agent/pattern_family.py) -- a sibling
+# pattern's own declaration for the same name always wins, so this file only
+# holds declarations that are genuinely identical across siblings today.
+#
+# `ensemble/` uses `source_name`, not `nwp_name`, so it's unaffected by this
+# file -- nothing here applies unless a pattern declares a matching name.
+variables:
+  nwp_name:
+    type: str
+    required: true
+  # NOAA GFS publishes at 0p25 (0.25°), 0p50 (0.5°), and 1p00 (1°). The slug
+  # is embedded in the import URL; the bundled gridsFile also reads this off
+  # the blueprint at build time to override xCellSize/yCellSize.
+  grid_resolution:
+    type: str
+    required: false
+    default: 0p25

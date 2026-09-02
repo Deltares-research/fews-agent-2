@@ -1,0 +1,27 @@
+name: noaa_grids
+description: 'Auto-derived pattern from tutorial instances: ImportNOAAGrids.'
+variables:
+  template_name:
+    type: str
+    required: true
+  # Which NOAA sources this project actually imports (a subset of GFS/NAM/
+  # SREF, canonical order) -- only THOSE workflows get an <activity> entry.
+  # A GFS-only project used to get this workflow referencing ImportNAMGrids/
+  # ImportSREFGrids regardless -- workflows that never existed unless NAM/
+  # SREF were ALSO imported, a real colleague-reported unresolved reference.
+  # Default reproduces today's all-three tutorial behaviour byte-for-byte.
+  noaa_sources:
+    type: list
+    required: false
+    default: [GFS, NAM, SREF]
+outputs:
+- schema: Workflow
+  output: WorkflowFiles/Import/NOAA/{{ template_name }}.xml
+  data:
+    version: '1.1'
+    activity:
+{% for source in noaa_sources %}
+    - runIndependent: true
+      workflowId: Import{{ source }}Grids
+{% endfor %}
+contributions: []

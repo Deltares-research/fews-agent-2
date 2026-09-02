@@ -21,8 +21,9 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-from jinja2 import Environment
+from jinja2 import Environment, FileSystemLoader
 
+from .pattern_family import merge_family_variables
 from .providers.ollama_provider import OllamaProvider
 
 
@@ -34,7 +35,7 @@ from .providers.ollama_provider import OllamaProvider
 class PatternSummary:
     """Compact view of one pattern for the LLM."""
 
-    path: str            # e.g. "auto/nwp_grid_eccc_HRDPS"
+    path: str            # e.g. "auto/eccc/HRDPS"
     name: str
     description: str
     keywords: list[str]
@@ -62,8 +63,12 @@ def build_pattern_catalog(patterns_root: Path) -> list[PatternSummary]:
     """
     # Permissive env: pattern.yaml may contain {% if %}/{% for %} blocks
     # (for the per-instance render). Empty-context rendering strips them
-    # so yaml.safe_load can parse the surrounding metadata.
-    discovery_env = Environment(keep_trailing_newline=True)
+    # so yaml.safe_load can parse the surrounding metadata. Loader lets a
+    # pattern.yaml `{% import '_partials/x.yaml.j2' as m %}` a shared macro
+    # (see fews_agent/agent/blueprint.py's matching loader).
+    discovery_env = Environment(
+        loader=FileSystemLoader(str(patterns_root)), keep_trailing_newline=True,
+    )
 
     out: list[PatternSummary] = []
     for pat_yaml in sorted(patterns_root.rglob("pattern.yaml")):
@@ -76,6 +81,7 @@ def build_pattern_catalog(patterns_root: Path) -> list[PatternSummary]:
             continue
         if not isinstance(data, dict):
             continue
+        data = merge_family_variables(data, pat_yaml, raw_text)
         outputs = [
             str(o.get("output", "")).strip()
             for o in (data.get("outputs") or [])

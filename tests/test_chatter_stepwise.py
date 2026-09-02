@@ -86,7 +86,7 @@ def test_slash_remove_survives_reresolve(session):
     # A later /list re-resolves; GFS must not come back.
     session.send("/list")
     assert "auto/gfs/gribfilter" not in _pattern_paths(session.state)
-    assert "auto/nwp_grid_eccc_HRDPS" in _pattern_paths(session.state)
+    assert "auto/eccc/HRDPS" in _pattern_paths(session.state)
 
 
 def test_slash_drop_is_remove(session):

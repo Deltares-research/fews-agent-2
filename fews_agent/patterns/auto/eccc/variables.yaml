@@ -1,0 +1,9 @@
+# Variable declarations shared by every pattern in this family folder
+# (GDPS/, HRDPA/, HRDPS/, RDPA/, RDPS/, REPS/). Merged UNDER each pattern's
+# own `variables:` block (see fews_agent/agent/pattern_family.py) -- a
+# sibling pattern's own declaration for the same name always wins, so this
+# file only holds declarations that are genuinely identical across siblings.
+variables:
+  nwp_name:
+    type: str
+    required: true

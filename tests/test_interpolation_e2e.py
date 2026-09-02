@@ -151,8 +151,7 @@ def test_loud_failure_when_no_locations_csv(tmp_path):
 # hourly, so the interpolation grid input must read at multiplier 1 (not
 # the 3-hour default) or it won't match the import at runtime.
 
-import os  # noqa: E402
-
+from fews_agent.agent.project_chat import build_pattern_catalog  # noqa: E402
 from fews_agent.agent.project_intents import (  # noqa: E402
     _resolve_data_import_only_patterns,
 )
@@ -162,7 +161,10 @@ def _build_resolved(tmp_path, slots, *, locations=("STNA", "STNB")):
     """Resolve patterns from slots (as chat does), then build."""
     proj = tmp_path / "proj"
     (proj / "inputs").mkdir(parents=True)
-    catalog = {f"auto/{d}" for d in os.listdir(PATTERNS_ROOT / "auto")}
+    # The real (recursive) catalog -- a shallow os.listdir(patterns/auto)
+    # only sees family-folder names (e.g. "eccc"), not the nested pattern
+    # paths ("eccc/HRDPS") that live inside them.
+    catalog = {p.path for p in build_pattern_catalog(PATTERNS_ROOT)}
     patterns = _resolve_data_import_only_patterns(slots, catalog)
     bp = {
         "name": "eccc-interp", "output_root": "out", "patterns": patterns,
@@ -194,7 +196,7 @@ def test_eccc_hrdps_interpolation_resolves_end_to_end(tmp_path):
     # No NOAA aggregator should sneak in for an ECCC-only project.
     paths = [p["pattern"] for p in patterns]
     assert "auto/wf_interpolate_nwp_to_stations" in paths
-    assert "auto/wf_import_noaa_grids" not in paths
+    assert "auto/wf_import/noaa_grids" not in paths
 
     module = ET.parse(_find(out, "InterpolateHRDPSToStations.xml")).getroot()
     grid_tss = next(

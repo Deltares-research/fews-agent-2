@@ -15,7 +15,7 @@ import pytest
 from fews_agent.agent import project_intents as pi
 
 _PATHS = {
-    "auto/gfs/deterministic", "auto/wf_import_noaa_grids",
+    "auto/gfs/deterministic", "auto/wf_import/noaa_grids",
     "auto/import_sealevel_ioc", "auto/tpl_aggregate_shift_sealevel",
     "auto/amalgamate",
 }

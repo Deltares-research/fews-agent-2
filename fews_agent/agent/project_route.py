@@ -112,7 +112,7 @@ def _fixed_variable_imports(slots: dict) -> list[str]:
     out = []
     for name in imports:
         entry = _IMPORT_PATTERN_MAP.get(name)
-        if (entry and entry[0].startswith(("auto/nwp_grid_", "auto/gfs/"))
+        if (entry and entry[0].startswith(("auto/nwp_grid_", "auto/gfs/", "auto/eccc/", "auto/ecmwf/"))
                 and name not in selectable):
             out.append(name)
     return out
@@ -129,7 +129,7 @@ def _nwp_imports_without_map_area(slots: dict) -> list[str]:
     out = []
     for name in (slots.get("imports") or []):
         entry = _IMPORT_PATTERN_MAP.get(str(name))
-        if entry and entry[0].startswith(("auto/nwp_grid_", "auto/gfs/")):
+        if entry and entry[0].startswith(("auto/nwp_grid_", "auto/gfs/", "auto/eccc/", "auto/ecmwf/")):
             if "grid_geometry" not in (overrides.get(name) or {}):
                 out.append(str(name))
     return out

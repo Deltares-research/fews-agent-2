@@ -1,0 +1,114 @@
+name: update_historic_grids
+description: 'Auto-derived pattern from tutorial instances: UpdateHistoricGrids.'
+variables:
+  template_name:
+    type: str
+    required: true
+outputs:
+- schema: Workflow
+  output: WorkflowFiles/Preprocess/{{ template_name }}.xml
+  data:
+    version: '1.1'
+    properties:
+      string:
+      - key: FORECAST
+        value: RDPS
+      - key: TIMESTEP
+        value: '1'
+      - key: EXPIRYTIME
+        value: '7'
+      - key: INPUTGRID
+        value: RDPS
+      - key: OUTPUTGRID
+        value: $MODELNAME1$Grid
+      - key: INPUTMODULEINSTANCE
+        value: ImportRDPSforHistoricMerge
+      - key: ENSEMBLE
+        value: main
+      - key: BASINLOCATIONS
+        value: $MODELNAME1$Basins
+      - key: STATIONLOCATIONS
+        value: ECCCStations$REGION$
+      - key: TIMESERIESTYPE
+        value: external forecasting
+      - key: STARTTIME
+        value: '-3'
+      - key: ENDTIME
+        value: '1'
+    activity:
+    - runIndependent: true
+      moduleInstanceId: RetrieveRDPSforHistoricMerge
+    - runIndependent: true
+      moduleInstanceId: ImportRDPSforHistoricMerge
+    - runIndependent: true
+      moduleInstanceId: RetrieveRDPA
+    - runIndependent: true
+      moduleInstanceId: ImportRDPA
+    - properties:
+        string:
+        - key: PARAMETER
+          value: PC.cpa
+      runIndependent: true
+      moduleInstanceId: PreprocessRDPA
+      moduleConfigFileName: PreprocessAccumulatedParametersNWPTemplate
+    - properties:
+        string:
+        - key: PARAMETER
+          value: PC.nwp
+      runIndependent: true
+      moduleInstanceId: PreprocessRDPSforHistoricMerge
+      moduleConfigFileName: PreprocessAccumulatedParametersNWPTemplate
+    - properties:
+        string:
+        - key: LOCATIONSET
+          value: $MODELNAME1$Basins
+        - key: INPUTMODULEINSTANCE
+          value: PreprocessRDPSforHistoricMerge
+      runIndependent: true
+      moduleInstanceId: PreprocessRDPSforHistoricMerge
+      moduleConfigFileName: AccumulateForecastPrecipTemplate
+    - properties:
+        string:
+        - key: PARAMETER
+          value: TA.nwp
+      runIndependent: true
+      moduleInstanceId: PreprocessRDPSforHistoricMerge
+      moduleConfigFileName: PreprocessInstantaneousParametersNWPTemplate
+    - properties:
+        string:
+        - key: PARAMETER
+          value: PA.nwp
+      runIndependent: true
+      moduleInstanceId: PreprocessRDPSforHistoricMerge
+      moduleConfigFileName: PreprocessInstantaneousParametersNWPTemplate
+    - properties:
+        string:
+        - key: PARAMETER
+          value: XS.nwp
+      runIndependent: true
+      moduleInstanceId: PreprocessRDPSforHistoricMerge
+      moduleConfigFileName: PreprocessInstantaneousParametersNWPTemplate
+    - properties:
+        string:
+        - key: PARAMETER
+          value: US.nwp
+      runIndependent: true
+      moduleInstanceId: PreprocessRDPSforHistoricMerge
+      moduleConfigFileName: PreprocessInstantaneousParametersNWPTemplate
+    - properties:
+        string:
+        - key: PARAMETER
+          value: RS.nwp
+      runIndependent: true
+      moduleInstanceId: PreprocessRDPSforHistoricMerge
+      moduleConfigFileName: PreprocessAccumulatedParametersNWPTemplate
+    - properties:
+        string:
+        - key: PARAMETER
+          value: RL.nwp
+      runIndependent: true
+      moduleInstanceId: PreprocessRDPSforHistoricMerge
+      moduleConfigFileName: PreprocessAccumulatedParametersNWPTemplate
+    - runIndependent: true
+      moduleInstanceId: MergeHistoricGrids
+contributions: []

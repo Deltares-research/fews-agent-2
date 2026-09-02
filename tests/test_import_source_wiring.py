@@ -30,9 +30,9 @@ def test_import_aliases(alias_text, canonical):
 @pytest.mark.parametrize(
     "imp, path, source_name",
     [
-        ("ECMWF", "auto/nwp_grid_ecmwf_ifs", "Ecmwf"),
-        ("GHCND", "auto/import_station_ghcnd", "Ghcnd"),
-        ("JTWC", "auto/import_cyclone_jtwc", "Jtwc"),
+        ("ECMWF", "auto/ecmwf/ifs", "Ecmwf"),
+        ("GHCND", "auto/import_station/ghcnd", "Ghcnd"),
+        ("JTWC", "auto/import_cyclone/jtwc", "Jtwc"),
         ("IOC", "auto/import_sealevel_ioc", "Ioc"),
         ("NDBC", "auto/import_buoy_ndbc", "Ndbc"),
     ],

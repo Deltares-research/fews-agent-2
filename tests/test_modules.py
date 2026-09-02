@@ -52,7 +52,7 @@ def test_normalize_module_synonyms():
 
 def test_module_for_pattern_folds_capabilities():
     assert M.module_for_pattern("auto/gfs/deterministic") == "processing"
-    assert M.module_for_pattern("auto/raven_basin") == "processing"
+    assert M.module_for_pattern("auto/basin/raven") == "processing"
     assert M.module_for_pattern("auto/wf_interpolate_nwp_to_stations") == "processing"
     assert M.module_for_pattern("auto/spatial_display_grid") == "display"
 

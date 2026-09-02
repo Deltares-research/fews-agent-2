@@ -21,6 +21,7 @@ from runners.agent.build_from_blueprint import (
     _apply_grid_geometry_to_grids,
     _apply_nwp_resolutions_to_grids,
     _apply_region_to_grids,
+    _filter_grids_content,
     _nwp_geometries_from_blueprint,
     _nwp_location_ids_from_blueprint,
     _nwp_resolutions_from_blueprint,
@@ -44,7 +45,7 @@ def _grids(*entries):
 
 def test_bbox_crop_covers_eccc_grids():
     # An ECCC-only project (no NOAA anywhere).
-    bp = _bp(("auto/nwp_grid_eccc_HRDPS", [{"nwp_name": "HRDPS"}]))
+    bp = _bp(("auto/eccc/HRDPS", [{"nwp_name": "HRDPS"}]))
     ids = _nwp_location_ids_from_blueprint(bp)
     assert ids == {"HRDPS"}
 
@@ -67,11 +68,54 @@ def test_bbox_crop_covers_eccc_grids():
 
 def test_bbox_crop_collects_multiple_eccc_sources():
     bp = _bp(
-        ("auto/nwp_grid_eccc_GDPS", [{"nwp_name": "GDPS"}]),
-        ("auto/nwp_grid_eccc_RDPS", [{"nwp_name": "RDPS"}]),
+        ("auto/eccc/GDPS", [{"nwp_name": "GDPS"}]),
+        ("auto/eccc/RDPS", [{"nwp_name": "RDPS"}]),
         ("auto/gfs/deterministic", [{"nwp_name": "GFS"}]),
     )
     assert _nwp_location_ids_from_blueprint(bp) == {"GDPS", "RDPS", "GFS"}
+
+
+# --- $MODELNAME{1,2}$ grid entries require an actual basin instance --------
+
+def test_modelname1_grid_dropped_with_no_basin():
+    data = _grids(
+        {"@locationId": "$MODELNAME1$Grid", "rows": "1", "columns": "1"},
+        {"@locationId": "GFS", "rows": "1", "columns": "1"},
+    )
+    out = _filter_grids_content(data, {"GFS"}, basin_count=0)
+    ids = {e["regular"]["@locationId"] for e in out["body"]}
+    assert ids == {"GFS"}
+
+
+def test_modelname1_grid_kept_with_one_basin():
+    data = _grids(
+        {"@locationId": "$MODELNAME1$Grid", "rows": "1", "columns": "1"},
+        {"@locationId": "GFS", "rows": "1", "columns": "1"},
+    )
+    out = _filter_grids_content(data, {"GFS"}, basin_count=1)
+    ids = {e["regular"]["@locationId"] for e in out["body"]}
+    assert ids == {"$MODELNAME1$Grid", "GFS"}
+
+
+def test_modelname2_grid_needs_two_basins():
+    data = _grids(
+        {"@locationId": "$MODELNAME1$Grid", "rows": "1", "columns": "1"},
+        {"@locationId": "$MODELNAME2$Grid", "rows": "1", "columns": "1"},
+    )
+    out_one = _filter_grids_content(data, set(), basin_count=1)
+    assert {e["regular"]["@locationId"] for e in out_one["body"]} == {"$MODELNAME1$Grid"}
+    out_two = _filter_grids_content(data, set(), basin_count=2)
+    assert {e["regular"]["@locationId"] for e in out_two["body"]} == {
+        "$MODELNAME1$Grid", "$MODELNAME2$Grid",
+    }
+
+
+def test_other_dollar_placeholders_still_unconditionally_kept():
+    # Only $MODELNAME{1,2}$ specifically is basin-gated -- any other FEWS
+    # runtime placeholder keeps today's unconditional-keep behaviour.
+    data = _grids({"@locationId": "$SOMEOTHERPLACEHOLDER$", "rows": "1", "columns": "1"})
+    out = _filter_grids_content(data, set(), basin_count=0)
+    assert len(out["body"]) == 1
 
 
 # --- resolution override is NOAA-shaped (slug-gated), correctly ------------
@@ -90,7 +134,7 @@ def test_resolution_override_applies_to_slugged_noaa_instance():
 def test_resolution_override_noops_on_eccc_without_slug():
     # ECCC products carry no grid_resolution slug (fixed native resolution),
     # so the resolution map is empty and the grid is left as-is.
-    bp = _bp(("auto/nwp_grid_eccc_HRDPS", [{"nwp_name": "HRDPS"}]))
+    bp = _bp(("auto/eccc/HRDPS", [{"nwp_name": "HRDPS"}]))
     assert _nwp_resolutions_from_blueprint(bp) == {}
 
     data = _grids({"@locationId": "HRDPS", "xCellSize": "0.0225", "yCellSize": "0.0225"})
@@ -111,7 +155,7 @@ _GEOM = {"first_x": -11.75, "first_y": 8.75, "columns": 48, "rows": 30}
 def test_grid_geometry_stamps_point_and_counts_inherits_cell_size():
     # A configurator-set geometry rides on the instance for ANY nwp_grid_*
     # source (here ECCC HRDPS at its 0.0225 native cell size).
-    bp = _bp(("auto/nwp_grid_eccc_HRDPS",
+    bp = _bp(("auto/eccc/HRDPS",
               [{"nwp_name": "HRDPS", "grid_geometry": _GEOM}]))
     geos = _nwp_geometries_from_blueprint(bp)
     assert geos == {"HRDPS": _GEOM}

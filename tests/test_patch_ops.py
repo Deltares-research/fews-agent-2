@@ -105,9 +105,9 @@ def test_add_basin_without_adapter_is_refused(state, catalog):
 
 def test_add_capability_by_name_or_path(state, catalog):
     apply_patch(state, [{"op": "add_capability",
-                         "pattern": "coastal_sfincs"}], catalog)
-    assert "auto/coastal_sfincs" in state["slots"]["extra_patterns"]
-    assert "auto/coastal_sfincs" in {p["pattern"] for p in state["patterns"]}
+                         "pattern": "sfincs"}], catalog)
+    assert "auto/coastal/sfincs" in state["slots"]["extra_patterns"]
+    assert "auto/coastal/sfincs" in {p["pattern"] for p in state["patterns"]}
 
 
 def test_add_capability_needing_input_reports_vars(state, catalog):
@@ -162,12 +162,12 @@ def test_remove_import_basin_datatype_capability(state, catalog):
     apply_patch(state, [
         {"op": "add_import", "name": "GFS", "data_types": ["temperature"]},
         {"op": "add_basin", "basin_name": "Liard", "model_adapter": "raven"},
-        {"op": "add_capability", "pattern": "coastal_sfincs"},
+        {"op": "add_capability", "pattern": "sfincs"},
     ], catalog)
     res = apply_patch(state, [
         {"op": "remove", "target": "temperature"},
         {"op": "remove", "target": "Liard"},
-        {"op": "remove", "target": "coastal_sfincs"},
+        {"op": "remove", "target": "sfincs"},
         {"op": "remove", "target": "GFS"},
     ], catalog)
     assert res.dropped == []
@@ -292,7 +292,7 @@ def test_ambiguous_data_types_skipped_when_two_imports_parameterized(
     synthetic = [
         dataclasses.replace(
             p, variables={**p.variables, "parameters": {"type": "list"}},
-        ) if p.path == "auto/nwp_grid_eccc_HRDPS" else p
+        ) if p.path == "auto/eccc/HRDPS" else p
         for p in catalog
     ]
     # _resolve_import_patterns reads the process-cached _default_catalog(),
@@ -308,7 +308,7 @@ def test_ambiguous_data_types_skipped_when_two_imports_parameterized(
     TE.resolve_patterns(st, synthetic)
     gfs = next(p for p in st["patterns"] if p["pattern"] == "auto/gfs/gribfilter")
     hrdps = next(p for p in st["patterns"]
-                 if p["pattern"] == "auto/nwp_grid_eccc_HRDPS")
+                 if p["pattern"] == "auto/eccc/HRDPS")
     assert "parameters" not in gfs["instances"][0]
     assert "parameters" not in hrdps["instances"][0]
     assert "not applied" in capsys.readouterr().err
@@ -417,10 +417,10 @@ def test_add_capability_redirects_flag_owned_patterns(state, catalog):
 
 def test_add_capability_redirects_import_owned_patterns(state, catalog):
     """LIVE BUG: 'add GFS and HRDPS' routed HRDPS through
-    add_capability nwp_grid_eccc_HRDPS, which refused (needs nwp_name).
+    add_capability HRDPS, which refused (needs nwp_name).
     Import-owned patterns redirect to add_import so any route works."""
     res = apply_patch(state, [
-        {"op": "add_capability", "pattern": "nwp_grid_eccc_HRDPS"},
+        {"op": "add_capability", "pattern": "HRDPS"},
     ], catalog)
     assert res.dropped == []
     assert "HRDPS" in state["slots"]["imports"]

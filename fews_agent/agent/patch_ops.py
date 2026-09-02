@@ -166,7 +166,7 @@ def _op_add_capability(state: dict, args: dict, catalog, res: PatchResult) -> No
         res.notes.append(note)
         return
     # An IMPORT-owned pattern (the model picked the pattern route for a known
-    # source, e.g. add_capability nwp_grid_eccc_HRDPS): redirect to add_import
+    # source, e.g. add_capability HRDPS): redirect to add_import
     # so the import route fills nwp_name/companions — any route works.
     from fews_agent.agent.project_intents import _IMPORT_PATTERN_MAP
     for imp_name, (imp_path, _var) in _IMPORT_PATTERN_MAP.items():

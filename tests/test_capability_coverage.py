@@ -70,19 +70,19 @@ def test_wflow_basin_actually_resolves(catalog):
              "intent": "build_forecasting_project"}
     op = deterministic_module_op("Liard uses wflow", PROC, catalog)
     TE.apply_extracted_fields(state, op, catalog)
-    assert "auto/wflow_basin" in {p["pattern"] for p in state["patterns"]}
+    assert "auto/basin/wflow" in {p["pattern"] for p in state["patterns"]}
 
 
 # --- 2. capabilities resolve from the patterns' own keywords --------------
 
 @pytest.mark.parametrize("phrase,expected", [
-    ("add SFINCS", "auto/coastal_sfincs"),
-    ("add a hurrywave wave model", "auto/coastal_hurrywave"),
+    ("add SFINCS", "auto/coastal/sfincs"),
+    ("add a hurrywave wave model", "auto/coastal/hurrywave"),
     ("CMEMS ocean grid", "auto/ocean_grid_cmems"),
     ("import SEVIRI sst", "auto/satellite_sst_SEVIRI"),
     ("add cyclone tracks", "auto/download_process_cyclone_tracks"),
-    ("station csv", "auto/import_station_csv"),
-    ("run delft3d", "auto/coastal_dflowfm_dimr"),
+    ("station csv", "auto/import_station/csv"),
+    ("run delft3d", "auto/coastal/dflowfm_dimr"),
 ])
 def test_capability_is_recognised_and_routed(phrase, expected, catalog):
     assert expected in detect_capabilities(phrase, catalog)
@@ -112,7 +112,7 @@ def test_capability_survives_the_resolve_rebuild(catalog):
         )
     TE.resolve_patterns(state, catalog)   # rebuild — must not lose it
     paths = {p["pattern"] for p in state["patterns"]}
-    assert "auto/coastal_sfincs" in paths
+    assert "auto/coastal/sfincs" in paths
     assert "auto/gfs/gribfilter" in paths
 
 

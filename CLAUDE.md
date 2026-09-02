@@ -205,11 +205,19 @@ generators, and they are expected to appear in the run summary:
 
 - **Grid names used as `locationId` (`HRDPS`, `HRDPA`).**
   `ImportHRDPS.xml` and `ImportHRDPA.xml` put `<locationId>HRDPS</locationId>`
-  / `HRDPA` in their timeSeriesSets. These aren't locations in
-  `Locations.xml`; they're declared in `LocationSets.xml` (generic-body
-  file). The typed reflection walker can't see declarations inside
-  `GenericXmlFile.body` dicts — they register as unresolved until the
-  validator is extended to scan generic bodies.
+  / `HRDPA` in their timeSeriesSets. Corrected 2026-08: these aren't
+  declared **anywhere** in the real tutorial reproduction — not in
+  `Locations.xml`, not in `LocationSets.xml` either (an earlier version of
+  this note claimed LocationSets.xml; checked the actual file, it isn't
+  there). A genuine tutorial-fixture gap, left as-is for the same
+  byte-equivalence reason as the other two. For a **fresh, non-tutorial**
+  project this specific gap is now closed: `build_from_blueprint.py`
+  auto-stubs a plain `<location id="X">` entry into `Locations.xml` for
+  every NWP grid name the project's imports reference and nothing else
+  declared (see "Stub grid locationIds", `_stub_missing_grid_locations`/
+  `_stub_missing_grid_locations_model`) — grid names belong in
+  `Locations.xml`, never `LocationSets.xml`, matching the real config's own
+  convention for `GFS`/`RDPS`/`GDPS`/etc.
 
 - **Module instances referenced by workflows but never declared (23 refs).**
   Several workflow files invoke moduleInstanceIds that no module-config

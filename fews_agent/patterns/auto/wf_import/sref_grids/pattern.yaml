@@ -1,0 +1,17 @@
+name: sref_grids
+description: 'Auto-derived pattern from tutorial instances: ImportSREFGrids.'
+variables:
+  template_name:
+    type: str
+    required: true
+outputs:
+- schema: Workflow
+  output: WorkflowFiles/Import/NOAA/{{ template_name }}.xml
+  data:
+    version: '1.1'
+    activity:
+    - runIndependent: true
+      moduleInstanceId: RetrieveSREF
+    - runIndependent: true
+      moduleInstanceId: ImportSREF
+contributions: []

@@ -76,7 +76,7 @@ def test_remove_survives_reresolve(catalog):
     # A SECOND resolve (simulating a later turn) must not bring GFS back.
     chat_step._resolve_patterns(state, catalog)
     assert "auto/gfs/gribfilter" not in _import_paths(state)
-    assert "auto/nwp_grid_eccc_HRDPS" in _import_paths(state)
+    assert "auto/eccc/HRDPS" in _import_paths(state)
 
 
 def test_remove_absent_is_noop(catalog):
@@ -346,12 +346,12 @@ def test_nl_remove_survives_readd_suppression(catalog):
     add_module(state, "GFS", "import")
     add_module(state, "RDPS", "import")
     chat_step._resolve_patterns(state, catalog)
-    assert "auto/nwp_grid_eccc_RDPS" in _import_paths(state)
+    assert "auto/eccc/RDPS" in _import_paths(state)
 
     # "drop RDPS" — extract_skills also sees RDPS; suppression must win.
     _apply_nl_edit(state, "please drop RDPS", catalog)
     assert state["slots"]["imports"] == ["GFS"]
-    assert "auto/nwp_grid_eccc_RDPS" not in _import_paths(state)
+    assert "auto/eccc/RDPS" not in _import_paths(state)
     assert "auto/gfs/gribfilter" in _import_paths(state)
 
 

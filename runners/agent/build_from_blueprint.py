@@ -273,7 +273,86 @@ def _filter_displaygroups_content(
     return {**data, "body": kept}
 
 
-_BASIN_PATTERNS = frozenset({"auto/raven_basin", "auto/wflow_basin"})
+def _has_module_instance_ref(node: Any) -> bool:
+    """Whether `node` contains a ``moduleInstanceId`` key anywhere,
+    however deeply nested."""
+    if isinstance(node, dict):
+        return any(
+            k == "moduleInstanceId" or _has_module_instance_ref(v)
+            for k, v in node.items()
+        )
+    if isinstance(node, list):
+        return any(_has_module_instance_ref(x) for x in node)
+    return False
+
+
+def _references_known_module_instance(node: Any, referenced_ids: set[str]) -> bool:
+    """Whether any ``moduleInstanceId`` VALUE anywhere in `node` is in
+    `referenced_ids`."""
+    if isinstance(node, dict):
+        for k, v in node.items():
+            if k == "moduleInstanceId" and v in referenced_ids:
+                return True
+            if _references_known_module_instance(v, referenced_ids):
+                return True
+        return False
+    if isinstance(node, list):
+        return any(_references_known_module_instance(x, referenced_ids) for x in node)
+    return False
+
+
+def _filter_by_module_instance_refs(data: Any, referenced_ids: set[str]) -> Any:
+    """Recursively drop list entries that reference ONLY module instances
+    outside the project (e.g. a bundled standard's product/modifier/
+    threshold/validation entry naming ``ImportRDPS`` in a GFS-only
+    project). An entry with no ``moduleInstanceId`` reference anywhere is
+    kept unconditionally (absence of a reference isn't evidence of
+    irrelevance -- same convention `_filter_displaygroups_content` uses
+    for `displayGroup` entries). Recurses into kept entries so a NESTED
+    list needing the same treatment (e.g. productsFile's
+    body -> productCategory -> product) gets it too, without needing to
+    know each spec's exact shape in advance. Empty-result safeguard, same
+    as every other trim here: if filtering a list would drop every entry,
+    that list is left as-is (its own nested lists still get recursed into,
+    in case a deeper level has a genuine partial match)."""
+    if isinstance(data, dict):
+        return {k: _filter_by_module_instance_refs(v, referenced_ids)
+                for k, v in data.items()}
+    if isinstance(data, list):
+        if data and all(isinstance(x, dict) for x in data):
+            kept = [
+                x for x in data
+                if not _has_module_instance_ref(x)
+                or _references_known_module_instance(x, referenced_ids)
+            ]
+            if kept and len(kept) < len(data):
+                return [_filter_by_module_instance_refs(x, referenced_ids)
+                        for x in kept]
+            return [_filter_by_module_instance_refs(x, referenced_ids)
+                    for x in data]
+        return [_filter_by_module_instance_refs(x, referenced_ids) for x in data]
+    return data
+
+
+# Bundled standards whose content is a list of entries each scoped to
+# specific module instances (unlike idMaps/gridsFile/displayGroupsFile,
+# these had NO trimming at all -- a GFS-only project got every ECCC/WSC
+# modifier, product, threshold, and validation rule regardless of
+# relevance, which is what fed the colleague-reported
+# ModuleInstanceDescriptors clutter). filtersFile is the bundled FALLBACK
+# specifically -- it only reaches this generic loop when the LLM filter
+# drafter didn't produce one (see the filters_spec block earlier in
+# build_from_blueprint); it was the single largest remaining contamination
+# source feeding project_module_ids for every OTHER trim in this file
+# (SpatialDisplay's included), since its ImportWSC/ImportECCCScalar
+# example filter groups looked "referenced" to every downstream check.
+_MODULE_INSTANCE_TRIMMED_SPECS = frozenset({
+    "modifierTypes", "productsFile", "thresholdValueSets",
+    "validationRuleSets", "filtersFile",
+})
+
+
+_BASIN_PATTERNS = frozenset({"auto/basin/raven", "auto/basin/wflow"})
 
 
 def _count_basin_instances(bp) -> int:
@@ -467,6 +546,8 @@ def _filter_spatial_display_content(
 _NWP_PATTERN_PREFIXES: tuple[str, ...] = (
     "auto/nwp_grid_",
     "auto/gfs/",
+    "auto/eccc/",
+    "auto/ecmwf/",
 )
 
 
@@ -488,6 +569,84 @@ def _nwp_location_ids_from_blueprint(bp) -> set[str]:
             if isinstance(name, str) and name:
                 out.add(name)
     return out
+
+
+_FEWS_NS = "http://www.wldelft.nl/fews"
+
+
+def _stub_missing_grid_locations(existing_xml: str, missing_ids: set[str]) -> str:
+    """Graft placeholder ``<location>`` entries for NWP grid names into an
+    existing Locations.xml.
+
+    A grid import's ``timeSeriesSet`` references ``locationId=GFS`` (etc.)
+    directly, by FEWS convention -- unlike locationSetId references, which
+    locationsets_derivation.py already stubs, nothing declared these bare
+    grid ids anywhere. Confirmed against the real tutorial reproduction:
+    grid names are plain ``<location id="X">`` entries in Locations.xml
+    (coordinates 0,0 -- a real map position isn't needed for a grid id to
+    resolve), never LocationSets.xml entries.
+
+    New entries are appended after the last existing ``<location>`` (or
+    right after ``<geoDatum>`` if there are none yet), preserving
+    xsd:sequence order against a trailing ``<timeZone>``. Returns the
+    re-serialised XML with the default FEWS namespace intact.
+    """
+    from lxml import etree
+
+    root = etree.fromstring(existing_xml.encode("utf-8"))
+    existing_ids = {
+        el.get("id") for el in root.findall(f"{{{_FEWS_NS}}}location")
+    }
+    to_add = sorted(missing_ids - existing_ids)
+    if not to_add:
+        return existing_xml
+    locations = root.findall(f"{{{_FEWS_NS}}}location")
+    if locations:
+        insert_after = locations[-1]
+    else:
+        insert_after = root.find(f"{{{_FEWS_NS}}}geoDatum")
+    insert_index = (
+        list(root).index(insert_after) + 1 if insert_after is not None else 0
+    )
+    for offset, grid_id in enumerate(to_add):
+        loc = etree.Element(f"{{{_FEWS_NS}}}location")
+        loc.set("id", grid_id)
+        loc.set("name", grid_id)
+        x = etree.SubElement(loc, f"{{{_FEWS_NS}}}x")
+        x.text = "0"
+        y = etree.SubElement(loc, f"{{{_FEWS_NS}}}y")
+        y.text = "0"
+        root.insert(insert_index + offset, loc)
+    return etree.tostring(
+        root, xml_declaration=True, encoding="UTF-8",
+    ).decode("utf-8")
+
+
+def _stub_missing_grid_locations_model(model: Any, missing_ids: set[str]) -> Any:
+    """Same as `_stub_missing_grid_locations`, but on the typed ``Locations``
+    Pydantic model rather than raw XML text.
+
+    Locations is one of the semantic validator's DECLARING_MODELS (it
+    reflects over `RenderedFile.model`, not the XML text, to know what's
+    declared) -- clearing `.model` after a graft, the way the LocationSets
+    XML-text graft does, would make every location in the file invisible to
+    semantic validation, not just the newly-added ones. Returns `model`
+    unchanged if there's nothing to add.
+    """
+    from decimal import Decimal
+
+    existing_ids = {loc.id for loc in model.location}
+    to_add = sorted(missing_ids - existing_ids)
+    if not to_add:
+        return model
+    from fews_agent.schema import Location
+    new_locations = [
+        Location(id=grid_id, name=grid_id, x=Decimal(0), y=Decimal(0))
+        for grid_id in to_add
+    ]
+    return model.model_copy(
+        update={"location": [*model.location, *new_locations]},
+    )
 
 
 # NOAA URL slug → degrees. Other NWP patterns can extend this map as
@@ -671,12 +830,17 @@ def _apply_region_to_grids(
 
 
 def _filter_grids_content(
-    data: dict, project_location_ids: set[str],
+    data: dict, project_location_ids: set[str], basin_count: int = 0,
 ) -> dict:
     """Drop grid entries whose @locationId isn't referenced by the project.
 
     Keeps placeholder entries (those with a $...$ placeholder) since
-    those are FEWS runtime templates that resolve at execution time.
+    those are FEWS runtime templates that resolve at execution time --
+    EXCEPT $MODELNAME1$.../$MODELNAME2$... entries specifically, which are
+    basin-model grids: kept only when the project actually has that many
+    basin instances (mirrors the $MODELNAME1$/$MODELNAME2$ threshold
+    _plot_is_alive already uses for SpatialDisplay). A GFS-only project has
+    no reason to ship a "$MODELNAME1$Grid" nobody will ever populate.
     Empty-result safeguard: if all would be dropped, keep original.
     """
     if not isinstance(data, dict) or "body" not in data:
@@ -690,7 +854,13 @@ def _filter_grids_content(
         # The locationId is on the inner dict.
         inner = next(iter(entry.values())) if entry else {}
         loc_id = inner.get("@locationId", "") if isinstance(inner, dict) else ""
-        if (
+        if loc_id.startswith("$MODELNAME2$"):
+            if basin_count >= 2:
+                kept.append(entry)
+        elif loc_id.startswith("$MODELNAME1$"):
+            if basin_count >= 1:
+                kept.append(entry)
+        elif (
             loc_id.startswith("$")
             or loc_id in project_location_ids
             or not loc_id
@@ -787,6 +957,10 @@ def _render_yaml_inputs(
         _collect_location_ids(result.rendered_files)
         if filter_idmaps_by_ref else set()
     )
+    project_module_ids = (
+        _collect_referenced_module_instances(result.rendered_files)
+        if filter_idmaps_by_ref else set()
+    )
     n = 0
     for path in sorted(inputs_dir.iterdir()):
         if not path.is_file() or path.suffix.lower() not in {".yaml", ".yml"}:
@@ -809,6 +983,34 @@ def _render_yaml_inputs(
             data = _yaml.safe_load(path.read_text(encoding="utf-8"))
             if data is None:
                 continue
+            # Declarative gate: a bundled standard describing basin-model
+            # content (Raven/Wflow parameters, run-length estimation, the
+            # module-instance set they belong to) has no reason to exist in
+            # a project with no basin pattern instance at all -- stripped
+            # before Pydantic validation (model classes use extra="forbid"),
+            # same convention as other metadata-ish top-level keys. Only
+            # applies on the bundled-standards fallback, same as every
+            # other trim below -- a configurator's own inputs/ravenParameters
+            # .yaml (if they really want one with no basin) still wins.
+            requires_basin = bool(data.pop("requires_basin", False))
+            if filter_idmaps_by_ref and requires_basin and basin_count < 1:
+                continue
+            # ModifierTypes/Products/ThresholdValueSets/ValidationRuleSets:
+            # every entry is scoped to specific module instances (unlike
+            # idMaps/gridsFile/displayGroupsFile, these had NO trimming at
+            # all). If the project references NONE of what this file is
+            # about, skip it outright (same convention as an unreferenced
+            # idMap file) rather than emit content entirely about sources
+            # the project doesn't have. Otherwise trim to just the entries
+            # that do apply.
+            if (
+                filter_idmaps_by_ref
+                and spec_name in _MODULE_INSTANCE_TRIMMED_SPECS
+                and project_module_ids
+            ):
+                if not _references_known_module_instance(data, project_module_ids):
+                    continue
+                data = _filter_by_module_instance_refs(data, project_module_ids)
             # Trim idMap content to project-used parameters.
             if (
                 filter_idmaps_by_ref
@@ -825,7 +1027,9 @@ def _render_yaml_inputs(
                 and spec_name == "gridsFile"
                 and project_location_ids
             ):
-                data = _filter_grids_content(data, project_location_ids)
+                data = _filter_grids_content(
+                    data, project_location_ids, basin_count,
+                )
                 data = _apply_nwp_resolutions_to_grids(
                     data, nwp_resolutions or {},
                 )
@@ -851,6 +1055,17 @@ def _render_yaml_inputs(
             # basin slots. Fires only on the standard-inputs fallback —
             # if a pattern contributed to SpatialDisplay, the merger
             # already produced it (and pre-seed handled the trim there).
+            #
+            # gridDisplay.xsd requires at least one populated gridPlotGroup
+            # -- there is no valid "empty" SpatialDisplay to fall back to,
+            # unlike every other trimmed spec. If NOTHING in the bundled 18
+            # tutorial-era panels matches this project (the common case for
+            # a project outside that ECCC/E2O source set), skip the file
+            # outright rather than reach for the "keep everything" fallback
+            # -- that fallback is how a GFS-only project ended up shipping
+            # RDPS/GDPS/ECCC-scalar/E2O panels regardless of relevance,
+            # feeding the exact same descriptor clutter Phase D fixed for
+            # ModifierTypes/Products/ThresholdValueSets/ValidationRuleSets.
             if (
                 filter_idmaps_by_ref
                 and spec_name == "spatialDisplayFile"
@@ -858,10 +1073,15 @@ def _render_yaml_inputs(
                 project_module_ids = (
                     _collect_referenced_module_instances(result.rendered_files)
                 )
-                data = _filter_spatial_display_content(
-                    data, project_module_ids, basin_count,
+                trimmed = _filter_spatial_display_content(
+                    data, project_module_ids, basin_count, allow_empty=True,
                 )
-                data = _apply_region_extent(data, region, custom_bbox)
+                if not any(
+                    isinstance(e, dict) and "gridPlotGroup" in e
+                    for e in (trimmed.get("body") or [])
+                ):
+                    continue
+                data = _apply_region_extent(trimmed, region, custom_bbox)
             model = spec.model_class.model_validate(data)
             xml = render_template(spec.template_name, model)
             result.rendered_files.append(
@@ -1410,6 +1630,98 @@ def build_from_blueprint(
             title="Warning: interpolation has no station targets",
             border_style="yellow",
         ))
+
+    # Stub missing grid locationIds into Locations.xml. A grid import's
+    # timeSeriesSet references locationId=GFS (etc.) directly; nothing else
+    # declares that id anywhere, which left it a genuinely unresolved
+    # semantic reference (a colleague-reported gap, confirmed against the
+    # real tutorial reproduction's own Locations.xml convention). Only
+    # grafts into an ALREADY-produced Locations.xml (CSV ingest or a
+    # configurator yaml) — there's nothing to graft a stub into if the
+    # project never produced one at all, so that case is a loud warning
+    # instead, same convention as the interpolation station-set gap above.
+    _grid_ids = _nwp_location_ids_from_blueprint(bp)
+    if _grid_ids:
+        locations_spec = next((s for s in _SPECS if s.name == "locations"), None)
+        if locations_spec:
+            locations_relpath = str(locations_spec.output_relpath).replace("\\", "/")
+            locations_rf = next(
+                (
+                    rf for rf in result.rendered_files
+                    if rf.relpath.replace("\\", "/") == locations_relpath
+                ),
+                None,
+            )
+            if locations_rf is None:
+                console.print(Panel(
+                    f"Grid import(s) {', '.join(sorted(_grid_ids))} reference "
+                    f"locationId directly, but no Locations.xml was produced "
+                    f"(no locations.csv / configurator yaml) — these will be "
+                    f"unresolved semantic references.\n"
+                    f"Fix: provide a locations.csv (or a Locations.xml/"
+                    f"locations.yaml) in inputs/.",
+                    title="Warning: grid locations have nothing to stub into",
+                    border_style="yellow",
+                ))
+            else:
+                try:
+                    # Prefer the typed-model path when available (CSV
+                    # ingest / a configurator's typed yaml both attach one)
+                    # -- it keeps `.model` a real, accurate Locations
+                    # instance, so the semantic pass (which reflects over
+                    # `.model`, not the XML text, for DECLARING_MODELS like
+                    # Locations) still sees every location, old and new.
+                    # Falls back to a text-only graft (re-parses via lxml,
+                    # can't update `.model`) only when no typed model is
+                    # attached at all.
+                    if locations_rf.model is not None:
+                        updated_model = _stub_missing_grid_locations_model(
+                            locations_rf.model, _grid_ids,
+                        )
+                        if updated_model is not locations_rf.model:
+                            from fews_agent.generators.base import (
+                                render as render_template,
+                            )
+                            xml = render_template(
+                                locations_spec.template_name, updated_model,
+                            )
+                            ok, msg = validate_xsd(xml.encode("utf-8"))
+                            if ok:
+                                locations_rf.content = xml
+                                locations_rf.model = updated_model
+                                console.print(
+                                    f"[dim]Stubbed grid location(s) into "
+                                    f"Locations.xml[/dim]"
+                                )
+                            else:
+                                console.print(
+                                    f"[yellow]Grid location stub would "
+                                    f"break XSD ({msg[:80]}); kept "
+                                    f"original[/yellow]"
+                                )
+                    else:
+                        stubbed_xml = _stub_missing_grid_locations(
+                            locations_rf.content, _grid_ids,
+                        )
+                        if stubbed_xml != locations_rf.content:
+                            ok, msg = validate_xsd(stubbed_xml.encode("utf-8"))
+                            if ok:
+                                locations_rf.content = stubbed_xml
+                                console.print(
+                                    f"[dim]Stubbed grid location(s) into "
+                                    f"Locations.xml[/dim]"
+                                )
+                            else:
+                                console.print(
+                                    f"[yellow]Grid location stub would "
+                                    f"break XSD ({msg[:80]}); kept "
+                                    f"original[/yellow]"
+                                )
+                except Exception as exc:  # noqa: BLE001
+                    console.print(
+                        f"[yellow]Grid location stub failed: "
+                        f"{type(exc).__name__}: {str(exc)[:100]}[/yellow]"
+                    )
 
     # Model-asset gap (ColdState / ModuleDataSet). General-adapter model
     # runs need external binaries + schematization + initial state that no

@@ -63,7 +63,7 @@ class _Down:
 def test_catalog_digest_carries_names_requirements_outputs(catalog):
     text = catalog_digest(catalog)
     assert "auto/gfs/deterministic" in text
-    assert "coastal_sfincs" in text
+    assert "auto/coastal/sfincs" in text
     assert "requires: basin_name" in text          # raven_basin's contract
     assert "Import.xml" in text                    # outputs preview
 

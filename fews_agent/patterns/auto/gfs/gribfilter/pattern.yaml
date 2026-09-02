@@ -15,16 +15,10 @@ description: >-
   from auto/gfs/ensemble (GEFS, not deterministic GFS).
 keywords: [gfs, noaa, nwp, grib-filter, weather, forecast, grid]
 variables:
-  nwp_name:
-    type: str
-    required: true
-  # NOAA's grib-filter CGI is per-resolution (filter_gfs_0p25.pl,
-  # filter_gfs_0p50.pl, filter_gfs_1p00.pl) -- same slug values as
-  # nwp_grid_noaa's grid_resolution.
-  grid_resolution:
-    type: str
-    required: false
-    default: 0p25
+  # nwp_name, grid_resolution: shared across this family -- see
+  # patterns/auto/gfs/variables.yaml. NOAA's grib-filter CGI is
+  # per-resolution (filter_gfs_0p25.pl, filter_gfs_0p50.pl,
+  # filter_gfs_1p00.pl) -- same slug values as auto/gfs/deterministic's.
   # Forecast-hour upper bound for %COUNTER(<start>-<end>-3)%. The reference
   # project uses 120 (5 days); the instantaneous block starts at f000, the
   # accumulated block (below) starts at f003 since APCP/DSWRF/DLWRF are

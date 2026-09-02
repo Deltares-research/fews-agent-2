@@ -1,17 +1,9 @@
+{%- import '_partials/idmap_from_parameters.yaml.j2' as idmap -%}
 name: gfs_deterministic
 description: 'Auto-derived pattern from tutorial instances: GFS.'
 variables:
-  nwp_name:
-    type: str
-    required: true
-  # NOAA GFS publishes at 0p25 (0.25°), 0p50 (0.5°), and 1p00 (1°).
-  # The slug is embedded in the DODS URL twice; the bundled gridsFile
-  # also reads this off the blueprint at build time to override
-  # xCellSize/yCellSize on the matching grid entry.
-  grid_resolution:
-    type: str
-    required: false
-    default: 0p25
+  # nwp_name, grid_resolution: shared across this family -- see
+  # patterns/auto/gfs/variables.yaml.
   # Forecast horizon in hours — when set (e.g. 168 for a 7-day
   # forecast), the SpatialDisplay timeSeriesSet emits a
   # relativeViewPeriod so the plot shows just that window. When unset,
@@ -28,6 +20,10 @@ variables:
   #   startTimeShiftHours (int, optional — if set, the FIRST parameter
   #     with this value provides the single <startTimeShift> block;
   #     omit for instantaneous parameters like wind / pressure)
+  #   external (the idMap external name -- a string, or a list of
+  #     strings when NOAA has served this field under more than one
+  #     name; the pattern's own IdMap output is generated from this,
+  #     so a row can never advertise an id the idMap doesn't back)
   # Default reproduces today's PC.nwp + TA.nwp behaviour so existing
   # blueprints keep emitting identical XML.
   parameters:
@@ -38,8 +34,10 @@ variables:
         unit: mm
         cumulativeSum: true
         startTimeShiftHours: -3
+        external: [Total_precipitation_surface_6_Hour_Accumulation, apcpsfc]
       - id: TA.nwp
         unit: K
+        external: [Temperature_height_above_ground, tmp2m]
   # When true, the pattern contributes one ParameterGroup row per entry
   # in `parameters` to Parameters.xml. The resolver flips this on only
   # when it supplied non-default parameters (because the configurator's
@@ -56,22 +54,30 @@ variables:
 # configurator can ask for and the pattern that has to honour it can never
 # drift apart. A value is a single {id, unit, ...} dict, or a list of such
 # dicts when one phrase means multiple parameters at once.
+#
+# "wind speed"/"wind direction" and "relative humidity"/"humidity" are
+# deliberately NOT offered here (they used to be, as WS10.nwp/WD10.nwp/
+# RH.nwp -- with NO idMap backing at all, a real, colleague-reported bug:
+# the resulting import could never actually receive data for them). NOAA's
+# GFS doesn't serve wind speed/direction or relative humidity as raw
+# fields under this DODS/OPeNDAP service, and no real external name for
+# them has been verified anywhere in this codebase -- dropping the phrase
+# is the honest choice, not guessing one. `mean sea level pressure` and
+# `dewpoint` ARE offered: their external names are the same NOAA GFS
+# grib-derived naming convention already verified for the same physical
+# fields in auto/gfs/gribfilter (Pressure.msl, Tdew.forecast).
 data_type_vocabulary:
-  precipitation: {id: PC.nwp, unit: mm, cumulativeSum: true, startTimeShiftHours: -3}
-  precip: {id: PC.nwp, unit: mm, cumulativeSum: true, startTimeShiftHours: -3}
-  temperature: {id: TA.nwp, unit: K}
-  air temperature: {id: TA.nwp, unit: K}
-  temp: {id: TA.nwp, unit: K}
-  wind speed: {id: WS10.nwp, unit: m/s}
-  wind direction: {id: WD10.nwp, unit: degree}
-  mean sea level pressure: {id: PA.nwp, unit: hPa}
-  mslp: {id: PA.nwp, unit: hPa}
-  pressure: {id: PA.nwp, unit: hPa}
-  relative humidity: {id: RH.nwp, unit: '%'}
-  humidity: {id: RH.nwp, unit: '%'}
-  dewpoint temperature: {id: TD.nwp, unit: K}
-  dew point: {id: TD.nwp, unit: K}
-  dewpoint: {id: TD.nwp, unit: K}
+  precipitation: {id: PC.nwp, unit: mm, cumulativeSum: true, startTimeShiftHours: -3, external: [Total_precipitation_surface_6_Hour_Accumulation, apcpsfc]}
+  precip: {id: PC.nwp, unit: mm, cumulativeSum: true, startTimeShiftHours: -3, external: [Total_precipitation_surface_6_Hour_Accumulation, apcpsfc]}
+  temperature: {id: TA.nwp, unit: K, external: [Temperature_height_above_ground, tmp2m]}
+  air temperature: {id: TA.nwp, unit: K, external: [Temperature_height_above_ground, tmp2m]}
+  temp: {id: TA.nwp, unit: K, external: [Temperature_height_above_ground, tmp2m]}
+  mean sea level pressure: {id: PA.nwp, unit: hPa, external: Pressure_reduced_to_MSL_msl}
+  mslp: {id: PA.nwp, unit: hPa, external: Pressure_reduced_to_MSL_msl}
+  pressure: {id: PA.nwp, unit: hPa, external: Pressure_reduced_to_MSL_msl}
+  dewpoint temperature: {id: TD.nwp, unit: K, external: Dewpoint_temperature_height_above_ground}
+  dew point: {id: TD.nwp, unit: K, external: Dewpoint_temperature_height_above_ground}
+  dewpoint: {id: TD.nwp, unit: K, external: Dewpoint_temperature_height_above_ground}
 outputs:
 - schema: TimeSeriesImportRun
   output: ModuleConfigFiles/Import/NOAA/Import{{ nwp_name }}.xml
@@ -123,6 +129,7 @@ outputs:
     activity:
     - runIndependent: true
       moduleInstanceId: ImportGFS
+{{ idmap.emit(output_path='IdMapFiles/NOAA/IdImport' ~ nwp_name ~ '.xml', parameters=parameters) }}
 {% if contribute_parameters %}
 contributions:
   - target: Parameters

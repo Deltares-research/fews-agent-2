@@ -295,7 +295,10 @@ def test_integration_gfs_closure_against_real_build():
             "patterns": [{"pattern": "auto/gfs/deterministic", "instances": [
                 {"nwp_name": "GFS", "parameters": [
                     {"id": "PC.nwp", "unit": "mm", "cumulativeSum": True,
-                     "startTimeShiftHours": -3}], "contribute_parameters": True}]}],
+                     "startTimeShiftHours": -3,
+                     "external": ["Total_precipitation_surface_6_Hour_Accumulation",
+                                   "apcpsfc"]}],
+                 "contribute_parameters": True}]}],
         }
         (proj / "project.yaml").write_text(yaml.safe_dump(bp), encoding="utf-8")
         full = build_from_blueprint(
@@ -324,15 +327,20 @@ def test_integration_gfs_closure_against_real_build():
         assert len(r.chrome) > len(r.needed)
         # …and chrome is excluded.
         assert any(f.endswith("Topology.xml") for f in r.chrome)
-        assert any(f.endswith("Filters.xml") for f in r.chrome)
+        # Filters.xml/SpatialDisplay.xml are correctly ABSENT altogether for
+        # this GFS-only fixture (the bundled fallback content is entirely
+        # WSC/ECCC/RDPS-scoped -- nothing here to be chrome for), not just
+        # excluded from the closure -- see _MODULE_INSTANCE_TRIMMED_SPECS.
+        assert not any(f.endswith("Filters.xml") for f in files)
 
-        # Trimming drops the basin grid placeholder from Grids.xml, and the
-        # trimmed result still XSD-validates.
+        # This project has no basin instance, so the basin grid placeholder
+        # ($MODELNAME1$Grid) is already absent from Grids.xml at build time
+        # (requires_basin gating) -- nothing left for module-export trimming
+        # to drop here; trim_dependency_files correctly leaves it out of the
+        # trimmed-entries dict (no reduction to report) rather than emitting
+        # a no-op "trimmed" copy.
         from fews_agent.agent.module_export import trim_dependency_files
-        from fews_agent.validation.xsd import validate_xsd
-        trimmed = trim_dependency_files(files, r)
         grid_rel = next(f for f in r.needed if f.endswith("Grids.xml"))
-        assert grid_rel in trimmed
-        assert "MODELNAME1" not in trimmed[grid_rel]
-        ok, msg = validate_xsd(trimmed[grid_rel].encode("utf-8"))
-        assert ok, msg
+        assert "MODELNAME1" not in files[grid_rel]
+        trimmed = trim_dependency_files(files, r)
+        assert grid_rel not in trimmed

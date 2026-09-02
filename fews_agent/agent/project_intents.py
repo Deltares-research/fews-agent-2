@@ -736,7 +736,7 @@ def _routed_elsewhere() -> frozenset[str]:
     """
     owned = {entry[0] for entry in _IMPORT_PATTERN_MAP.values()}
     owned |= {
-        "auto/raven_basin", "auto/wflow_basin",     # basin route
+        "auto/basin/raven", "auto/basin/wflow",     # basin route
         "auto/spatial_display_grid",                # wants_visualization
         "imports/nwp_grid", "models/raven_basin",   # legacy, superseded
     }
@@ -1129,40 +1129,40 @@ class Intent:
 # import name as the value of that variable.
 _IMPORT_PATTERN_MAP: dict[str, tuple[str, str]] = {
     # ECCC NWP grids — label_var = nwp_name
-    "HRDPS": ("auto/nwp_grid_eccc_HRDPS", "nwp_name"),
-    "GDPS":  ("auto/nwp_grid_eccc_GDPS", "nwp_name"),
-    "RDPS":  ("auto/nwp_grid_eccc_RDPS", "nwp_name"),
-    "REPS":  ("auto/nwp_grid_eccc_REPS", "nwp_name"),
-    "HRDPA": ("auto/nwp_grid_eccc_HRDPA", "nwp_name"),
-    "RDPA":  ("auto/nwp_grid_eccc_RDPA", "nwp_name"),
+    "HRDPS": ("auto/eccc/HRDPS", "nwp_name"),
+    "GDPS":  ("auto/eccc/GDPS", "nwp_name"),
+    "RDPS":  ("auto/eccc/RDPS", "nwp_name"),
+    "REPS":  ("auto/eccc/REPS", "nwp_name"),
+    "HRDPA": ("auto/eccc/HRDPA", "nwp_name"),
+    "RDPA":  ("auto/eccc/RDPA", "nwp_name"),
     # NOAA
     "GFS":  ("auto/gfs/gribfilter", "nwp_name"),
     # NAM/SREF: the patterns emit ``{{ template_name }}.xml`` literally,
     # so the variable value IS the filename root. Override the default
     # (which would set it to the import name) via _IMPORT_VALUE_OVERRIDES.
-    "NAM":  ("auto/wf_import_nam_grids", "template_name"),
-    "SREF": ("auto/wf_import_sref_grids", "template_name"),
+    "NAM":  ("auto/wf_import/nam_grids", "template_name"),
+    "SREF": ("auto/wf_import/sref_grids", "template_name"),
     # Satellite — label_var = source_name
-    "GPM":   ("auto/satellite_precip_GPM", "source_name"),
-    "GSMAP": ("auto/satellite_precip_GSMAP", "source_name"),
+    "GPM":   ("auto/satellite_precip/GPM", "source_name"),
+    "GSMAP": ("auto/satellite_precip/GSMAP", "source_name"),
     # Snow — label_var = snow_source
-    "GLOBSNOW": ("auto/snow_import_GLOBSNOW", "snow_source"),
-    "SNODAS":   ("auto/snow_import_SNODAS", "snow_source"),
+    "GLOBSNOW": ("auto/snow_import/GLOBSNOW", "snow_source"),
+    "SNODAS":   ("auto/snow_import/SNODAS", "snow_source"),
     # Earth2Observe — label_var = source_name
     "E2O": ("auto/earth2observe", "source_name"),
     # ECCCScalar — label_var = source_name
     "ECCCScalar": ("auto/eccc_scalar", "source_name"),
     # FEWS-Caribbean sources — label_var = source_name (value overridden
     # to the title-case default via _IMPORT_VALUE_OVERRIDES).
-    "ECMWF": ("auto/nwp_grid_ecmwf_ifs", "source_name"),
-    "GHCND": ("auto/import_station_ghcnd", "source_name"),
-    "JTWC":  ("auto/import_cyclone_jtwc", "source_name"),
+    "ECMWF": ("auto/ecmwf/ifs", "source_name"),
+    "GHCND": ("auto/import_station/ghcnd", "source_name"),
+    "JTWC":  ("auto/import_cyclone/jtwc", "source_name"),
     "IOC":   ("auto/import_sealevel_ioc", "source_name"),
     "NDBC":  ("auto/import_buoy_ndbc", "source_name"),
     # WSC scalar — label_var = wsc_variant
-    "WSCDaily":    ("auto/wsc_scalar_WSCDaily_WSCHourly", "wsc_variant"),
-    "WSCHourly":   ("auto/wsc_scalar_WSCDaily_WSCHourly", "wsc_variant"),
-    "WSCHistoric": ("auto/wsc_scalar_WSCHistoric", "wsc_variant"),
+    "WSCDaily":    ("auto/wsc_scalar/WSCDaily_WSCHourly", "wsc_variant"),
+    "WSCHourly":   ("auto/wsc_scalar/WSCDaily_WSCHourly", "wsc_variant"),
+    "WSCHistoric": ("auto/wsc_scalar/WSCHistoric", "wsc_variant"),
     # FEWS-Conform sources — label_var = source_name (value title-cased via
     # _IMPORT_VALUE_OVERRIDES). ERA5 additionally pulls its download companion
     # (see _resolve_import_patterns).
@@ -1176,11 +1176,11 @@ _IMPORT_PATTERN_MAP: dict[str, tuple[str, str]] = {
 # model instance differently (`domain` for SFINCS/HurryWave, `model_name`
 # for the Delft3D-FM DIMR run).
 _ADAPTER_PATTERN_MAP = {
-    "raven": ("auto/raven_basin", "basin_name"),
-    "wflow": ("auto/wflow_basin", "basin_name"),
-    "delft3d": ("auto/coastal_dflowfm_dimr", "model_name"),
-    "sfincs": ("auto/coastal_sfincs", "domain"),
-    "hurrywave": ("auto/coastal_hurrywave", "domain"),
+    "raven": ("auto/basin/raven", "basin_name"),
+    "wflow": ("auto/basin/wflow", "basin_name"),
+    "delft3d": ("auto/coastal/dflowfm_dimr", "model_name"),
+    "sfincs": ("auto/coastal/sfincs", "domain"),
+    "hurrywave": ("auto/coastal/hurrywave", "domain"),
 }
 
 
@@ -1469,7 +1469,7 @@ def _resolve_import_patterns(
         # project.yaml where the build's geometry rewriter reads it back and
         # stamps it onto the matching gridsFile entry.
         _geom = _ov.get("grid_geometry")
-        if _geom and path.startswith(("auto/nwp_grid_", "auto/gfs/")):
+        if _geom and path.startswith(("auto/nwp_grid_", "auto/gfs/", "auto/eccc/", "auto/ecmwf/")):
             instance["grid_geometry"] = _geom
         # Any OTHER per-import override is a pattern variable set by name
         # (catalog-validated in patch_ops against the pattern's declared
@@ -1484,17 +1484,28 @@ def _resolve_import_patterns(
             existing["instances"].append(instance)
         else:
             out.append({"pattern": path, "instances": [instance]})
-    # Aggregator: a project with any NOAA import gets the parent
-    # ImportNOAAGrids workflow that triggers GFS+NAM+SREF together.
-    # The pattern has no variables; one empty instance fires it.
-    noaa_imports = {"GFS", "NAM", "SREF"}
+    # Aggregator: a project importing 2+ NOAA sources gets the parent
+    # ImportNOAAGrids workflow bundling them — canonical GFS/NAM/SREF order,
+    # independent of the order the configurator happened to add them in, so
+    # the rendered workflow stays deterministic regardless of conversation
+    # history. A SINGLE NOAA source doesn't get one: the aggregator's only
+    # value is bundling multiple workflows under one umbrella; wrapping one
+    # workflow in another that does nothing else is exactly the redundant
+    # file a colleague flagged in review — ImportGFSGrids.xml already runs
+    # on its own.
+    noaa_sources_present = [
+        s for s in ("GFS", "NAM", "SREF") if s in (imports or [])
+    ]
     if (
-        any(imp in noaa_imports for imp in (imports or []))
-        and "auto/wf_import_noaa_grids" in catalog_paths
+        len(noaa_sources_present) >= 2
+        and "auto/wf_import/noaa_grids" in catalog_paths
     ):
         out.append({
-            "pattern": "auto/wf_import_noaa_grids",
-            "instances": [{"template_name": "ImportNOAAGrids"}],
+            "pattern": "auto/wf_import/noaa_grids",
+            "instances": [{
+                "template_name": "ImportNOAAGrids",
+                "noaa_sources": noaa_sources_present,
+            }],
         })
 
     # ERA5 is a folder-based import fed by a companion download module (a CDS
@@ -1578,7 +1589,7 @@ def _resolve_import_patterns(
             if not entry:
                 continue
             path, _ = entry
-            if not path.startswith(("auto/nwp_grid_", "auto/gfs/")):
+            if not path.startswith(("auto/nwp_grid_", "auto/gfs/", "auto/eccc/", "auto/ecmwf/")):
                 continue
             inst: dict[str, Any] = {"source_name": imp}
             # This import's OWN pattern's rows -- NOT the coarse `all_rows`
@@ -1654,35 +1665,35 @@ def _basins_list(slots: dict[str, Any]) -> list[dict[str, str]]:
 # instance value mapping is fixed (these are 1:1 patterns derived
 # from named tutorial files).
 _FORECASTING_SHARED_TEMPLATES: dict[str, dict[str, str]] = {
-    "auto/tpl_accumulate_forecast_precip":
+    "auto/tpl_hydro/accumulate_forecast_precip":
         {"template_name": "AccumulateForecastPrecipTemplate"},
-    "auto/tpl_merge_e2o_precip":
+    "auto/tpl_hydro/merge_e2o_precip":
         {"template_name": "MergeE2OPrecip"},
-    "auto/tpl_merge_forecast_grids_det":
+    "auto/tpl_hydro/merge_forecast_grids_det":
         {"template_name": "MergeForecastGridsDetTemplate"},
-    "auto/tpl_merge_forecast_grids_ens":
+    "auto/tpl_hydro/merge_forecast_grids_ens":
         {"template_name": "MergeForecastGridsEnsTemplate"},
-    "auto/tpl_modify_forecast_grids":
+    "auto/tpl_hydro/modify_forecast_grids":
         {"template_name": "ModifyForecastGridsTemplate"},
-    "auto/tpl_modify_historic_grids":
+    "auto/tpl_hydro/modify_historic_grids":
         {"template_name": "ModifyHistoricGridsTemplate"},
-    "auto/tpl_postprocess_to_station":
+    "auto/tpl_hydro/postprocess_to_station":
         {"template_name": "PostprocessModelOutputToStationTemplate"},
-    "auto/tpl_preprocess_accumulated_nwp":
+    "auto/tpl_hydro/preprocess_accumulated_nwp":
         {"template_name": "PreprocessAccumulatedParametersNWPTemplate"},
-    "auto/tpl_preprocess_e2o_raven":
+    "auto/tpl_hydro/preprocess_e2o_raven":
         {"template_name": "PreprocessE2ORavenTemplate"},
-    "auto/tpl_preprocess_eccc_scalar":
+    "auto/tpl_hydro/preprocess_eccc_scalar":
         {"template_name": "PreprocessECCCScalar"},
-    "auto/tpl_preprocess_instantaneous_nwp":
+    "auto/tpl_hydro/preprocess_instantaneous_nwp":
         {"template_name": "PreprocessInstantaneousParametersNWPTemplate"},
-    "auto/tpl_preprocess_nwp_raven":
+    "auto/tpl_hydro/preprocess_nwp_raven":
         {"template_name": "PreprocessNWPRavenTemplate"},
     # Standalone workflows commonly bundled with forecasting projects.
-    "auto/wf_import_eo_grids":      {"template_name": "ImportEOGrids"},
-    "auto/wf_merge_historic_grids": {"template_name": "MergeHistoricGrids"},
-    "auto/wf_modify_forecast_grids": {"template_name": "ModifyForecastGrids"},
-    "auto/wf_update_historic_grids": {"template_name": "UpdateHistoricGrids"},
+    "auto/wf_import/eo_grids":      {"template_name": "ImportEOGrids"},
+    "auto/wf_process/merge_historic_grids": {"template_name": "MergeHistoricGrids"},
+    "auto/wf_process/modify_forecast_grids": {"template_name": "ModifyForecastGrids"},
+    "auto/wf_process/update_historic_grids": {"template_name": "UpdateHistoricGrids"},
 }
 
 
@@ -1693,11 +1704,11 @@ _FORECASTING_SHARED_TEMPLATES: dict[str, dict[str, str]] = {
 # project has a coastal model — the hydro (raven) preprocessing set above is
 # wrong for coastal and must not be pulled in.
 _COASTAL_FORECASTING_TEMPLATES: dict[str, dict[str, str]] = {
-    "auto/tpl_forecast_start_nwp": {"name": "ForecastStartNwp"},
-    "auto/tpl_generate_nwp_hindcast": {"name": "GenerateNwpHindcast"},
-    "auto/tpl_process_wind_uv_to_speed_dir": {"name": "ProcessWind"},
-    "auto/tpl_interpolate_ecmwf_grid_scalar": {"name": "ProcessEcmwf"},
-    "auto/tpl_disaggregate_accumulated_precip": {"name": "ProcessPrecipitation"},
+    "auto/tpl_coastal/forecast_start_nwp": {"name": "ForecastStartNwp"},
+    "auto/tpl_coastal/generate_nwp_hindcast": {"name": "GenerateNwpHindcast"},
+    "auto/tpl_coastal/process_wind_uv_to_speed_dir": {"name": "ProcessWind"},
+    "auto/tpl_coastal/interpolate_ecmwf_grid_scalar": {"name": "ProcessEcmwf"},
+    "auto/tpl_coastal/disaggregate_accumulated_precip": {"name": "ProcessPrecipitation"},
 }
 
 

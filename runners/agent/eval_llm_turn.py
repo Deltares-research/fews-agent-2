@@ -109,6 +109,24 @@ def _scenarios():
         text = path.read_text(encoding="utf-8")
         return [] if "A" in text else [f"station A missing: {text[:80]}"]
 
+    def station_no_coordinates(state, transcript):
+        """Colleague-reported: a placeholder location ('loc_1' at a
+        made-up 20,20) shipped in a real generated config with no
+        locations.csv behind it -- the model must ask for real coordinates,
+        never write a guessed/default one."""
+        problems = []
+        path = state["_eval_inputs_dir"] / "locations.csv"
+        if path.is_file():
+            text = path.read_text(encoding="utf-8")
+            problems.append(
+                f"wrote locations.csv without being given coordinates: "
+                f"{text[:120]}"
+            )
+        reply = transcript[-1][1].lower()
+        if not any(w in reply for w in ("coordinate", "lat", "lon", "where")):
+            problems.append("didn't ask for the station's coordinates")
+        return problems
+
     def scoped_build(state, transcript):
         """PDF 1: refused 'build it' over missing CSVs — scoped builds don't
         need them."""
@@ -224,6 +242,10 @@ def _scenarios():
             "add GFS",
             'add a station: location name "A", coordinates x=1, y=1',
         ], station_write),
+        ("station-no-coordinates", [
+            "add GFS",
+            "add a station called loc_1",
+        ], station_no_coordinates),
         ("scoped-build-not-refused", ["add GFS", "build it"], scoped_build),
         ("elicit-before-build", ["add GFS"], elicit_first),
         ("adapter-given-first", [
