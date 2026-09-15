@@ -34,7 +34,7 @@ def _expand(flag):
     bp = Blueprint(
         name="raven-mis-test",
         output_root=Path("out"),
-        patterns=[PatternRef(pattern="auto/raven_basin", instances=[inst])],
+        patterns=[PatternRef(pattern="auto/basin/raven", instances=[inst])],
     )
     res = expand(bp, PATTERNS_ROOT)
     assert not res.errors, res.errors
@@ -63,7 +63,7 @@ def _expand_inst(**inst):
     bp = Blueprint(
         name="raven-id-test",
         output_root=Path("out"),
-        patterns=[PatternRef(pattern="auto/raven_basin", instances=[inst])],
+        patterns=[PatternRef(pattern="auto/basin/raven", instances=[inst])],
     )
     res = expand(bp, PATTERNS_ROOT)
     assert not res.errors, res.errors
@@ -201,7 +201,7 @@ def _bp(*basins):
         name="props-test",
         output_root=Path("out"),
         patterns=[PatternRef(
-            pattern="auto/raven_basin",
+            pattern="auto/basin/raven",
             instances=[{"basin_name": b} for b in basins],
         )],
     )

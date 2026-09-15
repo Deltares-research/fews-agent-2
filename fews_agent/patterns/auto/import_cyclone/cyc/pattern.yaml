@@ -1,0 +1,116 @@
+name: cyclone_cyc
+description: >-
+  Import processed cyclone tracks from .cyc files (generalCSV, file-based)
+  dropped by the DownloadProcessCycloneTracks module. Farmed from the
+  FEWS-Caribbean config (Config/ModuleConfigFiles/Import/ImportCycTemplate.xml).
+  Positional CSV table: date + time columns, then one valueColumn per track
+  quantity (all carrying an inline locationId), then trailing skippedColumns.
+  No idMap - the valueColumns map parameter + location inline. Writes into the
+  running instance ($MODULE_INSTANCE_ID$, kept literal) as nonequidistant
+  scalar track series.
+keywords: [cyc file, cyclone file, processed cyclone track]
+variables:
+  source_name:
+    type: str
+    required: false
+    default: Cyc
+  # Track location the columns are tied to (FEWS $LocationIdTrack$).
+  track_location_id:
+    type: str
+    required: false
+    default: TrackFews
+  data_feed_id:
+    type: str
+    required: false
+    default: Cyclone
+  # Folder the upstream download module writes .cyc files to.
+  # $ModulesFolder$ is a FEWS runtime property (kept literal).
+  download_folder:
+    type: str
+    required: false
+    default: $ModulesFolder$/DownloadProcessCycloneTracks/ToFews
+  expiry_days:
+    type: int
+    required: false
+    default: 5
+  # Trailing ignored columns after the value columns.
+  skipped_columns:
+    type: int
+    required: false
+    default: 16
+  # Track quantities, in physical CSV column order (positional parse).
+  # Each entry: id (FEWS parameterId), unit.
+  parameters:
+    type: list
+    required: false
+    default:
+      - id: Latitude
+        unit: degrees
+      - id: Longitude
+        unit: degrees
+      - id: WindSpeedMaximum
+        unit: knots
+      - id: AirPressureMeanSeaLevel
+        unit: hPa
+      - id: RadiusMaximumWind
+        unit: nautical miles
+outputs:
+- schema: TimeSeriesImportRun
+  output: ModuleConfigFiles/Import/Import{{ source_name }}.xml
+  data:
+    import:
+    - general:
+        importType: generalCSV
+        folder: {{ download_folder }}
+        fileNamePatternFilter: '*.cyc'
+        deleteImportedFiles: false
+        table:
+          dateColumn:
+          - pattern: yyyyMMdd
+          timeColumn:
+          - pattern: HHmmss
+          valueColumn:
+{% for p in parameters %}
+          - parameterId: {{ p.id }}
+            unit: '{{ p.unit }}'
+            locationId: {{ track_location_id }}
+{% endfor %}
+          skippedColumn:
+{% for i in range(skipped_columns | default(0)) %}
+          - {}
+{% endfor %}
+        unitConversionsId: ImportUnitConversions
+        missingValue: '-999'
+        importTimeZone:
+          timeZoneOffset: '+00:00'
+        dataFeedId: {{ data_feed_id }}
+        expiryTime:
+          unit: day
+          multiplier: {{ expiry_days }}
+        skipFirstLinesCount: 1
+        columnSeparator: ' '
+        decimalSeparator: .
+      timeSeriesSet:
+{% for p in parameters %}
+      - moduleInstanceId: $MODULE_INSTANCE_ID$
+        valueType: scalar
+        parameterId: {{ p.id }}
+        locationId: {{ track_location_id }}
+        timeSeriesType: external forecasting
+        timeStep:
+          unit: nonequidistant
+        readWriteMode: add originals
+{% endfor %}
+      externUnit:
+{% for p in parameters %}
+      - parameterId: {{ p.id }}
+        unit: {{ p.unit }}
+{% endfor %}
+- schema: Workflow
+  output: WorkflowFiles/Import/Import{{ source_name }}.xml
+  data:
+    version: '1.1'
+    activity:
+    - runIndependent: true
+      moduleInstanceId: Import{{ source_name }}
+contributions: []

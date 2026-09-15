@@ -38,6 +38,8 @@ from jinja2 import Environment, FileSystemLoader, StrictUndefined
 
 from fews_agent.generators.base import render as render_template
 
+from .pattern_family import merge_family_variables
+
 
 # ---------------------------------------------------------------------------
 # Schema and template registries derived from SPECS
@@ -233,13 +235,21 @@ def expand(
       5. Collect contributions, render their items.
     """
     result = ExpandResult()
+    # Loader lets a pattern.yaml `{% import '_partials/x.yaml.j2' as m %}` a
+    # shared macro (e.g. idmap_from_parameters) instead of duplicating the
+    # same Jinja block across patterns. Rooted at pattern_root so the import
+    # path is relative to patterns/ (matches `_partials/...` used in
+    # pattern.yaml files).
+    loader = FileSystemLoader(str(pattern_root))
     # Strict env for the per-instance render (real vars must be defined).
-    raw_env = Environment(undefined=StrictUndefined, keep_trailing_newline=True)
+    raw_env = Environment(
+        loader=loader, undefined=StrictUndefined, keep_trailing_newline=True,
+    )
     # Permissive env for the variables-discovery pass — pattern.yaml may
     # contain {% if %} blocks inside `data:` that need Jinja evaluation
     # before YAML can parse it. With default Undefined, conditionals
     # comparing to literal strings collapse to falsy and blocks empty.
-    discovery_env = Environment(keep_trailing_newline=True)
+    discovery_env = Environment(loader=loader, keep_trailing_newline=True)
 
     for pat_ref in blueprint.patterns:
         pat_dir = pattern_root / pat_ref.pattern
@@ -260,6 +270,9 @@ def expand(
                 f"{pat_ref.pattern}: variables-discovery parse failed: {exc}"
             )
             continue
+        spec_for_vars = merge_family_variables(
+            spec_for_vars, pat_yaml_path, raw_text,
+        )
 
         for inst in pat_ref.instances:
             # Best-effort label for telemetry. Try common pattern keys

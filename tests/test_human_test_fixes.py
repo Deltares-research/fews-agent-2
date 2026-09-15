@@ -56,52 +56,72 @@ class _Scripted:
 
 
 # --- B2: catalog-driven set_variables --------------------------------------
+#
+# These originally used GFS's `contribute_parameters` bool variable. GFS now
+# resolves to auto/gfs/gribfilter (the post-2026 NOMADS grib-filter
+# pattern), which always contributes its Parameters.xml rows unconditionally
+# and has no such gate variable anymore (auto/gfs/deterministic, which does, is
+# frozen and resolver-unreachable — see CLAUDE.md). GEFS's `emit_idmap` is
+# the same mechanism and type (bool), still live, and exercises the exact
+# same generic "any catalog-declared variable is settable" code path these
+# tests are actually about.
 
-def test_declared_variable_is_settable(state, catalog):
-    """The human-test failure verbatim: the /vars table lists
-    contribute_parameters, so set_variables must accept it."""
-    res = apply_patch(state, [{"op": "set_variables", "target": "GFS",
-                               "values": {"contribute_parameters": "yes"}}],
+def _gefs_state(catalog):
+    st = {"slots": {"imports": ["GEFS"]}, "intent": "build_data_import_only"}
+    TE.resolve_patterns(st, catalog)
+    return st
+
+
+def test_declared_variable_is_settable(catalog):
+    """The human-test failure verbatim: the /vars table lists a
+    catalog-declared bool variable, so set_variables must accept it."""
+    state = _gefs_state(catalog)
+    res = apply_patch(state, [{"op": "set_variables", "target": "GEFS",
+                               "values": {"emit_idmap": "no"}}],
                       catalog)
     assert res.dropped == []
-    assert any("contribute_parameters" in n for n in res.notes)
-    ov = state["slots"]["import_overrides"]["GFS"]
-    assert ov["contribute_parameters"] is True     # coerced to the bool type
+    assert any("emit_idmap" in n for n in res.notes)
+    ov = state["slots"]["import_overrides"]["GEFS"]
+    assert ov["emit_idmap"] is False     # coerced to the bool type
 
 
-def test_declared_variable_reaches_the_instance(state, catalog):
-    apply_patch(state, [{"op": "set_variables", "target": "GFS",
-                         "values": {"contribute_parameters": True}}], catalog)
+def test_declared_variable_reaches_the_instance(catalog):
+    state = _gefs_state(catalog)
+    apply_patch(state, [{"op": "set_variables", "target": "GEFS",
+                         "values": {"emit_idmap": False}}], catalog)
     inst = next(
-        i for p in state["patterns"] if p["pattern"] == "auto/nwp_grid_noaa"
-        for i in p["instances"] if i.get("nwp_name") == "GFS"
+        i for p in state["patterns"] if p["pattern"] == "auto/gfs/ensemble"
+        for i in p["instances"] if i.get("source_name") == "Gefs"
     )
-    assert inst["contribute_parameters"] is True
+    assert inst["emit_idmap"] is False
 
 
-def test_declared_variable_bad_value_dropped(state, catalog):
-    res = apply_patch(state, [{"op": "set_variables", "target": "GFS",
-                               "values": {"contribute_parameters": "maybe"}}],
+def test_declared_variable_bad_value_dropped(catalog):
+    state = _gefs_state(catalog)
+    res = apply_patch(state, [{"op": "set_variables", "target": "GEFS",
+                               "values": {"emit_idmap": "maybe"}}],
                       catalog)
     assert res.notes == []
     assert any("couldn't parse" in d for d in res.dropped)
 
 
-def test_truly_unknown_variable_still_drops_with_hint(state, catalog):
-    res = apply_patch(state, [{"op": "set_variables", "target": "GFS",
+def test_truly_unknown_variable_still_drops_with_hint(catalog):
+    state = _gefs_state(catalog)
+    res = apply_patch(state, [{"op": "set_variables", "target": "GEFS",
                                "values": {"warp_factor": 9}}], catalog)
     assert any("unknown variable" in d for d in res.dropped)
-    assert any("contribute_parameters" in d for d in res.dropped)  # the hint
+    assert any("emit_idmap" in d for d in res.dropped)  # the hint
 
 
-def test_declared_variable_clears_back_to_default(state, catalog):
-    apply_patch(state, [{"op": "set_variables", "target": "GFS",
-                         "values": {"contribute_parameters": "yes"}}], catalog)
-    res = apply_patch(state, [{"op": "remove", "target": "GFS",
-                               "variable": "contribute_parameters"}], catalog)
+def test_declared_variable_clears_back_to_default(catalog):
+    state = _gefs_state(catalog)
+    apply_patch(state, [{"op": "set_variables", "target": "GEFS",
+                         "values": {"emit_idmap": "no"}}], catalog)
+    res = apply_patch(state, [{"op": "remove", "target": "GEFS",
+                               "variable": "emit_idmap"}], catalog)
     assert res.dropped == []
-    assert "contribute_parameters" not in (
-        state["slots"]["import_overrides"].get("GFS") or {})
+    assert "emit_idmap" not in (
+        state["slots"]["import_overrides"].get("GEFS") or {})
 
 
 # --- B1: no fabricated success when ops drop -------------------------------
@@ -290,23 +310,24 @@ def test_fresh_session_first_edit_announces_new_files(tmp_path, monkeypatch):
 # --- auto-build on every change + data-type equivalence ---------------------
 
 def test_remove_air_temperature_clears_temperature(catalog):
-    """'delete air temperature' resolves to TA.nwp in any form (prose or the
-    parameterId) and drops it from the import — even when variables are on
-    the pattern DEFAULT (the empty-data_types case that used to no-op)."""
+    """'delete air temperature' resolves to T.forecast in any form (prose or
+    the parameterId) and drops it from the import — even when variables are
+    on the pattern DEFAULT (the empty-data_types case that used to no-op)."""
     st = {"slots": {"imports": ["GFS"]},          # DEFAULTED variables
           "intent": "build_data_import_only"}
     TE.resolve_patterns(st, catalog)
-    for phrasing in ("air temperature", "ta.nwp"):
+    for phrasing in ("air temperature", "t.forecast"):
         s = {"slots": {"imports": ["GFS"]}, "intent": "build_data_import_only"}
         TE.resolve_patterns(s, catalog)
         res = apply_patch(s, [{"op": "remove", "target": "GFS",
                                "variable": phrasing}], catalog)
         assert res.dropped == [], phrasing
         inst = next(i for p in s["patterns"]
-                    if p["pattern"] == "auto/nwp_grid_noaa"
+                    if p["pattern"] == "auto/gfs/gribfilter"
                     for i in p["instances"] if i.get("nwp_name") == "GFS")
-        ids = [x.get("id") for x in inst.get("parameters", [])]
-        assert ids == ["PC.nwp"], (phrasing, ids)
+        ids = {x.get("id") for x in inst.get("parameters", [])}
+        assert "T.forecast" not in ids, (phrasing, ids)
+        assert "P.forecast" in ids, (phrasing, ids)   # the rest of the default survives
 
 
 def test_every_edit_auto_builds_and_validates(tmp_path, monkeypatch):

@@ -6,7 +6,7 @@ description: >-
   (Config/ModuleConfigFiles/Import/DownloadProcessCycloneTracksTemplate.xml).
   Emits a run file whose <properties> parameterise the script (bounding box,
   spiderweb geometry, storm selection), then runs the script; the .cyc / track
-  outputs are picked up downstream by import_cyclone_cyc / import_cyclone_jtwc.
+  outputs are picked up downstream by auto/import_cyclone/cyc / auto/import_cyclone/jtwc.
   Folder/executable placeholders stay literal.
 keywords: [cyclone track, cyclone tracks, hurricane track, typhoon track, ibtracs, spiderweb]
 variables:

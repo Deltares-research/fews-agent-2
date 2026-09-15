@@ -64,7 +64,7 @@ def test_import_request_applies_without_a_gate(tmp_path, monkeypatch):
     })
     res = s.send("Import GFS grids for precipitation")
     assert res.kind == "edit"
-    assert "auto/nwp_grid_noaa" in _pattern_paths(s.state)
+    assert "auto/gfs/gribfilter" in _pattern_paths(s.state)
     assert "GFS" in res.confirmation                     # grey channel
     reply_low = res.agent_message.lower()
     assert "imports only" not in reply_low

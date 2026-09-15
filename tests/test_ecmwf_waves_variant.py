@@ -15,7 +15,7 @@ from fews_agent.validation.xsd import validate_xsd
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 PATTERNS_ROOT = REPO_ROOT / "fews_agent" / "patterns"
-PATTERN = "auto/nwp_grid_ecmwf_ifs"
+PATTERN = "auto/ecmwf/ifs"
 
 WAVE_PARAMS = [
     {"id": "WaveDirectionMean", "unit": "degrees",

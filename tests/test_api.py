@@ -144,7 +144,7 @@ def test_turn_applies_patch_and_returns_model_reply(client, monkeypatch):
     assert "Added GFS" in body["reply"]              # model's voice, verbatim
     assert "GFS" in body["confirmation"]             # grey applied-facts
     paths = {p["pattern"] for p in body["patterns"]}
-    assert "auto/nwp_grid_noaa" in paths
+    assert "auto/gfs/gribfilter" in paths
     assert body["slots"].get("imports") == ["GFS"]
     assert body["intent"] == "build_data_import_only"   # derived, not asked
 
@@ -238,7 +238,7 @@ def test_llm_first_add_edit_build_flow_over_http(client, monkeypatch):
     assert r1.status_code == 200, r1.text
     b1 = r1.json()
     assert b1["current_module"] == "processing"      # advisory focus set
-    assert "auto/nwp_grid_noaa" in {p["pattern"] for p in b1["patterns"]}
+    assert "auto/gfs/gribfilter" in {p["pattern"] for p in b1["patterns"]}
     assert b1["slots"]["imports"] == ["GFS"]
     assert "GFS" in b1["confirmation"]
 

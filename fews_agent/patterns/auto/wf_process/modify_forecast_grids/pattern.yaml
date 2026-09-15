@@ -1,0 +1,21 @@
+name: modify_forecast_grids
+description: 'Auto-derived pattern from tutorial instances: ModifyForecastGrids.'
+variables:
+  template_name:
+    type: str
+    required: true
+outputs:
+- schema: Workflow
+  output: WorkflowFiles/Preprocess/{{ template_name }}.xml
+  data:
+    version: '1.1'
+    properties:
+      string:
+      - key: STARTTIME
+        value: '-30'
+      - key: ENDTIME
+        value: '0'
+    activity:
+    - runIndependent: true
+      moduleInstanceId: MergeHistoricGrids
+contributions: []

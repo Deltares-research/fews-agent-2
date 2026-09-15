@@ -32,7 +32,7 @@ if TYPE_CHECKING:
 
 
 # Patterns whose first variable is the basin model name.
-_BASIN_PATTERNS = {"auto/raven_basin", "auto/wflow_basin"}
+_BASIN_PATTERNS = {"auto/basin/raven", "auto/basin/wflow"}
 
 
 def _basin_names_from_blueprint(bp: "Blueprint") -> list[str]:

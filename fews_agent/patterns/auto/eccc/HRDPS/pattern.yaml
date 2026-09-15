@@ -1,0 +1,133 @@
+name: eccc_HRDPS
+description: 'Auto-derived pattern from tutorial instances: HRDPS.'
+variables: {}  # nwp_name: shared across this family -- see patterns/auto/eccc/variables.yaml
+# Fixed parameter set (no `parameters` variable -- this import is never
+# reconfigured), declared here purely so the interpolation-eligibility
+# check (wf_interpolate_nwp_to_stations, via _INTERPOLATABLE_IMPORTS) can
+# translate "precipitation"/"temperature" prose to this pattern's own ids
+# without depending on a shared cross-pattern table.
+data_type_vocabulary:
+  precipitation: {id: PC.nwp, unit: kg m-2}
+  precip: {id: PC.nwp, unit: kg m-2}
+  temperature: {id: TA.nwp, unit: K}
+  temp: {id: TA.nwp, unit: K}
+  air temperature: {id: TA.nwp, unit: K}
+outputs:
+- schema: TimeSeriesImportRun
+  output: ModuleConfigFiles/Import/ECCCGrids/Import{{ nwp_name }}.xml
+  data:
+    import:
+    - general:
+        importType: CanadaMeteoWCS
+        serverUrl: https://geo.weather.gc.ca/geomet?SERVICE=WCS&VERSION=2.0.1&REQUEST=GetCoverage
+        relativeViewPeriod:
+          unit: hour
+          start: 1
+          end: 48
+          startOverrulable: true
+          endOverrulable: true
+        idMapId: IdImportCanadaWCS
+      startTimeShift:
+        parameterId: PC.nwp
+        relativePeriod:
+          unit: hour
+          start: -1
+          end: 0
+      properties:
+        bool:
+        - key: useSubset
+          value: false
+      timeSeriesSet:
+      - moduleInstanceId: ImportHRDPS
+        valueType: grid
+        parameterId: PC.nwp
+        locationId: HRDPS
+        timeSeriesType: external forecasting
+        timeStep:
+          unit: hour
+          multiplier: 1
+        readWriteMode: add originals
+      externUnit:
+      - parameterId: PC.nwp
+        unit: kg m-2
+        cumulativeSum: true
+    - general:
+        importType: CanadaMeteoWCS
+        serverUrl: https://geo.weather.gc.ca/geomet?SERVICE=WCS&VERSION=2.0.1&REQUEST=GetCoverage
+        relativeViewPeriod:
+          unit: hour
+          start: 0
+          end: 48
+          startOverrulable: true
+          endOverrulable: true
+        idMapId: IdImportCanadaWCS
+      properties:
+        bool:
+        - key: useSubset
+          value: false
+      timeSeriesSet:
+      - moduleInstanceId: ImportHRDPS
+        valueType: grid
+        parameterId: TA.nwp
+        locationId: HRDPS
+        timeSeriesType: external forecasting
+        timeStep:
+          unit: hour
+          multiplier: 1
+        readWriteMode: add originals
+      externUnit:
+      - parameterId: TA.nwp
+        unit: K
+- schema: Workflow
+  output: WorkflowFiles/Import/ECCCGrids/Import{{ nwp_name }}Grids.xml
+  data:
+    version: '1.1'
+    properties:
+      string:
+      - key: FORECAST
+        value: HRDPS
+      - key: TIMESTEP
+        value: '1'
+      - key: EXPIRYTIME
+        value: '7'
+      - key: INPUTGRID
+        value: HRDPS
+      - key: OUTPUTGRID
+        value: $MODELNAME1$Grid
+      - key: INPUTMODULEINSTANCE
+        value: ImportHRDPS
+      - key: ENSEMBLE
+        value: main
+      - key: BASINLOCATIONS
+        value: $MODELNAME1$Basins
+      - key: STATIONLOCATIONS
+        value: ECCCStations$REGION$
+      - key: TIMESERIESTYPE
+        value: external forecasting
+    activity:
+    - runIndependent: true
+      moduleInstanceId: ImportHRDPS
+    - properties:
+        string:
+        - key: PARAMETER
+          value: PC.nwp
+      runIndependent: true
+      moduleInstanceId: PreprocessHRDPS
+      moduleConfigFileName: PreprocessAccumulatedParametersNWPTemplate
+    - properties:
+        string:
+        - key: LOCATIONSET
+          value: $MODELNAME1$Basins
+        - key: INPUTMODULEINSTANCE
+          value: PreprocessHRDPS
+      runIndependent: true
+      moduleInstanceId: PreprocessHRDPS
+      moduleConfigFileName: AccumulateForecastPrecipTemplate
+    - properties:
+        string:
+        - key: PARAMETER
+          value: TA.nwp
+      runIndependent: true
+      moduleInstanceId: PreprocessHRDPS
+      moduleConfigFileName: PreprocessInstantaneousParametersNWPTemplate
+contributions: []

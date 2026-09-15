@@ -4,7 +4,7 @@ description: >-
   points of a nested domain, so a child HurryWave run can read its parent's
   spectral boundary. Farmed from the FEWS-Caribbean config
   (Config/ModuleConfigFiles/Hurrywave/HurrywaveSpectrumImportTemplate.xml).
-  Reuses IdMapFromHurrywave (emitted by coastal_hurrywave). Spectrum is a
+  Reuses IdMapFromHurrywave (emitted by auto/coastal/hurrywave). Spectrum is a
   scalar series with Frequency + Direction domain axes.
 keywords: [wave spectrum, wave spectra, spectrum boundary, nested wave domain]
 variables:

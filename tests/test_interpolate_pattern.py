@@ -146,9 +146,10 @@ from fews_agent.agent.project_intents import (
 )
 
 _INTERP_CATALOG = {
-    "auto/nwp_grid_noaa", "auto/nwp_grid_eccc_HRDPS", "auto/wf_import_noaa_grids",
-    "auto/wf_interpolate_nwp_to_stations", "auto/tpl_postprocess_to_station",
-    "auto/spatial_display_grid", "auto/raven_basin",
+    "auto/gfs/deterministic", "auto/gfs/gribfilter",
+    "auto/eccc/HRDPS", "auto/wf_import/noaa_grids",
+    "auto/wf_interpolate_nwp_to_stations", "auto/tpl_hydro/postprocess_to_station",
+    "auto/spatial_display_grid", "auto/basin/raven",
 }
 
 
@@ -165,7 +166,7 @@ def test_import_interpolation_emits_only_the_workflow_pattern():
     }
     paths = _patterns(_resolve_data_import_only_patterns(slots, _INTERP_CATALOG))
     assert "auto/wf_interpolate_nwp_to_stations" in paths
-    assert "auto/tpl_postprocess_to_station" not in paths
+    assert "auto/tpl_hydro/postprocess_to_station" not in paths
 
 
 def test_interpolation_plumbs_geo_datum():
@@ -244,7 +245,7 @@ def test_eccc_with_no_importable_param_is_skipped():
 def test_reps_ensemble_grid_is_excluded():
     # REPS is an ensemble grid — not interpolatable until we emit
     # ensemble-aware interpolation.
-    cat = _INTERP_CATALOG | {"auto/nwp_grid_eccc_REPS"}
+    cat = _INTERP_CATALOG | {"auto/eccc/REPS"}
     slots = {
         "imports": ["REPS"], "data_types": ["precipitation"],
         "wants_interpolation": True,
@@ -254,8 +255,12 @@ def test_reps_ensemble_grid_is_excluded():
 
 
 def test_mixed_imports_each_get_own_param_and_timestep():
-    # GFS (parameterized, 3h) + HRDPS (fixed set, 1h) interpolated together,
-    # each correctly scoped.
+    # GFS (nwp_grid_noaa_gribfilter, 3h) + HRDPS (fixed set, 1h) interpolated
+    # together, each correctly scoped to ITS OWN pattern's vocabulary — not
+    # a shared table. "wind speed" is deliberately absent from GFS's new
+    # vocabulary (real GFS has no direct wind-speed field, only u/v
+    # components — see nwp_grid_noaa_gribfilter's data_type_vocabulary), so
+    # it's dropped gracefully rather than resolving to a stale WS10.nwp id.
     cat = _INTERP_CATALOG
     slots = {
         "imports": ["GFS", "HRDPS"],
@@ -268,10 +273,27 @@ def test_mixed_imports_each_get_own_param_and_timestep():
     }
     assert insts["GFS"]["time_step_hours"] == 3
     assert {r["id"] for r in insts["GFS"]["parameters"]} == {
-        "PC.nwp", "TA.nwp", "WS10.nwp"
+        "P.forecast", "T.forecast"
     }
     assert insts["HRDPS"]["time_step_hours"] == 1
     assert {r["id"] for r in insts["HRDPS"]["parameters"]} == {"PC.nwp", "TA.nwp"}
+
+
+def test_gfs_gribfilter_interpolates_with_extended_parameters():
+    # The whole point of the new pattern: cloudiness/radiation, which the
+    # old GFS pattern never carried, now interpolate correctly.
+    cat = _INTERP_CATALOG
+    slots = {
+        "imports": ["GFS"],
+        "data_types": ["cloudiness", "shortwave radiation"],
+        "wants_interpolation": True,
+    }
+    insts = _interp_instances(_resolve_data_import_only_patterns(slots, cat))
+    gfs = next(i for i in insts if i["nwp_name"] == "GFS")
+    assert gfs["time_step_hours"] == 3
+    assert {r["id"] for r in gfs["parameters"]} == {
+        "Cloudiness.forecast", "Rs.forecast"
+    }
 
 
 def test_forecasting_postprocess_is_not_dropped():
@@ -284,7 +306,7 @@ def test_forecasting_postprocess_is_not_dropped():
         "basins": [{"basin_name": "Liard", "model_adapter": "raven"}],
     }
     paths = _patterns(_resolve_forecasting_patterns(slots, _INTERP_CATALOG))
-    assert paths.count("auto/tpl_postprocess_to_station") == 1
+    assert paths.count("auto/tpl_hydro/postprocess_to_station") == 1
     assert paths.count("auto/wf_interpolate_nwp_to_stations") == 1
 
 

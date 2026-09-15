@@ -1,0 +1,263 @@
+name: dflowfm_dimr
+description: >-
+  Run a Delft3D FM (D-Flow FM) 2DH coastal model through the DIMR adapter,
+  as a hindcast (HC) / forecast (FC) pair. Farmed from the
+  Config_Advanced_Coastal_2022 course (Delft3DFM2DHHC / Delft3DFM2DHFC).
+  Each mode exports the model state + wind/pressure forcing grids to
+  NetCDF, runs the DIMR pre-adapter and run_dimr, then imports station
+  water levels (his-file) and water level / current grids (map-file).
+  The HC run warm-starts from its own earlier state and re-imports the
+  restart file; the FC run warm-starts from the HC state. Forcing comes
+  from an upstream NWP processing module (extrapolated hindcast grids for
+  HC, interpolated forecast grids for FC).
+keywords: [dflowfm, dflow-fm, d-flow fm, delft3d, dimr, hydrodynamic model, coastal hydrodynamics]
+variables:
+  # Names the module instances (<model_name>HC / <model_name>FC), the
+  # dataset export, the grid locationId, the rootDir and the idMaps.
+  model_name:
+    type: str
+    required: false
+    default: Delft3DFM2DH
+  # The D-Flow FM run identifier: output lands in DFM_OUTPUT_<run_id>/
+  # and files are named <run_id>_his.nc / <run_id>_map.nc / restart.
+  run_id:
+    type: str
+    required: false
+    default: D02_2dh
+  # Upstream module instances providing the wind forcing grids.
+  forcing_module_hc:
+    type: str
+    required: false
+    default: ExtrapolateNOAAGFS25HC
+  forcing_module_fc:
+    type: str
+    required: false
+    default: InterpolateNOAAGFS25
+  # Forcing grid parameters written to winddfm.nc; `external` is the
+  # NetCDF/CF variable name the export idMap maps onto.
+  forcing_parameters:
+    type: list
+    required: false
+    default:
+      - id: Wind.u
+        external: u10
+      - id: Wind.v
+        external: v10
+      - id: Pressure.msl
+        external: msl
+  # Grid locationId of the forcing grids (registered by the upstream
+  # extrapolate/interpolate module).
+  forcing_location_id:
+    type: str
+    required: false
+    default: Models.Wind
+  # LocationSet of the model's output stations (his-file import); backed
+  # by configurator location data at final assembly.
+  station_locationset_id:
+    type: str
+    required: false
+    default: Delft3DFM_Stations
+  # Restart file the HC state import re-exports (seed name under the
+  # model's state directory).
+  restart_seed_file:
+    type: str
+    required: false
+    default: D02_2dh_20190101_000000_rst.nc
+  station_timestep_minutes:
+    type: int
+    required: false
+    default: 10
+  grid_expiry_days:
+    type: int
+    required: false
+    default: 2
+outputs:
+{% for mode in ['HC', 'FC'] %}
+- schema: GeneralAdapterRun
+  output: ModuleConfigFiles/Coastal/{{ model_name }}{{ mode }}.xml
+  data:
+    general:
+      rootDir: '%REGION_HOME%/Modules/FLOW/{{ model_name }}/{{ 'hindcast' if mode == 'HC' else 'forecast' }}'
+      workDir: '%ROOT_DIR%/workDir'
+      exportDir: '%ROOT_DIR%/input/'
+      exportDataSetDir: '%ROOT_DIR%/'
+      exportIdMap: IdExport{{ model_name }}
+      importDir: '%ROOT_DIR%/workDir/DFM_OUTPUT_{{ run_id }}/'
+      importIdMap: IdImport{{ model_name }}
+      dumpFileDir: $GA_DUMPFILEDIR$
+      dumpDir: '%ROOT_DIR%/workDir/diagnostics/'
+      diagnosticFile: '%ROOT_DIR%/workDir/diagnostics/diagnostics.xml'
+      missVal: NaN
+      timeZone:
+        timeZoneName: GMT+0:00
+      startDateTimeFormat: yyyyMMdd_HHmmss
+      endDateTimeFormat: yyyyMMdd_HHmmss
+    activities:
+      startUpActivities:
+        purgeActivity:
+        - filter: '%ROOT_DIR%/input/*'
+        - filter: '%ROOT_DIR%/workDir/*'
+        - filter: '%ROOT_DIR%/workDir/diagnostics/*'
+        - filter: '%ROOT_DIR%/workDir/DFM_OUTPUT_{{ run_id }}/*'
+      exportActivities:
+        exportStateActivity:
+        - moduleInstanceId: {{ model_name }}HC
+          stateExportDir: '%WORK_DIR%'
+          stateSelection:
+            warmState:
+              stateSearchPeriod:
+{% if mode == 'HC' %}
+                unit: hour
+                start: -$STATE_SEARCH_PERIOD_HOURS_{{ model_name | upper }}$
+                end: -1
+{% else %}
+                unit: day
+                start: -1
+                end: 0
+{% endif %}
+        exportDataSetActivity:
+        - moduleInstanceId: {{ model_name }}
+        exportNetcdfActivity:
+        - exportFile: winddfm.nc
+          timeSeriesSets:
+            timeSeriesSet:
+{% for p in forcing_parameters %}
+            - moduleInstanceId: {{ forcing_module_hc if mode == 'HC' else forcing_module_fc }}
+              valueType: grid
+              parameterId: {{ p.id }}
+              locationId: {{ forcing_location_id }}
+              timeSeriesType: {{ 'simulated historical' if mode == 'HC' else 'simulated forecasting' }}
+              timeStep:
+                unit: hour
+                multiplier: 1
+{% if mode == 'HC' %}
+              relativeViewPeriod:
+                unit: hour
+                end: 0
+              readWriteMode: read only
+{% else %}
+              readWriteMode: read complete forecast
+{% endif %}
+{% endfor %}
+        exportRunFileActivity:
+        - exportFile: run_info.xml
+          properties:
+            string:
+            - key: dimrConfigFile
+              value: '..\workDir\dimr.xml'
+      executeActivities:
+        executeActivity:
+        - description: DFlow-FM Adapter
+          command:
+            className: nl.deltares.dimr.DimrPreAdapter
+            binDir: '%REGION_HOME%/Modules/FLOW/bin_adapter_dimr/'
+          arguments:
+            argument:
+            - '%ROOT_DIR%/input/run_info.xml'
+          logFile:
+          - file: '%WORK_DIR%/dimr_pre_adapter.log'
+            errorLinePattern: '*ERROR*'
+            warningLinePattern: '*WARN*'
+            infoLinePattern: '*INFO*'
+            debugLinePattern: '*DEBUG*'
+          timeOut: 10800000
+          ignoreDiagnostics: true
+        - description: Run DFlow-FM
+          command:
+            executable: '%REGION_HOME%/Modules/FLOW/bin_delft3dfm/dimr/scripts/run_dimr.bat'
+          arguments:
+            argument:
+            - dimr.xml
+          logFile:
+          - file: '%WORK_DIR%/DFM_OUTPUT_{{ run_id }}/{{ run_id }}.dia'
+            errorLinePattern: '*ERROR*'
+            warningLinePattern: '*WARN*'
+            infoLinePattern: '*INFO*'
+            debugLinePattern: '*DEBUG*'
+          timeOut: 14400000
+          ignoreDiagnostics: true
+      importActivities:
+{% if mode == 'HC' %}
+        importStateActivity:
+        - stateFile:
+            importFile: '%WORK_DIR%/DFM_OUTPUT_{{ run_id }}/{{ run_id }}_%END_DATE_TIME%_rst.nc'
+            relativeExportFile: '{{ restart_seed_file }}'
+          compressedStateLocation: directory
+{% endif %}
+        importNetcdfActivity:
+        - importFile: '%WORK_DIR%/DFM_OUTPUT_{{ run_id }}/{{ run_id }}_his.nc'
+          timeSeriesSets:
+            timeSeriesSet:
+            - moduleInstanceId: {{ model_name }}{{ mode }}
+              valueType: scalar
+              parameterId: H.simulated
+              locationSetId: {{ station_locationset_id }}
+              timeSeriesType: {{ 'simulated historical' if mode == 'HC' else 'simulated forecasting' }}
+              timeStep:
+                unit: minute
+                multiplier: {{ station_timestep_minutes }}
+              readWriteMode: add originals
+        - importFile: '%WORK_DIR%/DFM_OUTPUT_{{ run_id }}/{{ run_id }}_map.nc'
+          timeSeriesSets:
+            timeSeriesSet:
+{% for p in ['H.simulated', 'C.simulated.u', 'C.simulated.v'] %}
+            - moduleInstanceId: {{ model_name }}{{ mode }}
+              valueType: grid
+              parameterId: {{ p }}
+              locationId: {{ model_name }}
+              timeSeriesType: {{ 'simulated historical' if mode == 'HC' else 'simulated forecasting' }}
+              timeStep:
+                unit: hour
+                multiplier: 1
+              readWriteMode: add originals
+              expiryTime:
+                unit: day
+                multiplier: {{ grid_expiry_days }}
+{% endfor %}
+- schema: Workflow
+  output: WorkflowFiles/Coastal/{{ model_name }}{{ mode }}.xml
+  data:
+    version: '1.1'
+    activity:
+    - runIndependent: false
+      moduleInstanceId: {{ model_name }}{{ mode }}
+{% endfor %}
+# Model output -> FEWS ids: map-file variables (s1/ucx/ucy) onto the model
+# grid location, his-file water levels onto the station set via the
+# DELFT3DFM_ID location attribute.
+- schema: IdMap
+  output: IdMapFiles/Model/IdImport{{ model_name }}.xml
+  data:
+    version: '1.1'
+    location: []
+    map:
+    - internalParameter: H.simulated
+      internalLocation: {{ model_name }}
+      externalParameter: s1
+      externalLocation: Dummy
+    - internalParameter: C.simulated.u
+      internalLocation: {{ model_name }}
+      externalParameter: ucx
+      externalLocation: Dummy
+    - internalParameter: C.simulated.v
+      internalLocation: {{ model_name }}
+      externalParameter: ucy
+      externalLocation: Dummy
+    function:
+    - internalLocationSet: {{ station_locationset_id }}
+      internalParameter: H.simulated
+      externalLocationFunction: '@DELFT3DFM_ID@'
+      externalParameterFunction: waterlevel
+    enableOneToOneMapping: true
+# FEWS ids -> model input names for the exported forcing NetCDF.
+- schema: IdMap
+  output: IdMapFiles/Model/IdExport{{ model_name }}.xml
+  data:
+    version: '1.1'
+    parameter:
+{% for p in forcing_parameters %}
+    - internal: {{ p.id }}
+      external: '{{ p.external }}'
+{% endfor %}
+    enableOneToOneMapping: true
+contributions: []

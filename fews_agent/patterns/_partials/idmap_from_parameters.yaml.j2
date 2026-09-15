@@ -1,0 +1,60 @@
+{#
+  Shared macro: one `- schema: IdMap` outputs: entry, generated from a
+  `parameters`-shaped list (each row: `id`, `external` -- a string, or a
+  list of strings for a one-internal/many-externals mapping). Import into a
+  pattern.yaml with:
+
+      {% import '_partials/idmap_from_parameters.yaml.j2' as idmap %}
+      ...
+      outputs:
+      - schema: TimeSeriesImportRun
+        ...
+{{ idmap.emit(output_path='IdMapFiles/.../IdImportX.xml', parameters=parameters) }}
+
+  Centralizes the block already hand-duplicated across gfs/gribfilter,
+  gfs/ensemble, nwp_grid_ecmwf_ifs, import_era5, import_cyclone_jtwc -- so
+  the idMap a pattern emits can never drift from the `parameters` it
+  actually declares (each row is the single source of truth for both).
+  The `- schema: IdMap` line below is emitted at column 0 so it lines up as
+  a sibling list item alongside the pattern's other `outputs:` entries; the
+  macro call itself must also sit at column 0 in the calling pattern.yaml.
+
+  A row with no `external` (e.g. a hand-authored blueprint override that
+  predates this field, or a genuinely novel id a configurator added without
+  idMap coverage) is skipped, not a hard failure -- same as today's
+  behaviour for an id the idMap never mapped. Silently claiming coverage
+  that isn't there would be worse; crashing the whole build over one
+  under-specified row would be disproportionate. Use `p.get(...)`
+  throughout (never `p.external`), which returns None for a missing key
+  instead of raising under the StrictUndefined render pass.
+
+  If NO row has an `external`, the macro emits nothing at all (not even
+  the `- schema: IdMap` list item) -- an idMap with zero mappings is
+  itself invalid (FEWS requires at least one), so there is no valid empty
+  file to produce; better to omit the output than emit one guaranteed to
+  fail validation.
+#}
+{%- macro emit(output_path, parameters, one_to_one=none) -%}
+{%- set rows = [] %}
+{%- for p in parameters %}
+{%- set ext_value = p.get('external') %}
+{%- set externals = [] if not ext_value else ([ext_value] if ext_value is string else ext_value) %}
+{%- for ext in externals %}
+{%- if rows.append({'internal': p.id, 'external': ext}) %}{% endif %}
+{%- endfor %}
+{%- endfor %}
+{%- if rows %}
+- schema: IdMap
+  output: {{ output_path }}
+  data:
+    version: '1.1'
+    parameter:
+{% for row in rows %}
+    - internal: {{ row.internal }}
+      external: '{{ row.external }}'
+{% endfor %}
+{% if one_to_one is not none %}
+    enableOneToOneMapping: {{ 'true' if one_to_one else 'false' }}
+{% endif %}
+{%- endif -%}
+{%- endmacro -%}

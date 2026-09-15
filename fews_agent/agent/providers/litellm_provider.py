@@ -137,18 +137,31 @@ class LiteLLMProvider:
                 return self._generate_json_streaming(messages, on_delta)
             except Exception:  # noqa: BLE001 — fall back to non-streaming
                 pass
-        resp = litellm.completion(
-            model=self.model, messages=messages, temperature=0.1,
-        )
+        resp = self._completion(model=self.model, messages=messages)
         content = resp.choices[0].message.content or ""
         data = self._extract_json(content)
         return StructuredResponse(data=data, usage=self._usage(resp))
 
+    @staticmethod
+    def _completion(**kwargs: Any):
+        """``litellm.completion`` with a fixed low temperature, falling back
+        to the model's default temperature on the one class of error
+        ``drop_params`` doesn't catch: some backends (observed on Azure AI
+        Foundry reasoning-tier models, e.g. gpt-5.x) reject any non-default
+        ``temperature`` server-side, before LiteLLM has a chance to drop it.
+        """
+        try:
+            return litellm.completion(temperature=0.1, **kwargs)
+        except litellm.BadRequestError as exc:
+            if "temperature" not in str(exc).lower():
+                raise
+            return litellm.completion(**kwargs)
+
     def _generate_json_streaming(self, messages, on_delta) -> StructuredResponse:
         from fews_agent.agent.reply_stream import ReplyStreamExtractor
 
-        stream = litellm.completion(
-            model=self.model, messages=messages, temperature=0.1,
+        stream = self._completion(
+            model=self.model, messages=messages,
             stream=True, stream_options={"include_usage": True},
         )
         extractor = ReplyStreamExtractor()

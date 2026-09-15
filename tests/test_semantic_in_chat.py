@@ -91,10 +91,15 @@ def test_full_build_summary_carries_semantic_fields():
         console=Console(quiet=True),
     )
     # The small-project oracle must be undisturbed by the semantic pass.
-    # (47 files on this branch — the documented 29 predates the extra
-    # bundled standard_inputs; verified identical pre/post this change.)
+    # (43 files on this branch — the documented 29 predates the extra
+    # bundled standard_inputs; verified identical pre/post this change.
+    # Was 47, then 45: modifierTypes/productsFile/filtersFile/
+    # spatialDisplayFile are now correctly dropped for a project with no
+    # WSC/RDPS/GDPS/REPS content to scope them to — see
+    # _MODULE_INSTANCE_TRIMMED_SPECS in build_from_blueprint.py, and the
+    # SpatialDisplay whole-file-skip next to it.)
     assert summary["ok"] is True, summary.get("errors")
-    assert summary["files_total"] == 47
+    assert summary["files_total"] == 43
 
     # Semantic fields present and sane. Don't pin exact counts —
     # content evolves with the pattern library; the digest test above

@@ -81,7 +81,7 @@ def test_gefs_family_references_resolve(tmp_path):
 name: ref-gefs
 output_root: out
 patterns:
-  - pattern: auto/nwp_grid_noaa_gefs
+  - pattern: auto/gfs/ensemble
     instances: [{}]
 singleton_seeds: {Locations: {geoDatum: WGS 1984}}
 """
@@ -105,8 +105,8 @@ def test_archive_family_references_resolve(tmp_path):
 name: ref-archive
 output_root: out
 patterns:
-  - pattern: auto/nwp_grid_noaa
-    instances: [{nwp_name: GFS, parameters: [{id: Precipitation, unit: mm}]}]
+  - pattern: auto/gfs/deterministic
+    instances: [{nwp_name: GFS, parameters: [{id: Precipitation, unit: mm, external: Precipitation}]}]
   - pattern: auto/archive_export_netcdf
     instances:
       - {name: Gfs, export_kind: exportExternalForecast, source_module_instance: ImportGFS, value_type: grid, parameters: [Precipitation], nc_filename: GfsDET.nc, area_id: FewsConform, location_id: GFS, period_unit: hour, period_start: '-48', period_end: '0', time_step_unit: hour, time_step_multiplier: '1'}

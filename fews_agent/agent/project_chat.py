@@ -21,8 +21,9 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-from jinja2 import Environment
+from jinja2 import Environment, FileSystemLoader
 
+from .pattern_family import merge_family_variables
 from .providers.ollama_provider import OllamaProvider
 
 
@@ -34,7 +35,7 @@ from .providers.ollama_provider import OllamaProvider
 class PatternSummary:
     """Compact view of one pattern for the LLM."""
 
-    path: str            # e.g. "auto/nwp_grid_eccc_HRDPS"
+    path: str            # e.g. "auto/eccc/HRDPS"
     name: str
     description: str
     keywords: list[str]
@@ -42,6 +43,13 @@ class PatternSummary:
     # Declared output file paths (Jinja placeholders left literal) — lets the
     # agent tell the user concretely what adding this pattern will generate.
     outputs: list[str] = dataclasses_field(default_factory=list)
+    # Free-text phrase -> FEWS parameter row(s), declared by the pattern
+    # itself (not a separate table elsewhere) so a pattern's prose-selectable
+    # variables and their meaning always travel with the pattern that defines
+    # them. Empty for patterns that don't support prose-driven parameter
+    # selection. A row value is either a single {id, unit, ...} dict, or a
+    # list of such dicts when one phrase means multiple parameters at once.
+    data_type_vocabulary: dict[str, Any] = dataclasses_field(default_factory=dict)
 
 
 def build_pattern_catalog(patterns_root: Path) -> list[PatternSummary]:
@@ -55,8 +63,12 @@ def build_pattern_catalog(patterns_root: Path) -> list[PatternSummary]:
     """
     # Permissive env: pattern.yaml may contain {% if %}/{% for %} blocks
     # (for the per-instance render). Empty-context rendering strips them
-    # so yaml.safe_load can parse the surrounding metadata.
-    discovery_env = Environment(keep_trailing_newline=True)
+    # so yaml.safe_load can parse the surrounding metadata. Loader lets a
+    # pattern.yaml `{% import '_partials/x.yaml.j2' as m %}` a shared macro
+    # (see fews_agent/agent/blueprint.py's matching loader).
+    discovery_env = Environment(
+        loader=FileSystemLoader(str(patterns_root)), keep_trailing_newline=True,
+    )
 
     out: list[PatternSummary] = []
     for pat_yaml in sorted(patterns_root.rglob("pattern.yaml")):
@@ -69,6 +81,7 @@ def build_pattern_catalog(patterns_root: Path) -> list[PatternSummary]:
             continue
         if not isinstance(data, dict):
             continue
+        data = merge_family_variables(data, pat_yaml, raw_text)
         outputs = [
             str(o.get("output", "")).strip()
             for o in (data.get("outputs") or [])
@@ -81,6 +94,7 @@ def build_pattern_catalog(patterns_root: Path) -> list[PatternSummary]:
             keywords=data.get("keywords", []),
             variables=data.get("variables", {}),
             outputs=outputs,
+            data_type_vocabulary=data.get("data_type_vocabulary", {}),
         ))
     return out
 

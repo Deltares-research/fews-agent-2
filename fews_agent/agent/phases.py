@@ -34,13 +34,21 @@ PHASE_LABELS: dict[str, str] = {
 
 
 def classify_phase(pattern_path: str) -> str:
-    """Map a pattern path (e.g. ``auto/nwp_grid_noaa``) to a phase.
+    """Map a pattern path (e.g. ``auto/gfs/deterministic``) to a phase.
 
     Name-based and deterministic. The order of checks matters:
     visualize / model / process are matched before the import catch-all
     so a display or model pattern never falls through to ``imports``.
     """
     name = pattern_path.rsplit("/", 1)[-1].lower()
+    # Family-identifying prefixes (raven/wflow/hbv/coastal_, tpl_,
+    # wf_merge/modify/update) are checked across every path SEGMENT, not
+    # just the leaf -- a family folder (e.g. patterns/auto/coastal/sfincs/)
+    # carries the identity on the PARENT segment, not necessarily the leaf.
+    # The plain word-content checks below (display/preprocess/etc.) stay
+    # leaf-only; nothing about grouping patterns into family folders makes
+    # a leaf accidentally contain one of those words.
+    segments = [s.lower() for s in pattern_path.split("/")]
 
     # Visualization: spatial/grid display, plots, map layers.
     if (
@@ -56,7 +64,8 @@ def classify_phase(pattern_path: str) -> str:
         name in {"raven_basin", "wflow_basin"}
         or name.endswith("_basin")
         or name.endswith("_model")
-        or name.startswith(("raven", "wflow", "hbv", "coastal_"))
+        or any(seg == "coastal" or seg.startswith(("raven", "wflow", "hbv", "coastal_"))
+               for seg in segments)
         or "dflowfm" in name
         or "delft3d" in name
     ):
@@ -65,8 +74,9 @@ def classify_phase(pattern_path: str) -> str:
     # Data preparation: preprocess/merge/modify/update templates and
     # workflows that act on already-imported data.
     if (
-        name.startswith("tpl_")
-        or name.startswith(("wf_merge", "wf_modify", "wf_update"))
+        any(seg.startswith("tpl_") for seg in segments)
+        or any(seg.startswith(("wf_merge", "wf_modify", "wf_update", "wf_process"))
+               for seg in segments)
         or "preprocess" in name
         or "postprocess" in name
         or "interpolate" in name

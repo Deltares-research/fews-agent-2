@@ -33,17 +33,30 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from .modules import Module, list_modules, normalize_module
+from .preview import PATTERN_ROOT
+from .project_chat import build_pattern_catalog
 from .project_intents import (
     _ADAPTER_PHRASES,
-    _DATA_TYPE_TO_PARAMETER,
     _DATUM_PHRASES,
     _IMPORT_ALIASES,
     _IMPORT_NAMES,
     INTENTS,
     REGION_BBOX,
+    _merged_data_type_vocabulary,
+    _pattern_vocabularies,
     detect_geo_datum,
     detect_grid_resolution,
 )
+
+
+def _default_catalog():
+    """Lazily-built, process-cached pattern catalog for callers that don't
+    already have one in scope (PATTERN_ROOT is a fixed constant, so building
+    it here needs no argument threading through call sites that predate the
+    per-pattern data-type vocabulary)."""
+    if not hasattr(_default_catalog, "_cache"):
+        _default_catalog._cache = build_pattern_catalog(PATTERN_ROOT)
+    return _default_catalog._cache
 
 # The unified intent taxonomy the LLM classifies from (option 2 — both
 # coexist): the 3 whole-project intents (from INTENTS) PLUS one "build the X
@@ -193,6 +206,9 @@ def _canonical_adapter(name: str) -> str | None:
 
 def validate_fields(
     raw_fields: dict[str, Any],
+    *,
+    catalog=None,
+    pattern_path: str | None = None,
 ) -> tuple[dict[str, Any], list[str]]:
     """Canonicalize + catalog-check the model's fields.
 
@@ -200,6 +216,14 @@ def validate_fields(
     that resolve against the known catalog, in the same slot shape the rest
     of the pipeline consumes. ``dropped`` lists every value discarded so the
     caller can warn the user rather than silently ignore a hallucination.
+
+    ``catalog`` defaults to a lazily-built one when omitted (see
+    ``_default_catalog``) so existing callers keep working unchanged.
+    ``pattern_path`` narrows the ``data_types`` check to one pattern's own
+    declared vocabulary (precise); omitted, it falls back to the union of
+    every parameterized pattern's vocabulary (coarse — correct for a
+    genuinely pattern-agnostic check, e.g. before the target pattern is
+    known).
     """
     clean: dict[str, Any] = {}
     dropped: list[str] = []
@@ -241,10 +265,16 @@ def validate_fields(
     # data_types --------------------------------------------------------
     raw_dt = raw_fields.get("data_types")
     if isinstance(raw_dt, list):
+        cat = catalog if catalog is not None else _default_catalog()
+        vocab = (
+            _pattern_vocabularies(cat).get(pattern_path, {})
+            if pattern_path is not None
+            else _merged_data_type_vocabulary(cat)
+        )
         keep_dt: list[str] = []
         for dt in raw_dt:
             key = str(dt or "").strip().lower()
-            if key in _DATA_TYPE_TO_PARAMETER:
+            if key in vocab:
                 if dt not in keep_dt:
                     keep_dt.append(dt)
             else:
@@ -312,8 +342,9 @@ def _vocab_adapters() -> str:
     return ", ".join(sorted(_ADAPTER_PHRASES))
 
 
-def _vocab_data_types() -> str:
-    return ", ".join(sorted(_DATA_TYPE_TO_PARAMETER))
+def _vocab_data_types(catalog=None) -> str:
+    cat = catalog if catalog is not None else _default_catalog()
+    return ", ".join(sorted(_merged_data_type_vocabulary(cat)))
 
 
 def _vocab_modules_full() -> str:

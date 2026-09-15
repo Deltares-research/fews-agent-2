@@ -127,7 +127,7 @@ def test_prose_add_applies_patch_and_reply_passes_through(tmp_path, monkeypatch)
     assert s.state["slots"]["imports"] == ["GFS"]
     assert "Which weather variables" in res.agent_message   # model's voice
     assert "GFS" in res.confirmation                        # grey channel
-    assert "auto/nwp_grid_noaa" in {p["pattern"] for p in s.state["patterns"]}
+    assert "auto/gfs/gribfilter" in {p["pattern"] for p in s.state["patterns"]}
     # /vars (deterministic, no LLM payload consumed) still lists the project.
     assert "Modules in this project" in s.send("/vars").agent_message
 
@@ -254,7 +254,7 @@ def test_apply_grid_geometry_sets_scoped_override_and_reflows(tmp_path, monkeypa
                     "columns": 48, "rows": 30}
     # It rides onto the resolved instance (→ project.yaml → build rewriter).
     inst = next(
-        i for p in s.state["patterns"] if p["pattern"] == "auto/nwp_grid_noaa"
+        i for p in s.state["patterns"] if p["pattern"] == "auto/gfs/gribfilter"
         for i in p["instances"]
     )
     assert inst["grid_geometry"] == geom

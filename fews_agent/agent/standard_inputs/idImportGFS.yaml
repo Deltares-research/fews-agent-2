@@ -1,9 +1,0 @@
-parameter:
-- internal: PC.nwp
-  external: Total_precipitation_surface_6_Hour_Accumulation
-- internal: TA.nwp
-  external: Temperature_height_above_ground
-- internal: PC.nwp
-  external: apcpsfc
-- internal: TA.nwp
-  external: tmp2m

@@ -1,0 +1,85 @@
+name: eccc_RDPA
+description: 'Auto-derived pattern from tutorial instances: RDPA.'
+variables: {}  # nwp_name: shared across this family -- see patterns/auto/eccc/variables.yaml
+outputs:
+- schema: TimeSeriesImportRun
+  output: ModuleConfigFiles/Import/ECCCGrids/Import{{ nwp_name }}.xml
+  data:
+    import:
+    - general:
+        importType: CanadaMeteoWCS
+        serverUrl: https://geo.weather.gc.ca/geomet?SERVICE=WCS&VERSION=2.0.1&REQUEST=GetCoverage
+        user: user
+        password: password
+        relativeViewPeriod:
+          unit: day
+          start: -7
+          end: 0
+          startOverrulable: true
+          endOverrulable: true
+        idMapId: IdImportCanadaWCS
+      properties:
+        bool:
+        - key: useSubset
+          value: false
+      timeSeriesSet:
+      - moduleInstanceId: ImportRDPA
+        valueType: grid
+        parameterId: PC.sim
+        locationId: RDPA
+        timeSeriesType: external historical
+        timeStep:
+          unit: hour
+          multiplier: 6
+        readWriteMode: add originals
+      externUnit:
+      - parameterId: PC.sim
+        unit: kg m-2
+- schema: Workflow
+  output: WorkflowFiles/Import/ECCCGrids/Import{{ nwp_name }}Grids.xml
+  data:
+    version: '1.1'
+    properties:
+      string:
+      - key: INPUTGRID
+        value: RDPA
+      - key: INPUTMODULEINSTANCE
+        value: ImportRDPA
+      - key: OUTPUTGRID
+        value: $MODELNAME1$Grid
+      - key: BASINLOCATIONS
+        value: ModelBasins
+      - key: STATIONLOCATIONS
+        value: ModelMeteoStations
+      - key: STARTTIME
+        value: '-7'
+      - key: ENDTIME
+        value: '0'
+      - key: TIMESERIESTYPE
+        value: external historical
+      - key: TIMESTEP
+        value: '6'
+      - key: PARAMETER
+        value: PC.sim
+      - key: ENSEMBLE
+        value: main
+    activity:
+    - runIndependent: true
+      moduleInstanceId: ImportRDPA
+    - runIndependent: true
+      moduleInstanceId: PreprocessRDPA
+      moduleConfigFileName: PreprocessAccumulatedParametersNWPTemplate
+    - properties:
+        string:
+        - key: LOCATIONSET
+          value: $MODELNAME1$Basins
+        - key: INPUTMODULEINSTANCE
+          value: PreprocessRDPA
+        - key: INPUTPARAMETER
+          value: PC.sim
+        - key: ACCUMPARAMETER
+          value: PC.sim.acc
+      runIndependent: true
+      moduleInstanceId: PreprocessRDPA
+      moduleConfigFileName: AccumulateForecastPrecipTemplate
+contributions: []
