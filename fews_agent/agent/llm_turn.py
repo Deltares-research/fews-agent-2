@@ -90,11 +90,28 @@ def catalog_digest(catalog) -> str:
     for e in catalog or []:
         req = [n for n, s in (e.variables or {}).items()
                if isinstance(s, dict) and s.get("required")]
-        opts = [
-            f"{n}={s.get('default')}" for n, s in (e.variables or {}).items()
-            if isinstance(s, dict) and not s.get("required")
-            and s.get("default") not in (None, "", [], {})
-        ]
+        # Parameter-row variables (default is a list of {id: ...} dicts, e.g.
+        # a fixed-content import's own `parameters`) get their own line below
+        # — as a raw dict dump they're unreadable, and as a scalar `opts`
+        # entry a pattern with many other optional vars (ECMWF: 13) can push
+        # the ONE thing that says what it actually imports past the [:6]
+        # truncation, leaving the model no way to know it isn't empty.
+        param_rows: list[tuple[str, list[str]]] = []
+        opts = []
+        for n, s in (e.variables or {}).items():
+            if not isinstance(s, dict) or s.get("required"):
+                continue
+            default = s.get("default")
+            if default in (None, "", [], {}):
+                continue
+            if (
+                isinstance(default, list)
+                and default
+                and all(isinstance(row, dict) and row.get("id") for row in default)
+            ):
+                param_rows.append((n, [row["id"] for row in default]))
+                continue
+            opts.append(f"{n}={default}")
         produces = ", ".join(
             Path(o).name for o in (e.outputs or [])[:3]
         ) + ("…" if len(e.outputs or []) > 3 else "")
@@ -106,8 +123,14 @@ def catalog_digest(catalog) -> str:
             bits.append(f"  requires: {', '.join(req)}")
         if opts:
             bits.append(f"  optional: {', '.join(opts[:6])}")
+        for n, ids in param_rows:
+            bits.append(f"  default {n}: {', '.join(ids)}")
         if produces:
             bits.append(f"  produces: {produces}")
+        if e.data_type_vocabulary:
+            bits.append(
+                "  variables: " + ", ".join(sorted(e.data_type_vocabulary))
+            )
         lines.append("\n".join(bits))
     return "\n".join(lines)
 

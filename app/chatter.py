@@ -62,6 +62,8 @@ from fews_agent.agent.turn_engine import (
     module_list_reply,
     module_vars_reply,
     module_welcome,
+    pop_undo_snapshot,
+    push_undo_snapshot,
     resolve_patterns,
     run_module_turn,
     run_turn_pipeline,
@@ -1141,44 +1143,22 @@ class ChatSession:
         return self._reply(turn, reply, "coordinates: applied", kind="edit")
 
     # ---- undo support --------------------------------------------------------
-
-    # Max snapshots kept; older ones evicted. Each snapshot is a
-    # JSON-roundtripped copy of state minus the stack itself.
-    _UNDO_DEPTH = 10
+    # Snapshot push/pop is shared engine code (turn_engine.push/pop_undo_
+    # snapshot) so every driver's undo rolls back through the same
+    # mechanism — these are thin wrappers binding it to ``self.state``.
 
     def _push_undo_snapshot(self) -> None:
-        """Push a copy of the current state onto state['_undo_stack'].
-
-        Called at the start of every non-/undo turn, so /undo on the
-        NEXT turn rolls back THIS turn's mutations. JSON-roundtripped
-        for deep-copy — state is already JSON-serializable (it gets
-        written to .chat_state.json each turn).
-        """
-        snap = json.loads(json.dumps(self.state, default=str))
-        snap.pop("_undo_stack", None)
-        stack = self.state.setdefault("_undo_stack", [])
-        stack.append(snap)
-        if len(stack) > self._UNDO_DEPTH:
-            del stack[0]  # drop oldest
+        """Push a copy of the current state, called at the start of every
+        non-/undo turn, so /undo on the NEXT turn rolls back THIS turn's
+        mutations."""
+        push_undo_snapshot(self.state)
 
     def _pop_undo_snapshot(self) -> bool:
         """Restore state from the latest snapshot. False if stack empty.
-
-        Mutates ``self.state`` in-place to preserve dict identity for
-        any other code holding the same reference. Keeps the running
-        ``model`` pinned so resuming a session with a switched model
-        doesn't get rolled back into the previous selection.
-        """
-        stack = self.state.get("_undo_stack") or []
-        if not stack:
-            return False
-        snap = stack.pop()
-        new_stack = list(stack)
-        self.state.clear()
-        self.state.update(snap)
-        self.state["_undo_stack"] = new_stack
-        self.state["model"] = self.model
-        return True
+        Pins the running model to ``self.model`` (not the snapshot's) so
+        resuming a session with a switched model doesn't get rolled back
+        into the previous selection."""
+        return pop_undo_snapshot(self.state, model=self.model)
 
     # ---- public surface ------------------------------------------------------
 

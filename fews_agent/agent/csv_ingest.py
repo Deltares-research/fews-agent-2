@@ -340,7 +340,11 @@ def _build_locations(
         try:
             loc = Location(
                 id=_row_field(row, column_mapping, "id") or "",
-                name=_row_field(row, column_mapping, "name") or "",
+                name=(
+                    _row_field(row, column_mapping, "name")
+                    or _row_field(row, column_mapping, "id")
+                    or ""
+                ),
                 x=_decimal_or_none(_row_field(row, column_mapping, "x")) or Decimal(0),
                 y=_decimal_or_none(_row_field(row, column_mapping, "y")) or Decimal(0),
                 z=_decimal_or_none(_row_field(row, column_mapping, "z")),

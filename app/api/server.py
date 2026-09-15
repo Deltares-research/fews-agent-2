@@ -72,6 +72,8 @@ from fews_agent.agent.turn_engine import (
     module_list_reply,
     module_vars_reply,
     module_welcome,
+    pop_undo_snapshot,
+    push_undo_snapshot,
     resolve_patterns,
     run_module_turn,
     run_turn_pipeline,
@@ -347,6 +349,36 @@ def run_turn(session_id: str, req: TurnRequest) -> TurnResponse:
     message = req.message
     history.append({"role": "user", "message": message})
 
+    # Explicit /undo (or bare "undo") — must precede the snapshot push below,
+    # else we'd push current state and immediately pop the very snapshot we
+    # just made. Mirrors the Streamlit driver's ChatSession._send_inner.
+    if message.strip().lower() in {"/undo", "undo"}:
+        if not pop_undo_snapshot(state, model=model):
+            reply = "Nothing to undo — no prior state snapshot recorded."
+        else:
+            intent = state.get("intent") or "(none)"
+            slots = state.get("slots") or {}
+            filled = sum(1 for v in slots.values() if v)
+            patterns = len(state.get("patterns") or [])
+            depth = len(state.get("_undo_stack") or [])
+            reply = (
+                f"Undone — state rolled back. Now: intent={intent}, "
+                f"{filled} slot(s) filled, {patterns} pattern(s). "
+                f"{depth} more snapshot(s) available."
+            )
+        history.append({"role": "agent", "message": reply})
+        _save(project_dir, state, history)
+        return TurnResponse(
+            reply=reply, short_circuit=False, intent=state.get("intent"),
+            patterns=state.get("patterns", []) or [],
+            slots=state.get("slots", {}) or {},
+            module_mode=True, current_module=state.get("current_module"),
+        )
+
+    # Snapshot before any other handler mutates state, so /undo on the next
+    # turn (explicit or prose, via wants_undo below) can roll back this turn.
+    push_undo_snapshot(state)
+
     # Deterministic module-mode commands run without the LLM.
     cmd_reply = _module_command(state, message, catalog)
     if cmd_reply is not None:
@@ -372,6 +404,33 @@ def run_turn(session_id: str, req: TurnRequest) -> TurnResponse:
         state, message, catalog, provider=provider,
         history=history, inputs_dir=project_dir / "inputs",
     )
+
+    # Prose "undo that" → the same snapshot machinery as /undo. This turn
+    # already pushed its own snapshot above, so pop TWICE: first discards
+    # this turn's snapshot (also erasing anything the model's patch just
+    # applied), second restores the prior turn.
+    if res.wants_undo:
+        pop_undo_snapshot(state, model=model)
+        if pop_undo_snapshot(state, model=model):
+            slots = state.get("slots") or {}
+            filled = sum(1 for v in slots.values() if v)
+            confirmation = (
+                f"Rolled back to the previous step — {filled} setting(s), "
+                f"{len(state.get('patterns') or [])} module(s)."
+            )
+            reply = res.reply
+        else:
+            confirmation = ""
+            reply = "There's nothing to undo yet — no earlier step recorded."
+        history.append({"role": "agent", "message": reply})
+        _save(project_dir, state, history)
+        return TurnResponse(
+            reply=reply, short_circuit=False, intent=state.get("intent"),
+            patterns=state.get("patterns", []) or [],
+            slots=state.get("slots", {}) or {},
+            module_mode=True, current_module=state.get("current_module"),
+            confirmation=confirmation,
+        )
 
     reply = res.reply
     if res.wants_build or res.wants_assemble:

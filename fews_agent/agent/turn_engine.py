@@ -21,6 +21,7 @@ this module's namespace so tests patch ``turn_engine.classify_intent`` /
 """
 from __future__ import annotations
 
+import json
 import logging
 from dataclasses import dataclass, field
 
@@ -64,6 +65,56 @@ _IMPORT_LABEL_KEYS = (
 # Instance-variable keys that give a human label to a resolved pattern
 # instance in the module listing — imports plus a basin's name.
 _LABEL_VAR_KEYS = _IMPORT_LABEL_KEYS + ("basin_name",)
+
+
+# Max snapshots kept for undo; older ones evicted. Each snapshot is a
+# JSON-roundtripped copy of state minus the stack itself. Shared so every
+# driver's undo (explicit /undo, or prose "undo that" via wants_undo) rolls
+# back through the same mechanism — this used to live only in the Streamlit
+# driver, so the HTTP API's undo silently did nothing while the model's own
+# drafted reply still confidently claimed it happened.
+_UNDO_DEPTH = 10
+
+
+def push_undo_snapshot(state: dict) -> None:
+    """Push a copy of the current state onto ``state['_undo_stack']``.
+
+    Call at the start of every non-undo turn, so undo on the NEXT turn rolls
+    back THIS turn's mutations. JSON-roundtripped for deep-copy — state is
+    already JSON-serializable (every driver persists it to disk each turn).
+    """
+    snap = json.loads(json.dumps(state, default=str))
+    snap.pop("_undo_stack", None)
+    stack = state.setdefault("_undo_stack", [])
+    stack.append(snap)
+    if len(stack) > _UNDO_DEPTH:
+        del stack[0]  # drop oldest
+
+
+def pop_undo_snapshot(state: dict, *, model: str | None = None) -> bool:
+    """Restore state from the latest snapshot. False if the stack is empty.
+
+    Mutates ``state`` in place to preserve dict identity for any other code
+    holding the same reference. Keeps the running model pinned to ``model``
+    (or, if not given, whatever ``state['model']`` was right before the
+    pop) rather than the snapshot's — a driver that tracks the active model
+    outside ``state`` (e.g. resuming a session after the user switched
+    models in the UI) should pass its own authoritative value, so undo
+    never rolls the model selection back too.
+    """
+    stack = state.get("_undo_stack") or []
+    if not stack:
+        return False
+    snap = stack.pop()
+    new_stack = list(stack)
+    if model is None:
+        model = state.get("model")
+    state.clear()
+    state.update(snap)
+    state["_undo_stack"] = new_stack
+    if model is not None:
+        state["model"] = model
+    return True
 
 # Synonyms → canonical settable variable name for the /set command and NL
 # edits. The canonical set is enforced by project_chat.set_variable.
@@ -416,14 +467,20 @@ _NOOP_NOTE = "Noted — nothing new to change."
 def _sync_module_intent(state: dict) -> None:
     """In module-mode there is NO user-facing whole-project intent; ``intent``
     is only an internal resolver-selector. Re-derive it from the current slots
-    each turn (when a module is focused) so it tracks content — imports-only →
-    ``build_data_import_only`` (no basin required for /done), imports+basins →
-    ``build_forecasting_project``. The whole-project chat flow keeps whatever
-    intent it explicitly classified (no ``current_module`` set)."""
-    if state.get("current_module"):
-        inferred = heuristic_intent_from_slots(state.get("slots") or {})
-        if inferred:
-            state["intent"] = inferred
+    on every edit so it tracks content — imports-only → ``build_data_import_
+    only`` (no basin required for /done), imports+basins (or a basin alone) →
+    ``build_forecasting_project``. Unconditional, not gated on
+    ``current_module``: ``heuristic_intent_from_slots`` is a pure function of
+    the current slots, so re-running it can only ever WIDEN the resolver to
+    match what's actually in the slots (imports-only -> forecasting once a
+    basin appears), never wrongly narrow an explicit choice back down. Used
+    to be gated on a module being in focus, which left it permanently dead in
+    the LLM-first flow (``current_module`` is never set there) — "add an
+    import, then later add a basin" silently dropped the basin from every
+    build after it, since the resolver never switched off imports-only."""
+    inferred = heuristic_intent_from_slots(state.get("slots") or {})
+    if inferred:
+        state["intent"] = inferred
 
 
 def apply_removal(state: dict, op, catalog) -> tuple[str, list[str]]:
