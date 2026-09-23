@@ -1,0 +1,19 @@
+REQUEST:
+[[ request ]]
+
+SPEC: [[ spec ]]
+RELPATH: [[ relpath ]]
+
+SCHEMA SHAPE (required / xsd):
+[[ schema_digest ]]
+
+ID REGISTRY (declared ids in this config):
+[[ id_digest ]]
+
+EXAMPLES:
+[[ examples_digest ]]
+
+[% if repair_errors %]
+PREVIOUS XML FAILED VALIDATION. Fix these diagnostics and return a new xml:
+[[ repair_errors ]]
+[% endif %]

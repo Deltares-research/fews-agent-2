@@ -90,12 +90,16 @@ from app.api.models import (
     BuildFileResult,
     BuildRequest,
     BuildResponse,
+    ConformLintRequest,
     CreateSessionRequest,
     CreateSessionResponse,
     HealthResponse,
+    OpenConfigRequest,
     SessionStateResponse,
     TurnRequest,
     TurnResponse,
+    ValidateConfigRequest,
+    ValidateXmlRequest,
 )
 
 # This module lives at app/api/server.py, so the repo root is two
@@ -111,8 +115,9 @@ DEFAULT_MODEL = "qwen2.5:7b-instruct"
 
 app = FastAPI(
     title="FEWS config-generation agent API",
-    description="HTTP wrapper over the FEWS chat/elicitation turn loop and "
-    "the deterministic XML build path.",
+    description="HTTP wrapper over the FEWS chat/elicitation turn loop, "
+    "the deterministic XML build path, and the session-free verification "
+    "toolbelt (POST /validate/xml, GET /schema/{spec}, ...).",
     version="0.1.0",
 )
 
@@ -580,3 +585,73 @@ def build_session(session_id: str, req: BuildRequest | None = None) -> BuildResp
         ),
         files=_files_from_summary(summary),
     )
+
+
+# --------------------------------------------------------------------------
+# Verification toolbelt (session-free) — ChatGPT / Microsoft Copilot
+# --------------------------------------------------------------------------
+
+from fews_agent.validation.toolbelt import (
+    tool_conform_lint,
+    tool_conform_lint_xml,
+    tool_explain_diagnostic,
+    tool_find_examples,
+    tool_id_registry,
+    tool_schema_shape,
+    tool_validate_config,
+    tool_validate_xml,
+)
+from fews_agent.agent.config_tree import open_config as _open_config
+
+
+@app.post("/validate/config")
+def api_validate_config(req: ValidateConfigRequest) -> dict:
+    """Run the gauntlet on an existing config folder (local API host)."""
+    try:
+        return tool_validate_config(req.path, tiers=req.tiers)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.post("/validate/xml")
+def api_validate_xml(req: ValidateXmlRequest) -> dict:
+    """Validate a pasted XML snippet — primary remote-chatbot entry."""
+    try:
+        return tool_validate_xml(req.xml, spec=req.spec, tiers=req.tiers)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.post("/conform")
+def api_conform(req: ConformLintRequest) -> dict:
+    if req.xml:
+        return tool_conform_lint_xml(req.xml, spec=req.spec)
+    if not req.path:
+        raise HTTPException(status_code=400, detail="Pass path or xml.")
+    return tool_conform_lint(req.path)
+
+
+@app.get("/schema/{spec}")
+def api_schema_shape(spec: str) -> dict:
+    return tool_schema_shape(spec)
+
+
+@app.get("/examples")
+def api_examples(query: str, k: int = 5) -> dict:
+    return tool_find_examples(query, k=k)
+
+
+@app.post("/ids")
+def api_id_registry(req: ValidateConfigRequest) -> dict:
+    return tool_id_registry(req.path)
+
+
+@app.get("/diagnostics/{rule_id}")
+def api_explain_diagnostic(rule_id: str) -> dict:
+    return tool_explain_diagnostic(rule_id)
+
+
+@app.post("/open_config")
+def api_open_config(req: OpenConfigRequest) -> dict:
+    """Brownfield read: load an existing config + write a human ledger."""
+    return _open_config(req.path)

@@ -175,6 +175,35 @@ class BuildResponse(BaseModel):
 # Health
 # --------------------------------------------------------------------------
 
+class ValidateConfigRequest(BaseModel):
+    path: str = Field(description="Absolute path to a FEWS config folder.")
+    tiers: list[str] | None = Field(
+        default=None,
+        description="Subset of xsd, semantic, conform, fews_check.",
+    )
+
+
+class ValidateXmlRequest(BaseModel):
+    xml: str
+    spec: str | None = None
+    tiers: list[str] | None = None
+
+
+class ConformLintRequest(BaseModel):
+    path: str | None = None
+    xml: str | None = None
+    spec: str | None = None
+
+
+class ExamplesQuery(BaseModel):
+    query: str
+    k: int = 5
+
+
+class OpenConfigRequest(BaseModel):
+    path: str = Field(description="Absolute path to an existing FEWS config.")
+
+
 class HealthResponse(BaseModel):
     status: str = Field(description="Always 'ok' when the service is up.")
     provider: str

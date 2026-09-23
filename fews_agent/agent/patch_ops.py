@@ -54,13 +54,16 @@ class PatchResult:
     # patch_ops stays pure — llm_turn performs the disk write.
     input_writes: list = field(default_factory=list)
     wants_undo: bool = False             # roll back to the previous turn
+    # author_file ops that passed validation: dicts with request/spec/relpath.
+    # patch_ops stays pure — llm_turn performs the provider call + write.
+    author_requests: list = field(default_factory=list)
 
 
 # The op names the model may emit. Anything else is dropped loudly.
 OP_NAMES = (
     "add_import", "add_basin", "add_capability", "set_variables",
     "remove", "set_focus", "open_coordinates", "show_variables",
-    "preview_file", "write_input_file", "undo",
+    "preview_file", "write_input_file", "author_file", "undo",
     "build", "assemble", "none",
 )
 
@@ -151,7 +154,7 @@ def _op_add_capability(state: dict, args: dict, catalog, res: PatchResult) -> No
     if path is None:
         res.dropped.append(
             f"add_capability: {args.get('pattern')!r} is not in the pattern "
-            f"library"
+            f"library — use author_file to draft XML behind the gauntlet"
         )
         return
     flag = _FLAG_OWNED_PATTERNS.get(path)
@@ -598,6 +601,26 @@ def _op_set_focus(state: dict, args: dict, catalog, res: PatchResult) -> None:
     res.notes.append(f"Focused on {short}.")
 
 
+def _op_author_file(state: dict, args: dict, catalog, res: PatchResult) -> None:
+    """Queue an open-world author request. The write happens in llm_turn."""
+    request = str(args.get("request") or args.get("description") or "").strip()
+    spec = str(args.get("spec") or args.get("schema") or "").strip()
+    relpath = str(args.get("path") or args.get("relpath") or "").strip()
+    if not request:
+        res.dropped.append("author_file: missing request")
+        return
+    if not spec:
+        res.dropped.append("author_file: missing spec (e.g. TimeSeriesImportRun)")
+        return
+    res.author_requests.append({
+        "request": request,
+        "spec": spec,
+        "relpath": relpath or "-",
+    })
+    label = relpath or spec
+    res.notes.append(f"Authoring {label} behind the verification gauntlet.")
+
+
 def apply_patch(state: dict, ops: list, catalog) -> PatchResult:
     """Validate + apply a patch (list of ``{"op": name, ...args}`` dicts).
 
@@ -631,6 +654,8 @@ def apply_patch(state: dict, ops: list, catalog) -> PatchResult:
             res.vars_for = str(args.get("target") or "")
         elif name == "preview_file":
             res.preview_for = str(args.get("target") or "")
+        elif name == "author_file":
+            _op_author_file(state, args, catalog, res)
         elif name == "write_input_file":
             from fews_agent.agent.input_files import (
                 SUPPORTED_FILES,

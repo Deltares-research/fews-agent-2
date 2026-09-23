@@ -273,6 +273,47 @@ def _perform_input_writes(res, inputs_dir) -> list[str]:
     return written
 
 
+def _perform_author_requests(res, state, provider, inputs_dir) -> list[str]:
+    """Run queued author_file ops through the gauntlet and write survivors."""
+    written: list[str] = []
+    if not getattr(res, "author_requests", None):
+        return written
+    from fews_agent.agent.authoring import author_file, write_authored
+
+    tree_path = None
+    if inputs_dir is not None:
+        parent = Path(inputs_dir).parent
+        generated = parent / "generated"
+        tree_path = generated if generated.is_dir() else parent
+    for req in res.author_requests:
+        authored = author_file(
+            req["request"],
+            spec=req["spec"],
+            relpath=req.get("relpath") or "-",
+            tree_path=tree_path,
+            provider=provider,
+        )
+        if not authored.ok:
+            res.dropped.append(
+                authored.error or "author_file: gauntlet rejected the draft"
+            )
+            continue
+        if tree_path is None or authored.relpath in {"", "-"}:
+            res.notes.append(
+                f"Authored {req['spec']} (not written — no output path)."
+            )
+            continue
+        dest = write_authored(tree_path, authored)
+        if dest is None:
+            res.dropped.append(
+                authored.error or f"author_file: not written ({authored.relpath})"
+            )
+            continue
+        res.notes.append(f"Wrote {authored.relpath} (origin=llm, verified).")
+        written.append(authored.relpath)
+    return written
+
+
 def _repair_reply(provider, message: str, draft: str, res,
                   res_state: dict | None = None) -> str:
     """Rewrite a draft reply after ops were dropped, so it can't claim
@@ -401,6 +442,7 @@ def run_llm_turn(
 
     res = apply_patch(state, ops, catalog)
     written_inputs = _perform_input_writes(res, inputs_dir)
+    authored_files = _perform_author_requests(res, state, provider, inputs_dir)
 
     # show_variables: append the deterministic /vars table (same output as
     # the slash command) so "what are the vars of GFS?" answers with the real
@@ -445,4 +487,5 @@ def run_llm_turn(
         coordinates_for=res.coordinates_for,
         input_files_written=written_inputs,
         wants_undo=res.wants_undo,
+        authored_files=authored_files,
     )

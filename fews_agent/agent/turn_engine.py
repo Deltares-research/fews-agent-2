@@ -717,6 +717,7 @@ class ModuleTurnResult:
     coordinates_for: str | None = None   # ""=all grids, name=one, None=no
     input_files_written: list[str] = field(default_factory=list)
     wants_undo: bool = False             # prose "undo that" — shell rolls back
+    authored_files: list[str] = field(default_factory=list)
 
 
 def _next_step_hint(state: dict, focus) -> str:
