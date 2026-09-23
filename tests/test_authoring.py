@@ -94,4 +94,4 @@ def test_add_capability_unknown_points_at_author_file():
     res = apply_patch(state, [{
         "op": "add_capability", "pattern": "auto/not_a_real_pattern",
     }], catalog)
-    assert any("author_file" in d for d in res.dropped)
+    assert any("author_file" in d and "admit_file" in d for d in res.dropped)

@@ -33,8 +33,10 @@ def test_validate_config_and_id_registry(tmp_path, monkeypatch):
 def test_explain_known_rules():
     xsd = tool_explain_diagnostic("xsd.schema")
     assert xsd["rule_id"] == "xsd.schema"
+    assert "example" in xsd
     casing = tool_explain_diagnostic("conform.idmap_casing")
     assert "GLOBSNOW" in casing["citation"]
+    assert "IdImportGlobSnow" in casing.get("example", "")
     unknown = tool_explain_diagnostic("no.such.rule")
     assert "error" in unknown
 

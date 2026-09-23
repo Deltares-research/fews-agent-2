@@ -7,6 +7,8 @@ from typing import Any
 from fews_agent.agent.blueprint import schema_class_for
 from fews_agent.validation.xsd import SCHEMAS_DIR
 
+_XSD_FRAGMENT_CAP = 8000
+
 
 def _xsd_rel_for_spec(name: str) -> str | None:
     stem = name[0].lower() + name[1:] if name else ""
@@ -49,6 +51,19 @@ def _collect_enums(schema: dict[str, Any], prefix: str = "") -> dict[str, list[s
     return enums
 
 
+def _xsd_fragment(xsd_rel: str | None) -> str | None:
+    """Pinned XSD text, capped so a host LLM can read the grammar."""
+    if not xsd_rel:
+        return None
+    path = SCHEMAS_DIR / xsd_rel
+    if not path.is_file():
+        return None
+    text = path.read_text(encoding="utf-8", errors="replace")
+    if len(text) <= _XSD_FRAGMENT_CAP:
+        return text
+    return text[: _XSD_FRAGMENT_CAP - 3] + "..."
+
+
 def schema_shape(spec: str) -> dict[str, Any]:
     """Return the pinned JSON schema + XSD path for a SPECS class name.
 
@@ -59,13 +74,15 @@ def schema_shape(spec: str) -> dict[str, Any]:
         raise KeyError("schema_shape: spec is empty")
     cls = schema_class_for(name)
     js = cls.model_json_schema()
+    xsd_rel = _xsd_rel_for_spec(cls.__name__)
     return {
         "name": cls.__name__,
         "json_schema": js,
         "required": list(js.get("required") or []),
         "enums": _collect_enums(js),
-        "xsd_rel": _xsd_rel_for_spec(cls.__name__),
+        "xsd_rel": xsd_rel,
         "xsd_dir": str(Path(SCHEMAS_DIR)),
+        "xsd_fragment": _xsd_fragment(xsd_rel),
     }
 
 

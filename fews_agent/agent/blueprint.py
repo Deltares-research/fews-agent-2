@@ -487,26 +487,49 @@ def _render_dict(
 # ---------------------------------------------------------------------------
 
 def write_output(
-    result: ExpandResult, output_root: Path
+    result: ExpandResult,
+    output_root: Path,
+    ledger: Any | None = None,
 ) -> dict[str, Any]:
-    """Write every rendered file under ``output_root``. Returns a manifest."""
+    """Write every rendered file under ``output_root``. Returns a manifest.
+
+    Ledger (beside the config tree) skips ``origin: human`` / ``origin: llm``
+    and drifted ``origin: pattern`` files. Successful pattern writes are
+    recorded with real relpaths.
+    """
+    from fews_agent.agent.ledger import load_ledger
+
     output_root.mkdir(parents=True, exist_ok=True)
+    ledger = ledger or load_ledger(output_root)
     written: list[dict[str, Any]] = []
+    skipped: list[dict[str, str]] = []
     for rf in result.rendered_files:
+        rel = str(rf.relpath).replace("\\", "/")
         out_path = output_root / rf.relpath
+        data = rf.content.encode("utf-8")
+        on_disk = out_path.read_bytes() if out_path.is_file() else None
+        ok, reason = ledger.may_overwrite(rel, on_disk)
+        if not ok:
+            skipped.append({"path": rel, "reason": reason})
+            continue
         out_path.parent.mkdir(parents=True, exist_ok=True)
-        out_path.write_text(rf.content, encoding="utf-8")
+        out_path.write_bytes(data)
+        ledger.mark_pattern(
+            rel, rf.pattern, instance={"label": rf.instance_label}, data=data,
+        )
         written.append(
             {
-                "path": str(out_path.relative_to(output_root)).replace("\\", "/"),
+                "path": rel,
                 "pattern": rf.pattern,
                 "instance": rf.instance_label,
-                "bytes": len(rf.content.encode("utf-8")),
+                "bytes": len(data),
             }
         )
+    ledger.save()
     return {
         "output_root": str(output_root),
         "written": written,
+        "skipped": skipped,
         "contributions": [
             {
                 "target": c.target_file,

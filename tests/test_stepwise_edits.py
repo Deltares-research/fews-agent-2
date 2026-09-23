@@ -231,14 +231,31 @@ def test_apply_edit_action_set_normalises_value(catalog):
 
 @pytest.fixture(scope="module")
 def noaa_blueprint(tmp_path_factory):
-    """Copy a real GFS-bearing blueprint into an isolated tmp dir."""
+    """A GFS-bearing blueprint in an isolated tmp dir.
+
+    Prefers the viz-demo fixture when present (gitignored on a fresh
+    clone); otherwise writes a minimal GFS instance so the build_module
+    tests still run.
+    """
     src = (
         REPO_ROOT / "projects" / "viz-demo"
         / "viz-demo_2026-06-16_000000" / "project.yaml"
     )
     dst_dir = tmp_path_factory.mktemp("noaa_bp")
-    shutil.copy(src, dst_dir / "project.yaml")
-    return dst_dir / "project.yaml"
+    dest = dst_dir / "project.yaml"
+    if src.is_file():
+        shutil.copy(src, dest)
+    else:
+        dest.write_text(
+            "name: noaa-bp\n"
+            "output_root: generated\n"
+            "patterns:\n"
+            "  - pattern: auto/nwp_grid_noaa\n"
+            "    instances:\n"
+            "      - {nwp_name: GFS}\n",
+            encoding="utf-8",
+        )
+    return dest
 
 
 def test_build_module_single_instance_xsd_ok(noaa_blueprint):

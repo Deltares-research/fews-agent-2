@@ -71,10 +71,16 @@ def _build(tmp_path, *, with_locations=True, station_set="GuineaStations"):
 
 
 def _find(out_dir, suffix):
-    for p in out_dir.rglob("*.xml"):
-        if p.as_posix().endswith(suffix):
+    matches = [p for p in out_dir.rglob("*.xml") if p.as_posix().endswith(suffix)]
+    if not matches:
+        raise AssertionError(f"no rendered file ending in {suffix}")
+    # WorkflowFiles/Interpolate/InterpolateGFSToStations.xml and
+    # ModuleConfigFiles/Interpolate/InterpolateGFSToStations.xml share a
+    # stem. Prefer the module config (the file these tests inspect).
+    for p in matches:
+        if "ModuleConfigFiles" in p.parts:
             return p
-    raise AssertionError(f"no rendered file ending in {suffix}")
+    return matches[0]
 
 
 def test_full_build_all_xsd_valid(tmp_path):

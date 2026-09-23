@@ -154,7 +154,8 @@ def _op_add_capability(state: dict, args: dict, catalog, res: PatchResult) -> No
     if path is None:
         res.dropped.append(
             f"add_capability: {args.get('pattern')!r} is not in the pattern "
-            f"library — use author_file to draft XML behind the gauntlet"
+            f"library — use admit_file (MCP) or author_file (chat) to draft "
+            f"XML behind the gauntlet"
         )
         return
     flag = _FLAG_OWNED_PATTERNS.get(path)

@@ -94,6 +94,8 @@ def tool_explain_diagnostic(rule_id: str) -> dict[str, Any]:
             "fix_hint": "Fix element order and required children "
             "(FEWS XSDs use xsd:sequence).",
             "citation": "fews_agent/schemas (pinned version1.0)",
+            "example": "<timeSeriesImportRun> with a child that is not "
+            "in the XSD sequence (e.g. <notARealChild/>).",
         },
         "semantic.unresolved": {
             "rule_id": "semantic.unresolved",
@@ -101,6 +103,8 @@ def tool_explain_diagnostic(rule_id: str) -> dict[str, Any]:
             "title": "Cross-file ID reference does not resolve",
             "fix_hint": "Declare the ID in the owning file or fix casing.",
             "citation": "fews_agent/validation/semantic.py",
+            "example": "A workflow names <moduleInstanceId>ImportSREF"
+            "</moduleInstanceId> but no module-config file declares it.",
         },
         "fews.unavailable": {
             "rule_id": "fews.unavailable",
@@ -108,6 +112,7 @@ def tool_explain_diagnostic(rule_id: str) -> dict[str, Any]:
             "title": "Headless FEWS check is not configured",
             "fix_hint": "Set FEWS_CHECK_CMD (use {path} for the folder).",
             "citation": "fews_agent/validation/fews_check.py",
+            "example": "FEWS_CHECK_CMD unset → tier 4 is skip, never a crash.",
         },
     }
     info = builtins.get(rule_id) or explain_rule(rule_id)

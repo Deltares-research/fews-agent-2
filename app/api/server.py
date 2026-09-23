@@ -32,7 +32,6 @@ endpoints are fully deterministic and work without it.
 from __future__ import annotations
 
 import io
-import json
 import os
 import sys
 from datetime import datetime
@@ -60,6 +59,12 @@ from fews_agent.agent.project_chat import (
     build_pattern_catalog,
     initial_state,
     write_project,
+)
+from fews_agent.agent.session_io import (
+    history_path as _history_path,
+    load_session,
+    save_session,
+    state_path as _state_path,
 )
 from fews_agent.agent import module_focus
 from fews_agent.agent.llm_turn import run_llm_turn
@@ -126,14 +131,6 @@ app = FastAPI(
 # Session persistence — identical layout to runners/agent/chat_step.py
 # --------------------------------------------------------------------------
 
-def _state_path(project_dir: Path) -> Path:
-    return project_dir / ".chat_state.json"
-
-
-def _history_path(project_dir: Path) -> Path:
-    return project_dir / ".chat_history.json"
-
-
 def _new_session_dir(project_name: str) -> Path:
     """Mint a fresh datetime-stamped instance dir for a new session."""
     parent = OUTPUT_ROOT / project_name
@@ -177,22 +174,11 @@ def _resolve_session_dir(session_id: str) -> Path:
 
 
 def _load(project_dir: Path) -> tuple[dict, list]:
-    state = json.loads(_state_path(project_dir).read_text(encoding="utf-8"))
-    hp = _history_path(project_dir)
-    history = (
-        json.loads(hp.read_text(encoding="utf-8")) if hp.is_file() else []
-    )
-    return state, history
+    return load_session(project_dir)
 
 
 def _save(project_dir: Path, state: dict, history: list) -> None:
-    project_dir.mkdir(parents=True, exist_ok=True)
-    _state_path(project_dir).write_text(
-        json.dumps(state, indent=2, default=str), encoding="utf-8"
-    )
-    _history_path(project_dir).write_text(
-        json.dumps(history, indent=2, default=str), encoding="utf-8"
-    )
+    save_session(project_dir, state, history)
     # PHASE=prod: mirror to blob (no-op in dev; failures logged, never raised).
     blob_store.sync_session_up(project_dir)
 

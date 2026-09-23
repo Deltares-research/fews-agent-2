@@ -39,6 +39,7 @@ class ConformRule:
     fix_hint: str
     citation: str
     detect: Callable[[LoadedTree], list[Diagnostic]]
+    example: str = ""
 
 
 def _local(tag: str) -> str:
@@ -232,6 +233,7 @@ RULES: list[ConformRule] = [
         citation="fews_agent/agent/csv_ingest.py::lint_conform_headers "
         "(FEWS-Conform csvFile convention)",
         detect=_rule_csv_attr_pascal,
+        example="locations.csv header `wflow_id` → `WflowId`.",
     ),
     ConformRule(
         rule_id="conform.idmap_casing",
@@ -241,6 +243,8 @@ RULES: list[ConformRule] = [
         citation="CLAUDE.md Known findings — IdImportGlobSnow vs "
         "IdImportGLOBSNOW",
         detect=_rule_idmap_casing,
+        example="ImportGLOBSNOW.xml says <idMapId>IdImportGlobSnow</idMapId> "
+        "but the file is IdImportGLOBSNOW.xml.",
     ),
     ConformRule(
         rule_id="conform.filename_id_agreement",
@@ -250,6 +254,8 @@ RULES: list[ConformRule] = [
         citation="FEWS convention: descriptors / filters / topology ids "
         "match their filename",
         detect=_rule_filename_id_agreement,
+        example="Filters.xml with root id=\"AllData\" — rename to "
+        "AllData.xml or set id=\"Filters\".",
     ),
     ConformRule(
         rule_id="conform.param_suffix",
@@ -259,6 +265,7 @@ RULES: list[ConformRule] = [
         citation="examples/config-tutorial Parameters.xml + FEWS-Conform "
         "parameter naming",
         detect=_rule_param_suffix,
+        example="Use PC.nwp, not `not a valid id` or a bare prose label.",
     ),
 ]
 
@@ -287,10 +294,13 @@ def explain_rule(rule_id: str) -> dict[str, str] | None:
     rule = RULES_BY_ID.get(rule_id)
     if rule is None:
         return None
-    return {
+    out = {
         "rule_id": rule.rule_id,
         "severity": rule.severity,
         "title": rule.title,
         "fix_hint": rule.fix_hint,
         "citation": rule.citation,
     }
+    if rule.example:
+        out["example"] = rule.example
+    return out

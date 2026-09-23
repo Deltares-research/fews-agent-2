@@ -13,6 +13,8 @@ def test_time_series_import_run_shape():
     assert "import" in shape["required"] or "import_" in str(shape["json_schema"])
     assert shape["xsd_rel"] == "timeSeriesImportRun.xsd"
     assert isinstance(shape["enums"], dict)
+    assert shape["xsd_fragment"]
+    assert "timeSeriesImportRun" in shape["xsd_fragment"]
 
 
 def test_unknown_spec_fails_loud():

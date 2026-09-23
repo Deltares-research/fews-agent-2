@@ -1700,6 +1700,7 @@ def build_from_blueprint(
         ),
         "files": files_report,
         "contributions": manifest["contributions"],
+        "skipped": list(manifest.get("skipped") or []),
     }
     # semantic_refs / semantic_unresolved / semantic_unresolved_count —
     # ABSENT (not None) when the pass crashed or found no typed models,
@@ -1834,6 +1835,7 @@ def build_phase(
         "files_xsd_ok": n_xsd_ok,
         "errors": list(result.errors),
         "files": files_report,
+        "skipped": list(manifest.get("skipped") or []),
     }
 
 
@@ -1979,6 +1981,7 @@ def build_module(
         "files_xsd_ok": n_xsd_ok,
         "errors": list(result.errors),
         "files": files_report,
+        "skipped": list(manifest.get("skipped") or []),
     }
 
 

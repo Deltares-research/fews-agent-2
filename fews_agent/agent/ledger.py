@@ -114,9 +114,11 @@ class Ledger:
             fingerprint=fingerprint(data) if data is not None else None,
         ))
 
-    def may_overwrite(self, relpath: str, new_bytes: bytes | None = None) -> tuple[bool, str]:
-        """Return (ok, reason). human is never overwritten; drifted
-        pattern fingerprints are flagged, not clobbered."""
+    def may_overwrite(self, relpath: str, on_disk: bytes | None = None) -> tuple[bool, str]:
+        """Return (ok, reason). human / llm are never overwritten.
+        A pattern file whose on-disk bytes drifted from the ledger
+        fingerprint is flagged, not clobbered.
+        """
         entry = self.get(relpath)
         if entry is None:
             return True, "untracked"
@@ -124,11 +126,13 @@ class Ledger:
             return False, "origin=human is read-only"
         if entry.origin == "llm":
             return False, "origin=llm is not auto-regenerated"
-        if entry.origin == "pattern" and entry.fingerprint and new_bytes is not None:
-            if fingerprint(new_bytes) != entry.fingerprint:
-                # Caller is proposing a *new* pattern render — the on-disk
-                # bytes aren't passed here. Drift is checked separately.
-                pass
+        if (
+            entry.origin == "pattern"
+            and entry.fingerprint
+            and on_disk is not None
+            and fingerprint(on_disk) != entry.fingerprint
+        ):
+            return False, "origin=pattern fingerprint drifted"
         return True, "ok"
 
     def drifted_pattern(self, relpath: str, on_disk: bytes) -> bool:

@@ -306,12 +306,9 @@ def write_project(
         yaml.safe_dump(project, sort_keys=False, width=200),
         encoding="utf-8",
     )
-    # Increment 4: project.yaml pattern instances also live in the
-    # provenance ledger (does not touch generated XML — oracle-safe).
-    from fews_agent.agent.ledger import load_ledger, sync_patterns_from_blueprint
-    ledger = load_ledger(output_dir)
-    sync_patterns_from_blueprint(ledger, project.get("patterns") or [])
-    ledger.save()
+    # Pattern ledger rows are stamped at write_output time with real
+    # relpaths (generated/.fews-agent/ledger.yaml). Do not write
+    # synthetic pattern:…#i.j keys on the session dir.
     return project_path
 
 

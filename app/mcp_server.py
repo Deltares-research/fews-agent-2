@@ -1,8 +1,8 @@
-"""MCP server — verification toolbelt + optional session generation.
+"""MCP server — verification toolbelt + path-based generation.
 
 Local hosts (Cursor, VS Code Copilot, Claude Desktop) call these tools
-over STDIO. Validation logic lives in ``fews_agent.validation.toolbelt``;
-this module only serializes JSON.
+over STDIO. Logic lives in ``fews_agent.validation.toolbelt`` and
+``fews_agent.agent.generation_tools``; this module only serializes JSON.
 
     python -m app.mcp_server
 
@@ -28,6 +28,13 @@ except ImportError:
 from mcp.server.fastmcp import FastMCP
 
 from fews_agent.agent.config_tree import open_config
+from fews_agent.agent.generation_tools import (
+    tool_admit_file,
+    tool_apply_slots,
+    tool_build_project,
+    tool_create_project,
+    tool_list_patterns,
+)
 from fews_agent.validation.toolbelt import (
     tool_conform_lint,
     tool_conform_lint_xml,
@@ -42,15 +49,19 @@ from fews_agent.validation.toolbelt import (
 mcp = FastMCP(
     "fews-agent",
     instructions=(
-        "Delft-FEWS verification harness. You (the host LLM) author XML; "
-        "these tools check it. Typical workflow on an EXISTING config:\n"
-        "1. validate_config(path) or open_config(path) on the user's folder.\n"
-        "2. schema_shape(spec) + find_examples(query) before writing a file.\n"
-        "3. validate_xml(xml) on a draft, then repair from diagnostics.\n"
-        "4. id_registry(path) to reuse IDs already declared in the tree.\n"
-        "Do not invent parameterId / moduleInstanceId / idMapId values.\n"
-        "Path tools need a folder on THIS machine. Remote chatbots should "
-        "use the HTTP API's POST /validate/xml instead."
+        "Delft-FEWS configuration agent. Path is the key (no session_id).\n"
+        "ALWAYS call list_patterns first.\n"
+        "KNOWN SHAPE (GFS, HRDPS, GEFS, Raven, Wflow, … — catalog hit):\n"
+        "  create_project → apply_slots (add_import / add_basin / "
+        "set_variables) → build_project.\n"
+        "  Do NOT hand-write XML for a catalog pattern. Do NOT start at "
+        "find_examples.\n"
+        "UNKNOWN SHAPE (no catalog match):\n"
+        "  schema_shape + find_examples → draft XML → validate_xml → "
+        "admit_file. Do not invent a pattern.\n"
+        "EXISTING TREE: open_config_folder / validate_config / id_registry. "
+        "build_project must not clobber origin=human or origin=llm files.\n"
+        "Do not invent parameterId / moduleInstanceId / idMapId values."
     ),
 )
 
@@ -117,6 +128,39 @@ def explain_diagnostic(rule_id: str) -> str:
 def open_config_folder(path: str) -> str:
     """Open an existing FEWS config (ledger: all files origin=human)."""
     return _dumps(open_config(path))
+
+
+@mcp.tool()
+def list_patterns(query: str | None = None) -> str:
+    """List farmed patterns (path, vars, outputs). Filter by keyword."""
+    return _dumps(tool_list_patterns(query))
+
+
+@mcp.tool()
+def create_project(path: str, name: str | None = None) -> str:
+    """Create a new project folder (project.yaml + state). No XML yet."""
+    return _dumps(tool_create_project(path, name=name))
+
+
+@mcp.tool()
+def apply_slots(path: str, ops: str) -> str:
+    """Apply slot ops as a JSON array: add_import, add_basin, set_variables, add_capability, remove.
+
+    Example ops: [{"op":"add_import","name":"GFS"}]
+    """
+    return _dumps(tool_apply_slots(path, ops))
+
+
+@mcp.tool()
+def build_project(path: str, phase: str | None = None) -> str:
+    """Expand patterns → Jinja → XSD into generated/. Optional phase: imports|process|model|visualize."""
+    return _dumps(tool_build_project(path, phase=phase))
+
+
+@mcp.tool()
+def admit_file(path: str, relpath: str, xml: str, spec: str | None = None) -> str:
+    """Admit host-authored XML after xsd+conform. Marks origin=llm. Never use for catalog patterns."""
+    return _dumps(tool_admit_file(path, relpath, xml, spec=spec))
 
 
 def main() -> None:
