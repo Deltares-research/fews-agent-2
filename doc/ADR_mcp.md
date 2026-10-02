@@ -94,6 +94,17 @@ list_patterns first
              (then edit + validate_xml / admit_file, or apply_slots + build)
 ```
 
+Those sequences are baked into FastMCP `instructions` (what the host agent sees). Ordered calls:
+
+| Situation | Ordered calls |
+|---|---|
+| Always | `list_patterns` first |
+| Catalog hit (GFS, Raven, …) | `create_project` → `apply_slots` → `build_project` |
+| No catalog match | `schema_shape` + `find_examples` → draft → `validate_xml` → `admit_file` |
+| Folder already exists | `open_config_folder` / `validate_config` / `id_registry` (order not specified) |
+
+Plus three bans: do not hand-write XML for a catalog hit; do not invent a pattern; do not invent IDs (`parameterId` / `moduleInstanceId` / `idMapId`).
+
 #### Verification (existing tree or snippet)
 
 **`validate_config(path, tiers?)`** — Full gauntlet on a FEWS folder on disk: XSD, semantic (cross-file IDs), conform (naming), and optional FEWS check (`FEWS_CHECK_CMD`; otherwise `fews.unavailable`, never a crash). `tiers` can restrict that list (`xsd,semantic,conform,fews_check`). Works on any FEWS folder, not just ones this agent created. Not remote-safe.
