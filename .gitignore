@@ -213,7 +213,7 @@ __marimo__/
 *.jsonl
 *.xml
 *.pdf
-*.md
+# *.md
 *.txt
 *.iml
 *.yaml
