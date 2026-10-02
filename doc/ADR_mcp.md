@@ -76,6 +76,77 @@ Diagnostics are structured (`file`, `line`, `severity`, `rule_id`, `message`, `f
 
 Client registration: [README_MCP.md](../README_MCP.md).
 
+### What each tool does
+
+The host LLM writes XML; these tools are the ground-truth toolkit. Same functions sit under HTTP; MCP is the local-filesystem adapter.
+
+```
+list_patterns first
+        │
+        ├─ catalog hit (GFS, HRDPS, GEFS, Raven, Wflow, …)
+        │    create_project → apply_slots → build_project
+        │
+        ├─ no catalog match
+        │    schema_shape + find_examples → draft XML → validate_xml → admit_file
+        │
+        └─ existing tree
+             open_config_folder → validate_config / id_registry
+             (then edit + validate_xml / admit_file, or apply_slots + build)
+```
+
+#### Verification (existing tree or snippet)
+
+**`validate_config(path, tiers?)`** — Full gauntlet on a FEWS folder on disk: XSD, semantic (cross-file IDs), conform (naming), and optional FEWS check (`FEWS_CHECK_CMD`; otherwise `fews.unavailable`, never a crash). `tiers` can restrict that list (`xsd,semantic,conform,fews_check`). Works on any FEWS folder, not just ones this agent created. Not remote-safe.
+
+**`validate_xml(xml, spec?)`** — Same idea for a pasted snippet, no folder. Runs XSD (+ conform). Semantic and FEWS-check are skipped: a lone file cannot resolve sibling IDs. `spec` names the Pydantic class. Remote-safe — this is the tool ChatGPT / Copilot should use.
+
+**`conform_lint(path)` / `conform_lint_xml(xml, spec?)`** — Naming lint only, no XSD/semantic. Rules are reported, never auto-fixed on the generation path:
+
+| Rule | Meaning |
+|---|---|
+| `conform.csv_attr_pascal` | CSV attributeIds must be PascalCase |
+| `conform.idmap_casing` | `idMapId` must match the IdMap filename (Linux-safe) |
+| `conform.filename_id_agreement` | root `@id` must match the file stem |
+| `conform.param_suffix` | parameters look like `PC.nwp` / `TA.obs` |
+
+Folder vs snippet: path needs the host filesystem; XML is remote-safe.
+
+**`id_registry(path)`** — Walks typed models in a folder and returns declared IDs, all refs, and unresolved refs (`type` / `value` / `source`). Use this before inventing a `moduleInstanceId` or `parameterId`. Generic-body files are invisible to the walker — it says so if nothing typed loaded. Path-only.
+
+**`open_config_folder(path)`** — Brownfield entry. Loads the folder, writes `.fews-agent/ledger.yaml` marking every file `origin: human`, and returns a summary (file count, declared-ID counts, unresolved examples). Does not rewrite XML. A later `build_project` must not clobber `human` or `llm` files.
+
+#### Discovery (what to write / how to fix)
+
+**`schema_shape(spec)`** — Pinned grammar for one file type: Pydantic JSON schema + a capped XSD fragment + collected enums. Antidote to wiki-recalled prose. Unknown spec fails loudly and returns a sample of known names. Remote-safe.
+
+**`find_examples(query, k?)`** — Keyword search (no embeddings) over the tutorial, pattern YAMLs, and test fixtures. Returns up to `k` (default 5) path + snippet + provenance. Use this only after `list_patterns` misses — do not start here for GFS / HRDPS / Raven. Remote-safe.
+
+**`explain_diagnostic(rule_id)`** — Prose + `fix_hint` + citation + example for a gauntlet or conform rule (`xsd.schema`, `semantic.unresolved`, `fews.unavailable`, `conform.idmap_casing`, …). Lets a model repair from a structured `rule_id` instead of guessing. Remote-safe.
+
+Diagnostics from the gauntlet are structured (`file`, `line`, `severity`, `rule_id`, `message`, `fix_hint`) so a failed check is a repair instruction, not a pile of XML to guess at.
+
+#### Generation (known catalog shapes)
+
+These are MCP-only in the table above (no HTTP twins). Path is the session key — no `session_id`.
+
+**`list_patterns(query?)`** — Catalog of farmed patterns: path, name, description, variables, outputs. Filter by keyword. Always call this first. Catalog hit → do not hand-write XML. Remote-safe.
+
+**`create_project(path, name?)`** — Creates a project folder: `project.yaml`, chat state, empty `inputs/`. No XML yet. Reopening an existing session is a no-op (`reopened: true`).
+
+**`apply_slots(path, ops)`** — Mutates slots via a JSON array of patch ops, then re-resolves patterns:
+
+- `add_import` — e.g. `{"op":"add_import","name":"GFS"}`
+- `add_basin`
+- `set_variables`
+- `add_capability`
+- `remove`
+
+Unknown catalog names are dropped loudly (not invented). Writes `project.yaml` + session state.
+
+**`build_project(path, phase?)`** — Expands resolved patterns → Jinja → Pydantic → XSD into `generated/`. Optional phase: `imports` | `process` | `model` | `visualize`. Full build also runs CSV ingest, bundled standards, and derivers. Must not overwrite `origin: human` or `origin: llm` files, or a drifted `origin: pattern` fingerprint. Returns per-file XSD status.
+
+**`admit_file(path, relpath, xml, spec?)`** — Write gate for host-authored XML when there is no pattern. Runs XSD + conform; writes only on pass, stamped `origin: llm` so a later rebuild does not delete it. Never use this for a catalog hit (GFS, HRDPS, Raven, …) — those go through `build_project`.
+
 ## How to use it
 
 ### Cursor / VS Code Copilot
