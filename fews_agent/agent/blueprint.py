@@ -418,14 +418,23 @@ def merge_contributions(
     return rendered
 
 
-def _output_relpath_for_class(cls: type) -> str:
-    """Find the canonical output path for a singleton class."""
+def output_relpath_for_class(cls: type) -> str:
+    """Find the canonical output path for a class registered in SPECS.
+
+    When several SPECS share a model (e.g. Workflow), the first registered
+    path is returned — a suggested location, not a unique one.
+    """
     from fews_agent.generators import SPECS
 
     for s in SPECS:
         if s.model_class is cls:
             return str(s.output_relpath).replace("\\", "/")
     raise KeyError(f"no SPEC has model_class={cls.__name__}")
+
+
+def _output_relpath_for_class(cls: type) -> str:
+    """Backward-compatible alias for :func:`output_relpath_for_class`."""
+    return output_relpath_for_class(cls)
 
 
 def _coerce_for_pydantic(obj: Any) -> Any:

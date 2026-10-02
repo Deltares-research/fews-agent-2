@@ -29,6 +29,25 @@ def test_schema_shape_endpoint():
     assert body["xsd_rel"] == "timeSeriesImportRun.xsd"
 
 
+def test_render_spec_endpoint():
+    client = TestClient(server.app)
+    resp = client.post(
+        "/render/spec",
+        json={
+            "spec": "Workflow",
+            "data": {
+                "version": "1.1",
+                "activity": [{"moduleInstanceId": "ImportGFS"}],
+            },
+        },
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["ok"] is True
+    assert "<workflow" in body["xml"]
+    assert body["suggested_relpath"]
+
+
 def test_explain_and_examples():
     client = TestClient(server.app)
     expl = client.get("/diagnostics/xsd.schema")

@@ -189,6 +189,11 @@ class ValidateXmlRequest(BaseModel):
     tiers: list[str] | None = None
 
 
+class RenderSpecRequest(BaseModel):
+    spec: str = Field(description="Pydantic SPECS class name, e.g. Workflow.")
+    data: dict = Field(description="JSON object matching the spec schema.")
+
+
 class ConformLintRequest(BaseModel):
     path: str | None = None
     xml: str | None = None

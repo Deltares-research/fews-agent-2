@@ -7,19 +7,25 @@ git is missing.
 
 Env:
 
-- ``FEWS_CHECK_CMD`` — full command template. ``{path}`` is replaced
-  with the config root. Example:
-  ``java -jar "%FEWS_HOME%/bin/fews-lcc.jar" --check {path}``
-- ``FEWS_HOME`` — if set and ``FEWS_CHECK_CMD`` is not, we look for a
-  conventional checker under that install. Until the exact CLI is
-  pinned, this also degrades to skip (we refuse to guess a command
-  that would fail loudly on every machine).
+- ``FEWS_CHECK_CMD`` — full command template.
+  ``{path}`` is replaced with the config root (generation-tree folder).
+  ``{zip}`` is replaced with a temp Config-only region zip (FewsCLI
+  ``regionpath=``). Example::
+
+      Delft-FEWSc.exe -Xmx1G "-Wclasspath.1=%FEWS_HOME%/patch.jar"
+      "-Wclasspath.2=%FEWS_HOME%/bin/*.jar"
+      -Wmain.class=nl.wldelft.fews.tools.FewsConfigCLI
+      regionpath={zip} loglevel=warn VALIDATE_CONFIG_FILES
+
+- ``FEWS_HOME`` — if set and ``FEWS_CHECK_CMD`` is not, we refuse to
+  guess a command (skip, never crash).
 """
 from __future__ import annotations
 
 import os
 import re
 import subprocess
+import tempfile
 from pathlib import Path
 
 from fews_agent.validation.diagnostic import Diagnostic
@@ -27,6 +33,18 @@ from fews_agent.validation.diagnostic import Diagnostic
 _LINE_RE = re.compile(
     r"^(?P<file>\S+?)(?::(?P<line>\d+))?:\s*(?P<sev>ERROR|WARN|WARNING|INFO)"
     r"[:\s]+(?P<msg>.+)$",
+    re.IGNORECASE,
+)
+
+# FewsCLI / Delft-FEWS log lines, e.g.
+#   ERROR - Config.Workflows.ImportGFS: workflow does not exist
+#   WARN  2026-01-01 12:00:00,001 [main] nl.wldelft... - message
+_FEWS_LOG_RE = re.compile(
+    r"^(?P<sev>ERROR|WARN|WARNING|INFO)\b"
+    r"(?:\s+\d{4}-\d{2}-\d{2}[^\]]*\]?)?"
+    r"(?:\s+\[[^\]]+\])?"
+    r"(?:\s+\S+)?"
+    r"\s*[-:]\s*(?P<msg>.+)$",
     re.IGNORECASE,
 )
 
@@ -46,7 +64,8 @@ def run_fews_check(path: Path, timeout: int = 120) -> list[Diagnostic]:
     if not cmd_tmpl:
         hint = (
             "Set FEWS_CHECK_CMD to a command that checks a FEWS config "
-            "folder (use {path} for the folder). Tier 4 is skipped."
+            "folder (use {path} for the folder, {zip} for a Config-only "
+            "region zip). Tier 4 is skipped."
         )
         if os.environ.get("FEWS_HOME"):
             hint = (
@@ -62,26 +81,52 @@ def run_fews_check(path: Path, timeout: int = 120) -> list[Diagnostic]:
             tier="fews_check",
         )]
 
-    cmd = cmd_tmpl.replace("{path}", str(path))
+    tmp_zip: Path | None = None
     try:
-        proc = subprocess.run(
-            cmd,
-            shell=True,
-            capture_output=True,
-            text=True,
-            timeout=timeout,
-            check=False,
-        )
-    except (OSError, subprocess.TimeoutExpired) as exc:
-        return [Diagnostic(
-            file=str(path),
-            line=None,
-            severity="skip",
-            rule_id="fews.failed",
-            message=f"FEWS check did not run: {exc}",
-            evidence=cmd,
-            tier="fews_check",
-        )]
+        cmd = cmd_tmpl.replace("{path}", str(path))
+        if "{zip}" in cmd:
+            from fews_agent.validation.fews_bundle import write_region_zip
+
+            tmp_dir = Path(tempfile.mkdtemp(prefix="fews-cli-"))
+            tmp_zip = tmp_dir / "region.zip"
+            written = write_region_zip(path, tmp_zip, config_only=True)
+            if written is None:
+                return [Diagnostic(
+                    file=str(path),
+                    line=None,
+                    severity="skip",
+                    rule_id="fews.failed",
+                    message="FEWS check {zip}: tree produced an empty region zip.",
+                    evidence=cmd_tmpl,
+                    tier="fews_check",
+                )]
+            cmd = cmd.replace("{zip}", str(written))
+        try:
+            proc = subprocess.run(
+                cmd,
+                shell=True,
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+                check=False,
+            )
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            return [Diagnostic(
+                file=str(path),
+                line=None,
+                severity="skip",
+                rule_id="fews.failed",
+                message=f"FEWS check did not run: {exc}",
+                evidence=cmd,
+                tier="fews_check",
+            )]
+    finally:
+        if tmp_zip is not None:
+            try:
+                tmp_zip.unlink(missing_ok=True)
+                tmp_zip.parent.rmdir()
+            except OSError:
+                pass
 
     text = (proc.stdout or "") + "\n" + (proc.stderr or "")
     found = _parse_output(text)
@@ -100,6 +145,15 @@ def run_fews_check(path: Path, timeout: int = 120) -> list[Diagnostic]:
     return []
 
 
+def _severity(sev_raw: str) -> str | None:
+    sev = sev_raw.upper()
+    if sev == "ERROR":
+        return "error"
+    if sev in ("WARN", "WARNING"):
+        return "warning"
+    return None
+
+
 def _parse_output(text: str) -> list[Diagnostic]:
     out: list[Diagnostic] = []
     for raw in text.splitlines():
@@ -107,26 +161,37 @@ def _parse_output(text: str) -> list[Diagnostic]:
         if not line:
             continue
         m = _LINE_RE.match(line)
+        if m:
+            severity = _severity(m.group("sev"))
+            if severity is None:
+                continue
+            line_no = None
+            if m.group("line"):
+                try:
+                    line_no = int(m.group("line"))
+                except ValueError:
+                    line_no = None
+            out.append(Diagnostic(
+                file=m.group("file"),
+                line=line_no,
+                severity=severity,  # type: ignore[arg-type]
+                rule_id="fews.check",
+                message=m.group("msg").strip(),
+                evidence=line,
+                tier="fews_check",
+            ))
+            continue
+        m = _FEWS_LOG_RE.match(line)
         if not m:
             continue
-        sev_raw = m.group("sev").upper()
-        if sev_raw == "ERROR":
-            severity: str = "error"
-        elif sev_raw in ("WARN", "WARNING"):
-            severity = "warning"
-        else:
+        severity = _severity(m.group("sev"))
+        if severity is None:
             continue
-        line_no = None
-        if m.group("line"):
-            try:
-                line_no = int(m.group("line"))
-            except ValueError:
-                line_no = None
         out.append(Diagnostic(
-            file=m.group("file"),
-            line=line_no,
+            file="-",
+            line=None,
             severity=severity,  # type: ignore[arg-type]
-            rule_id="fews.check",
+            rule_id="fews.config",
             message=m.group("msg").strip(),
             evidence=line,
             tier="fews_check",

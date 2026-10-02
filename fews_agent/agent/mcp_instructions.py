@@ -1,37 +1,30 @@
-"""Host-agent routing injected by FastMCP ``instructions``.
+"""Leftover FastMCP ``instructions`` (skills call ``fews-check``).
 
+A namespace hint only. Procedure lives in the ``fews-config`` skill.
 Pattern → Jinja remains in ``generation_tools`` for manual/legacy calls.
-This string must not steer the host toward that path.
 """
 
 MCP_INSTRUCTIONS = """\
 Delft-FEWS configuration agent. Path is the key (no session_id).
 
-Patterns are a last farmed snapshot that passed XSD, not operationally \
-correct XML. Do not use them as the write path.
+Nothing reaches disk unverified: draft → validate → admit_file.
 
-WRITE PATH (only): when a tree exists, id_registry first. Then \
-schema_shape + find_examples → draft XML → validate_xml → admit_file. \
-Copy parameterId / moduleInstanceId / idMapId from id_registry; do not \
-invent IDs. Do not invent a pattern. admit_file is allowed even when a \
-catalog name exists (GFS, Raven, …).
+TYPED PATH (prefer): schema_shape → fill JSON → render_spec → admit_file.
+Raw XML only when no spec fits: schema_shape + find_examples → validate_xml → admit_file.
+Patterns are a last farmed snapshot that passed XSD, not operationally correct XML — examples via find_examples, not a generator.
 
-Do not call list_patterns, create_project, apply_slots, or \
-build_project as part of routing. If build_project is invoked anyway, \
-it must not clobber origin=human or origin=llm files.
+Do not call list_patterns, create_project, apply_slots, or build_project
+as part of routing. If build_project is invoked anyway, it must not
+clobber origin=human or origin=llm files.
 
-VALIDATE A FOLDER: open_config_folder (once; ledger only, no XML \
-rewrite) → validate_config. Add id_registry if unresolved IDs matter. \
-Do not call list_patterns.
+VALIDATE A FOLDER: open_config_folder (once; ledger only) → validate_config.
+id_registry before reusing IDs. Do not invent parameterId / moduleInstanceId
+/ idMapId.
 
-NAMING ONLY: conform_lint (folder) or conform_lint_xml (snippet). \
-Prefer validate_config unless the user asked only for house naming.
+SNIPPET vs FOLDER: pasted XML → validate_xml. A directory → validate_config.
 
-SNIPPET vs FOLDER: pasted XML with no tree → validate_xml (XSD + \
-conform; no cross-file IDs). A directory on disk → validate_config \
-(XSD + semantic + conform + optional FEWS check).
+REPAIR: explain_diagnostic(rule_id) → repair from fix_hint → re-validate.
+Do not admit_file until ok.
 
-REPAIR: on a failed gauntlet, explain_diagnostic(rule_id) → repair \
-from fix_hint → re-validate the same surface (validate_xml or \
-validate_config). Do not admit_file until ok.
+Coding agents: fews-check --json. Procedure: fews-config skill.
 """

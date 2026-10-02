@@ -44,11 +44,18 @@ dependencies = [
 
 [project.scripts]
 fews-agent = "fews_agent.chatter.tui:main"
+fews-check = "fews_agent.cli.check:main"
 fews-mcp = "app.mcp_server:main"
 
 [tool.poetry.group.dev.dependencies]
 pytest = ">=8.3.0"
 pytest-asyncio = ">=0.24.0"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3.0",
+    "pytest-asyncio>=0.24.0",
+]
 
 
 [build-system]

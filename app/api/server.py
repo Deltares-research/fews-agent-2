@@ -100,6 +100,7 @@ from app.api.models import (
     CreateSessionResponse,
     HealthResponse,
     OpenConfigRequest,
+    RenderSpecRequest,
     SessionStateResponse,
     TurnRequest,
     TurnResponse,
@@ -583,6 +584,7 @@ from fews_agent.validation.toolbelt import (
     tool_explain_diagnostic,
     tool_find_examples,
     tool_id_registry,
+    tool_render_spec,
     tool_schema_shape,
     tool_validate_config,
     tool_validate_xml,
@@ -620,6 +622,12 @@ def api_conform(req: ConformLintRequest) -> dict:
 @app.get("/schema/{spec}")
 def api_schema_shape(spec: str) -> dict:
     return tool_schema_shape(spec)
+
+
+@app.post("/render/spec")
+def api_render_spec(req: RenderSpecRequest) -> dict:
+    """Typed intermediate representation → XML via the registered Jinja template. Read-only."""
+    return tool_render_spec(req.spec, req.data)
 
 
 @app.get("/examples")

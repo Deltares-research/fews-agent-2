@@ -1,10 +1,10 @@
-"""MCP server — verification toolbelt + path-based generation.
+"""Leftover MCP server — verification toolbelt + path-based generation.
 
-Local hosts (Cursor, VS Code Copilot, Claude Desktop) call these tools
-over STDIO. Logic lives in ``fews_agent.validation.toolbelt`` and
+Coding agents should call ``fews-check``, not these tools. Logic lives
+in ``fews_agent.validation.toolbelt`` and
 ``fews_agent.agent.generation_tools``; this module only serializes JSON.
 
-Host routing is draft + gauntlet (``MCP_INSTRUCTIONS``). Generation
+Host routing prefers a typed intermediate representation (``MCP_INSTRUCTIONS``). Generation
 tools stay registered for manual/legacy calls and are not a host route.
 
     python -m app.mcp_server
@@ -45,6 +45,7 @@ from fews_agent.validation.toolbelt import (
     tool_explain_diagnostic,
     tool_find_examples,
     tool_id_registry,
+    tool_render_spec,
     tool_schema_shape,
     tool_validate_config,
     tool_validate_xml,
@@ -106,6 +107,31 @@ def schema_shape(spec: str) -> str:
     When: before drafting XML. Grammar, not a generator.
     """
     return _dumps(tool_schema_shape(spec))
+
+
+@mcp.tool()
+def render_spec(spec: str, data: str) -> str:
+    """Fill a Pydantic spec with JSON, render XML via the registered template.
+
+    When: preferred write path after schema_shape. Pass data as a JSON
+    object string. Read-only — write the returned xml with admit_file.
+    """
+    try:
+        payload = json.loads(data) if isinstance(data, str) else data
+    except json.JSONDecodeError as exc:
+        return _dumps({
+            "spec": spec,
+            "ok": False,
+            "xml": "",
+            "suggested_relpath": None,
+            "diagnostics": [],
+            "validation_errors": [{
+                "loc": ["data"],
+                "msg": f"JSON decode failed: {exc}",
+                "type": "json_error",
+            }],
+        })
+    return _dumps(tool_render_spec(spec, payload))
 
 
 @mcp.tool()

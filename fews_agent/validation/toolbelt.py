@@ -1,6 +1,7 @@
 """Host-agnostic verification toolbelt.
 
-MCP and HTTP only serialize these return values. All logic lives here.
+The ``fews-check`` CLI, leftover MCP server, and HTTP adapter only
+serialize these return values. All logic lives here.
 """
 from __future__ import annotations
 
@@ -11,8 +12,10 @@ from fews_agent.validation.conform import explain_rule, lint_tree
 from fews_agent.validation.examples import find_examples
 from fews_agent.validation.gauntlet import validate_config, validate_xml
 from fews_agent.validation.load_tree import load_tree
+from fews_agent.validation.render_spec import render_spec as _render_spec
 from fews_agent.validation.schema_shape import list_specs, schema_shape
 from fews_agent.validation.semantic import validate_semantic
+
 
 
 def tool_validate_config(
@@ -50,6 +53,11 @@ def tool_schema_shape(spec: str) -> dict[str, Any]:
             "error": str(exc),
             "known_specs_sample": list_specs()[:20],
         }
+
+
+def tool_render_spec(spec: str, data: Any) -> dict[str, Any]:
+    """Typed intermediate representation → XML. Read-only; write via admit_file."""
+    return _render_spec(spec, data)
 
 
 def tool_find_examples(query: str, k: int = 5) -> dict[str, Any]:
@@ -110,9 +118,40 @@ def tool_explain_diagnostic(rule_id: str) -> dict[str, Any]:
             "rule_id": "fews.unavailable",
             "severity": "skip",
             "title": "Headless FEWS check is not configured",
-            "fix_hint": "Set FEWS_CHECK_CMD (use {path} for the folder).",
+            "fix_hint": "Set FEWS_CHECK_CMD (use {path} for the folder, "
+            "{zip} for a Config-only region zip). See FewsCLI VALIDATE_CONFIG_FILES.",
             "citation": "fews_agent/validation/fews_check.py",
             "example": "FEWS_CHECK_CMD unset → tier 4 is skip, never a crash.",
+        },
+        "fews.config": {
+            "rule_id": "fews.config",
+            "severity": "error",
+            "title": "FewsCLI VALIDATE_CONFIG_FILES rejected the config",
+            "fix_hint": "Repair the cited file from the FEWS log line, then "
+            "re-run validate_config. Operationally-wrong-but-XSD-valid "
+            "configs surface here.",
+            "citation": "https://publicwiki.deltares.nl/spaces/FEWSDOC/pages/404390665/FewsCLI+utility",
+            "example": "A workflow names a moduleInstanceId that FEWS cannot "
+            "resolve even though XSD and our semantic walker passed.",
+        },
+        "fews.exit": {
+            "rule_id": "fews.exit",
+            "severity": "error",
+            "title": "FewsCLI exited non-zero with no parsed log lines",
+            "fix_hint": "Read evidence (captured stdout/stderr) and repair; "
+            "re-run validate_config. Pass loglevel=warn to cut noise.",
+            "citation": "fews_agent/validation/fews_check.py",
+            "example": "Java failed to start, or output did not match the "
+            "FewsCLI log parser.",
+        },
+        "fews.failed": {
+            "rule_id": "fews.failed",
+            "severity": "skip",
+            "title": "FewsCLI did not run (OS error or timeout)",
+            "fix_hint": "Check FEWS_CHECK_CMD, FEWS_HOME, and that Delft-FEWSc "
+            "is on PATH. Tier 4 is skip, never a crash.",
+            "citation": "fews_agent/validation/fews_check.py",
+            "example": "TimeoutExpired after 120s, or the exe is missing.",
         },
     }
     info = builtins.get(rule_id) or explain_rule(rule_id)

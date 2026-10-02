@@ -2,35 +2,40 @@
 
 Status: accepted (Phases 0–4 shipped; Phase 5 not started).
 
-The host LLM (Cursor, Copilot, Claude, ChatGPT) **authors** FEWS XML. This repo is the **ground-truth toolkit**: validate, lint, show schema, list IDs, fetch examples. MCP host routing is **draft + gauntlet only** (`admit_file`). Pattern → Jinja still exists for manual/legacy calls and is **not** a host route. Pattern output is a last farmed snapshot that passed XSD, not operationally correct XML.
+The host LLM (Cursor, Claude) **fills a typed intermediate representation** (or, as fallback, authors XML). This repo is the **ground-truth toolkit**: schema, render, validate, lint, list IDs, fetch examples. Preferred write path is `fews-check schema-shape` → fill JSON → `render-spec` → `admit`. Pattern → Jinja still exists for manual/legacy calls and is **not** a host route. Patterns are a searchable corpus of farmed shapes — a last snapshot that passed XSD, not operationally correct XML. Procedure lives in repo-local Skills (`.cursor/skills/`). Coding agents call **`uv run fews-check --json`**. FastMCP / HTTP are leftover adapters over the same toolbelt.
 
 Nothing reaches disk unverified. Who wrote the file (pattern / LLM / human) only decides whether it may be regenerated.
 
 ## Architecture
 
 ```
-host LLM  ──writes XML / edits an existing tree──►  gauntlet
-                                                      1 XSD
-                                                      2 semantic (cross-file IDs)
-                                                      3 conform (naming)
-                                                      4 FEWS check (optional)
-            pass → write + ledger     fail → structured diagnostics → repair
+host LLM  ──fills Pydantic JSON──►  render_spec (Jinja) ──►  gauntlet
+        └──raw XML fallback─────────────────────────────►     1 XSD
+                                                              2 semantic (cross-file IDs)
+                                                              3 conform (naming)
+                                                              4 FewsCLI (optional)
+            pass → admit_file + ledger     fail → structured diagnostics → repair
 ```
 
-One Python library, two adapters. Validation logic is **not** in MCP or FastAPI — those only serialize `GauntletReport`.
+One Python library; the coding-agent surface is the `fews-check` CLI. MCP and FastAPI are leftover adapters that only serialize `GauntletReport`. Skills are unenforced prose; the gauntlet is the gate.
 
 | Layer | Role | Where |
 |---|---|---|
-| Author | Wiki, reasoning, writing XML | Cursor / Copilot / Claude / ChatGPT — or our `author_file` op |
-| Fast path (not an MCP host route) | Deterministic XML for farmed shapes | `patterns/auto/` → Jinja → Pydantic → XSD |
+| Procedure | Phases, elicitation, gotchas | `.cursor/skills/` (`fews-config`, `fews-author-file`, `fews-diagnose`) |
+| Author | Fill a typed intermediate representation / draft XML | Cursor / Copilot / Claude / ChatGPT — or our `author_file` op |
+| Typed intermediate representation | Pydantic JSON → Jinja XML | `render_spec` + 217 SPECS / 230 templates |
+| Corpus (not a generator) | Farmed shapes as examples | `patterns/auto/` via `find_examples` |
 | Gauntlet | Admit or reject | `fews_agent/validation/` |
 | Ledger | Provenance per file | `.fews-agent/ledger.yaml` (`pattern` / `llm` / `human`) |
-| MCP | Local hosts (shared filesystem) | `python -m app.mcp_server` |
-| HTTP | Remote hosts (OpenAPI) | `uvicorn app.api.server:app` |
+| CLI | Coding agents (Cursor, Claude) | `uv run fews-check --json` |
+| MCP | Leftover local adapter | `python -m app.mcp_server` |
+| HTTP | Leftover OpenAPI adapter | `uvicorn app.api.server:app` |
 
 **Existing configs are first-class.** `validate_config(path)` and `open_config(path)` work on any FEWS folder. This agent does not need to have created it. `open_config` only writes the ledger; it does not rewrite XML.
 
-**MCP write path:** `id_registry` (if a tree exists) → `schema_shape` + `find_examples` → draft → `validate_xml` → `admit_file`. Allowed even when a catalog name exists (GFS, Raven, …). Do not invent a pattern. Do not invent IDs. `list_patterns` / `create_project` / `apply_slots` / `build_project` stay registered for manual/legacy calls; FastMCP `instructions` must not steer the host toward them. If `build_project` is invoked anyway, it must not clobber `origin: human` or `origin: llm` files, or a drifted `origin: pattern` fingerprint.
+**CLI write path (typed intermediate representation, preferred):** `fews-check id-registry` (if a tree exists) → `schema-shape` → fill JSON → `render-spec` → `admit`. Raw-XML fallback when no spec fits: `schema-shape` + `find-examples` → `validate-xml` → `admit`. Allowed even when a catalog name exists (GFS, Raven, …). Do not invent a pattern. Do not invent IDs. Do not Write XML with the editor. `list_patterns` / `create_project` / `apply_slots` / `build_project` stay on the leftover MCP server for manual/legacy calls and are not a skill route. If `build_project` is invoked anyway, it must not clobber `origin: human` or `origin: llm` files, or a drifted `origin: pattern` fingerprint.
+
+**Why patterns are a corpus, not a generator.** A slightly-wrong pattern is a bad generator (ships wrong XML stamped `origin: pattern`) and a good example (the model adapts it, then must pass the gauntlet). That is why 70 imperfect patterns stop being a maintenance liability.
 
 The older chat / HTTP `/sessions` / `build_from_blueprint` path still works.
 
@@ -43,7 +48,7 @@ The older chat / HTTP `/sessions` / `build_from_blueprint` path still works.
 | Conform | House naming (see below) | — |
 | FEWS check | Does a real FEWS checker accept the tree? | `FEWS_CHECK_CMD` unset |
 
-Set `FEWS_CHECK_CMD` to a command that checks a folder; `{path}` is replaced. If unset, tier 4 emits `fews.unavailable` and never crashes.
+Set `FEWS_CHECK_CMD` to a command that checks a folder. `{path}` is the generation-tree folder; `{zip}` is a temp Config-only region zip for [FewsCLI](https://publicwiki.deltares.nl/spaces/FEWSDOC/pages/404390665/FewsCLI+utility) `VALIDATE_CONFIG_FILES` (`regionpath=`). If unset, tier 4 emits `fews.unavailable` and never crashes. FewsCLI log lines parse as `fews.config`; an unparsed non-zero exit is `fews.exit`. Shipped disabled until a FEWS install is available — which zip variant `regionpath=` accepts (`config_only` vs region-root `sa_global.properties`) is still empirical.
 
 Conform rules (reported, never auto-fixed on the generation path):
 
@@ -54,31 +59,32 @@ Conform rules (reported, never auto-fixed on the generation path):
 
 Diagnostics are structured (`file`, `line`, `severity`, `rule_id`, `message`, `fix_hint`) so a model can repair without guessing.
 
-## Tools (same on MCP and HTTP)
+## Tools (CLI is the skill path; MCP / HTTP leftover)
 
-| Tool | MCP | HTTP | Remote-safe? |
+| Tool | CLI (`fews-check --json`) | Leftover MCP | Leftover HTTP |
 |---|---|---|---|
-| Validate a folder | `validate_config(path, tiers?)` | `POST /validate/config` | no — needs a path on the host |
-| Validate a snippet | `validate_xml(xml, spec?)` | `POST /validate/xml` | **yes** — use this from ChatGPT |
-| Conform lint | `conform_lint` / `conform_lint_xml` | `POST /conform` | xml yes, path no |
-| Pinned grammar | `schema_shape(spec)` | `GET /schema/{spec}` | yes |
-| Example snippets | `find_examples(query, k?)` | `GET /examples?query=` | yes |
-| Declared / unresolved IDs | `id_registry(path)` | `POST /ids` | no |
-| Explain a rule | `explain_diagnostic(rule_id)` | `GET /diagnostics/{rule_id}` | yes |
-| Open existing tree | `open_config_folder(path)` | `POST /open_config` | no |
-| List farmed patterns | `list_patterns(query?)` | — | yes |
-| New project folder | `create_project(path, name?)` | — | no |
-| Fill slots | `apply_slots(path, ops)` | — | no |
-| Pattern → Jinja → XSD | `build_project(path, phase?)` | — | no |
-| Admit host XML | `admit_file(path, relpath, xml, spec?)` | — | no |
+| Validate a folder | `validate-config PATH` | `validate_config` | `POST /validate/config` |
+| Validate a snippet | `validate-xml --xml FILE` | `validate_xml` | `POST /validate/xml` |
+| Conform lint | `conform-lint` / `conform-lint-xml` | `conform_lint` / `conform_lint_xml` | `POST /conform` |
+| Pinned grammar | `schema-shape SPEC` | `schema_shape` | `GET /schema/{spec}` |
+| Typed intermediate representation → XML | `render-spec SPEC --data FILE` | `render_spec` | `POST /render/spec` |
+| Example snippets | `find-examples QUERY` | `find_examples` | `GET /examples?query=` |
+| Declared / unresolved IDs | `id-registry PATH` | `id_registry` | `POST /ids` |
+| Explain a rule | `explain RULE_ID` | `explain_diagnostic` | `GET /diagnostics/{rule_id}` |
+| Open existing tree | `open-config PATH` | `open_config_folder` | `POST /open_config` |
+| Admit host XML | `admit PATH --from-render FILE` | `admit_file` | — |
+| List farmed patterns | — (not a skill route) | `list_patterns` | — |
+| New project folder | — (not a skill route) | `create_project` | — |
+| Fill slots | — (not a skill route) | `apply_slots` | — |
+| Pattern → Jinja → XSD | — (not a skill route) | `build_project` | — |
 
 `spec` is a Pydantic class name, e.g. `TimeSeriesImportRun`, `Workflow`, `IdMap`.
 
-Client registration: [README_MCP.md](../README_MCP.md).
+Skill + CLI setup: [.cursor/skills/README.md](../.cursor/skills/README.md). Leftover MCP/HTTP: [README_MCP.md](../README_MCP.md).
 
 ### What each tool does
 
-The host LLM writes XML; these tools are the ground-truth toolkit. Same functions sit under HTTP; MCP is the local-filesystem adapter.
+The host LLM fills JSON (or, as fallback, drafts XML); `fews-check` is the ground-truth toolkit. Same functions sit under leftover MCP/HTTP adapters.
 
 ```
 validate folder ──► open_config_folder → validate_config
@@ -89,21 +95,22 @@ naming only     ──► conform_lint / conform_lint_xml
 
 pasted snippet  ──► validate_xml
 
-add / edit file ──► id_registry + schema_shape + find_examples
-                    → draft → validate_xml
-                    fail → explain_diagnostic → repair → re-validate
+add / edit file ──► id_registry + schema_shape
+                    → fill JSON → render_spec
+                    fail → explain_diagnostic → repair → re-render
                     ok → admit_file
+                    (raw XML fallback: find_examples → validate_xml)
 ```
 
-Those sequences are baked into FastMCP `instructions` (`fews_agent/agent/mcp_instructions.py` — what the host agent sees). Ordered calls:
+The inviolable core for leftover MCP is in FastMCP `instructions` (`fews_agent/agent/mcp_instructions.py`). Coding agents follow `.cursor/skills/fews-config` and call `fews-check`. Ordered calls:
 
 | Situation | Ordered calls |
 |---|---|
 | Validate a folder | `open_config_folder` → `validate_config` (`id_registry` if IDs matter). No `list_patterns`. |
 | Naming only | `conform_lint` / `conform_lint_xml` (prefer `validate_config` unless naming-only) |
 | Pasted snippet | `validate_xml` (no cross-file IDs) |
-| Add or edit a file | `id_registry` (if a tree exists) → `schema_shape` + `find_examples` → draft → `validate_xml` → `admit_file` |
-| Failed gauntlet | `explain_diagnostic(rule_id)` → repair from `fix_hint` → re-validate the same surface. Do not `admit_file` until `ok`. |
+| Add or edit a file | `id_registry` (if a tree exists) → `schema_shape` → fill JSON → `render_spec` → `admit_file`. Raw XML only when no spec fits. |
+| Failed gauntlet | `explain_diagnostic(rule_id)` → repair from `fix_hint` → re-validate / re-render. Do not `admit_file` until `ok`. |
 
 Hard bans: do not invent a pattern; do not invent IDs (`parameterId` / `moduleInstanceId` / `idMapId`). If `build_project` is invoked anyway, it must not clobber `origin: human` / `origin: llm`. There is no catalog-hit write ban: `admit_file` is allowed even when a catalog name exists.
 
@@ -130,11 +137,13 @@ Folder vs snippet: path needs the host filesystem; XML is remote-safe.
 
 #### Discovery (what to write / how to fix)
 
-**`schema_shape(spec)`** — Pinned grammar for one file type: Pydantic JSON schema + a capped XSD fragment + collected enums. Antidote to wiki-recalled prose. Unknown spec fails loudly and returns a sample of known names. Remote-safe.
+**`schema_shape(spec)`** — Pinned grammar for one file type: Pydantic JSON schema + a capped XSD fragment + collected enums. The contract the host fills for `render_spec`. Unknown spec fails loudly and returns a sample of known names. Remote-safe.
+
+**`render_spec(spec, data)`** — Validate `data` against the Pydantic class, render the registered Jinja template, run XSD + conform. Returns `{ok, xml, suggested_relpath, diagnostics, validation_errors}`. Pydantic errors are structured `loc`/`msg`, never raised. Read-only — write via `admit_file`. Remote-safe.
 
 **`find_examples(query, k?)`** — Keyword search (no embeddings) over the tutorial, pattern YAMLs, and test fixtures. Returns up to `k` (default 5) path + snippet + provenance. Evidence for a draft (with `schema_shape`), not a generator. Remote-safe.
 
-**`explain_diagnostic(rule_id)`** — Prose + `fix_hint` + citation + example for a gauntlet or conform rule (`xsd.schema`, `semantic.unresolved`, `fews.unavailable`, `conform.idmap_casing`, …). Lets a model repair from a structured `rule_id` instead of guessing. Remote-safe.
+**`explain_diagnostic(rule_id)`** — Prose + `fix_hint` + citation + example for a gauntlet or conform rule (`xsd.schema`, `semantic.unresolved`, `fews.unavailable`, `fews.config`, `fews.exit`, `conform.idmap_casing`, …). Lets a model repair from a structured `rule_id` instead of guessing. Remote-safe.
 
 Diagnostics from the gauntlet are structured (`file`, `line`, `severity`, `rule_id`, `message`, `fix_hint`) so a failed check is a repair instruction, not a pile of XML to guess at.
 
@@ -160,11 +169,21 @@ Unknown catalog names are dropped loudly (not invented). Writes `project.yaml` +
 
 **`admit_file(path, relpath, xml, spec?)`** — Write gate for host-authored XML. Runs XSD + conform; writes only on pass, stamped `origin: llm` so a later rebuild does not delete it. Allowed even when a catalog name exists (GFS, HRDPS, Raven, …). Never invent a pattern.
 
+## Skills
+
+Repo-local `.cursor/skills/` (versioned with the code):
+
+- `fews-config` — orchestrator (entry-point detection + generation ladder)
+- `fews-author-file` — elicit, then `schema_shape` / `render_spec` / `admit_file`
+- `fews-diagnose` — brownfield gauntlet → `explain_diagnostic` → repair
+
+Canonical reference bodies live in `doc/skill_references/` and are copied into each skill by `scripts/sync_skill_references.py` (`--check` fails CI on drift). Skills are procedure; they never decide a file is correct.
+
 ## How to use it
 
 ### Cursor / VS Code Copilot
 
-1. Install: `pip install -e .` (needs `mcp`).
+1. Install: `uv sync --group dev`.
 2. Register STDIO in `.cursor/mcp.json` or `.vscode/mcp.json`:
 
 ```json
@@ -172,17 +191,17 @@ Unknown catalog names are dropped loudly (not invented). Writes `project.yaml` +
   "servers": {
     "fews-agent": {
       "type": "stdio",
-      "command": "python",
-      "args": ["-m", "app.mcp_server"],
+      "command": "uv",
+      "args": ["run", "python", "-m", "app.mcp_server"],
       "cwd": "<absolute-path-to-fews-agent-2>"
     }
   }
 }
 ```
 
-Or `command`: `fews-mcp` after install. `cwd` must be this repo (patterns + XSDs).
+Or `uv run fews-mcp` after sync. `cwd` must be this repo (patterns + XSDs).
 
-3. In Agent mode, ask to generate or fix a config. Validate a folder with `open_config_folder` → `validate_config`. New files: `schema_shape` + `find_examples` → `validate_xml` → `admit_file`. On failure: `explain_diagnostic` → repair → re-validate. Do not call `list_patterns` first.
+3. In Agent mode, ask to generate or fix a config. The `fews-config` skill (`.cursor/skills/`) carries procedure. Validate a folder with `open_config_folder` → `validate_config`. New files: `schema_shape` → fill JSON → `render_spec` → `admit_file`. On failure: `explain_diagnostic` → repair → re-render. Do not call `list_patterns` first.
 
 ### Claude Desktop
 
@@ -192,25 +211,25 @@ Same server. In `claude_desktop_config.json`:
 {
   "mcpServers": {
     "fews-agent": {
-      "command": "python",
-      "args": ["-m", "app.mcp_server"],
+      "command": "uv",
+      "args": ["run", "python", "-m", "app.mcp_server"],
       "cwd": "<absolute-path-to-fews-agent-2>"
     }
   }
 }
 ```
 
-On Windows use the full `python.exe` path if needed.
+On Windows use the full `uv.exe` path if needed.
 
 ### ChatGPT / Microsoft Copilot
 
 These hosts cannot open `C:\...` on your laptop. Run the API where the config lives (or paste XML):
 
 ```bash
-uvicorn app.api.server:app --port 8000
+uv run uvicorn app.api.server:app --port 8000
 ```
 
-Import OpenAPI from `http://<host>:8000/docs`. Primary action: `POST /validate/xml` with `{"xml": "...", "spec": "TimeSeriesImportRun"}`. Also `GET /schema/{spec}`, `GET /examples`, `GET /diagnostics/{rule_id}`. Path routes only work if the API process can see that folder.
+Import OpenAPI from `http://<host>:8000/docs`. Primary write: `POST /render/spec` with `{"spec": "Workflow", "data": {…}}`, then admit locally. Also `POST /validate/xml`, `GET /schema/{spec}`, `GET /examples`, `GET /diagnostics/{rule_id}`. Path routes only work if the API process can see that folder.
 
 Session routes (`POST /sessions`, `/turn`, `/build`) are the older greenfield chat → blueprint → build path. They still work; they are not required for verification-only use.
 
@@ -224,10 +243,10 @@ A pattern miss can use the `author_file` patch op. The engine drafts XML, runs t
 
 1. `open_config_folder` / `validate_config` on the folder (no `list_patterns`)
 2. `id_registry` if IDs matter
-3. Host writes or edits XML (`schema_shape` + `find_examples`)
-4. `validate_xml` (or `validate_config` again)
-5. On failure: `explain_diagnostic` → repair from `fix_hint` → re-validate until `ok`
-6. `admit_file` only after pass
+3. Host fills a typed intermediate representation (`schema_shape` → `render_spec`); raw XML only if no spec fits
+4. On failure: `explain_diagnostic` → repair from `fix_hint` → re-render until `ok`
+5. `admit_file` only after pass
+6. `validate_config` again after a weld
 
 Example prompts (Agent mode, fews-agent tools connected):
 
@@ -240,8 +259,8 @@ Example prompts (Agent mode, fews-agent tools connected):
 **New file (any source, including GFS / HRDPS / Raven names):**
 
 1. `id_registry` if a tree already exists
-2. Host drafts XML (`schema_shape` + `find_examples`); chat can use `author_file`
-3. `validate_xml` then `admit_file` (ledger `origin: llm`). Do not invent a pattern.
+2. `schema_shape` → fill JSON → `render_spec` (chat can still use `author_file` for raw XML)
+3. `admit_file` (ledger `origin: llm`). Do not invent a pattern.
 
 Example prompts:
 
@@ -256,19 +275,25 @@ Example prompts:
 | Path | What |
 |---|---|
 | `fews_agent/validation/gauntlet.py` | Orchestrator |
+| `fews_agent/validation/render_spec.py` | Typed intermediate representation → Jinja XML → XSD + conform |
+| `fews_agent/validation/fews_bundle.py` | Delivery-layout region zip (`{zip}` / `config_zip`) |
+| `fews_agent/validation/fews_check.py` | Tier 4: `{path}` / `{zip}`, FewsCLI log parser |
 | `fews_agent/validation/load_tree.py` | Read any config folder |
 | `fews_agent/validation/conform.py` | Naming rules |
-| `fews_agent/validation/toolbelt.py` | Shared MCP/HTTP functions |
+| `fews_agent/cli/check.py` | `fews-check` coding-agent surface |
+| `fews_agent/validation/toolbelt.py` | Shared CLI / leftover MCP / HTTP functions |
 | `fews_agent/agent/ledger.py` | Provenance |
 | `fews_agent/agent/config_tree.py` | `open_config` |
 | `fews_agent/agent/authoring.py` | Gauntlet-gated write (`admit_file` / chat `author_file`) |
-| `fews_agent/agent/mcp_instructions.py` | FastMCP host routing (draft + gauntlet) |
+| `fews_agent/agent/mcp_instructions.py` | FastMCP namespace hint (typed intermediate representation first; points at the skill) |
 | `fews_agent/agent/generation_tools.py` | Path-based list/create/apply/build/admit (legacy; not a host route) |
+| `.cursor/skills/` | Procedure (`fews-config`, `fews-author-file`, `fews-diagnose`) |
+| `doc/skill_references/` | Canonical skill bodies (synced into each skill) |
 | `fews_agent/agent/session_io.py` | `.chat_state.json` load/save |
-| `app/mcp_server.py` | MCP adapter |
-| `app/api/server.py` | HTTP adapter |
+| `app/mcp_server.py` | Leftover MCP adapter |
+| `app/api/server.py` | Leftover HTTP adapter |
 | `runners/agent/calibrate_gauntlet.py` | Compare tiers on a folder (`--config`) |
-| `README_MCP.md` | Client registration + verification/write loop |
+| `README_MCP.md` | Leftover MCP/HTTP registration |
 | `doc/gauntlet_calibration.md` | Phase 0 baseline (tier 4 skip unless `FEWS_CHECK_CMD`) |
 
 Calibration (not in default pytest):

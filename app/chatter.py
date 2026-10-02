@@ -1028,23 +1028,15 @@ class ChatSession:
         EMPTY directory entry for every folder a Delft-FEWS Config normally
         carries (CONFIG_FOLDERS), so the bundle drops into a FEWS region as a
         complete skeleton even where this project generated nothing."""
-        import io
-        import zipfile
-
-        from fews_agent.agent.modules import CONFIG_FOLDERS, fews_bundle_path
+        from fews_agent.validation.fews_bundle import build_region_zip
 
         files = self._generated_files()
         if not files:
             return None
-        buf = io.BytesIO()
-        with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
-            for folder in CONFIG_FOLDERS:
-                zf.writestr(zipfile.ZipInfo(f"Config/{folder}/"), b"")
-            for p, rel in files:
-                # FEWS-load remaps: WorkflowFiles/ -> Config/Workflows/,
-                # sa_global.properties (lowercase) to the region root.
-                zf.write(p, fews_bundle_path(rel))
-        return buf.getvalue(), len(files)
+        data = build_region_zip(self.output_root, config_only=False)
+        if data is None:
+            return None
+        return data, len(files)
 
     # ---- grid coordinates subwindow -----------------------------------------
 
