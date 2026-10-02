@@ -1,11 +1,11 @@
 # FEWS-agent MCP / HTTP toolbelt
 
-Use this repo as a **verification harness** plus a **deterministic generator**
-for farmed shapes. The host LLM (Cursor, Claude Desktop, Copilot) talks to
-the tools; Python owns XML emission and the gauntlet.
+Use this repo as a **verification harness**. The host LLM (Cursor, Claude
+Desktop, Copilot) drafts XML; Python owns the gauntlet. Pattern → Jinja
+tools stay registered for manual/legacy calls and are **not** a host route.
 
 Install: `pip install -e .` (needs the `mcp` extra). `cwd` **must** be this
-repo so patterns and pinned XSDs resolve.
+repo so pinned XSDs (and optional example files) resolve.
 
 ## Cursor / VS Code
 
@@ -43,26 +43,29 @@ path if the server does not start.
 }
 ```
 
-## Two loops
+## Verification / write loop
 
-**Known shape** (GFS, HRDPS, GEFS, Raven, … — anything `list_patterns` returns):
+Do **not** start with `list_patterns`. Pattern output is a last farmed
+snapshot that passed XSD, not operationally correct XML.
 
-1. `list_patterns` — confirm it is farmed.
-2. `create_project(path)` — empty session dir, no XML yet.
-3. `apply_slots` — `add_import` / `add_basin` / `set_variables`.
-4. `build_project` — pattern → Jinja → XSD. **Do not hand-write XML.**
-5. `validate_config` on `generated/` if you want the full gauntlet.
+**Validate a folder:** `open_config_folder` (once; ledger only) →
+`validate_config`. Add `id_registry` if unresolved IDs matter.
 
-**Unknown shape or an existing tree:**
+**Pasted snippet:** `validate_xml` (XSD + conform; no cross-file IDs).
+Naming only: `conform_lint` / `conform_lint_xml` — prefer
+`validate_config` unless the user asked only for house naming.
 
-1. `list_patterns` first. If there is no match, do not invent a pattern.
-2. Brownfield: `open_config_folder` / `validate_config` / `id_registry`.
-3. `schema_shape` + `find_examples` → draft XML.
-4. `validate_xml` → repair from `rule_id` / `fix_hint`.
-5. `admit_file` writes only on pass (`origin: llm`). A later rebuild will
-   not clobber that file.
+**Add or edit a file:**
 
-Never let `build_project` overwrite `origin: human` or `origin: llm` files.
+1. `id_registry` if a tree already exists (copy IDs; do not invent them).
+2. `schema_shape` + `find_examples` → draft XML.
+3. `validate_xml`. On failure: `explain_diagnostic(rule_id)` → repair from
+   `fix_hint` → re-validate the same surface.
+4. `admit_file` writes only on pass (`origin: llm`). Allowed even when a
+   catalog name exists. Do not invent a pattern.
+
+If `build_project` is invoked anyway, it must not overwrite `origin: human`
+or `origin: llm` files.
 
 ## Remote hosts (ChatGPT / Copilot Studio)
 
