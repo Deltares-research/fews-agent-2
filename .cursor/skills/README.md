@@ -2,9 +2,9 @@
 
 ## Overview
 
-These skills let a coding assistant (Cursor, Claude) **author
-Delft-FEWS XML** without writing XML by hand and without trusting farmed
-pattern files as a generator.
+These skills let a coding assistant (Cursor, VS Code Copilot,
+Claude) **author Delft-FEWS XML** without writing XML by hand and
+without trusting farmed pattern files as a generator.
 
 **Skills carry procedure; `fews-check` carries truth.** The assistant
 asks questions and picks the next file. The CLI renders XML and
@@ -64,8 +64,11 @@ stabilise.
 
 **Limitations of this version**
 
-- Skills load in **Cursor and Claude**. The call surface is the
-  `fews-check` CLI (`uv run fews-check --json …`).
+- Skills load in **Cursor** (this `.cursor/skills/` folder) and
+  **VS Code Copilot** (same folders copied to `.github/skills/` —
+  Copilot does not read `.cursor/skills/`). Claude can use the
+  same files if you copy them into that host's skill dir. The
+  call surface is the `fews-check` CLI (`uv run fews-check --json …`).
 - **FewsCLI (gauntlet tier 4) is scaffolded but off** until
   `FEWS_CHECK_CMD` points at a FEWS install. Tiers 1–3 (XSD, semantic,
   conform) always run.
@@ -157,49 +160,219 @@ uv run python scripts/sync_skill_references.py --check
 
 ## Prerequisites
 
-1. **Python 3.11+** and [uv](https://docs.astral.sh/uv/). This repo
-   is uv-managed — `uv sync` then `uv run pytest` / `uv run fews-check`.
-   Confirm with `uv --version`. Bare `python -m pytest` uses the
-   wrong interpreter on a fresh machine.
-2. A coding assistant that loads Cursor Agent Skills (Cursor Agent
-   mode is the path this was built for). Claude can use the same
-   skills if you copy `.cursor/skills/` into that host's skill dir.
-3. Optional: a Delft-FEWS install, only if you want gauntlet tier 4
+On a blank machine you need:
+
+1. **Git** — to clone this repo. Confirm with `git --version`.
+2. **[uv](https://docs.astral.sh/uv/)** — this repo is uv-managed.
+   `uv` creates `.venv`, installs Python **3.11+** if your machine
+   has none, and runs every command (`uv run fews-check`,
+   `uv run pytest`). Confirm with `uv --version`. Do **not** create
+   a venv yourself (`python -m venv`, Poetry, conda). Do **not**
+   call bare `python -m pytest` — that hits the wrong interpreter.
+3. A coding assistant in **Agent** mode — either
+   **[Cursor](https://cursor.com/)** or **[VS Code](https://code.visualstudio.com/)**
+   with the [GitHub Copilot](https://code.visualstudio.com/docs/copilot/setup)
+   and Copilot Chat extensions (a Copilot subscription). Skills
+   load from this folder in Cursor. VS Code Copilot looks in
+   `.github/skills/`, `.claude/skills/`, or `.agents/skills/` —
+   not `.cursor/skills/` — so step 4 copies the three skill
+   folders. Claude can use the same files if you copy them into
+   that host's skill dir.
+4. Optional: a Delft-FEWS install, only if you want gauntlet tier 4
    ([FewsCLI `VALIDATE_CONFIG_FILES`](https://publicwiki.deltares.nl/spaces/FEWSDOC/pages/404390665/FewsCLI+utility)).
    Without it, tier 4 is `fews.unavailable` (skip, never a crash).
 
+You do **not** need a pre-existing `.venv`, a global `fews-check`
+install, or Python on `PATH` before step 2.
+
 ## Setup
 
+Work from a folder you own (examples: `~/work` or
+`C:\Users\<you>\work`). Every later command must run from the
+**cloned repo root** — the directory that contains `pyproject.toml`
+and `uv.lock`.
+
+### 1. Install Git
+
+- Windows: [Git for Windows](https://git-scm.com/download/win),
+  then open a **new** PowerShell / Terminal.
+- macOS: `xcode-select --install` (or Homebrew `brew install git`).
+- Linux: `sudo apt install git` / `sudo dnf install git`.
+
 ```bash
+git --version
+```
+
+### 2. Install uv
+
+Official installer ([uv docs](https://docs.astral.sh/uv/getting-started/installation/)):
+
+```powershell
+# Windows PowerShell
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+```
+
+```bash
+# macOS / Linux
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+Close the terminal and open a new one so `uv` is on `PATH`.
+
+```bash
+uv --version
+```
+
+If that fails, the installer printed a directory to add to `PATH`
+(often `~/.local/bin` or `%USERPROFILE%\.local\bin`). Add it, then
+retry. You still do **not** install Python by hand — `uv sync`
+will fetch 3.11+ from `requires-python` in `pyproject.toml`.
+
+### 3. Clone the repo
+
+```bash
+git clone https://github.com/amavrits/fews-agent-2.git
 cd fews-agent-2
+```
+
+SSH, if you already have a GitHub key:
+
+```bash
+git clone git@github.com:amavrits/fews-agent-2.git
+cd fews-agent-2
+```
+
+The folder must contain `pyproject.toml`, `uv.lock`,
+`fews_agent/`, and `.cursor/skills/`. If `git clone` asks for
+credentials, you need access to that GitHub repo.
+
+### 4. Open the folder in Cursor or VS Code
+
+**File → Open Folder** and choose the `fews-agent-2` directory
+itself — not the parent `work` folder, and not a nested
+`session_test` config.
+
+**Cursor.** Skills load from `<workspace>/.cursor/skills/`.
+Switch to **Agent** mode. There is nothing to paste into
+Cursor Settings.
+
+**VS Code.** Install [VS Code](https://code.visualstudio.com/)
+if needed, then the **GitHub Copilot** and **GitHub Copilot Chat**
+extensions, and sign in with the GitHub account that has Copilot.
+Open the same clone root. In Copilot Chat, set the mode to
+**Agent** (not Ask / Edit).
+
+Copilot discovers project skills in `.github/skills/`,
+`.claude/skills/`, or `.agents/skills/` — not this
+`.cursor/skills/` folder. From the repo root, copy the three
+skills once so they auto-load:
+
+```powershell
+# Windows PowerShell
+New-Item -ItemType Directory -Force .github\skills | Out-Null
+foreach ($s in 'fews-config','fews-author-file','fews-diagnose') {
+  Copy-Item -Recurse -Force ".cursor\skills\$s" ".github\skills\$s"
+}
+```
+
+```bash
+# macOS / Linux
+mkdir -p .github/skills
+cp -R .cursor/skills/fews-config \
+      .cursor/skills/fews-author-file \
+      .cursor/skills/fews-diagnose \
+      .github/skills/
+```
+
+Those copies are a local convenience. Leave them untracked —
+`.cursor/skills/` is the source of truth and will drift if you
+commit a second tree. Re-copy after `git pull` if a skill
+changed. No-copy fallback: attach
+`.cursor/skills/README.md` (and the relevant `SKILL.md`) in
+Copilot Chat on the first turn.
+
+Optional leftover MCP (tool-calling without skills) is in
+[README_MCP.md](../../README_MCP.md). The documented path is
+still `uv run fews-check`.
+
+### 5. Create `.venv` and install the package
+
+From the repo root (`fews-agent-2/`, where `pyproject.toml` is):
+
+```bash
 uv sync --group dev
+```
+
+That is the whole environment step. `uv` writes `.venv/` in this
+directory, installs the project (so `fews-check` is on the venv
+PATH), and installs the `dev` group (`pytest`). First run downloads
+wheels and may take a few minutes. Re-run the same command after
+`git pull` if lockfile or dependencies changed.
+
+You never activate the venv for the documented workflow. Prefix
+every tool with `uv run` so the pinned interpreter is used.
+
+### 6. Smoke-test the CLI
+
+Still from the repo root:
+
+```bash
 uv run fews-check --json schema-shape Workflow
 ```
+
+Success is one JSON object with the `Workflow` contract (fields,
+required keys, enums) — not XML, and not an `error` key. That
+proves the package, the SPECS registry, and the venv all resolve.
 
 `--json` is accepted anywhere and is the default. Every command
 prints one JSON object. `--data` / `--xml` take a file path, `-`
 (stdin), or inline JSON/XML.
 
-Confirm the skills are loaded. In Agent mode:
+A second check, useful when a later gate fails:
+
+```bash
+uv run fews-check --json explain xsd.schema
+```
+
+### 7. Confirm the skills are loaded
+
+You should see `fews-config`, `fews-author-file`, and `fews-diagnose`.
+
+**Cursor.** In Agent mode:
 
 ```
 List all skills that are readily available without using another tool or skill
 ```
 
-You should see `fews-config`, `fews-author-file`, and `fews-diagnose`.
+**VS Code.** In Copilot Chat (Agent), type `/` or open the
+skills list (Tools icon on the chat). The three names should
+appear. If they do not, the `.github/skills/` copy in step 4
+was skipped, or Chat is still in Ask / Edit.
 
-Confirm the CLI:
+If they are missing in either host: the workspace root is
+wrong (step 4), or you are not in Agent mode.
 
-```
-uv run fews-check --json explain xsd.schema
-```
+### If a step fails
+
+| Symptom | Likely cause |
+|---|---|
+| `uv: command not found` / `uv is not recognized` | Installer PATH not active — new terminal, or add `~/.local/bin` |
+| `pyproject.toml` / `uv.lock` not found | You are not in the clone root — `cd` into `fews-agent-2` |
+| `fews-check: command not found` | Call `uv run fews-check`, never a bare `fews-check` |
+| `ModuleNotFoundError` / wrong Python | `.venv` missing or stale — re-run `uv sync --group dev` from the repo root |
+| Skills do not appear (Cursor) | Workspace is a parent/child folder, not this repo, or not Agent mode |
+| Skills do not appear (VS Code) | No copy under `.github/skills/`, Copilot Chat is Ask/Edit, or Copilot is not signed in |
+| `git clone` permission denied | No access to `amavrits/fews-agent-2` — use the HTTPS URL your team gave you |
+
+Optional later: `uv run pytest tests/test_fews_check_cli.py tests/test_render_spec.py tests/test_skill_examples.py tests/test_skill_frontmatter.py tests/test_mcp_instructions.py -q`
 
 ## Getting started
 
 ### 1. Check an existing config (diagnose)
 
-Open Agent mode. Point at a real folder (brownfield configs are
-first-class — this agent does not need to have created them):
+Open Agent mode (Cursor) or Copilot Chat **Agent** (VS Code).
+Point at a real folder (brownfield configs are first-class —
+this agent does not need to have created them):
 
 > Open `C:\configs\coolmunda` and validate it. Report XSD, cross-file
 > IDs, and naming issues. Do not change any file yet.
