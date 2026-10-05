@@ -60,6 +60,22 @@ class LiteLLMProvider:
     def __init__(self, model: str = "huggingface/Qwen/Qwen2.5-7B-Instruct") -> None:
         self.model = model
 
+    @staticmethod
+    def _completion(*, temperature: float = 0.2, **kwargs: Any):
+        """litellm.completion with a temperature-rejection fallback.
+
+        ``litellm.drop_params`` only drops params a backend's API doesn't
+        accept at all; Azure reasoning-tier models (gpt-5.x) accept
+        ``temperature`` as a param but reject any non-default value
+        server-side with a BadRequestError. Retry once without it.
+        """
+        try:
+            return litellm.completion(temperature=temperature, **kwargs)
+        except litellm.BadRequestError as exc:
+            if "temperature" not in str(exc).lower():
+                raise
+            return litellm.completion(**kwargs)
+
     # --- Provider -----------------------------------------------------
 
     def chat(
@@ -75,13 +91,12 @@ class LiteLLMProvider:
         kwargs: dict[str, Any] = {
             "model": self.model,
             "messages": payload_messages,
-            "temperature": 0.2,
         }
         if payload_tools:
             kwargs["tools"] = payload_tools
             kwargs["tool_choice"] = tool_choice
 
-        resp = litellm.completion(**kwargs)
+        resp = self._completion(**kwargs)
         choice = resp.choices[0]
         msg = choice.message
 
@@ -137,7 +152,7 @@ class LiteLLMProvider:
                 return self._generate_json_streaming(messages, on_delta)
             except Exception:  # noqa: BLE001 — fall back to non-streaming
                 pass
-        resp = litellm.completion(
+        resp = self._completion(
             model=self.model, messages=messages, temperature=0.1,
         )
         content = resp.choices[0].message.content or ""

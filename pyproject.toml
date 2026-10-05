@@ -29,6 +29,16 @@ dependencies = [
     # Env/secret loading for provider API keys
     "python-dotenv>=1.0.0",
 
+    # ReAct web tools (Overpass station discovery, FEWS wiki lookup)
+    "httpx>=0.27.0",
+
+    # ReAct agent engine (LangGraph loop + LangSmith tracing;
+    # langchain-litellm bridges to the existing LiteLLM/Azure routing)
+    "langgraph>=1.0.0",
+    "langchain-core>=1.0.0",
+    "langchain-litellm>=0.2.0",
+    "langsmith>=0.4.0",
+
     # UI
     "streamlit>=1.40.0",
     "rich (>=15.0.0,<16.0.0)",

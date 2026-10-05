@@ -1,0 +1,10 @@
+[# The GFS one-shot oracle prompt — the success criterion for the ReAct
+prototype, modelled on the colleague's browser-ChatGPT request (replace
+with the verbatim prompt when available). Zero interaction expected. #]
+Set up a complete Delft-FEWS configuration that imports NOAA GFS forecast
+grids for the Gulf of Guinea with precipitation, temperature, wind speed,
+wind direction, and mean sea level pressure. Interpolate the imported
+gridded data to station locations so it shows up in the Data Viewer, and
+visualize the spatial data in the Spatial Display. I am not providing a
+station list — find suitable station locations in the area yourself.
+Deliver a configuration that is XSD-valid and internally consistent.
